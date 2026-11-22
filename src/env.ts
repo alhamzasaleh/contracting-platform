@@ -28,9 +28,14 @@ export function isSupabaseConfigured() {
 
 /**
  * The design preview (sample data only, no database access) is available in
- * development and on Vercel preview deployments, never in production.
+ * development, on Vercel preview deployments when ENABLE_DESIGN_PREVIEW=1,
+ * and in production only until Supabase is connected (so the owner can see
+ * the design on the first deploy). Once the database is connected it is
+ * never served in production.
  */
 export function isDesignPreviewEnabled() {
   if (process.env.NODE_ENV === "development") return true;
-  return process.env.VERCEL_ENV === "preview" && process.env.ENABLE_DESIGN_PREVIEW === "1";
+  if (process.env.ENABLE_DESIGN_PREVIEW !== "1") return false;
+  if (process.env.VERCEL_ENV === "preview") return true;
+  return !isSupabaseConfigured();
 }
