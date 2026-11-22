@@ -102,6 +102,16 @@ describe("pricing engine seed (Appendix A.6)", () => {
     })));
   });
 
+  it("ties gypsum suspension parts to their method", async () => {
+    const r = await as({ userId: owner }, (q) =>
+      q("select role, variant_codes from public.system_components where role in ('rod', 'vertical_hanger') order by role"),
+    );
+    expect(r.rows).toEqual([
+      { role: "rod", variant_codes: ["rod", "double"] },
+      { role: "vertical_hanger", variant_codes: ["vertical_c"] },
+    ]);
+  });
+
   it("keeps the scope helper private", async () => {
     await expectDenied(as({ userId: owner }, (q) => q("select private.apply_scope_defaults($1)", [org])));
   });

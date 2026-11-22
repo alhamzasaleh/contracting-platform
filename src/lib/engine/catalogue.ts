@@ -279,7 +279,8 @@ export function buildEngineConfig(data: CatalogueData, opts: { gypsumBrand?: str
       const row = rows.find((r) => r.role === d.role);
       if (!row) return d;
       // The owner decides: any component can be always or optional.
-      return { ...d, inclusion: row.inclusion, variants: row.variants ?? d.variants };
+      // The owner's choice wins, including "all options" (null).
+      return { ...d, inclusion: row.inclusion, variants: row.variants ?? undefined };
     });
     for (const r of rows) {
       if (!merged.some((m) => m.role === r.role) && r.inclusion !== "always") merged.push({ role: r.role, inclusion: r.inclusion, variants: r.variants ?? undefined });

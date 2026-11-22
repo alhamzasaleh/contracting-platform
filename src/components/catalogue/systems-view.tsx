@@ -33,6 +33,7 @@ export function SystemsView({
   canSeed,
   onSaveSpec,
   onSaveInclusion,
+  onSaveVariants,
   onSeed,
 }: {
   systems: SystemItem[];
@@ -40,6 +41,7 @@ export function SystemsView({
   canSeed: boolean;
   onSaveSpec?: (i: Record<string, unknown>) => Promise<ActionResult>;
   onSaveInclusion?: (i: Record<string, unknown>) => Promise<ActionResult>;
+  onSaveVariants?: (i: Record<string, unknown>) => Promise<ActionResult>;
   onSeed?: () => Promise<ActionResult>;
 }) {
   const t = useTranslations("engine");
@@ -108,10 +110,44 @@ export function SystemsView({
                   // The owner decides for every component: always, or optional per client.
                   const value: Inclusion = c.inclusion;
                   return (
-                    <li key={c.id} className="flex min-h-11 items-center justify-between gap-3 px-3 py-1.5">
+                    <li key={c.id} className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2">
                       <span className="min-w-0 text-[13px]">
                         {c.group}
-                        {variantNames && <span className="block text-[11px] text-muted-foreground">{t("onlyFor", { list: variantNames.join("، ") })}</span>}
+                        {!canManage && variantNames && (
+                          <span className="block text-[11px] text-muted-foreground">{t("onlyFor", { list: variantNames.join("، ") })}</span>
+                        )}
+                        {/* Which options (roller / profile / spray…) this component is used with — the owner ticks them. */}
+                        {canManage && s.variants.length > 1 && (
+                          <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            <span className="text-[11px] text-muted-foreground">{t("usedWith")}</span>
+                            {s.variants.map((v) => {
+                              const on = !c.variants || c.variants.includes(v.code);
+                              const current = c.variants ?? s.variants.map((x) => x.code);
+                              const next = on ? current.filter((x) => x !== v.code) : [...current, v.code];
+                              return (
+                                <button
+                                  key={v.code}
+                                  type="button"
+                                  aria-pressed={on}
+                                  disabled={pending || (on && next.length === 0)}
+                                  onClick={() =>
+                                    run(
+                                      onSaveVariants &&
+                                        (() => onSaveVariants({ id: c.id, variant_codes: next.length === s.variants.length ? null : next })),
+                                      { silent: true },
+                                    )
+                                  }
+                                  className={cn(
+                                    "rounded-full border px-2.5 py-0.5 text-[11px] transition",
+                                    on ? "border-primary/40 bg-primary-soft text-primary" : "border-dashed border-border text-subtle-foreground line-through",
+                                  )}
+                                >
+                                  {v.name}
+                                </button>
+                              );
+                            })}
+                          </span>
+                        )}
                       </span>
                       {!canManage ? (
                         <span className={cn("inline-flex shrink-0 items-center gap-1 text-[12px]", value === "off" ? "text-muted-foreground" : "text-primary")}>

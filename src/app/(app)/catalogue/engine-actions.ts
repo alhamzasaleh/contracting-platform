@@ -245,6 +245,36 @@ export async function saveComponentInclusion(input: unknown): Promise<ActionResu
   return dbError(error) ?? done();
 }
 
+const variantsSchema = z
+  .object({ id, variant_codes: z.array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,39}$/)).min(1).max(10).nullable() })
+  .strict();
+
+/** Which variants (roller / profile / spray…) a component is used with; null = all. */
+export async function saveComponentVariants(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize("catalogue.manage");
+  if (!isCtx(ctx)) return ctx;
+  const parsed = variantsSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { data: comp } = await ctx.supabase
+    .from("system_components")
+    .select("system_id")
+    .eq("id", parsed.data.id)
+    .eq("organization_id", ctx.orgId)
+    .maybeSingle();
+  if (!comp) return { ok: false, error: "invalid" };
+  if (parsed.data.variant_codes) {
+    const { data: variants } = await ctx.supabase.from("system_variants").select("code").eq("system_id", comp.system_id);
+    const known = new Set((variants ?? []).map((v) => v.code));
+    if (!parsed.data.variant_codes.every((c) => known.has(c))) return { ok: false, error: "invalid" };
+  }
+  const { error } = await ctx.supabase
+    .from("system_components")
+    .update({ variant_codes: parsed.data.variant_codes })
+    .eq("id", parsed.data.id)
+    .eq("organization_id", ctx.orgId);
+  return dbError(error) ?? done();
+}
+
 const specSchema = z.object({ id, kind: z.enum(["system", "variant"]), spec_text: optionalText(4000) }).strict();
 
 export async function saveSystemSpec(input: unknown): Promise<ActionResult> {

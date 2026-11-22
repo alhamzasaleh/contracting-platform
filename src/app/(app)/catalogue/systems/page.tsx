@@ -1,7 +1,7 @@
 import { SystemsView } from "@/components/catalogue/systems-view";
 import { can, getSession } from "@/lib/auth/session";
 import { loadSystems } from "@/lib/data/engine";
-import { saveComponentInclusion, saveSystemSpec, seedPricingEngine } from "../engine-actions";
+import { saveComponentInclusion, saveComponentVariants, saveSystemSpec, seedPricingEngine } from "../engine-actions";
 
 export default async function SystemsPage() {
   const session = await getSession();
@@ -13,6 +13,7 @@ export default async function SystemsPage() {
       canSeed={can(session, "catalogue.manage") && can(session, "costs.view")}
       onSaveSpec={saveSystemSpec}
       onSaveInclusion={saveComponentInclusion}
+      onSaveVariants={saveComponentVariants}
       onSeed={seedPricingEngine}
     />
   );

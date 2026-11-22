@@ -821,6 +821,7 @@
     "role_insulation": "Rock-wool insulation",
     "scopeAllAlways": "Every item is always priced for this system.",
     "alwaysCount": "Always priced ({n})",
-    "changeInSystems": "You can make any item optional in Systems."
+    "changeInSystems": "You can make any item optional in Systems.",
+    "usedWith": "Used with:"
   }
 }
