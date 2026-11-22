@@ -18,9 +18,10 @@ jobs:
     if: github.event.inputs.confirm == 'apply'
     runs-on: ubuntu-latest
     environment: production
+    # The scoped access token (database_write) authenticates the database
+    # connection, so no database password is stored in GitHub.
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
     steps:
       - uses: actions/checkout@v4
