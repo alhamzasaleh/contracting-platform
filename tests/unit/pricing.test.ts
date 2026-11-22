@@ -140,3 +140,12 @@ describe("only what the job needs is reported", () => {
     expect(o.problems.map((p) => p.role)).toEqual([]);
   });
 });
+
+describe("coats buttons", () => {
+  it("every step offers none / 1 / 2 / 3 coats (owner)", async () => {
+    const { STEPS } = await import("@/lib/pricing");
+    const slots = Object.values(STEPS).flat().flatMap((s) => s.coats ?? []);
+    expect(slots.length).toBeGreaterThan(0);
+    expect(new Set(slots.map((k) => k.max))).toEqual(new Set([3]));
+  });
+});
