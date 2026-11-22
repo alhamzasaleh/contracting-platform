@@ -26,8 +26,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned: flags change between CLI releases.
+          version: 3.2.0
       - run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
-      - name: Show pending migrations
-        run: supabase migration list
-      - run: supabase db push
+      - name: Show migration status
+        run: supabase migration list --remote
+      - name: Preview (dry run)
+        run: supabase db push --remote --dry-run
+      - name: Apply migrations
+        run: supabase db push --remote --yes
+      - name: Confirm
+        run: supabase migration list --remote
