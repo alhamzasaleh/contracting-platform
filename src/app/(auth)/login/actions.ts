@@ -23,15 +23,22 @@ export async function requestOtp(input: z.input<typeof requestSchema>): Promise<
     rateLimit(`otp:phone:${phone}`, 4, 600),
     rateLimit(`otp:ip:${ip}`, 15, 600),
   ]);
-  if (!byPhone || !byIp) return { ok: false, error: "rateLimited" };
+  if (byPhone === "unavailable" || byIp === "unavailable") return { ok: false, error: "error" };
+  if (byPhone === "limited" || byIp === "limited") return { ok: false, error: "rateLimited" };
 
   const { data: allowed, error: allowErr } = await createAdminClient().rpc("auth_phone_allowed", { p_phone: phone });
-  if (allowErr) return { ok: false, error: "error" };
+  if (allowErr) {
+    console.error("[login] allow-list check failed", { code: allowErr.code, message: allowErr.message });
+    return { ok: false, error: "error" };
+  }
   if (!allowed) return { ok: false, error: "notAllowed" };
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({ phone: `+${phone}`, options: { channel: "sms" } });
-  if (error) return { ok: false, error: error.status === 429 ? "rateLimited" : "error" };
+  if (error) {
+    console.error("[login] send OTP failed", { status: error.status, code: error.code, message: error.message });
+    return { ok: false, error: error.status === 429 ? "rateLimited" : "error" };
+  }
   return { ok: true };
 }
 
@@ -40,11 +47,16 @@ export async function verifyOtp(input: z.input<typeof verifySchema>): Promise<Re
   if (!parsed.success) return { ok: false, error: "codeInvalid" };
   const { phone, code, next } = parsed.data;
 
-  if (!(await rateLimit(`verify:phone:${phone}`, 8, 600))) return { ok: false, error: "rateLimited" };
+  const limit = await rateLimit(`verify:phone:${phone}`, 8, 600);
+  if (limit === "unavailable") return { ok: false, error: "error" };
+  if (limit === "limited") return { ok: false, error: "rateLimited" };
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.verifyOtp({ phone: `+${phone}`, token: code, type: "sms" });
-  if (error || !data.user) return { ok: false, error: "codeInvalid" };
+  if (error || !data.user) {
+    if (error) console.error("[login] verify OTP failed", { status: error.status, code: error.code });
+    return { ok: false, error: "codeInvalid" };
+  }
 
   // Pending invitations become memberships on first sign-in.
   await supabase.rpc("accept_pending_invitations");
