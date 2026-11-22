@@ -92,21 +92,14 @@ describe("pricing engine seed (Appendix A.6)", () => {
     expect(sealer.rows).toEqual([{ category: "sealer" }]);
   });
 
-  it("never lets the finish coats or gypsum parts become optional", async () => {
-    await expectDenied(
-      as({ userId: owner }, (q) =>
-        q("update public.system_components set inclusion = 'on' where role = 'wall_finish'"),
-      ),
-      /always included/,
+  it("lets the owner make any component optional, finish and gypsum parts included", async () => {
+    const r = await as({ userId: owner }, (q) =>
+      q("update public.system_components set inclusion = 'on' where role in ('wall_finish', 'c_channel') returning id"),
     );
-    await expectDenied(
-      as({ userId: owner }, (q) =>
-        q("update public.system_components c set inclusion = 'off' from public.systems s where s.id = c.system_id and s.kind = 'gypsum_ceiling' and c.role = 'c_channel'"),
-      ),
-      /always included/,
-    );
-    const ok = await as({ userId: owner }, (q) => q("update public.system_components set inclusion = 'off' where role = 'primer' returning id"));
-    expect(ok.rowCount).toBe(1);
+    expect(r.rowCount).toBe(2);
+    await expectDenied(as({ userId: viewer }, (q) => q("update public.system_components set inclusion = 'off' where role = 'primer' returning id").then((x) => {
+      if (x.rowCount === 0) throw new Error("permission denied");
+    })));
   });
 
   it("keeps the scope helper private", async () => {

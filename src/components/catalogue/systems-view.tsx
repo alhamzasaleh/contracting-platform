@@ -1,5 +1,5 @@
 "use client";
-import { Layers, Lock, Pencil, Sparkles } from "lucide-react";
+import { Layers, Pencil, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { FormDialog, str, useActionRunner } from "@/components/forms/form-kit";
@@ -10,7 +10,6 @@ import { Field } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { ActionResult } from "@/lib/actions";
-import { FINISH_ROLES } from "@/lib/engine/catalogue";
 import type { SystemKind } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
 
@@ -106,18 +105,16 @@ export function SystemsView({
               <ul className="divide-y divide-border rounded-xl border border-border">
                 {s.components.map((c) => {
                   const variantNames = c.variants?.map((code) => s.variants.find((v) => v.code === code)?.name ?? code);
-                  // Gypsum parts and the finish coats are always priced; only paint preparation items are optional.
-                  const locked = FINISH_ROLES.has(c.role) || s.kind === "gypsum_ceiling" || s.kind === "gypsum_partition";
-                  const value: Inclusion = locked ? "always" : c.inclusion;
+                  // The owner decides for every component: always, or optional per client.
+                  const value: Inclusion = c.inclusion;
                   return (
                     <li key={c.id} className="flex min-h-11 items-center justify-between gap-3 px-3 py-1.5">
                       <span className="min-w-0 text-[13px]">
                         {c.group}
                         {variantNames && <span className="block text-[11px] text-muted-foreground">{t("onlyFor", { list: variantNames.join("، ") })}</span>}
                       </span>
-                      {locked || !canManage ? (
+                      {!canManage ? (
                         <span className={cn("inline-flex shrink-0 items-center gap-1 text-[12px]", value === "off" ? "text-muted-foreground" : "text-primary")}>
-                          {locked && <Lock className="size-3.5" />}
                           {t(value === "always" ? "incAlways" : value === "on" ? "incOnShort" : "incOffShort")}
                         </span>
                       ) : (

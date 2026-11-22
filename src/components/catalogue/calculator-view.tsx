@@ -98,9 +98,8 @@ export function CalculatorView({
 
   // Scope of work: what this client's price includes (always / optional items).
   const [choices, setChoices] = React.useState<Record<string, boolean>>({});
-  const scopeKind =
-    kind === "interior" ? "interior" : kind === "exterior" ? "exterior" : null;
-  const scopeVariant = scopeKind === "interior" ? v.variant : v.method;
+  const scopeKind = kind;
+  const scopeVariant = kind === "interior" ? v.variant : kind === "exterior" ? v.method : v.suspension;
   const resolved = React.useMemo(
     () =>
       scopeKind
@@ -146,6 +145,7 @@ export function CalculatorView({
           troughM: numOr(v.trough),
           shadowM: numOr(v.shadow),
           hatches,
+          scope,
         },
         cfg.gypsum.catalogue,
         {
@@ -393,58 +393,55 @@ export function CalculatorView({
             <p className="text-[12px] text-muted-foreground">
               {t("scopeHint")}
             </p>
-            <ul className="mt-1 grid gap-1">
-              {resolved.items
-                .filter((it) => it.applies)
-                .map((it) => {
-                  const name = t.has(`role_${it.role}`)
-                    ? t(`role_${it.role}`)
-                    : it.role;
-                  const parentOff = it.requires && !resolved.scope[it.requires];
-                  return (
-                    <li
-                      key={it.role}
-                      className="flex min-h-10 items-center justify-between gap-3"
-                    >
-                      <label
-                        htmlFor={`scope-${it.role}`}
-                        className={cn(
-                          "text-[14px]",
-                          !it.included &&
-                            "text-muted-foreground line-through decoration-1",
-                        )}
-                      >
-                        {name}
-                        {parentOff && (
-                          <span className="ms-2 text-[11px] no-underline">
-                            {t("needsParent", {
-                              parent: t(`role_${it.requires}`),
-                            })}
-                          </span>
-                        )}
-                      </label>
-                      {it.optional ? (
-                        <Switch
-                          id={`scope-${it.role}`}
-                          checked={it.included}
-                          disabled={!!parentOff}
-                          aria-label={name}
-                          onCheckedChange={(x) =>
-                            setChoices((c) => ({
-                              ...c,
-                              [`${scopeKind}:${it.role}`]: x,
-                            }))
-                          }
-                        />
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[12px] text-muted-foreground">
-                          <Lock className="size-3.5" /> {t("incAlways")}
+            {(() => {
+              const roleName = (role: string) => (t.has(`role_${role}`) ? t(`role_${role}`) : role);
+              const applying = resolved.items.filter((it) => it.applies);
+              const optional = applying.filter((it) => it.optional);
+              const always = applying.filter((it) => !it.optional);
+              return (
+                <>
+                  {optional.length === 0 && <p className="text-[13px] text-muted-foreground">{t("scopeAllAlways")}</p>}
+                  <ul className="mt-1 grid gap-1">
+                    {optional.map((it) => {
+                      const name = roleName(it.role);
+                      const parentOff = it.requires && !resolved.scope[it.requires];
+                      return (
+                        <li key={it.role} className="flex min-h-10 items-center justify-between gap-3">
+                          <label
+                            htmlFor={`scope-${it.role}`}
+                            className={cn("text-[14px]", !it.included && "text-muted-foreground line-through decoration-1")}
+                          >
+                            {name}
+                            {parentOff && (
+                              <span className="ms-2 text-[11px] no-underline">{t("needsParent", { parent: roleName(it.requires!) })}</span>
+                            )}
+                          </label>
+                          <Switch
+                            id={`scope-${it.role}`}
+                            checked={it.included}
+                            disabled={!!parentOff}
+                            aria-label={name}
+                            onCheckedChange={(x) => setChoices((c) => ({ ...c, [`${scopeKind}:${it.role}`]: x }))}
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {always.length > 0 && (
+                    <details className="group mt-1 rounded-xl bg-surface-sunken/60 px-3 py-2">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[13px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Lock className="size-3.5" /> {t("alwaysCount", { n: always.length })}
                         </span>
-                      )}
-                    </li>
-                  );
-                })}
-            </ul>
+                        <ChevronDown className="size-4 transition group-open:rotate-180" />
+                      </summary>
+                      <p className="mt-2 text-[13px] leading-6">{always.map((it) => roleName(it.role)).join("، ")}</p>
+                      <p className="mt-1 text-[12px] text-subtle-foreground">{t("changeInSystems")}</p>
+                    </details>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
         <div className="grid grid-cols-2 gap-3 border-t border-border pt-5">

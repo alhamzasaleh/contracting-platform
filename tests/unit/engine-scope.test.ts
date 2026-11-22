@@ -66,3 +66,22 @@ describe("engine honours the scope", () => {
     expect(keys(r.lines)).toContain("ext_primer");
   });
 });
+
+describe("owner can make anything optional", () => {
+  it("drops the finish coat when the owner excludes it", () => {
+    const rules = INTERIOR_RULES.map((r) => (r.role === "wall_finish" ? { ...r, inclusion: "on" as const } : r));
+    const scope = resolveScope(rules, "new", { wall_finish: false }).scope;
+    const r = computeInterior({ ...INTERIOR, scope }, PRODUCTS, INTERIOR_PARAMS);
+    expect(keys(r.lines).some((k) => k.startsWith("wall_finish"))).toBe(false);
+  });
+
+  it("drops a gypsum part (e.g. edge angle supplied by the client)", async () => {
+    const { computeGypsum, GYPSUM_CATALOGUE, GYPSUM_PARAMS, GYPSUM_RULES } = await import("@/lib/engine");
+    const rules = GYPSUM_RULES.map((r) => (r.role === "edge_angle" ? { ...r, inclusion: "on" as const } : r));
+    const scope = resolveScope(rules, "rod", { edge_angle: false }).scope;
+    const r = computeGypsum({ quickAreas: { normal: 100 }, scope }, GYPSUM_CATALOGUE, GYPSUM_PARAMS);
+    expect(keys(r.lines)).not.toContain("edge_angle");
+    expect(keys(r.lines)).toContain("c_channel");
+    expect(keys(r.lines)).toContain("labour_ceilings");
+  });
+});

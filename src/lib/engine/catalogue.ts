@@ -1,7 +1,7 @@
 import { COMMERCIAL_DEFAULTS, EXTERIOR_PARAMS, GYPSUM_CATALOGUE, GYPSUM_PARAMS, INTERIOR_PARAMS } from "./defaults";
 import type { Bar, Box, GypsumCatalogue, GypsumParams } from "./gypsum";
 import type { ExteriorParams, InteriorParams, PaintProduct, PaintRole } from "./paint";
-import { EXTERIOR_RULES, INTERIOR_RULES, type ComponentRule, type Inclusion } from "./scope";
+import { EXTERIOR_RULES, GYPSUM_RULES, INTERIOR_RULES, type ComponentRule, type Inclusion } from "./scope";
 
 /**
  * Builds the engine's inputs from the organization's catalogue
@@ -36,7 +36,7 @@ export type CatalogueData = {
   /** consumption_rates key → value (e.g. "gypsum.cSpacing" → 1). */
   rates: Record<string, number>;
   /** Scope rules per paint system (system_components.inclusion / variant_codes). */
-  rules?: { kind: "interior_paint" | "exterior_paint"; role: string; inclusion: Inclusion; variants: string[] | null }[];
+  rules?: { kind: "interior_paint" | "exterior_paint" | "gypsum_ceiling" | "gypsum_partition"; role: string; inclusion: Inclusion; variants: string[] | null }[];
 };
 
 export type EngineWarning =
@@ -55,7 +55,7 @@ export type EngineConfig = {
   brands: string[];
   gypsumBrands: string[];
   /** What's always / optionally included, per paint system. */
-  rules: { interior: ComponentRule[]; exterior: ComponentRule[] };
+  rules: { interior: ComponentRule[]; exterior: ComponentRule[]; gypsum: ComponentRule[] };
   warnings: EngineWarning[];
 };
 
@@ -65,8 +65,6 @@ const PAINT_ROLES: PaintRole[] = ["sealer", "putty", "primer", "wall_finish", "c
 
 const GYPSUM_ROLES = new Set(["board_normal", "board_moisture", "board_fire", "c_channel", "omega", "rod", "vertical_hanger", "edge_angle", "trough_angle", "shadow", "stud", "track"]);
 
-/** The finish coats themselves: always priced (only the method decides which one). */
-export const FINISH_ROLES = new Set(["wall_finish", "ceiling_paint", "moisture", "decorative", "acrylic", "profile", "spray_acrylic"]);
 
 const cheapestPack = (p: CatalogueProduct) =>
   p.packs.filter((k) => k.price != null).sort((a, b) => a.price! / a.size - b.price! / b.size)[0];
@@ -275,20 +273,24 @@ export function buildEngineConfig(data: CatalogueData, opts: { gypsumBrand?: str
   const gypsumBrands = [
     ...new Set(data.products.filter((p) => p.role && GYPSUM_ROLES.has(p.role) && p.brand).map((p) => p.brand!)),
   ];
-  const mergeRules = (defaults: ComponentRule[], kind: "interior_paint" | "exterior_paint"): ComponentRule[] => {
-    const rows = (data.rules ?? []).filter((r) => r.kind === kind);
+  const mergeRules = (defaults: ComponentRule[], ...kinds: NonNullable<CatalogueData["rules"]>[number]["kind"][]): ComponentRule[] => {
+    const rows = (data.rules ?? []).filter((r) => kinds.includes(r.kind));
     const merged = defaults.map((d) => {
       const row = rows.find((r) => r.role === d.role);
       if (!row) return d;
-      // The finish itself is never optional; only its variants can be narrowed.
-      return { ...d, inclusion: FINISH_ROLES.has(d.role) ? "always" : row.inclusion, variants: row.variants ?? d.variants };
+      // The owner decides: any component can be always or optional.
+      return { ...d, inclusion: row.inclusion, variants: row.variants ?? d.variants };
     });
     for (const r of rows) {
       if (!merged.some((m) => m.role === r.role) && r.inclusion !== "always") merged.push({ role: r.role, inclusion: r.inclusion, variants: r.variants ?? undefined });
     }
     return merged;
   };
-  const rules = { interior: mergeRules(INTERIOR_RULES, "interior_paint"), exterior: mergeRules(EXTERIOR_RULES, "exterior_paint") };
+  const rules = {
+    interior: mergeRules(INTERIOR_RULES, "interior_paint"),
+    exterior: mergeRules(EXTERIOR_RULES, "exterior_paint"),
+    gypsum: mergeRules(GYPSUM_RULES, "gypsum_ceiling", "gypsum_partition"),
+  };
 
   return { gypsum: { catalogue, params }, interior, exterior, paintProducts, commercial, brands, gypsumBrands, rules, warnings };
 }

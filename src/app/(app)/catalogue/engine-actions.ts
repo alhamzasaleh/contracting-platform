@@ -7,7 +7,6 @@ import { can, getSession } from "@/lib/auth/session";
 import type { Permission } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { familyOf, PRODUCT_CATEGORIES, PURCHASE_UNITS } from "@/lib/supabase/database.types";
-import { FINISH_ROLES } from "@/lib/engine/catalogue";
 import { firstPackSize, missingFields, normaliseProductFields } from "@/lib/catalogue/product-kinds";
 import { num, optionalNum, optionalText } from "@/lib/validation/numbers";
 
@@ -238,17 +237,6 @@ export async function saveComponentInclusion(input: unknown): Promise<ActionResu
   if (!isCtx(ctx)) return ctx;
   const parsed = inclusionSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
-  // The finish coats and gypsum parts are always priced — never optional.
-  const { data: comp } = await ctx.supabase
-    .from("system_components")
-    .select("role, system_id")
-    .eq("id", parsed.data.id)
-    .eq("organization_id", ctx.orgId)
-    .maybeSingle();
-  if (!comp) return { ok: false, error: "invalid" };
-  const { data: sys } = await ctx.supabase.from("systems").select("kind").eq("id", comp.system_id).maybeSingle();
-  const locked = FINISH_ROLES.has(comp.role) || sys?.kind === "gypsum_ceiling" || sys?.kind === "gypsum_partition";
-  if (locked && parsed.data.inclusion !== "always") return { ok: false, error: "invalid" };
   const { error } = await ctx.supabase
     .from("system_components")
     .update({ inclusion: parsed.data.inclusion })

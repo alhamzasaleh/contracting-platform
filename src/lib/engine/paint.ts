@@ -204,13 +204,13 @@ export function computeInterior(input: InteriorInput, products: PaintProduct[], 
     const primer = inc("primer") ? get("primer") : undefined;
     if (primer) lines.push(productLine("primer", primer, { walls: walls * p.coats.primer * spot, ceilings: ceilings * p.coats.primer * spot }, p.wastePercent));
 
-    const finish = get("wall_finish");
+    const finish = inc("wall_finish") ? get("wall_finish") : undefined;
     if (finish) {
       for (const c of colourSplit(baseWalls, finish.colourSpecific ? input.colours : 1, input.colourNames)) {
         lines.push(productLine(`wall_finish_${c.colour}`, finish, { walls: c.area * p.coats.wallFinish }, p.wastePercent, { colour: finish.colourSpecific ? c.colour : undefined }));
       }
     }
-    const ceilingPaint = get("ceiling_paint");
+    const ceilingPaint = inc("ceiling_paint") ? get("ceiling_paint") : undefined;
     if (ceilingPaint) {
       const n = ceilingPaint.colourSpecific ? (input.ceilingColours ?? 1) : 1;
       for (const c of colourSplit(ceilings, n, input.ceilingColourNames)) {
@@ -221,6 +221,7 @@ export function computeInterior(input: InteriorInput, products: PaintProduct[], 
 
     for (const z of zones) {
       const role: PaintRole = z.kind === "wet" ? "moisture" : z.kind === "decorative" ? "decorative" : (z.finishRole ?? "wall_finish");
+      if (!inc(role)) continue;
       const prod = get(role);
       if (!prod) continue;
       const coats = z.coats ?? (z.kind === "wet" ? p.coats.moisture : z.kind === "decorative" ? 1 : p.coats.wallFinish);
@@ -299,7 +300,7 @@ export function computeExterior(input: ExteriorInput, products: PaintProduct[], 
     const putty = withPutty ? get("ext_putty") : undefined;
     if (putty) lines.push(productLine("ext_putty", putty, { facades: area * p.coats.putty }, p.wastePercent));
     const role: PaintRole = input.method === "spray" ? "spray_acrylic" : input.method === "profile" ? "profile" : "acrylic";
-    const finish = get(role);
+    const finish = inc(role) ? get(role) : undefined;
     if (finish) {
       const waste = input.method === "spray" ? p.sprayWastePercent : undefined;
       for (const c of colourSplit(area, finish.colourSpecific ? input.colours : 1, input.colourNames)) {

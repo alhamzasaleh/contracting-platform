@@ -109,7 +109,6 @@ export async function loadSystems(session: SessionContext): Promise<SystemItem[]
 export async function loadEngineData(session: SessionContext): Promise<CatalogueData> {
   const [{ products }, rates, systems] = await Promise.all([loadProducts(session), loadRates(session), loadSystems(session)]);
   const rules = systems
-    .filter((s): s is typeof s & { kind: "interior_paint" | "exterior_paint" } => s.kind === "interior_paint" || s.kind === "exterior_paint")
     .flatMap((s) => s.components.map((c) => ({ kind: s.kind, role: c.role, inclusion: c.inclusion, variants: c.variants })));
   return {
     products: products

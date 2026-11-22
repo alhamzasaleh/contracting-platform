@@ -68,6 +68,8 @@ export type GypsumInput = {
   /** Zone overrides: e.g. { wet: { boardType: "moisture" } } */
   zoneOverrides?: Record<string, { boardType?: BoardType }>;
   executeOnly?: boolean;
+  /** What's included for this client (see scope.ts). Missing role = included. */
+  scope?: Record<string, boolean>;
 };
 
 const BOARD_LABEL: Record<BoardType, string> = { normal: "ألواح جبس عادي", moisture: "ألواح جبس مقاوم للرطوبة", fire: "ألواح جبس مقاوم للحريق" };
@@ -327,8 +329,11 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
     lines.push({ key: `hatch_${size}`, group: "hatch", label: `فتحة صيانة ${size}`, need: count, needUnit: "pcs", purchase: { kind: "units", count }, qty: count, unit: "pcs", unitPrice: price, cost: count * price, formula: "count × supply & install price", inputs: { count, price }, workType: "ceilings" });
   }
 
+  // Components the owner marked as not included for this client are left out.
+  const ROLE_OF: Record<string, string> = { studs: "stud", tracks: "track", vertical_c: "vertical_hanger" };
+  const included = (l: Line) => l.group !== "material" || input.scope?.[ROLE_OF[l.key] ?? l.key] !== false;
   return {
-    lines,
+    lines: lines.filter(included),
     areas: { ceilings: ceilingArea, partitions: partitionArea },
     status: measured || !(input.quickAreas && ceilingArea > 0) ? "measured" : "estimated",
     warnings,
