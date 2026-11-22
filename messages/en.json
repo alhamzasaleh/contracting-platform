@@ -125,7 +125,13 @@
     "setupCatalogue": "Add services and your cost price list",
     "comingNext": "In progress",
     "emptyKpi": "No data yet",
-    "phase": "Phase {n}"
+    "phase": "Phase {n}",
+    "newQuote": "New quotation",
+    "sar": "SAR",
+    "actualMargin": "Actual profit margin",
+    "marginHint": "Actual vs expected — appears with the first project",
+    "projectsEmpty": "Your first project appears here",
+    "approvalsHint": "Below-minimum margins, discounts and large purchases appear here for one-tap approval."
   },
   "settings": {
     "title": "Settings",

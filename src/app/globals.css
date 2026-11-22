@@ -10,72 +10,85 @@
    -------------------------------------------------------------------------- */
 
 :root {
-  --brand-light: #0f766e;
+  /* Brand (replaced per organization from its logo; see BrandStyle). */
+  --brand-light: #1e4d4a;
   --brand-light-fg: #ffffff;
-  --brand-dark: #2dd4bf;
-  --brand-dark-fg: #0b0b0f;
-  --accent-light: #c2410c;
+  --brand-dark: #9db4a8;
+  --brand-dark-fg: #121416;
+  --accent-light: #4f6f66;
   --accent-light-fg: #ffffff;
-  --accent-dark: #fb923c;
-  --accent-dark-fg: #0b0b0f;
+  --accent-dark: #b9cec6;
+  --accent-dark-fg: #121416;
 
-  --radius: 0.75rem;
+  --radius: 1rem;
 
-  --background: oklch(0.985 0.002 260);
-  --foreground: oklch(0.2 0.012 265);
-  --surface: oklch(1 0 0);
-  --surface-2: oklch(0.975 0.003 260);
-  --surface-sunken: oklch(0.965 0.004 260);
-  --muted-foreground: oklch(0.5 0.014 265);
-  --subtle-foreground: oklch(0.62 0.012 265);
-  --border: oklch(0.92 0.005 265);
-  --border-strong: oklch(0.86 0.008 265);
+  /* "Atelier" neutrals: warm sand + charcoal ink. */
+  --background: #f2efe9;
+  --foreground: #17191b;
+  --surface: #fbfaf7;
+  --surface-2: #f5f2ec;
+  --surface-sunken: #e9e4da;
+  --muted-foreground: #5f5c55;
+  --subtle-foreground: #7d796f;
+  --border: #e5e0d6;
+  --border-strong: #cfc9bd;
   --ring: color-mix(in oklch, var(--primary) 55%, transparent);
+
+  /* Ink: the dark sidebar and emphasis panels (same in light and dark). */
+  --ink: #17191b;
+  --ink-2: #222629;
+  --ink-3: #2c3033;
+  --ink-foreground: #d9d6cf;
+  --ink-muted: #8b8f92;
 
   --primary: var(--brand-light);
   --primary-foreground: var(--brand-light-fg);
   --accent: var(--accent-light);
   --accent-foreground: var(--accent-light-fg);
 
-  --success: oklch(0.56 0.13 155);
-  --warning: oklch(0.7 0.15 70);
-  --danger: oklch(0.58 0.2 25);
-  --info: oklch(0.58 0.14 245);
+  --success: #2f6b4f;
+  --warning: #9a6b12;
+  --danger: #a23b3b;
+  --info: #2f5f8a;
 
-  --shadow-color: 230 20% 20%;
+  --shadow-color: 35 15% 25%;
   --shadow-xs: 0 1px 2px hsl(var(--shadow-color) / 0.05);
-  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 2px 6px -1px hsl(var(--shadow-color) / 0.06);
-  --shadow-md: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 8px 24px -6px hsl(var(--shadow-color) / 0.1);
-  --shadow-lg: 0 2px 4px hsl(var(--shadow-color) / 0.04), 0 24px 48px -12px hsl(var(--shadow-color) / 0.18);
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 2px 6px -1px hsl(var(--shadow-color) / 0.05);
+  --shadow-md: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 10px 28px -8px hsl(var(--shadow-color) / 0.12);
+  --shadow-lg: 0 2px 4px hsl(var(--shadow-color) / 0.04), 0 28px 56px -16px hsl(var(--shadow-color) / 0.22);
 
   color-scheme: light;
 }
 
 .dark {
-  --background: oklch(0.155 0.006 265);
-  --foreground: oklch(0.95 0.004 265);
-  --surface: oklch(0.19 0.007 265);
-  --surface-2: oklch(0.215 0.008 265);
-  --surface-sunken: oklch(0.135 0.006 265);
-  --muted-foreground: oklch(0.7 0.012 265);
-  --subtle-foreground: oklch(0.58 0.012 265);
-  --border: oklch(0.27 0.008 265);
-  --border-strong: oklch(0.34 0.01 265);
+  --background: #121416;
+  --foreground: #ece9e3;
+  --surface: #1a1d20;
+  --surface-2: #202427;
+  --surface-sunken: #0e1012;
+  --muted-foreground: #a9a69f;
+  --subtle-foreground: #8b8f92;
+  --border: #262a2e;
+  --border-strong: #353a3e;
+
+  --ink: #0d0f10;
+  --ink-2: #1c2023;
+  --ink-3: #262a2e;
 
   --primary: var(--brand-dark);
   --primary-foreground: var(--brand-dark-fg);
   --accent: var(--accent-dark);
   --accent-foreground: var(--accent-dark-fg);
 
-  --success: oklch(0.72 0.15 155);
-  --warning: oklch(0.8 0.14 75);
-  --danger: oklch(0.7 0.18 25);
-  --info: oklch(0.72 0.12 245);
+  --success: #8cc5a4;
+  --warning: #e3b45a;
+  --danger: #e08a8a;
+  --info: #8db6dc;
 
-  --shadow-color: 230 30% 2%;
+  --shadow-color: 210 20% 2%;
   --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.4);
-  --shadow-md: 0 8px 24px -6px hsl(var(--shadow-color) / 0.55);
-  --shadow-lg: 0 24px 48px -12px hsl(var(--shadow-color) / 0.7);
+  --shadow-md: 0 10px 28px -8px hsl(var(--shadow-color) / 0.55);
+  --shadow-lg: 0 28px 56px -16px hsl(var(--shadow-color) / 0.7);
 
   color-scheme: dark;
 }
@@ -106,6 +119,11 @@
   --color-danger-soft: color-mix(in oklch, var(--danger) 12%, transparent);
   --color-info: var(--info);
   --color-info-soft: color-mix(in oklch, var(--info) 12%, transparent);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-ink-muted: var(--ink-muted);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -118,8 +136,8 @@
   --shadow-md: var(--shadow-md);
   --shadow-lg: var(--shadow-lg);
 
-  --font-sans: "IBM Plex Sans Arabic", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-latin: "Inter Variable", "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Almarai", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-latin: "Inter Variable", "Almarai", ui-sans-serif, system-ui, sans-serif;
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -157,7 +175,7 @@
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "cv11";
+    font-feature-settings: "tnum";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }

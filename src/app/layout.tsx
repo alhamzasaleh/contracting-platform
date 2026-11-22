@@ -1,8 +1,7 @@
-import "@fontsource/ibm-plex-sans-arabic/300.css";
-import "@fontsource/ibm-plex-sans-arabic/400.css";
-import "@fontsource/ibm-plex-sans-arabic/500.css";
-import "@fontsource/ibm-plex-sans-arabic/600.css";
-import "@fontsource/ibm-plex-sans-arabic/700.css";
+import "@fontsource/almarai/300.css";
+import "@fontsource/almarai/400.css";
+import "@fontsource/almarai/700.css";
+import "@fontsource/almarai/800.css";
 import "@fontsource-variable/inter/index.css";
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
@@ -30,8 +29,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbfbfa" },
-    { media: "(prefers-color-scheme: dark)", color: "#141418" },
+    { media: "(prefers-color-scheme: light)", color: "#f2efe9" },
+    { media: "(prefers-color-scheme: dark)", color: "#121416" },
   ],
 };
 

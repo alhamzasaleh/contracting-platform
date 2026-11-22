@@ -5,14 +5,14 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export const buttonVariants = cva(
-  "relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-[background-color,box-shadow,transform,color,border-color] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-bold transition-[background-color,box-shadow,transform,color,border-color] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         primary:
-          "bg-primary text-primary-foreground shadow-sm shadow-primary/20 hover:bg-[color-mix(in_oklch,var(--primary)_88%,black)] inset-ring inset-ring-white/10",
+          "bg-primary text-primary-foreground hover:bg-[color-mix(in_oklch,var(--primary)_86%,black)]",
         secondary:
-          "border border-border bg-surface text-foreground shadow-xs hover:bg-surface-2 hover:border-border-strong",
+          "border border-border-strong bg-surface text-foreground hover:bg-surface-2",
         ghost: "text-muted-foreground hover:bg-surface-2 hover:text-foreground",
         soft: "bg-primary-soft text-primary hover:bg-[color-mix(in_oklch,var(--primary)_16%,transparent)]",
         danger: "bg-danger text-white shadow-sm hover:bg-[color-mix(in_oklch,var(--danger)_88%,black)]",
@@ -20,9 +20,9 @@ export const buttonVariants = cva(
       },
       size: {
         sm: "h-8 px-3 text-[13px]",
-        md: "h-10 px-4",
-        lg: "h-12 px-5 text-[15px]",
-        xl: "h-14 px-6 text-base rounded-xl",
+        md: "h-11 px-5",
+        lg: "h-12 px-6 text-[15px]",
+        xl: "h-14 px-7 text-base",
         icon: "size-10",
         "icon-sm": "size-8",
       },

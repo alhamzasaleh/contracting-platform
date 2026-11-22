@@ -151,11 +151,28 @@
 - **Brand colours extracted automatically from the uploaded logo** and applied to quote, contract, invoice and client page templates (editable).
 - Price lists, minimum margin, overhead %, service stages/specs/productivity, warranty default, approval limits, Qoyod key, WhatsApp settings.
 
+
+### 3.20 Employees, payroll & true labour cost (added by owner)
+- **Employee record**: name, nationality (Saudi / non-Saudi), job (painter, gypsum installer, supervisor, driver…), ID/iqama number and expiry, passport expiry, phone, start date, salary components (basic, housing, transport, other allowances), bank/IBAN for WPS, assigned supervisor/team, status (active, on leave, final exit). Documents (iqama, passport, contract, insurance card) as private files.
+- **Monthly payroll**: salaries + overtime + deductions/advances → payslip per employee; obligations feed the cash-flow forecast (§3.16). Export for the bank / Wage Protection System (Mudad) when needed. Sync salary entries to Qoyod (§3.15).
+- **Government & statutory costs** — each is a configurable line in Settings (amounts change by regulation; never hard-code them, show the "last updated" date and remind the owner to review):
+  - **GOSI** (social insurance) employer share — different rates for Saudi and non-Saudi employees.
+  - **Medical insurance** (mandatory CCHI cover for non-Saudi employees and dependants as applicable) — annual premium per employee, with expiry reminders.
+  - **Iqama** issuance/renewal fee and **work permit / expat levy (المقابل المالي)** — per non-Saudi employee per year.
+  - **Recruitment**: work visa fee, recruitment office fee, air ticket, medical check.
+  - **Sponsorship transfer (نقل الكفالة / نقل خدمات)** fee when hiring locally.
+  - **Exit/re-entry visas**, annual leave ticket, end-of-service benefit (مكافأة نهاية الخدمة) accrual per Saudi Labour Law, annual leave accrual.
+  - Labour housing and transport (also part of overheads §3.3).
+- **Fully loaded cost per worker**: (monthly salary + allowances + monthly share of all the above) ÷ working days → **cost per worker-day**. This feeds in-house labour pricing (§3.3) and actual project cost (team days on site × cost per worker-day).
+- **Reminders** (§3.18): iqama, passport, insurance and work-permit expiry (e.g. 60/30/7 days before), probation end, contract renewal.
+- Saudization (Nitaqat) indicator: count of Saudi vs non-Saudi employees, shown on the HR page.
+- Permissions: salaries and personal documents visible only with a dedicated permission (`hr.view` / `hr.manage`); supervisors see their team's schedule but not salaries. Personal data per PDPL (minimal, purpose-bound, deletable).
+
 ---
 
 ## 4. Data model (core tables, all with `organization_id`, `created_at`, `created_by`)
 
-organizations · users/memberships (role + permission overrides) · clients · suppliers · subcontractors · services · service_stages · spec_templates · materials · material_prices (history) · service_material_recipes · requests · surveys · survey_items (rooms/areas) · quotes · quote_versions · quote_lines (price snapshot) · contracts · contract_services · addenda · payment_schedules · payments · projects · project_teams · schedule_entries · site_visits (gps, time) · progress_updates · stage_handover_confirmations · purchases · purchase_lines · purchase_attachments · inventory_items · inventory_movements · subcontractor_agreements · subcontractor_payments · petty_cash_accounts · petty_cash_entries · overhead_settings · warranties · maintenance_requests · client_notes · client_portal_links (token, expires_at, revoked) · approvals · notifications · notification_preferences · audit_log · qoyod_sync_jobs · document_sequences.
+organizations · users/memberships (role + permission overrides) · clients · suppliers · subcontractors · services · service_stages · spec_templates · materials · material_prices (history) · service_material_recipes · requests · surveys · survey_items (rooms/areas) · quotes · quote_versions · quote_lines (price snapshot) · contracts · contract_services · addenda · payment_schedules · payments · projects · project_teams · schedule_entries · site_visits (gps, time) · progress_updates · stage_handover_confirmations · purchases · purchase_lines · purchase_attachments · inventory_items · inventory_movements · subcontractor_agreements · subcontractor_payments · petty_cash_accounts · petty_cash_entries · overhead_settings · warranties · maintenance_requests · client_notes · client_portal_links (token, expires_at, revoked) · approvals · notifications · notification_preferences · audit_log · qoyod_sync_jobs · document_sequences · employees · employee_documents · payroll_runs · payroll_lines · employee_cost_settings (GOSI, insurance, iqama, levy, visa, transfer…) · employee_advances · leave_records.
 
 ---
 
@@ -171,7 +188,8 @@ organizations · users/memberships (role + permission overrides) · clients · s
 ## 6. Design direction (must feel premium)
 
 - Level: world-class SaaS (think Linear / Stripe / Vercel dashboards), adapted for Arabic.
-- Arabic typography: IBM Plex Sans Arabic or Tajawal (UI), with proper Arabic numerals setting (user choice: ٠١٢ or 012).
+- **Approved direction: "Atelier"** (owner-approved Nov 2026; mock-ups in the design canvas): warm sand neutrals, charcoal "ink" sidebar and emphasis panels, deep petrol-green primary with sage accent, the **arch** motif (logo mark, photo frames, client page hero), pill buttons, large rounded cards. **No orange** in the identity. Brand colours will later be replaced by the logo's colours.
+- Arabic typography: **Almarai** (UI and documents); Inter for English. **Numbers are Western digits (123) in both languages** by default.
 - Theme built from brand colours (from logo), light + dark mode, refined neutrals, generous spacing, soft depth (subtle shadows/glass where it adds clarity, never decoration for its own sake).
 - Dashboard: animated KPI cards, interactive ECharts (cash-flow forecast, expected vs actual profit, service profitability, receivables ageing), drill-down on click, skeleton loaders, smooth page transitions.
 - Mobile/iPad first for supervisors: big touch targets, camera-first flows, one-hand use on site, offline drafts that sync later.
@@ -210,14 +228,14 @@ Always show AI output as a **draft for human review**; never auto-post financial
 ## 9. Build phases
 
 1. **Foundation**: repo, Next.js, Supabase, auth (phone OTP), organizations, roles/permissions, RLS, audit log, i18n + RTL, design system & app shell, company settings with logo-colour extraction, document numbering. Deploy.
-2. **Catalogue & costing**: services, stages, spec templates, materials, price history, recipes, waste, labour, overheads, margin rules.
+2. **Catalogue & costing**: services, stages, spec templates, materials, price history, recipes, waste, labour, overheads, margin rules, **employees & government cost settings → fully loaded cost per worker-day** (§3.20).
 3. **Clients → survey → quote**: requests, measurements (room/total), pricing engine, quote versions, branded PDF, approvals for margin/discount.
 4. **Client page & contracts**: portal link, e-acceptance, contract with start date, project types, payment schedule with 75% warning.
 5. **Scheduling**: calendar, team schedule, earliest-start suggestion, overlap warnings.
 6. **Purchases & inventory**: AI invoice reading, estimated vs actual, stock transfers, purchase approvals.
 7. **Execution**: site check-in with GPS, progress & photos, stage handover confirmations, client notes, final handover certificate.
 8. **Additional works, subcontractors, petty cash.**
-9. **Finance dashboard & notifications**: cash-flow forecast, profits, receivables, approvals card, WhatsApp + push.
+9. **Finance dashboard & notifications**: cash-flow forecast, profits, receivables, approvals card, WhatsApp + push, **monthly payroll, payslips and document-expiry reminders** (§3.20).
 10. **Qoyod integration** (sandbox → production) and invoice PDF delivery.
 11. **Warranty & maintenance requests.**
 12. **AI assistant, polish, performance, full security review, PWA install & offline.**
@@ -248,4 +266,4 @@ Guide the owner through each one step by step when it's first needed.
 - Permissions: keys in `private.all_permissions()` and `src/lib/auth/permissions.ts` (a test keeps them in sync).
 - Server actions: validate with Zod (`.strict()`), check permission via `getSession()`/`can()`, then write with the user's Supabase client (RLS applies). The service-role client (`src/lib/supabase/admin.ts`) is only for rate limiting and the phone allow-list.
 - UI: page views are pure components taking props, so `/dev/preview` can render them with sample data. Text lives in `messages/ar.json` + `messages/en.json` (same keys; no dots inside keys). Numbers/money/dates go through `useFormatter()` / `getFormatter()` (respects ٠١٢ vs 012). Use logical CSS (`ms-`, `pe-`, `start-`) so RTL and LTR both work.
-- Brand colours: `organizations.brand` → `BrandStyle` derives accessible light/dark tokens (`src/lib/brand/color.ts`).
+- Brand colours: `organizations.brand` → `BrandStyle` derives accessible light/dark tokens (`src/lib/brand/color.ts`). Neutral and "ink" tokens live in `src/app/globals.css`.

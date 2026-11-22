@@ -24,7 +24,7 @@ export function SettingsNav({ permissions, basePath = "" }: { permissions: Permi
             href={`${basePath}${i.href}`}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative flex h-11 shrink-0 items-center gap-2.5 px-3 text-[14px] font-medium whitespace-nowrap transition-colors lg:h-9 lg:rounded-lg",
+              "relative flex h-11 shrink-0 items-center gap-2.5 px-3 text-[14px] font-medium whitespace-nowrap transition-colors lg:h-10 lg:rounded-xl",
               active
                 ? "text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary lg:bg-surface lg:shadow-sm lg:ring-1 lg:ring-border lg:after:hidden"
                 : "text-muted-foreground hover:text-foreground lg:hover:bg-surface-2/70",
@@ -55,7 +55,7 @@ export function SettingsFrame({
   return (
     <div>
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">{title}</h1>
+        <h1 className="text-[28px] leading-tight font-extrabold sm:text-[36px]">{title}</h1>
         <p className="mt-1.5 text-[15px] text-muted-foreground">{description}</p>
       </div>
       <div className="grid gap-6 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-10">

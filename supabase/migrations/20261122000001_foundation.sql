@@ -91,7 +91,7 @@ create table public.organizations (
   address text check (char_length(address) <= 300),
   logo_path text check (char_length(logo_path) <= 300),
   -- Brand palette: {"primary":"#RRGGBB","accent":"#RRGGBB","source":"logo|manual"}
-  brand jsonb not null default '{"primary":"#0F766E","accent":"#C2410C","source":"default"}'::jsonb
+  brand jsonb not null default '{"primary":"#1E4D4A","accent":"#4F6F66","source":"default"}'::jsonb
     check (
       jsonb_typeof(brand) = 'object'
       and brand ->> 'primary' ~ '^#[0-9A-Fa-f]{6}$'

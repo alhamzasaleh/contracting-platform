@@ -23,7 +23,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useFormatter } from "@/components/formatter-provider";
 import { CommandMenu } from "./command-menu";
 import { OrgMark } from "./org-mark";
-import { SidebarNav } from "./sidebar";
+import { SidebarBrand, SidebarNav } from "./sidebar";
 import type { ShellData } from "./types";
 
 export function Topbar({ data }: { data: ShellData }) {
@@ -71,7 +71,7 @@ export function Topbar({ data }: { data: ShellData }) {
         <button
           type="button"
           onClick={() => setCmdOpen(true)}
-          className="ms-auto flex size-10 items-center justify-center gap-2.5 rounded-lg text-sm text-subtle-foreground transition-colors hover:text-foreground sm:ms-0 sm:h-10 sm:w-full sm:max-w-sm sm:justify-start sm:border sm:border-border sm:bg-surface sm:px-3 sm:shadow-xs sm:hover:border-border-strong lg:max-w-md"
+          className="ms-auto flex size-10 items-center justify-center gap-2.5 rounded-lg text-sm text-subtle-foreground transition-colors hover:text-foreground sm:ms-0 sm:h-11 sm:w-full sm:max-w-sm sm:justify-start sm:rounded-full sm:border sm:border-border sm:bg-surface sm:px-4 sm:hover:border-border-strong lg:max-w-md"
           aria-label={t("nav.commandHint")}
         >
           <Search className="size-4 shrink-0" />
@@ -142,14 +142,13 @@ export function Topbar({ data }: { data: ShellData }) {
       </div>
 
       <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
-        <DialogContent side="start" closeLabel={t("common.close")} aria-describedby={undefined} className="flex flex-col">
-          <div className="flex h-16 items-center gap-3 border-b border-border px-5">
-            <OrgMark name={data.org.name} logoUrl={data.org.logoUrl} />
-            <div className="min-w-0">
-              <p className="truncate text-[14px] font-semibold">{data.org.name}</p>
-              <p className="text-xs text-muted-foreground">{t(`roles.${data.role}`)}</p>
-            </div>
-          </div>
+        <DialogContent
+          side="start"
+          closeLabel={t("common.close")}
+          aria-describedby={undefined}
+          className="flex flex-col border-ink-3 bg-ink text-ink-foreground [&>button:last-child]:text-ink-muted [&>button:last-child]:hover:bg-ink-2"
+        >
+          <SidebarBrand data={data} />
           <div className="flex-1 overflow-y-auto px-3 py-4">
             <span className="sr-only" id="mobile-nav-title">{t("nav.menu")}</span>
             <SidebarNav data={data} onNavigate={() => setMenuOpen(false)} />

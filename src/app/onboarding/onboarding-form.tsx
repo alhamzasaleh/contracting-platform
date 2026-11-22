@@ -31,7 +31,7 @@ export function OnboardingForm({ defaultName }: { defaultName?: string | null })
   return (
     <form action={submit} className="flex flex-col gap-5" noValidate>
       <div>
-        <h1 className="text-[28px] font-semibold tracking-tight">{t("onboarding.title")}</h1>
+        <h1 className="text-[28px] font-extrabold">{t("onboarding.title")}</h1>
         <p className="mt-2 text-[15px] text-muted-foreground">{t("onboarding.subtitle")}</p>
       </div>
       <Field id="fullName" label={t("onboarding.yourName")} error={errors.fullName ? t("common.required") : undefined}>

@@ -13,7 +13,7 @@ export const SAMPLE_ORG = {
   email: "info@example.com",
   city: "الرياض",
   address: "حي العليا، طريق الملك فهد",
-  brand: { primary: "#0F766E", accent: "#C2410C", source: "default" as const },
+  brand: { primary: "#1E4D4A", accent: "#4F6F66", source: "default" as const },
 };
 
 export const SAMPLE_SHELL: ShellData = {
@@ -40,6 +40,6 @@ export const SAMPLE_AUDIT: AuditItem[] = [
   { id: 6, at: ago(4), actor: "صالح العتيبي", action: "update", table: "organizations", changes: [{ field: "vat_number", before: null, after: "310000000000003" }] },
   { id: 5, at: ago(38), actor: "صالح العتيبي", action: "insert", table: "member_invitations", changes: [{ field: "role", before: null, after: "supervisor" }, { field: "phone", before: null, after: "966599887766" }] },
   { id: 4, at: ago(60 * 5), actor: "صالح العتيبي", action: "update", table: "memberships", changes: [{ field: "status", before: "active", after: "suspended" }] },
-  { id: 3, at: ago(60 * 26), actor: "صالح العتيبي", action: "update", table: "organizations", changes: [{ field: "brand", before: { primary: "#0F766E" }, after: { primary: "#0E7490", accent: "#EA580C" } }] },
+  { id: 3, at: ago(60 * 26), actor: "صالح العتيبي", action: "update", table: "organizations", changes: [{ field: "brand", before: { primary: "#1E4D4A" }, after: { primary: "#1E4D4A", accent: "#4F6F66" } }] },
   { id: 2, at: ago(60 * 50), actor: null, action: "insert", table: "memberships", changes: [{ field: "role", before: null, after: "owner" }] },
 ];

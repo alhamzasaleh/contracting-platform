@@ -87,7 +87,7 @@ export function LoginForm({ next, demo }: { next?: string; demo?: boolean }) {
             noValidate
           >
             <div>
-              <h1 className="text-[28px] font-semibold tracking-tight">{t("auth.welcome")}</h1>
+              <h1 className="text-[28px] font-extrabold">{t("auth.welcome")}</h1>
               <p className="mt-2 text-[15px] text-muted-foreground">{t("auth.subtitle")}</p>
             </div>
             <div className="grid gap-2">
@@ -131,7 +131,7 @@ export function LoginForm({ next, demo }: { next?: string; demo?: boolean }) {
             className="flex flex-col gap-6"
           >
             <div>
-              <h1 className="text-[28px] font-semibold tracking-tight">{t("auth.code")}</h1>
+              <h1 className="text-[28px] font-extrabold">{t("auth.code")}</h1>
               <p className="mt-2 text-[15px] text-muted-foreground">
                 {t("auth.codeSentTo")}{" "}
                 <span className="ltr-inline font-medium text-foreground">{fmt.digits(pretty)}</span>

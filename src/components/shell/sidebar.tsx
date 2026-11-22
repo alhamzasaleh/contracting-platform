@@ -3,7 +3,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { motion } from "motion/react";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { NAV, isActive, type NavItem } from "./nav";
 import { OrgMark } from "./org-mark";
@@ -25,7 +24,7 @@ export function SidebarNav({ data, onNavigate }: { data: ShellData; onNavigate?:
         return (
           <div key={group.key ?? gi} className="flex flex-col gap-0.5">
             {group.key && (
-              <p className="px-3 pb-1.5 text-[11px] font-semibold tracking-wide text-subtle-foreground uppercase">
+              <p className="px-3 pb-1.5 text-[11px] font-bold tracking-wide text-ink-muted">
                 {t(`nav.${group.key}`)}
               </p>
             )}
@@ -38,27 +37,27 @@ export function SidebarNav({ data, onNavigate }: { data: ShellData; onNavigate?:
                   {active && (
                     <motion.span
                       layoutId="sidebar-active"
-                      className="absolute inset-0 rounded-lg bg-surface shadow-sm ring-1 ring-border"
+                      className="absolute inset-0 rounded-xl bg-ink-2"
                       transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
                     />
                   )}
                   <Icon
                     className={cn(
                       "relative size-[18px] shrink-0 transition-colors",
-                      active ? "text-primary" : "text-subtle-foreground group-hover:text-muted-foreground",
+                      active ? "text-[var(--brand-dark)]" : "text-ink-muted group-hover:text-ink-foreground",
                     )}
                     strokeWidth={1.75}
                   />
                   <span className="relative flex-1 truncate">{t(`nav.${item.key}`)}</span>
                   {soon && (
-                    <Badge className="relative px-1.5 py-0 text-[10px] font-normal">{t("common.soon")}</Badge>
+                    <span className="relative rounded-full bg-ink-3 px-2 py-0.5 text-[10px] text-ink-muted">{t("common.soon")}</span>
                   )}
                 </>
               );
               const cls = cn(
-                "group relative flex h-10 items-center gap-3 rounded-lg px-3 text-[14px] font-medium transition-colors lg:h-9",
-                active ? "text-foreground" : "text-muted-foreground hover:bg-surface-2/70 hover:text-foreground",
-                soon && "cursor-default opacity-60 hover:bg-transparent hover:text-muted-foreground",
+                "group relative flex h-11 items-center gap-3 rounded-xl px-3 text-[14px] transition-colors lg:h-10",
+                active ? "font-bold text-white" : "text-ink-foreground/80 hover:bg-ink-2/60 hover:text-white",
+                soon && "cursor-default opacity-55 hover:bg-transparent hover:text-ink-foreground/80",
               );
               return soon ? (
                 <span key={item.key} className={cls} aria-disabled>
@@ -86,17 +85,35 @@ export function SidebarNav({ data, onNavigate }: { data: ShellData; onNavigate?:
 export function Sidebar({ data }: { data: ShellData }) {
   const t = useTranslations("roles");
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[264px] shrink-0 flex-col border-e border-border bg-surface-sunken/60 lg:flex">
-      <div className="flex h-16 items-center gap-3 px-5">
-        <OrgMark name={data.org.name} logoUrl={data.org.logoUrl} />
-        <div className="min-w-0">
-          <p className="truncate text-[14px] font-semibold leading-tight">{data.org.name}</p>
-          <p className="truncate text-xs text-muted-foreground">{t(data.role)}</p>
-        </div>
-      </div>
-      <div className="scrollbar-none flex-1 overflow-y-auto px-3 pt-3 pb-6">
+    <aside className="sticky top-0 hidden h-dvh w-[256px] shrink-0 flex-col bg-ink text-ink-foreground lg:flex">
+      <SidebarBrand data={data} />
+      <div className="scrollbar-none flex-1 overflow-y-auto px-3 pt-4 pb-4">
         <SidebarNav data={data} />
       </div>
+      <SidebarUser data={data} roleLabel={t(data.role)} />
     </aside>
+  );
+}
+
+export function SidebarBrand({ data }: { data: ShellData }) {
+  return (
+    <div className="flex h-20 items-center gap-3 px-6">
+      <OrgMark name={data.org.name} logoUrl={data.org.logoUrl} tone="ink" />
+      <p className="min-w-0 truncate text-[16px] leading-tight font-extrabold text-white">{data.org.name}</p>
+    </div>
+  );
+}
+
+function SidebarUser({ data, roleLabel }: { data: ShellData; roleLabel: string }) {
+  return (
+    <div className="m-3 flex items-center gap-3 rounded-2xl bg-ink-2 p-3">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--brand-dark)] text-[13px] font-bold text-ink">
+        {(data.user.name ?? "؟").trim().charAt(0)}
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-[13px] font-bold text-white">{data.user.name ?? "—"}</p>
+        <p className="truncate text-[11px] text-ink-muted">{roleLabel}</p>
+      </div>
+    </div>
   );
 }
