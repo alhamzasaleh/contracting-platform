@@ -22,11 +22,9 @@ end $$;
 grant usage on schema public to anon, authenticated, service_role;
 grant all on schema public to service_role;
 
--- Supabase grants table privileges to API roles by default; mimic that so
--- our migrations' explicit revokes are actually exercised by the tests.
-alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
-alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
-alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
+-- Supabase may or may not grant table privileges to API roles by default
+-- ("Grant API access to new tables automatically"). TEST_DEFAULT_GRANTS
+-- (see tests/db/db.ts) runs the suite both ways.
 
 create schema if not exists auth;
 grant usage on schema auth to anon, authenticated, service_role;

@@ -28,6 +28,14 @@ export async function resetDatabase() {
   const db = new pg.Client({ connectionString: testDbUrl() });
   await db.connect();
   await db.query(readFileSync(path.join(ROOT, "supabase/tests/shim/supabase-shim.sql"), "utf8"));
+  if (process.env.TEST_DEFAULT_GRANTS !== "off") {
+    // Mimic Supabase's default "grant API access to new tables automatically".
+    await db.query(`
+      alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+      alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+      alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
+    `);
+  }
   const dir = path.join(ROOT, "supabase/migrations");
   for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
     await db.query(readFileSync(path.join(dir, file), "utf8"));
