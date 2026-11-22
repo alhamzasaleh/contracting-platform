@@ -238,10 +238,23 @@ export const PRODUCT_CATEGORIES = [
   "insulation", "hatch", "other",
 ] as const;
 export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
+export type ProductFamily = "paint" | "gypsum" | "other";
+const PAINT_CATEGORIES: readonly ProductCategory[] = [
+  "putty", "primer", "finish_paint", "ceiling_paint", "profile_texture", "spray_paint", "moisture_paint", "decorative",
+  "exterior_primer", "exterior_putty", "exterior_paint", "crack_material",
+];
+const GYPSUM_CATEGORIES: readonly ProductCategory[] = [
+  "gypsum_board", "c_channel", "omega", "stud", "track", "hanger_rod", "vertical_hanger", "angle", "trough_angle",
+  "shadow_profile", "screws", "washers", "anchors", "clips", "tape", "joint_compound", "insulation", "hatch",
+];
+/** Which family a product category belongs to — brands supply families (paint brands don't make boards). */
+export function familyOf(c: ProductCategory): ProductFamily {
+  return PAINT_CATEGORIES.includes(c) ? "paint" : GYPSUM_CATEGORIES.includes(c) ? "gypsum" : "other";
+}
 export const PURCHASE_UNITS = ["L", "kg", "piece", "sheet", "bar", "box", "roll", "bag", "pack", "m2", "m"] as const;
 export type PurchaseUnit = (typeof PURCHASE_UNITS)[number];
 
-export type BrandRow = OrgRow & Upd & { name: string; is_active: boolean };
+export type BrandRow = OrgRow & Upd & { name: string; is_active: boolean; families: ProductFamily[] };
 export type EquivalenceGroupRow = OrgRow & Upd & { role: string; name: string; description: string | null };
 export type ProductRow = OrgRow & Upd & {
   brand_id: string | null;

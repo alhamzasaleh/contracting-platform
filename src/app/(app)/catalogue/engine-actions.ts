@@ -6,7 +6,7 @@ import { fieldErrors, type ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
 import type { Permission } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
-import { PRODUCT_CATEGORIES, PURCHASE_UNITS } from "@/lib/supabase/database.types";
+import { familyOf, PRODUCT_CATEGORIES, PURCHASE_UNITS } from "@/lib/supabase/database.types";
 import { num, optionalNum, optionalText } from "@/lib/validation/numbers";
 
 /** Server actions for the pricing-engine catalogue (Appendix A). */
@@ -88,13 +88,29 @@ export async function saveProduct(input: unknown): Promise<ActionResult> {
   const { id: productId, new_brand, initial_pack_size, initial_pack_label, initial_price, initial_supplier_id, ...data } = parsed.data;
 
   if (new_brand) {
-    const { data: b, error } = await ctx.supabase
+    // A new brand supplies this product's family (paint / gypsum / other) — not everything.
+    const fam = familyOf(data.category);
+    const { data: existing } = await ctx.supabase
       .from("brands")
-      .upsert({ organization_id: ctx.orgId, name: new_brand }, { onConflict: "organization_id,name" })
-      .select("id")
-      .single();
-    if (error) return dbError(error)!;
-    data.brand_id = b.id;
+      .select("id, families")
+      .eq("organization_id", ctx.orgId)
+      .eq("name", new_brand)
+      .maybeSingle();
+    if (existing) {
+      if (!existing.families.includes(fam)) {
+        const { error } = await ctx.supabase.from("brands").update({ families: [...existing.families, fam] }).eq("id", existing.id);
+        if (error) return dbError(error)!;
+      }
+      data.brand_id = existing.id;
+    } else {
+      const { data: b, error } = await ctx.supabase
+        .from("brands")
+        .insert({ organization_id: ctx.orgId, name: new_brand, families: [fam] })
+        .select("id")
+        .single();
+      if (error) return dbError(error)!;
+      data.brand_id = b.id;
+    }
   }
 
   if (productId) {

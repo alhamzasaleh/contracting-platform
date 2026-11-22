@@ -60,11 +60,12 @@ export function CalculatorView({ data, vatPercent }: { data: CatalogueData; vatP
     extColours: "1",
     scaffold: "",
     brand: "",
+    gypsumBrand: "",
     margin: "",
   });
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setV((s) => ({ ...s, [k]: e.target.value }));
 
-  const cfg = React.useMemo(() => buildEngineConfig(data), [data]);
+  const cfg = React.useMemo(() => buildEngineConfig(data, { gypsumBrand: v.gypsumBrand || undefined }), [data, v.gypsumBrand]);
   const brand = v.brand || cfg.brands[0] || "";
   const margin = numOr(v.margin, cfg.commercial.targetMarginPercent);
 
@@ -223,6 +224,18 @@ export function CalculatorView({ data, vatPercent }: { data: CatalogueData; vatP
           </div>
         )}
         <div className="grid grid-cols-2 gap-3 border-t border-border pt-5">
+          {kind === "gypsum" && cfg.gypsumBrands.length > 0 && (
+            <Field id="calc-gbrand" label={t("brand")}>
+              <NativeSelect id="calc-gbrand" value={v.gypsumBrand} onChange={set("gypsumBrand")}>
+                <option value="">{t("cheapestBrand")}</option>
+                {cfg.gypsumBrands.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+          )}
           {kind !== "gypsum" && (
             <Field id="calc-brand" label={t("brand")}>
               <NativeSelect id="calc-brand" value={brand} onChange={set("brand")}>

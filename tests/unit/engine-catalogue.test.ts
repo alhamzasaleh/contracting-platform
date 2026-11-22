@@ -111,6 +111,9 @@ describe("buildEngineConfig", () => {
     const knauf: CatalogueProduct = { ...base.find((p) => p.role === "board_normal")!, id: "knauf", brand: "Knauf", packs: [{ size: 1, price: 25 }] };
     const chosen = buildEngineConfig({ products: [...base, knauf], rates: seededRates() }, { gypsumBrand: "Knauf" });
     expect(chosen.gypsum.catalogue.boards.normal).toMatchObject({ productId: "knauf", price: 25 });
+    // Gypsum brands are offered for gypsum only, never as paint brands.
+    expect(chosen.gypsumBrands).toEqual(["Knauf"]);
+    expect(chosen.brands).not.toContain("Knauf");
 
     const empty = buildEngineConfig({ products: [], rates: {} });
     expect(empty.gypsum.catalogue.cChannel.price).toBe(11);

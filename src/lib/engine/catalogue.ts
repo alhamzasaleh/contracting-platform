@@ -47,13 +47,17 @@ export type EngineConfig = {
   exterior: ExteriorParams;
   paintProducts: PaintProduct[];
   commercial: { targetMarginPercent: number; contingencyPercent: number; roundingStep: number; quoteValidityDays: number };
+  /** Paint brands (from paint products) and gypsum brands (from boards/metal) — never mixed. */
   brands: string[];
+  gypsumBrands: string[];
   warnings: EngineWarning[];
 };
 
 export const GENERIC_BRAND = "عام";
 
 const PAINT_ROLES: PaintRole[] = ["putty", "primer", "wall_finish", "ceiling_paint", "moisture", "decorative", "ext_primer", "ext_putty", "acrylic", "profile", "spray_acrylic"];
+
+const GYPSUM_ROLES = new Set(["board_normal", "board_moisture", "board_fire", "c_channel", "omega", "rod", "vertical_hanger", "edge_angle", "trough_angle", "shadow", "stud", "track"]);
 
 const cheapestPack = (p: CatalogueProduct) =>
   p.packs.filter((k) => k.price != null).sort((a, b) => a.price! / a.size - b.price! / b.size)[0];
@@ -254,7 +258,10 @@ export function buildEngineConfig(data: CatalogueData, opts: { gypsumBrand?: str
   };
 
   const brands = [...new Set(paintProducts.map((p) => p.brand))];
-  return { gypsum: { catalogue, params }, interior, exterior, paintProducts, commercial, brands, warnings };
+  const gypsumBrands = [
+    ...new Set(data.products.filter((p) => p.role && GYPSUM_ROLES.has(p.role) && p.brand).map((p) => p.brand!)),
+  ];
+  return { gypsum: { catalogue, params }, interior, exterior, paintProducts, commercial, brands, gypsumBrands, warnings };
 }
 
 /** Rates as seeded from Appendix A.6 — used by tests and the design preview. */

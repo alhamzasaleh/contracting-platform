@@ -734,6 +734,7 @@
     "lineUnit_piece": "قطعة",
     "lineUnit_board": "لوح",
     "lineUnit_kg": "كجم",
-    "qty": "الكمية"
+    "qty": "الكمية",
+    "cheapestBrand": "الأرخص المتوفر"
   }
 }

@@ -57,7 +57,7 @@ paint.splice(
 
 const G = GYPSUM_CATALOGUE;
 const gypsum: ProductItem[] = [
-  base({ id: "board_normal", name: "لوح جبس عادي 12.5مم 120×240", brand: "كناوف Knauf", category: "gypsum_board", purchase_unit: "sheet", group_id: "g-bn", group_name: "لوح جبس عادي 12.5 مم", role: "board_normal", area_m2: 2.88, packs: [pack("bn", 2.88, "لوح", G.boards.normal.price, "مستودع مواد البناء")] }),
+  base({ id: "board_normal", name: "لوح جبس عادي 12.5مم 120×240", brand_id: "b-mada", brand: "مدى Mada", category: "gypsum_board", purchase_unit: "sheet", group_id: "g-bn", group_name: "لوح جبس عادي 12.5 مم", role: "board_normal", area_m2: 2.88, packs: [pack("bn", 2.88, "لوح", G.boards.normal.price, "مستودع مواد البناء")] }),
   base({ id: "board_moisture", name: "لوح مقاوم للرطوبة 12.5مم", category: "gypsum_board", purchase_unit: "sheet", group_id: "g-bm", group_name: "لوح جبس مقاوم للرطوبة", role: "board_moisture", area_m2: 2.88, packs: [pack("bm", 2.88, "لوح", G.boards.moisture.price)] }),
   base({ id: "board_fire", name: "لوح مقاوم للحريق 12.5مم", category: "gypsum_board", purchase_unit: "sheet", group_id: "g-bf", group_name: "لوح جبس مقاوم للحريق", role: "board_fire", area_m2: 2.88, packs: [pack("bf", 2.88, "لوح", G.boards.fire.price)] }),
   base({ id: "c_channel", name: "قطاع C 3م", category: "c_channel", purchase_unit: "bar", group_id: "g-c", group_name: "قطاع C رئيسي", role: "c_channel", length_m: 3, packs: [pack("c", 3, "عود 3م", G.cChannel.price)] }),
@@ -70,10 +70,11 @@ const gypsum: ProductItem[] = [
 ];
 
 export const SAMPLE_PRODUCTS: ProductItem[] = [...paint, ...gypsum];
-export const SAMPLE_BRANDS = [
-  { id: "b-jotun", name: "جوتن Jotun" },
-  { id: "b-jazeera", name: "الجزيرة Al-Jazeera" },
-  { id: "b-knauf", name: "كناوف Knauf" },
+export const SAMPLE_BRANDS: { id: string; name: string; families: ("paint" | "gypsum" | "other")[] }[] = [
+  { id: "b-jotun", name: "جوتن Jotun", families: ["paint"] },
+  { id: "b-jazeera", name: "الجزيرة Al-Jazeera", families: ["paint"] },
+  { id: "b-mada", name: "مدى Mada", families: ["gypsum"] },
+  { id: "b-knauf", name: "كناوف Knauf", families: ["gypsum"] },
 ];
 export const SAMPLE_GROUPS = [...new Map(SAMPLE_PRODUCTS.filter((p) => p.group_id).map((p) => [p.group_id!, { id: p.group_id!, role: p.role!, name: p.group_name! }])).values()];
 

@@ -734,6 +734,7 @@
     "lineUnit_piece": "piece",
     "lineUnit_board": "board",
     "lineUnit_kg": "kg",
-    "qty": "Quantity"
+    "qty": "Quantity",
+    "cheapestBrand": "Cheapest available"
   }
 }

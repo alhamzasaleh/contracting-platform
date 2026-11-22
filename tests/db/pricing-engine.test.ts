@@ -38,7 +38,19 @@ describe("pricing engine seed (Appendix A.6)", () => {
                 (select count(*)::int from public.system_components where equivalence_group_id is null) as orphan_components,
                 (select count(*)::int from public.brands) as brands`),
     );
-    expect(counts.rows[0]).toEqual({ systems: 4, variants: 11, orphan_components: 0, brands: 7 });
+    expect(counts.rows[0]).toEqual({ systems: 4, variants: 11, orphan_components: 0, brands: 8 });
+  });
+
+  it("keeps paint brands and gypsum brands apart", async () => {
+    const r = await as({ userId: owner }, (q) =>
+      q("select name, families from public.brands where name in ('جوتن Jotun', 'مدى Mada', 'كناوف Knauf') order by name"),
+    );
+    expect(r.rows).toEqual([
+      { name: "جوتن Jotun", families: ["paint"] },
+      { name: "كناوف Knauf", families: ["gypsum"] },
+      { name: "مدى Mada", families: ["gypsum"] },
+    ]);
+    await expectDenied(as({ userId: owner }, (q) => q("insert into public.brands (organization_id, name, families) values ($1, 'x', '{}')", [org])));
   });
 
   it("stores A.6 values: board 22 SAR, wall finish 18 L covers 120 m², C spacing 1 m", async () => {

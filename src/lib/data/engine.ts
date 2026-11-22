@@ -15,7 +15,7 @@ export async function loadProducts(session: SessionContext) {
   const [{ data: products }, { data: packs }, { data: brands }, { data: groups }, { data: suppliers }, { data: prices }] = await Promise.all([
     supabase.from("products").select("*").eq("organization_id", orgId).order("is_active", { ascending: false }).order("name"),
     supabase.from("product_packs").select("id, product_id, size, label").eq("organization_id", orgId).order("size", { ascending: false }),
-    supabase.from("brands").select("id, name, is_active").eq("organization_id", orgId).order("name"),
+    supabase.from("brands").select("id, name, is_active, families").eq("organization_id", orgId).order("name"),
     supabase.from("equivalence_groups").select("id, role, name").eq("organization_id", orgId).order("name"),
     supabase.from("suppliers").select("id, name, is_active").eq("organization_id", orgId).order("name"),
     seeCosts
@@ -68,7 +68,7 @@ export async function loadProducts(session: SessionContext) {
 
   return {
     products: items,
-    brands: (brands ?? []).map((b) => ({ id: b.id, name: b.name })),
+    brands: (brands ?? []).filter((b) => b.is_active).map((b) => ({ id: b.id, name: b.name, families: b.families })),
     groups: (groups ?? []).map((g) => ({ id: g.id, role: g.role, name: g.name })),
     suppliers: (suppliers ?? []).filter((s) => s.is_active).map((s) => ({ id: s.id, name: s.name })),
   };

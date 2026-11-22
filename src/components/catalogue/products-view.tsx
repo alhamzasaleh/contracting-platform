@@ -12,7 +12,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Segmented } from "@/components/ui/segmented";
 import type { ActionResult } from "@/lib/actions";
-import { PRODUCT_CATEGORIES, PURCHASE_UNITS, type ProductCategory, type PurchaseUnit } from "@/lib/supabase/database.types";
+import { familyOf, PRODUCT_CATEGORIES, PURCHASE_UNITS, type ProductCategory, type ProductFamily, type PurchaseUnit } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
 import { SwitchField } from "./services-view";
 
@@ -56,10 +56,8 @@ export type ProductsActions = {
   addPrice: (i: Record<string, unknown>) => Promise<ActionResult>;
 };
 
-type Family = "paint" | "gypsum" | "other";
-const PAINT: ProductCategory[] = ["putty", "primer", "finish_paint", "ceiling_paint", "profile_texture", "spray_paint", "moisture_paint", "decorative", "exterior_primer", "exterior_putty", "exterior_paint", "crack_material"];
-const GYPSUM: ProductCategory[] = ["gypsum_board", "c_channel", "omega", "stud", "track", "hanger_rod", "vertical_hanger", "angle", "trough_angle", "shadow_profile", "screws", "washers", "anchors", "clips", "tape", "joint_compound", "insulation", "hatch"];
-const familyOf = (c: ProductCategory): Family => (PAINT.includes(c) ? "paint" : GYPSUM.includes(c) ? "gypsum" : "other");
+export type Family = ProductFamily;
+const DEFAULT_CAT: Record<Family, ProductCategory> = { paint: "finish_paint", gypsum: "gypsum_board", other: "other" };
 
 export function ProductsView({
   products,
@@ -71,7 +69,7 @@ export function ProductsView({
   actions,
 }: {
   products: ProductItem[];
-  brands: { id: string; name: string }[];
+  brands: { id: string; name: string; families: Family[] }[];
   groups: { id: string; role: string; name: string }[];
   suppliers: { id: string; name: string }[];
   canManage: boolean;
@@ -82,6 +80,7 @@ export function ProductsView({
   const { fmt } = useFormatter();
   const { run, pending, fieldText } = useActionRunner();
   const [family, setFamily] = React.useState<Family>("paint");
+  const [dialogCat, setDialogCat] = React.useState<ProductCategory | null>(null);
   const [query, setQuery] = React.useState("");
   const [editing, setEditing] = React.useState<ProductItem | "new" | null>(null);
   const [packFor, setPackFor] = React.useState<ProductItem | null>(null);
@@ -141,11 +140,18 @@ export function ProductsView({
 
   function productDialog() {
     const p = editing === "new" ? undefined : editing!;
+    const cat = dialogCat ?? p?.category ?? DEFAULT_CAT[family];
+    // Only brands that actually make this kind of product (paint brands don't make boards).
+    const brandOptions = brands.filter((b) => b.families.includes(familyOf(cat)) || b.id === p?.brand_id);
+    const close = () => {
+      setEditing(null);
+      setDialogCat(null);
+    };
     return (
       <FormDialog
         open
         wide
-        onOpenChange={(v) => !v && setEditing(null)}
+        onOpenChange={(v) => !v && close()}
         title={p ? t("engine.editProduct") : t("engine.newProduct")}
         description={t("engine.productHint")}
         pending={pending}
@@ -181,7 +187,7 @@ export function ProductsView({
                         initial_supplier_id: canSeeCosts ? str(fd, "initial_supplier_id") : "",
                       }),
                 })),
-            { onFieldErrors: setErrors, onSuccess: () => setEditing(null) },
+            { onFieldErrors: setErrors, onSuccess: close },
           )
         }
       >
@@ -200,9 +206,9 @@ export function ProductsView({
             </NativeSelect>
           </Field>
           <Field id="pr-brand" label={t("engine.brand")}>
-            <NativeSelect name="brand_id" defaultValue={p?.brand_id ?? ""}>
+            <NativeSelect key={familyOf(cat)} name="brand_id" defaultValue={p?.brand_id ?? ""}>
               <option value="">{t("engine.genericBrand")}</option>
-              {brands.map((b) => (
+              {brandOptions.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
                 </option>
@@ -213,7 +219,7 @@ export function ProductsView({
             <Input name="new_brand" placeholder={t("engine.newBrandPh")} />
           </Field>
           <Field id="pr-cat" label={t("engine.category")}>
-            <NativeSelect name="category" defaultValue={p?.category ?? "finish_paint"}>
+            <NativeSelect name="category" value={cat} onChange={(e) => setDialogCat(e.target.value as ProductCategory)}>
               {PRODUCT_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {t(`engine.cat_${c}`)}
