@@ -28,6 +28,8 @@ export const PERMISSIONS = [
   "finance.manage",
   "approvals.decide",
   "reports.view",
+  "hr.view",
+  "hr.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -64,6 +66,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "finance.manage",
     "reports.view",
     "audit.view",
+    "hr.view",
   ],
   viewer: ["clients.view", "quotes.view", "projects.view", "schedule.view"],
 };
@@ -73,6 +76,7 @@ export const PERMISSION_GROUPS: { key: string; permissions: Permission[] }[] = [
   { key: "administration", permissions: ["settings.manage", "members.manage", "audit.view"] },
   { key: "sales", permissions: ["clients.view", "clients.manage", "quotes.view", "quotes.manage"] },
   { key: "catalogue", permissions: ["catalogue.view", "catalogue.manage", "costs.view"] },
+  { key: "hr", permissions: ["hr.view", "hr.manage"] },
   {
     key: "operations",
     permissions: ["projects.view", "projects.manage", "schedule.view", "schedule.manage"],

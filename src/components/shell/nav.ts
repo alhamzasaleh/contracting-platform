@@ -6,6 +6,7 @@ import {
   FileSignature,
   FileText,
   HardHat,
+  IdCard,
   LayoutDashboard,
   Layers,
   Receipt,
@@ -49,7 +50,8 @@ export const NAV: NavGroup[] = [
   {
     key: "setup",
     items: [
-      { key: "catalogue", href: "/catalogue", icon: Layers, permission: "catalogue.view", phase: 2 },
+      { key: "catalogue", href: "/catalogue", icon: Layers, permission: "catalogue.view" },
+      { key: "team", href: "/team", icon: IdCard, permission: "hr.view" },
       { key: "settings", href: "/settings", icon: Settings },
     ],
   },

@@ -62,8 +62,8 @@ export function CompanyForm({
     });
   };
 
-  const field = (name: keyof CompanyValues, opts: { ltr?: boolean; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; optional?: boolean; autoComplete?: string } = {}) => (
-    <Field id={`company-${name}`} label={t(`settings.${name === "legal_name" ? "legalName" : name === "cr_number" ? "crNumber" : name === "vat_number" ? "vatNumber" : name}`)} error={msg(errors[name])} optional={opts.optional ? t("common.optional") : undefined}>
+  const field = (name: keyof CompanyValues, opts: { ltr?: boolean; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; optional?: boolean; autoComplete?: string; hint?: string } = {}) => (
+    <Field id={`company-${name}`} label={t(`settings.${name === "legal_name" ? "legalName" : name === "cr_number" ? "crNumber" : name === "vat_number" ? "vatNumber" : name}`)} error={msg(errors[name])} hint={opts.hint} optional={opts.optional ? t("common.optional") : undefined}>
       <Input
         name={name}
         defaultValue={values[name] ?? ""}
@@ -87,7 +87,7 @@ export function CompanyForm({
           {field("name", { autoComplete: "organization" })}
           {field("legal_name", { optional: true })}
           {field("cr_number", { ltr: true, inputMode: "numeric" })}
-          {field("vat_number", { ltr: true, inputMode: "numeric" })}
+          {field("vat_number", { ltr: true, inputMode: "numeric", optional: true, hint: t("settings.vatHint") })}
           {field("phone", { ltr: true, inputMode: "tel", optional: true })}
           {field("email", { ltr: true, inputMode: "email", optional: true })}
           {field("city", { optional: true })}

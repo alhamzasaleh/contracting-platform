@@ -76,6 +76,141 @@ export type AuditRow = Timestamps & {
   after: Json | null;
 };
 
+
+export type PricingSettingsRow = {
+  organization_id: string;
+  overhead_percent: number;
+  min_margin_percent: number;
+  default_margin_percent: number;
+  vat_percent: number;
+  default_waste_percent: number;
+  default_warranty_months: number;
+  purchase_approval_limit: number | null;
+  working_days_per_month: number;
+  first_payment_material_cover_percent: number;
+  created_at: string;
+  created_by: string | null;
+  updated_at: string;
+};
+
+type OrgRow = Timestamps & { id: string; organization_id: string; created_by: string | null };
+type Upd = { updated_at: string };
+
+export type ServiceRow = OrgRow & Upd & {
+  code: string;
+  name_ar: string;
+  name_en: string | null;
+  description: string | null;
+  unit: "m2" | "m" | "piece" | "lump";
+  waste_percent: number | null;
+  is_active: boolean;
+  sort_order: number;
+};
+
+export type ServiceStageRow = OrgRow & Upd & {
+  service_id: string;
+  sort_order: number;
+  kind: "prep" | "work" | "handover";
+  name_ar: string;
+  name_en: string | null;
+  productivity_per_day: number | null;
+  fixed_days: number;
+  notes: string | null;
+};
+
+export type SpecTemplateRow = OrgRow & Upd & {
+  service_id: string;
+  title: string;
+  body: string;
+  is_default: boolean;
+  sort_order: number;
+};
+
+export const MATERIAL_UNITS = ["piece", "m2", "m", "kg", "liter", "gallon", "bag", "roll", "box", "bucket", "sheet", "carton", "ton"] as const;
+export type MaterialUnit = (typeof MATERIAL_UNITS)[number];
+
+export type MaterialRow = OrgRow & Upd & {
+  name_ar: string;
+  name_en: string | null;
+  category: string | null;
+  unit: MaterialUnit;
+  scope: "general" | "project";
+  sku: string | null;
+  is_active: boolean;
+  notes: string | null;
+};
+
+export type MaterialPriceRow = OrgRow & {
+  material_id: string;
+  unit_price: number;
+  effective_from: string;
+  source: string | null;
+};
+
+export type MaterialCurrentPriceRow = {
+  material_id: string;
+  organization_id: string;
+  unit_price: number;
+  effective_from: string;
+  created_at: string;
+};
+
+export type RecipeRow = OrgRow & Upd & {
+  service_id: string;
+  material_id: string;
+  qty_per_unit: number;
+  waste_percent: number | null;
+  notes: string | null;
+};
+
+export type LabourRateRow = OrgRow & Upd & {
+  service_id: string | null;
+  name: string;
+  basis: "external_per_unit" | "external_lump";
+  rate: number;
+  notes: string | null;
+  is_active: boolean;
+};
+
+export type ExtraCostItemRow = OrgRow & Upd & {
+  name: string;
+  unit: "lump" | "day" | "trip" | "month";
+  default_amount: number;
+  is_active: boolean;
+};
+
+export type EmployeeRow = OrgRow & Upd & {
+  full_name: string;
+  is_saudi: boolean;
+  nationality: string | null;
+  job_title: string | null;
+  phone: string | null;
+  id_number: string | null;
+  id_expiry: string | null;
+  passport_expiry: string | null;
+  insurance_expiry: string | null;
+  start_date: string | null;
+  basic_salary: number;
+  housing_allowance: number;
+  transport_allowance: number;
+  other_allowances: number;
+  iban: string | null;
+  status: "active" | "on_leave" | "final_exit";
+  notes: string | null;
+};
+
+export type EmployeeCostItemRow = OrgRow & Upd & {
+  code: string;
+  name_ar: string;
+  applies_to: "all" | "saudi" | "non_saudi";
+  basis: "percent" | "monthly" | "annual" | "one_time";
+  value: number;
+  amortize_months: number | null;
+  is_active: boolean;
+  last_reviewed_at: string | null;
+  sort_order: number;
+};
+
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -94,8 +229,21 @@ export type Database = {
         Pick<InvitationRow, "organization_id" | "phone" | "role"> & Partial<InvitationRow>
       >;
       audit_log: Table<AuditRow>;
+      pricing_settings: Table<PricingSettingsRow>;
+      services: Table<ServiceRow>;
+      service_stages: Table<ServiceStageRow>;
+      spec_templates: Table<SpecTemplateRow>;
+      materials: Table<MaterialRow>;
+      material_prices: Table<MaterialPriceRow>;
+      service_material_recipes: Table<RecipeRow>;
+      labour_rates: Table<LabourRateRow>;
+      extra_cost_items: Table<ExtraCostItemRow>;
+      employees: Table<EmployeeRow>;
+      employee_cost_items: Table<EmployeeCostItemRow>;
     };
-    Views: Record<string, never>;
+    Views: {
+      material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
+    };
     Functions: {
       create_organization: { Args: { p_name: string }; Returns: string };
       can_create_organization: { Args: Record<string, never>; Returns: boolean };
@@ -103,6 +251,8 @@ export type Database = {
       my_permissions: { Args: { p_org: string }; Returns: string[] };
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
+      seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
+      seed_employee_cost_items: { Args: { p_org: string }; Returns: number };
       log_event: {
         Args: { p_org: string; p_action: string; p_entity: string; p_entity_id: string; p_details?: Json };
         Returns: undefined;

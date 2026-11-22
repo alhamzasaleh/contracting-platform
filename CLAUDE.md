@@ -62,7 +62,7 @@
 - **Labour**: in-house or external. External priced **per m²** or **lump sum per project**.
 - **Extra costs**: transport, equipment rental (scaffolding etc.).
 - **Overheads** (labour housing, transport, fixed company costs): fixed % of project cost, set in settings.
-- **VAT 15%** handled correctly on all customer documents.
+- **VAT 15%** handled correctly on all customer documents — **only once the company has a VAT number** (organizations.vat_number). Without it VAT is 0% and documents must not be titled "tax invoice". Use `effectiveVatPercent()` (src/lib/costing).
 - **Profit margin**: owner sets a minimum (e.g. 20%). Supervisor picks any margin above it. Below minimum, or any client discount → **approval request to owner** (not a hard block).
 
 ### 3.4 Work stages, specs & duration
