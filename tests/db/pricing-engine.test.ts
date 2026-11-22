@@ -120,6 +120,17 @@ describe("pricing engine seed (Appendix A.6)", () => {
     expect(pairs).toEqual(DEFAULT_ROLE);
   });
 
+  it("defines each product line once (type and coverage per litre) for all its brands", async () => {
+    const r = await as({ userId: owner }, (q) =>
+      q("select role, category, purchase_unit, coverage_per_unit, length_m, area_m2, colour_specific from public.equivalence_groups where role in ('wall_finish', 'c_channel', 'board_normal') order by role"),
+    );
+    expect(r.rows).toEqual([
+      { role: "board_normal", category: "gypsum_board", purchase_unit: "sheet", coverage_per_unit: null, length_m: null, area_m2: "2.8800", colour_specific: false },
+      { role: "c_channel", category: "c_channel", purchase_unit: "bar", coverage_per_unit: null, length_m: "3.000", area_m2: null, colour_specific: false },
+      { role: "wall_finish", category: "finish_paint", purchase_unit: "L", coverage_per_unit: "6.6667", length_m: null, area_m2: null, colour_specific: true },
+    ]);
+  });
+
   it("keeps the scope helper private", async () => {
     await expectDenied(as({ userId: owner }, (q) => q("select private.apply_scope_defaults($1)", [org])));
   });

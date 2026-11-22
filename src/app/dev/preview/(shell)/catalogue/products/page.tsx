@@ -1,7 +1,7 @@
-import { ProductsView } from "@/components/catalogue/products-view";
+import { ProductLinesView } from "@/components/catalogue/product-lines-view";
 import { SAMPLE_SUPPLIERS } from "../../../sample-catalogue";
-import { SAMPLE_BRANDS, SAMPLE_GROUPS, SAMPLE_PRODUCTS } from "../../../sample-engine";
+import { SAMPLE_BRANDS, SAMPLE_LINES } from "../../../sample-engine";
 
 export default function P() {
-  return <ProductsView products={SAMPLE_PRODUCTS} brands={SAMPLE_BRANDS} groups={SAMPLE_GROUPS} suppliers={SAMPLE_SUPPLIERS} canManage canSeeCosts />;
+  return <ProductLinesView lines={SAMPLE_LINES} brands={SAMPLE_BRANDS} suppliers={SAMPLE_SUPPLIERS} canManage canSeeCosts />;
 }

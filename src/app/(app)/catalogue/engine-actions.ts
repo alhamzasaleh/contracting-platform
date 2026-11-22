@@ -6,8 +6,8 @@ import { fieldErrors, type ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
 import type { Permission } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
-import { familyOf, PRODUCT_CATEGORIES, PURCHASE_UNITS } from "@/lib/supabase/database.types";
-import { DEFAULT_ROLE, firstPackSize, missingFields, normaliseProductFields } from "@/lib/catalogue/product-kinds";
+import { familyOf, PRODUCT_CATEGORIES, PURCHASE_UNITS, type ProductRow } from "@/lib/supabase/database.types";
+import { CATEGORY_SPEC, DEFAULT_ROLE, firstPackSize, missingFields, normaliseProductFields } from "@/lib/catalogue/product-kinds";
 import { num, optionalNum, optionalText } from "@/lib/validation/numbers";
 
 /** Server actions for the pricing-engine catalogue (Appendix A). */
@@ -158,6 +158,164 @@ export async function saveProduct(input: unknown): Promise<ActionResult> {
     }
   }
   return done();
+}
+
+// --- Product lines (owner's model: product once → brands → packs & prices) --------
+
+const lineSchema = z
+  .object({
+    id: id.optional(),
+    name: z.string().trim().min(2, "required").max(120),
+    category: z.enum(PRODUCT_CATEGORIES),
+    coverage_per_unit: optionalNum({ min: 0.0001, max: 100000 }),
+    length_m: optionalNum({ min: 0.01, max: 100 }),
+    contents_per_pack: optionalNum({ min: 0.001, max: 1000000 }),
+    area_m2: optionalNum({ min: 0.01, max: 100 }),
+    colour_specific: z.boolean(),
+    waste_percent: optionalNum({ min: 0, max: 100 }),
+  })
+  .strict()
+  .superRefine((v, c) => {
+    const kind = CATEGORY_SPEC[v.category].kind;
+    const need = kind === "coverage" ? "coverage_per_unit" : kind === "bar" ? "length_m" : kind === "contents" ? "contents_per_pack" : kind === "board" ? "area_m2" : null;
+    if (need && v[need] == null) c.addIssue({ code: "custom", path: [need], message: "required" });
+  });
+
+/** Creates or edits a product (its type and coverage — shared by all its brands). */
+export async function saveLine(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize("catalogue.manage");
+  if (!isCtx(ctx)) return ctx;
+  const parsed = lineSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
+  const { id: lineId, ...v } = parsed.data;
+  const kind = CATEGORY_SPEC[v.category].kind;
+  const data = {
+    name: v.name,
+    category: v.category,
+    purchase_unit: CATEGORY_SPEC[v.category].unit,
+    coverage_per_unit: kind === "coverage" ? v.coverage_per_unit : null,
+    length_m: kind === "bar" ? v.length_m : null,
+    contents_per_pack: kind === "contents" ? v.contents_per_pack : null,
+    area_m2: kind === "board" ? v.area_m2 : null,
+    colour_specific: kind === "coverage" ? v.colour_specific : false,
+    waste_percent: v.waste_percent,
+  };
+  if (lineId) {
+    const { error } = await ctx.supabase.from("equivalence_groups").update(data).eq("id", lineId).eq("organization_id", ctx.orgId);
+    return dbError(error) ?? done();
+  }
+  // A new product takes its category's pricing line when that line doesn't exist yet;
+  // otherwise it's an extra product the owner keeps for reference.
+  const role = DEFAULT_ROLE[v.category];
+  const { data: existing } = role
+    ? await ctx.supabase.from("equivalence_groups").select("id").eq("organization_id", ctx.orgId).eq("role", role).maybeSingle()
+    : { data: null };
+  if (existing) return { ok: false, error: "lineExists" };
+  const { error } = await ctx.supabase.from("equivalence_groups").insert({
+    ...data,
+    organization_id: ctx.orgId,
+    role: role ?? `custom_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+  });
+  return dbError(error) ?? done();
+}
+
+const addBrandSchema = z
+  .object({
+    line_id: id,
+    brand_id: optionalId,
+    new_brand: optionalText(80),
+    pack_size: optionalNum({ min: 0.0001, max: 100000 }),
+    pack_label: optionalText(40),
+    unit_price: optionalNum({ min: 0, max: 10_000_000 }),
+    supplier_id: optionalId,
+    coverage_per_unit: optionalNum({ min: 0.0001, max: 100000 }),
+  })
+  .strict();
+
+/** Adds a brand under a product, with its first pack size and price. */
+export async function addBrandToLine(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize("catalogue.manage");
+  if (!isCtx(ctx)) return ctx;
+  const parsed = addBrandSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
+  const v = parsed.data;
+  const { data: line } = await ctx.supabase.from("equivalence_groups").select("*").eq("id", v.line_id).eq("organization_id", ctx.orgId).maybeSingle();
+  if (!line || !line.category) return { ok: false, error: "invalid" };
+  const spec = CATEGORY_SPEC[line.category];
+  // Pack size: entered for paint (18 L, 4 L…); for bars/boards/boxes it is the product's own size.
+  const size = spec.kind === "coverage" ? v.pack_size : spec.kind === "bar" ? line.length_m : spec.kind === "board" ? line.area_m2 : spec.kind === "contents" ? line.contents_per_pack : 1;
+  if (!size) return { ok: false, error: "invalid", fieldErrors: { pack_size: "required" } };
+
+  let brandId = v.brand_id;
+  if (v.new_brand) {
+    const fam = familyOf(line.category);
+    const { data: b } = await ctx.supabase.from("brands").select("id, families").eq("organization_id", ctx.orgId).eq("name", v.new_brand).maybeSingle();
+    if (b) {
+      if (!b.families.includes(fam)) await ctx.supabase.from("brands").update({ families: [...b.families, fam] }).eq("id", b.id);
+      brandId = b.id;
+    } else {
+      const { data: nb, error } = await ctx.supabase.from("brands").insert({ organization_id: ctx.orgId, name: v.new_brand, families: [fam] }).select("id").single();
+      if (error) return dbError(error)!;
+      brandId = nb.id;
+    }
+  }
+
+  const { data: product, error } = await ctx.supabase
+    .from("products")
+    .insert({
+      organization_id: ctx.orgId,
+      equivalence_group_id: line.id,
+      brand_id: brandId,
+      name: line.name,
+      category: line.category,
+      purchase_unit: line.purchase_unit ?? spec.unit,
+      colour_specific: line.colour_specific,
+      coverage_per_unit: spec.kind === "coverage" ? v.coverage_per_unit : null,
+      length_m: line.length_m,
+      contents_per_pack: line.contents_per_pack,
+      area_m2: line.area_m2,
+    })
+    .select("id")
+    .single();
+  if (error) return dbError(error)!;
+  const { data: pack, error: e2 } = await ctx.supabase
+    .from("product_packs")
+    .insert({ organization_id: ctx.orgId, product_id: product.id, size, label: v.pack_label ?? null })
+    .select("id")
+    .single();
+  if (e2) return dbError(e2)!;
+  if (v.unit_price != null) {
+    const session = await getSession();
+    if (can(session, "costs.view")) {
+      const { error: e3 } = await ctx.supabase
+        .from("product_prices")
+        .insert({ organization_id: ctx.orgId, product_id: product.id, pack_id: pack.id, supplier_id: v.supplier_id, unit_price: v.unit_price });
+      if (e3) return dbError(e3)!;
+    }
+  }
+  return done();
+}
+
+const brandEditSchema = z
+  .object({ id, coverage_per_unit: optionalNum({ min: 0.0001, max: 100000 }).optional(), is_active: z.boolean().optional(), line_id: id.optional() })
+  .strict();
+
+/** Brand under a product: own coverage (or the product's), hide it, or attach it to a product. */
+export async function updateBrandRow(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize("catalogue.manage");
+  if (!isCtx(ctx)) return ctx;
+  const parsed = brandEditSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
+  const { id: productId, line_id, ...rest } = parsed.data;
+  const patch: Partial<ProductRow> = { ...rest };
+  if (line_id) {
+    const { data: line } = await ctx.supabase.from("equivalence_groups").select("id, category, name").eq("id", line_id).eq("organization_id", ctx.orgId).maybeSingle();
+    if (!line) return { ok: false, error: "invalid" };
+    patch.equivalence_group_id = line.id;
+    if (line.category) patch.category = line.category;
+  }
+  const { error } = await ctx.supabase.from("products").update(patch).eq("id", productId).eq("organization_id", ctx.orgId);
+  return dbError(error) ?? done();
 }
 
 // --- Packs & prices -------------------------------------------------------------

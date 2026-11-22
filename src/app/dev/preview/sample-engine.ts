@@ -1,4 +1,5 @@
 import type { ProductItem } from "@/components/catalogue/products-view";
+import type { ProductLine } from "@/lib/catalogue/product-lines";
 import type { RateItem } from "@/components/catalogue/rates-view";
 import type { SystemItem } from "@/components/catalogue/systems-view";
 import { defaultRates, GYPSUM_CATALOGUE, PAINT_PRODUCTS, type CatalogueData } from "@/lib/engine";
@@ -161,3 +162,34 @@ export const SAMPLE_ENGINE_DATA: CatalogueData = {
   })),
   rates,
 };
+
+/** The same sample catalogue in the owner's model: product (coverage once) → brands → packs. */
+export const SAMPLE_LINES: ProductLine[] = SAMPLE_GROUPS.map((g) => {
+  const members = SAMPLE_PRODUCTS.filter((p) => p.group_id === g.id);
+  const first = members[0];
+  return {
+    id: g.id,
+    role: g.role,
+    name: g.name,
+    category: first.category,
+    unit: first.purchase_unit,
+    coverage_per_unit: first.coverage_per_pack && first.ref_pack_size ? first.coverage_per_pack / first.ref_pack_size : null,
+    length_m: first.length_m,
+    contents_per_pack: first.contents_per_pack,
+    area_m2: first.area_m2,
+    colour_specific: first.colour_specific,
+    waste_percent: first.waste_percent,
+    brands: members.map((p) => ({
+      id: p.id,
+      brand_id: p.brand_id,
+      brand: p.brand,
+      name: p.name,
+      coverage_per_unit:
+        p.coverage_per_pack && p.ref_pack_size && first.coverage_per_pack && first.ref_pack_size && p.coverage_per_pack / p.ref_pack_size !== first.coverage_per_pack / first.ref_pack_size
+          ? p.coverage_per_pack / p.ref_pack_size
+          : null,
+      is_active: true,
+      packs: p.packs,
+    })),
+  };
+});

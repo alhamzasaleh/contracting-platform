@@ -520,7 +520,8 @@
     "phoneInvalid": "أدخل رقم جوال سعودي صحيح",
     "idInvalid": "رقم الهوية/الإقامة 10 أرقام",
     "ibanInvalid": "الآيبان يبدأ بـ SA ثم 22 رقماً",
-    "vatInvalid": "الرقم الضريبي 15 رقماً، يبدأ وينتهي بـ 3"
+    "vatInvalid": "الرقم الضريبي 15 رقماً، يبدأ وينتهي بـ 3",
+    "lineExists": "هذا المنتج موجود — أضف الماركة تحته"
   },
   "engine": {
     "emptyTitle": "ابدأ كتالوج التسعير",
@@ -828,6 +829,37 @@
     "explainIncomplete": "«{product}» مربوط بهذا البند لكنه ناقص: {fields}",
     "explainUnlinked": "«{product}» غير مربوط بهذا البند — افتحه واختر «يدخل في حساب»",
     "explainNone": "ما فيه أي منتج لهذا البند — أضفه من «المنتجات والماركات»",
-    "explainOtherLine": "«{product}» محفوظ على بند «{line}» — افتحه وغيّر «نوع المنتج» و«يدخل في حساب»"
+    "explainOtherLine": "«{product}» محفوظ على بند «{line}» — افتحه وغيّر «نوع المنتج» و«يدخل في حساب»",
+    "newLine": "منتج جديد",
+    "editLine": "تعديل المنتج",
+    "lineHint": "تعرّف المنتج مرة وحدة: نوعه وكم يغطي. بعدها تضيف تحته الماركات بأحجام عبواتها وأسعارها.",
+    "lineKindHint_coverage": "اكتب التغطية مثل ما هي مكتوبة على العبوة. النظام يحسبها لكل لتر ويطبّقها على كل الماركات وكل أحجام العبوات.",
+    "lineKindHint_board": "مساحة اللوح الواحد — لكل الماركات.",
+    "lineKindHint_bar": "طول العود — لكل الماركات.",
+    "lineKindHint_contents": "محتوى العبوة — لكل الماركات.",
+    "lineKindHint_unit": "يُسعّر للوحدة مباشرة.",
+    "refPackSizeQ": "عبوة حجمها ({unit})",
+    "coversQ": "تغطي للوجه الواحد",
+    "perUnitLine": "يغطي {area} م² لكل {unit} للوجه",
+    "addBrand": "إضافة ماركة",
+    "addBrandTo": "إضافة ماركة لـ «{product}»",
+    "addBrandHint": "التغطية من المنتج ({area} م² لكل {unit}) — ما تحتاج تكتبها. أدخل حجم العبوة وسعرها بس.",
+    "packCoverageAuto": "التغطية تنحسب تلقائياً: {area} م² لكل {unit}.",
+    "packCovers": "يغطي {area} م²",
+    "ownCoverage": "تغطية خاصة: {area} م²/{unit}",
+    "brandCoverageTitle": "تغطية {brand}",
+    "brandCoverageHint": "اتركها فاضية لاستخدام تغطية المنتج ({area} م² لكل {unit}). اكتبها فقط إذا هذي الماركة تغطي غير.",
+    "brandCoverageEmpty": "فاضي = تغطية المنتج",
+    "hideBrand": "إخفاء الماركة",
+    "noBrandsYet": "ما فيه ماركات بعد — أضف أول ماركة بسعرها.",
+    "specMissing": "ناقص: التغطية/المقاس",
+    "lineMissing_coverage": "ناقص التغطية",
+    "lineMissing_length": "ناقص طول العود",
+    "lineMissing_contents": "ناقص محتوى العبوة",
+    "lineMissing_area": "ناقص مساحة اللوح",
+    "lineMissing_price": "بدون سعر",
+    "unlinkedTitle": "منتجات غير مربوطة بمنتج — اختر لكل وحدة منتجها عشان تدخل في التسعير",
+    "attachTo": "اربطها بـ…",
+    "lineExists": "هذا المنتج موجود — أضف الماركة تحته"
   }
 }

@@ -24,6 +24,7 @@ import {
   computeInterior,
   priceProject,
   resolveScope,
+  EXTERIOR_FINISH,
   type CatalogueData,
   type EngineResult,
   type Line,
@@ -112,9 +113,11 @@ export function CalculatorView({
                 .filter(([k]) => k.startsWith(`${scopeKind}:`))
                 .map(([k, x]) => [k.split(":")[1], x]),
             ),
+            // the chosen exterior method's own finish always applies to it
+            scopeKind === "exterior" ? [EXTERIOR_FINISH[v.method] ?? "acrylic"] : [],
           )
         : null,
-    [cfg, scopeKind, scopeVariant, choices],
+    [cfg, scopeKind, scopeVariant, choices, v.method],
   );
   const scope = resolved?.scope;
 

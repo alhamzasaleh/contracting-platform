@@ -4,6 +4,8 @@ import type { RateItem } from "@/components/catalogue/rates-view";
 import type { SystemItem } from "@/components/catalogue/systems-view";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { CatalogueData } from "@/lib/engine";
+import { CATEGORY_SPEC } from "@/lib/catalogue/product-kinds";
+import { linesToCatalogue, type LineBrand, type ProductLine } from "@/lib/catalogue/product-lines";
 import { createClient } from "@/lib/supabase/server";
 
 const n = (v: unknown) => (v == null ? null : Number(v));
@@ -74,6 +76,48 @@ export async function loadProducts(session: SessionContext) {
   };
 }
 
+/** Products as the owner sees them: product (coverage once) → brands → packs & prices. */
+export async function loadProductLines(session: SessionContext) {
+  const supabase = await createClient();
+  const orgId = session.organization.id;
+  const [{ products, brands, suppliers }, { data: groups }] = await Promise.all([
+    loadProducts(session),
+    supabase.from("equivalence_groups").select("*").eq("organization_id", orgId).order("name"),
+  ]);
+  const { data: rows } = await supabase.from("products").select("id, coverage_per_unit").eq("organization_id", orgId);
+  const override = new Map((rows ?? []).map((r) => [r.id, n(r.coverage_per_unit)]));
+  const brandOf = (p: (typeof products)[number]): LineBrand => ({
+    id: p.id,
+    brand_id: p.brand_id,
+    brand: p.brand,
+    name: p.name,
+    coverage_per_unit: override.get(p.id) ?? null,
+    is_active: p.is_active,
+    packs: p.packs,
+  });
+  const lines: ProductLine[] = (groups ?? []).map((g) => {
+    const first = products.find((p) => p.group_id === g.id);
+    const category = g.category ?? first?.category ?? "other";
+    return {
+      id: g.id,
+      role: g.role,
+      name: g.name,
+      category,
+      unit: g.purchase_unit ?? CATEGORY_SPEC[category].unit,
+      coverage_per_unit: n(g.coverage_per_unit),
+      length_m: n(g.length_m),
+      contents_per_pack: n(g.contents_per_pack),
+      area_m2: n(g.area_m2),
+      colour_specific: g.colour_specific,
+      waste_percent: n(g.waste_percent),
+      brands: products.filter((p) => p.group_id === g.id).map(brandOf),
+    };
+  });
+  // Brand rows not linked to any product: shown apart so the owner can attach them.
+  const unlinked = products.filter((p) => !p.group_id).map((p) => ({ ...brandOf(p), category: p.category }));
+  return { lines, unlinked, brands, suppliers };
+}
+
 export async function loadRates(session: SessionContext): Promise<RateItem[]> {
   if (!can(session, "costs.view")) return [];
   const supabase = await createClient();
@@ -107,29 +151,17 @@ export async function loadSystems(session: SessionContext): Promise<SystemItem[]
 
 /** Everything the pricing engine needs (requires costs.view). */
 export async function loadEngineData(session: SessionContext): Promise<CatalogueData> {
-  const [{ products }, rates, systems] = await Promise.all([loadProducts(session), loadRates(session), loadSystems(session)]);
-  const rules = systems
-    .flatMap((s) => s.components.map((c) => ({ kind: s.kind, role: c.role, inclusion: c.inclusion, variants: c.variants })));
+  const [{ lines, unlinked }, rates, systems] = await Promise.all([loadProductLines(session), loadRates(session), loadSystems(session)]);
+  const rules = systems.flatMap((s) => s.components.map((c) => ({ kind: s.kind, role: c.role, inclusion: c.inclusion, variants: c.variants })));
   return {
-    products: products
-      .filter((p) => p.is_active)
-      .map((p) => ({
-        id: p.id,
-        role: p.role,
-        brand: p.brand,
-        name: p.name,
-        category: p.category,
-        unit: p.purchase_unit,
-        refPackSize: p.ref_pack_size,
-        coveragePerPack: p.coverage_per_pack,
-        surfaceFactor: p.surface_factor,
-        lengthM: p.length_m,
-        contentsPerPack: p.contents_per_pack,
-        areaM2: p.area_m2,
-        colourSpecific: p.colour_specific,
-        wastePercent: p.waste_percent,
-        packs: p.packs.map((k) => ({ size: k.size, price: k.best })),
+    products: [
+      ...linesToCatalogue(lines),
+      // unlinked brand rows: not priced, only listed so the calculator can explain them
+      ...unlinked.map((b) => ({
+        id: b.id, role: null, brand: b.brand, name: b.name, category: b.category, unit: "piece", refPackSize: null, coveragePerPack: null, surfaceFactor: 1,
+        lengthM: null, contentsPerPack: null, areaM2: null, colourSpecific: false, wastePercent: null, packs: [],
       })),
+    ],
     rates: Object.fromEntries(rates.map((r) => [r.key, r.value])),
     rules,
   };

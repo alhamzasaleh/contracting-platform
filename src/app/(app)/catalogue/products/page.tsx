@@ -1,17 +1,28 @@
-import { ProductsView } from "@/components/catalogue/products-view";
+import { ProductLinesView } from "@/components/catalogue/product-lines-view";
 import { can, getSession } from "@/lib/auth/session";
-import { loadProducts } from "@/lib/data/engine";
-import { addProductPack, addProductPrice, deleteProductPack, saveProduct, seedPricingEngine } from "../engine-actions";
+import { loadProductLines } from "@/lib/data/engine";
+import { addBrandToLine, addProductPack, addProductPrice, deleteProductPack, saveLine, seedPricingEngine, updateBrandRow } from "../engine-actions";
 
 export default async function ProductsPage() {
   const session = await getSession();
-  const data = await loadProducts(session);
+  const { lines, unlinked, brands, suppliers } = await loadProductLines(session);
   return (
-    <ProductsView
-      {...data}
+    <ProductLinesView
+      lines={lines}
+      unlinked={unlinked}
+      brands={brands}
+      suppliers={suppliers}
       canManage={can(session, "catalogue.manage")}
       canSeeCosts={can(session, "costs.view")}
-      actions={{ seed: seedPricingEngine, saveProduct, addPack: addProductPack, deletePack: deleteProductPack, addPrice: addProductPrice }}
+      actions={{
+        seed: seedPricingEngine,
+        saveLine,
+        addBrand: addBrandToLine,
+        updateBrand: updateBrandRow,
+        addPack: addProductPack,
+        deletePack: deleteProductPack,
+        addPrice: addProductPrice,
+      }}
     />
   );
 }

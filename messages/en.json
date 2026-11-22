@@ -520,7 +520,8 @@
     "phoneInvalid": "Enter a valid Saudi mobile number",
     "idInvalid": "ID/Iqama number is 10 digits",
     "ibanInvalid": "IBAN is SA followed by 22 digits",
-    "vatInvalid": "VAT number is 15 digits, starting and ending with 3"
+    "vatInvalid": "VAT number is 15 digits, starting and ending with 3",
+    "lineExists": "This product exists — add the brand under it"
   },
   "engine": {
     "emptyTitle": "Start the pricing catalogue",
@@ -828,6 +829,37 @@
     "explainIncomplete": "“{product}” is on this line but incomplete: {fields}",
     "explainUnlinked": "“{product}” isn't linked to this line — open it and set “Used for”",
     "explainNone": "No product for this line — add one in Products & brands",
-    "explainOtherLine": "“{product}” is saved on the “{line}” line — open it and change its type and “Used for”"
+    "explainOtherLine": "“{product}” is saved on the “{line}” line — open it and change its type and “Used for”",
+    "newLine": "New product",
+    "editLine": "Edit product",
+    "lineHint": "Define the product once: its type and coverage. Then add its brands with their pack sizes and prices.",
+    "lineKindHint_coverage": "Enter the coverage as printed on the pack. It's stored per litre and applies to every brand and every pack size.",
+    "lineKindHint_board": "Area of one board — for all brands.",
+    "lineKindHint_bar": "Bar length — for all brands.",
+    "lineKindHint_contents": "Pack contents — for all brands.",
+    "lineKindHint_unit": "Priced per unit.",
+    "refPackSizeQ": "A pack of ({unit})",
+    "coversQ": "covers per coat",
+    "perUnitLine": "Covers {area} m² per {unit} per coat",
+    "addBrand": "Add brand",
+    "addBrandTo": "Add a brand to “{product}”",
+    "addBrandHint": "Coverage comes from the product ({area} m² per {unit}) — just enter the pack size and price.",
+    "packCoverageAuto": "Coverage is automatic: {area} m² per {unit}.",
+    "packCovers": "covers {area} m²",
+    "ownCoverage": "Own coverage: {area} m²/{unit}",
+    "brandCoverageTitle": "{brand} coverage",
+    "brandCoverageHint": "Leave empty to use the product's coverage ({area} m² per {unit}). Fill only if this brand differs.",
+    "brandCoverageEmpty": "Empty = product coverage",
+    "hideBrand": "Hide brand",
+    "noBrandsYet": "No brands yet — add the first one with its price.",
+    "specMissing": "Missing coverage/size",
+    "lineMissing_coverage": "No coverage",
+    "lineMissing_length": "No bar length",
+    "lineMissing_contents": "No pack contents",
+    "lineMissing_area": "No board area",
+    "lineMissing_price": "No price",
+    "unlinkedTitle": "Products not attached to a product line — attach each one so it's priced",
+    "attachTo": "Attach to…",
+    "lineExists": "This product exists — add the brand under it"
   }
 }

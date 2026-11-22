@@ -255,7 +255,19 @@ export const PURCHASE_UNITS = ["L", "kg", "piece", "sheet", "bar", "box", "roll"
 export type PurchaseUnit = (typeof PURCHASE_UNITS)[number];
 
 export type BrandRow = OrgRow & Upd & { name: string; is_active: boolean; families: ProductFamily[] };
-export type EquivalenceGroupRow = OrgRow & Upd & { role: string; name: string; description: string | null };
+export type EquivalenceGroupRow = OrgRow & Upd & {
+  role: string;
+  name: string;
+  description: string | null;
+  category: ProductCategory | null;
+  purchase_unit: PurchaseUnit | null;
+  coverage_per_unit: number | null;
+  length_m: number | null;
+  contents_per_pack: number | null;
+  area_m2: number | null;
+  colour_specific: boolean;
+  waste_percent: number | null;
+};
 export type ProductRow = OrgRow & Upd & {
   brand_id: string | null;
   equivalence_group_id: string | null;
@@ -278,6 +290,7 @@ export type ProductRow = OrgRow & Upd & {
   notes: string | null;
   is_active: boolean;
   legacy_material_id: string | null;
+  coverage_per_unit: number | null;
 };
 export type ProductPackRow = OrgRow & { product_id: string; size: number; label: string | null };
 export type ProductPriceRow = OrgRow & {

@@ -50,6 +50,9 @@ export const EXTERIOR_RULES: ComponentRule[] = [
   { role: "spray_acrylic", inclusion: "always", variants: ["spray"] },
 ];
 
+/** The finish the exterior method itself uses — it can't be "not applicable" to its own method. */
+export const EXTERIOR_FINISH: Record<string, string> = { roller: "acrylic", profile: "profile", spray: "spray_acrylic" };
+
 /** Gypsum: everything priced by default; the owner can make any part optional. */
 export const GYPSUM_RULES: ComponentRule[] = [
   ...["board_normal", "board_moisture", "board_fire", "c_channel", "omega"].map((role) => ({ role, inclusion: "always" as const })),
@@ -60,9 +63,15 @@ export const GYPSUM_RULES: ComponentRule[] = [
 ];
 
 /** Applies the rules for a variant and the client's choices (true/false per optional role). */
-export function resolveScope(rules: ComponentRule[], variant: string, choices: Scope = {}): { scope: Scope; items: ScopeItem[] } {
+export function resolveScope(
+  rules: ComponentRule[],
+  variant: string,
+  choices: Scope = {},
+  /** Roles the chosen method itself uses (e.g. "profile" for the profile method): they always apply. */
+  methodRoles: string[] = [],
+): { scope: Scope; items: ScopeItem[] } {
   const items: ScopeItem[] = rules.map((r) => {
-    const applies = !r.variants?.length || r.variants.includes(variant);
+    const applies = methodRoles.includes(r.role) || !r.variants?.length || r.variants.includes(variant);
     const optional = r.inclusion !== "always";
     const included = applies && (optional ? (choices[r.role] ?? r.inclusion === "on") : true);
     return { role: r.role, applies, optional, included, requires: r.requires };
