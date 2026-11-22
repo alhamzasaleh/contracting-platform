@@ -231,7 +231,7 @@ export type EmployeeCostItemRow = OrgRow & Upd & {
 
 
 export const PRODUCT_CATEGORIES = [
-  "putty", "primer", "finish_paint", "ceiling_paint", "profile_texture", "spray_paint", "moisture_paint",
+  "putty", "primer", "sealer", "finish_paint", "ceiling_paint", "profile_texture", "spray_paint", "moisture_paint",
   "decorative", "exterior_primer", "exterior_putty", "exterior_paint", "crack_material", "sundry",
   "gypsum_board", "c_channel", "omega", "stud", "track", "hanger_rod", "vertical_hanger", "angle",
   "trough_angle", "shadow_profile", "screws", "washers", "anchors", "clips", "tape", "joint_compound",
@@ -240,7 +240,7 @@ export const PRODUCT_CATEGORIES = [
 export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
 export type ProductFamily = "paint" | "gypsum" | "other";
 const PAINT_CATEGORIES: readonly ProductCategory[] = [
-  "putty", "primer", "finish_paint", "ceiling_paint", "profile_texture", "spray_paint", "moisture_paint", "decorative",
+  "putty", "primer", "sealer", "finish_paint", "ceiling_paint", "profile_texture", "spray_paint", "moisture_paint", "decorative",
   "exterior_primer", "exterior_putty", "exterior_paint", "crack_material",
 ];
 const GYPSUM_CATEGORIES: readonly ProductCategory[] = [
@@ -324,6 +324,8 @@ export type SystemComponentRow = OrgRow & Upd & {
   coats: number | null;
   formula: string | null;
   sort_order: number;
+  inclusion: "always" | "on" | "off";
+  variant_codes: string[] | null;
 };
 export type RateSection = "gypsum" | "interior" | "exterior" | "labour" | "commercial";
 export type ConsumptionRateRow = OrgRow & Upd & {

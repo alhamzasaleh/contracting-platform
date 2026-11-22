@@ -1,5 +1,5 @@
 "use client";
-import { AlertTriangle, Calculator, ChevronDown, Hammer, PaintBucket, PaintRoller } from "lucide-react";
+import { AlertTriangle, Calculator, ChevronDown, Hammer, Lock, PaintBucket, PaintRoller } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
@@ -8,12 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Field } from "@/components/ui/field";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Segmented } from "@/components/ui/segmented";
+import { Switch } from "@/components/ui/switch";
 import {
   buildEngineConfig,
   computeExterior,
   computeGypsum,
   computeInterior,
   priceProject,
+  resolveScope,
   type CatalogueData,
   type EngineResult,
   type Line,
@@ -69,6 +71,23 @@ export function CalculatorView({ data, vatPercent }: { data: CatalogueData; vatP
   const brand = v.brand || cfg.brands[0] || "";
   const margin = numOr(v.margin, cfg.commercial.targetMarginPercent);
 
+  // Scope of work: what this client's price includes (always / optional items).
+  const [choices, setChoices] = React.useState<Record<string, boolean>>({});
+  const scopeKind = kind === "interior" ? "interior" : kind === "exterior" ? "exterior" : null;
+  const scopeVariant = scopeKind === "interior" ? v.variant : v.method;
+  const resolved = React.useMemo(
+    () =>
+      scopeKind
+        ? resolveScope(
+            cfg.rules[scopeKind],
+            scopeVariant,
+            Object.fromEntries(Object.entries(choices).filter(([k]) => k.startsWith(`${scopeKind}:`)).map(([k, x]) => [k.split(":")[1], x])),
+          )
+        : null,
+    [cfg, scopeKind, scopeVariant, choices],
+  );
+  const scope = resolved?.scope;
+
   const result: EngineResult = React.useMemo(() => {
     if (kind === "gypsum") {
       const hatches = Object.fromEntries(HATCHES.map((h) => [h, numOr(v[`hatch_${h}`] ?? "")]).filter(([, n]) => (n as number) > 0));
@@ -99,6 +118,7 @@ export function CalculatorView({ data, vatPercent }: { data: CatalogueData; vatP
           variant: v.variant === "repaint" ? "repaint" : "new",
           brand,
           crackM: numOr(v.crack),
+          scope,
         },
         cfg.paintProducts,
         cfg.interior,
@@ -111,11 +131,12 @@ export function CalculatorView({ data, vatPercent }: { data: CatalogueData; vatP
         colours: Math.max(1, Math.round(numOr(v.extColours, 1))),
         brand,
         scaffoldDays: numOr(v.scaffold),
+        scope,
       },
       cfg.paintProducts,
       { ...cfg.exterior },
     );
-  }, [kind, v, cfg, brand]);
+  }, [kind, v, cfg, brand, scope]);
 
   const price = priceProject([result], {
     contingencyPercent: cfg.commercial.contingencyPercent,
@@ -221,6 +242,41 @@ export function CalculatorView({ data, vatPercent }: { data: CatalogueData; vatP
             </Field>
             {num("extColours", t("wallColours"))}
             {num("scaffold", t("scaffoldDays"))}
+          </div>
+        )}
+        {resolved && (
+          <div className="grid gap-2 rounded-2xl border border-border p-4">
+            <p className="text-[14px] font-bold">{t("scopeTitle")}</p>
+            <p className="text-[12px] text-muted-foreground">{t("scopeHint")}</p>
+            <ul className="mt-1 grid gap-1">
+              {resolved.items
+                .filter((it) => it.applies)
+                .map((it) => {
+                  const name = t.has(`role_${it.role}`) ? t(`role_${it.role}`) : it.role;
+                  const parentOff = it.requires && !resolved.scope[it.requires];
+                  return (
+                    <li key={it.role} className="flex min-h-10 items-center justify-between gap-3">
+                      <label htmlFor={`scope-${it.role}`} className={cn("text-[14px]", !it.included && "text-muted-foreground line-through decoration-1")}>
+                        {name}
+                        {parentOff && <span className="ms-2 text-[11px] no-underline">{t("needsParent", { parent: t(`role_${it.requires}`) })}</span>}
+                      </label>
+                      {it.optional ? (
+                        <Switch
+                          id={`scope-${it.role}`}
+                          checked={it.included}
+                          disabled={!!parentOff}
+                          aria-label={name}
+                          onCheckedChange={(x) => setChoices((c) => ({ ...c, [`${scopeKind}:${it.role}`]: x }))}
+                        />
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[12px] text-muted-foreground">
+                          <Lock className="size-3.5" /> {t("incAlways")}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+            </ul>
           </div>
         )}
         <div className="grid grid-cols-2 gap-3 border-t border-border pt-5">

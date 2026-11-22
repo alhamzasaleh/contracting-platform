@@ -1,6 +1,7 @@
 import { COMMERCIAL_DEFAULTS, EXTERIOR_PARAMS, GYPSUM_CATALOGUE, GYPSUM_PARAMS, INTERIOR_PARAMS } from "./defaults";
 import type { Bar, Box, GypsumCatalogue, GypsumParams } from "./gypsum";
 import type { ExteriorParams, InteriorParams, PaintProduct, PaintRole } from "./paint";
+import { EXTERIOR_RULES, INTERIOR_RULES, type ComponentRule, type Inclusion } from "./scope";
 
 /**
  * Builds the engine's inputs from the organization's catalogue
@@ -34,6 +35,8 @@ export type CatalogueData = {
   products: CatalogueProduct[];
   /** consumption_rates key → value (e.g. "gypsum.cSpacing" → 1). */
   rates: Record<string, number>;
+  /** Scope rules per paint system (system_components.inclusion / variant_codes). */
+  rules?: { kind: "interior_paint" | "exterior_paint"; role: string; inclusion: Inclusion; variants: string[] | null }[];
 };
 
 export type EngineWarning =
@@ -50,12 +53,14 @@ export type EngineConfig = {
   /** Paint brands (from paint products) and gypsum brands (from boards/metal) — never mixed. */
   brands: string[];
   gypsumBrands: string[];
+  /** What's always / optionally included, per paint system. */
+  rules: { interior: ComponentRule[]; exterior: ComponentRule[] };
   warnings: EngineWarning[];
 };
 
 export const GENERIC_BRAND = "عام";
 
-const PAINT_ROLES: PaintRole[] = ["putty", "primer", "wall_finish", "ceiling_paint", "moisture", "decorative", "ext_primer", "ext_putty", "acrylic", "profile", "spray_acrylic"];
+const PAINT_ROLES: PaintRole[] = ["sealer", "putty", "primer", "wall_finish", "ceiling_paint", "moisture", "decorative", "ext_primer", "ext_putty", "acrylic", "profile", "spray_acrylic"];
 
 const GYPSUM_ROLES = new Set(["board_normal", "board_moisture", "board_fire", "c_channel", "omega", "rod", "vertical_hanger", "edge_angle", "trough_angle", "shadow", "stud", "track"]);
 
@@ -261,7 +266,20 @@ export function buildEngineConfig(data: CatalogueData, opts: { gypsumBrand?: str
   const gypsumBrands = [
     ...new Set(data.products.filter((p) => p.role && GYPSUM_ROLES.has(p.role) && p.brand).map((p) => p.brand!)),
   ];
-  return { gypsum: { catalogue, params }, interior, exterior, paintProducts, commercial, brands, gypsumBrands, warnings };
+  const mergeRules = (defaults: ComponentRule[], kind: "interior_paint" | "exterior_paint"): ComponentRule[] => {
+    const rows = (data.rules ?? []).filter((r) => r.kind === kind);
+    const merged = defaults.map((d) => {
+      const row = rows.find((r) => r.role === d.role);
+      return row ? { ...d, inclusion: row.inclusion, variants: row.variants ?? undefined } : d;
+    });
+    for (const r of rows) {
+      if (!merged.some((m) => m.role === r.role) && r.inclusion !== "always") merged.push({ role: r.role, inclusion: r.inclusion, variants: r.variants ?? undefined });
+    }
+    return merged;
+  };
+  const rules = { interior: mergeRules(INTERIOR_RULES, "interior_paint"), exterior: mergeRules(EXTERIOR_RULES, "exterior_paint") };
+
+  return { gypsum: { catalogue, params }, interior, exterior, paintProducts, commercial, brands, gypsumBrands, rules, warnings };
 }
 
 /** Rates as seeded from Appendix A.6 — used by tests and the design preview. */

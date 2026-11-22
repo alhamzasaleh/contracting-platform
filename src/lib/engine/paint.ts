@@ -19,7 +19,8 @@ export type PaintRole =
   | "ext_putty"
   | "acrylic"
   | "profile"
-  | "spray_acrylic";
+  | "spray_acrylic"
+  | "sealer";
 
 export type PaintProduct = {
   id: string;
@@ -54,6 +55,7 @@ const ROLE_LABEL: Record<PaintRole, string> = {
   acrylic: "أكريليك خارجي",
   profile: "بروفايل / تكسير",
   spray_acrylic: "أكريليك رش",
+  sealer: "عازل إسمنتي",
 };
 
 type Share = Record<string, number>;
@@ -153,10 +155,12 @@ export type InteriorInput = {
   brand: string;
   crackM?: number;
   executeOnly?: boolean;
+  /** What's included for this client (see scope.ts). Missing role = included. */
+  scope?: Record<string, boolean>;
 };
 
 export type InteriorParams = {
-  coats: { wallPutty: number; ceilingPutty: number; primer: number; wallFinish: number; ceilingPaint: number; moisture: number };
+  coats: { wallPutty: number; ceilingPutty: number; primer: number; wallFinish: number; ceilingPaint: number; moisture: number; sealer?: number };
   repaintSpotPercent: number;
   wastePercent: number;
   sandpaper: { coveragePerCoat: number; price: number };
@@ -183,15 +187,21 @@ export function computeInterior(input: InteriorInput, products: PaintProduct[], 
   const baseWalls = Math.max(0, walls - zoneWalls);
   if (zoneWalls > walls) warnings.push("zones_exceed_walls");
   const spot = input.variant === "repaint" ? p.repaintSpotPercent / 100 : 1;
+  const inc = (role: string) => input.scope?.[role] !== false;
 
   if (!input.executeOnly) {
-    const putty = get("putty");
+    const putty = inc("putty") ? get("putty") : undefined;
     if (putty) {
       lines.push(
         productLine("putty", putty, { walls: walls * p.coats.wallPutty * spot, ceilings: ceilings * p.coats.ceilingPutty * spot }, p.wastePercent),
       );
     }
-    const primer = get("primer");
+    // Cement-based sealer on walls before painting — only when the client needs it.
+    if (input.scope?.sealer === true) {
+      const sealer = get("sealer");
+      if (sealer) lines.push(productLine("sealer", sealer, { walls: walls * (p.coats.sealer ?? 1) }, p.wastePercent));
+    }
+    const primer = inc("primer") ? get("primer") : undefined;
     if (primer) lines.push(productLine("primer", primer, { walls: walls * p.coats.primer * spot, ceilings: ceilings * p.coats.primer * spot }, p.wastePercent));
 
     const finish = get("wall_finish");
@@ -218,9 +228,9 @@ export function computeInterior(input: InteriorInput, products: PaintProduct[], 
     }
 
     const puttyCoats = { walls: walls * p.coats.wallPutty * spot, ceilings: ceilings * p.coats.ceilingPutty * spot };
-    lines.push(sundryLine("sandpaper", "ورق صنفرة", sum(Object.values(puttyCoats)), p.sandpaper.coveragePerCoat, p.sandpaper.price, puttyCoats, "putty m²-coats ÷ coverage per pack"));
-    lines.push(sundryLine("nylon", "نايلون حماية أرضيات", ceilings, p.nylon.area, p.nylon.price, { ceilings }, "≈ ceiling area ÷ roll area"));
-    lines.push(sundryLine("masking_tape", "شريط لاصق", walls + ceilings, p.tape.area, p.tape.price, { walls, ceilings }, "painted m² ÷ m² per roll"));
+    if (putty && inc("sandpaper")) lines.push(sundryLine("sandpaper", "ورق صنفرة", sum(Object.values(puttyCoats)), p.sandpaper.coveragePerCoat, p.sandpaper.price, puttyCoats, "putty m²-coats ÷ coverage per pack"));
+    if (inc("floor_nylon")) lines.push(sundryLine("nylon", "نايلون حماية أرضيات", ceilings, p.nylon.area, p.nylon.price, { ceilings }, "≈ ceiling area ÷ roll area"));
+    if (inc("masking_tape")) lines.push(sundryLine("masking_tape", "شريط لاصق", walls + ceilings, p.tape.area, p.tape.price, { walls, ceilings }, "painted m² ÷ m² per roll"));
     if (p.consumablesPerM2 > 0 && walls + ceilings > 0) {
       const { workType, allocation } = normalise({ walls, ceilings });
       const amt = (walls + ceilings) * p.consumablesPerM2;
@@ -255,6 +265,8 @@ export type ExteriorInput = {
   brand: string;
   scaffoldDays?: number;
   executeOnly?: boolean;
+  /** What's included for this client (see scope.ts). Missing role = included. */
+  scope?: Record<string, boolean>;
 };
 
 export type ExteriorParams = {
@@ -275,10 +287,16 @@ export function computeExterior(input: ExteriorInput, products: PaintProduct[], 
     if (!prod) warnings.push(`missing_product_${role}`);
     return prod;
   };
+  const inc = (role: string) => input.scope?.[role] !== false;
+  const withPutty = inc("ext_putty");
   if (!input.executeOnly) {
-    const primer = get("ext_primer");
+    if (input.scope?.sealer === true) {
+      const sealer = get("sealer");
+      if (sealer) lines.push(productLine("sealer", sealer, { facades: area }, p.wastePercent));
+    }
+    const primer = inc("ext_primer") ? get("ext_primer") : undefined;
     if (primer) lines.push(productLine("ext_primer", primer, { facades: area * p.coats.primer }, p.wastePercent));
-    const putty = get("ext_putty");
+    const putty = withPutty ? get("ext_putty") : undefined;
     if (putty) lines.push(productLine("ext_putty", putty, { facades: area * p.coats.putty }, p.wastePercent));
     const role: PaintRole = input.method === "spray" ? "spray_acrylic" : input.method === "profile" ? "profile" : "acrylic";
     const finish = get(role);
@@ -288,11 +306,11 @@ export function computeExterior(input: ExteriorInput, products: PaintProduct[], 
         lines.push(productLine(`ext_finish_${c.colour}`, finish, { facades: c.area * p.coats.finish }, p.wastePercent, { colour: finish.colourSpecific ? c.colour : undefined, wasteOverride: waste }));
       }
     }
-    if (p.protection.perM2 > 0 && area > 0) {
+    if (inc("protection") && p.protection.perM2 > 0 && area > 0) {
       lines.push({ key: "protection", group: "material", label: "حماية (شريط، نايلون، نوافذ وأبواب)", need: area, needUnit: "m2", purchase: { kind: "units", count: 1 }, qty: area, unit: "m2", unitPrice: p.protection.perM2, cost: area * p.protection.perM2, formula: "façade m² × cost per m²", inputs: { area }, workType: "facades" });
     }
   }
-  lines.push(labourLine("labour_sanding_putty", "مصنعية صنفرة ومعجون", area, p.labour.sandingPutty, "facades"));
+  if (withPutty) lines.push(labourLine("labour_sanding_putty", "مصنعية صنفرة ومعجون", area, p.labour.sandingPutty, "facades"));
   lines.push(
     input.method === "spray"
       ? labourLine("labour_spray", "مصنعية رش", area, p.labour.spray, "facades")

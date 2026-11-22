@@ -224,6 +224,22 @@ export async function saveRate(input: unknown): Promise<ActionResult> {
 
 // --- Systems ----------------------------------------------------------------------
 
+const inclusionSchema = z.object({ id, inclusion: z.enum(["always", "on", "off"]) }).strict();
+
+/** Always priced, or optional (included / excluded by default) for each quote. */
+export async function saveComponentInclusion(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize("catalogue.manage");
+  if (!isCtx(ctx)) return ctx;
+  const parsed = inclusionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { error } = await ctx.supabase
+    .from("system_components")
+    .update({ inclusion: parsed.data.inclusion })
+    .eq("id", parsed.data.id)
+    .eq("organization_id", ctx.orgId);
+  return dbError(error) ?? done();
+}
+
 const specSchema = z.object({ id, kind: z.enum(["system", "variant"]), spec_text: optionalText(4000) }).strict();
 
 export async function saveSystemSpec(input: unknown): Promise<ActionResult> {

@@ -92,7 +92,7 @@ export async function loadSystems(session: SessionContext): Promise<SystemItem[]
   const [{ data: systems }, { data: variants }, { data: components }, { data: groups }] = await Promise.all([
     supabase.from("systems").select("id, code, kind, name, spec_text, is_active").eq("organization_id", orgId).order("sort_order").order("created_at"),
     supabase.from("system_variants").select("id, system_id, code, name, spec_text, is_default").eq("organization_id", orgId).order("sort_order"),
-    supabase.from("system_components").select("id, system_id, role, equivalence_group_id").eq("organization_id", orgId).order("sort_order"),
+    supabase.from("system_components").select("id, system_id, role, equivalence_group_id, inclusion, variant_codes").eq("organization_id", orgId).order("sort_order"),
     supabase.from("equivalence_groups").select("id, name").eq("organization_id", orgId),
   ]);
   const groupName = new Map((groups ?? []).map((g) => [g.id, g.name]));
@@ -101,13 +101,16 @@ export async function loadSystems(session: SessionContext): Promise<SystemItem[]
     variants: (variants ?? []).filter((v) => v.system_id === s.id).map(({ id, code, name, spec_text, is_default }) => ({ id, code, name, spec_text, is_default })),
     components: (components ?? [])
       .filter((c) => c.system_id === s.id)
-      .map((c) => ({ id: c.id, role: c.role, group: c.equivalence_group_id ? (groupName.get(c.equivalence_group_id) ?? c.role) : c.role })),
+      .map((c) => ({ id: c.id, role: c.role, group: c.equivalence_group_id ? (groupName.get(c.equivalence_group_id) ?? c.role) : c.role, inclusion: c.inclusion, variants: c.variant_codes })),
   }));
 }
 
 /** Everything the pricing engine needs (requires costs.view). */
 export async function loadEngineData(session: SessionContext): Promise<CatalogueData> {
-  const [{ products }, rates] = await Promise.all([loadProducts(session), loadRates(session)]);
+  const [{ products }, rates, systems] = await Promise.all([loadProducts(session), loadRates(session), loadSystems(session)]);
+  const rules = systems
+    .filter((s): s is typeof s & { kind: "interior_paint" | "exterior_paint" } => s.kind === "interior_paint" || s.kind === "exterior_paint")
+    .flatMap((s) => s.components.map((c) => ({ kind: s.kind, role: c.role, inclusion: c.inclusion, variants: c.variants })));
   return {
     products: products
       .filter((p) => p.is_active)
@@ -128,5 +131,6 @@ export async function loadEngineData(session: SessionContext): Promise<Catalogue
         packs: p.packs.map((k) => ({ size: k.size, price: k.best })),
       })),
     rates: Object.fromEntries(rates.map((r) => [r.key, r.value])),
+    rules,
   };
 }

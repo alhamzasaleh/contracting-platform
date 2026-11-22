@@ -118,7 +118,7 @@ export const SAMPLE_SYSTEMS: SystemItem[] = [
       { id: "v2", code: "vertical_c", name: "تعليق بعلاقات C رأسية", spec_text: null, is_default: false },
       { id: "v3", code: "double", name: "طبقتين ألواح", spec_text: null, is_default: false },
     ],
-    components: ["لوح عادي", "لوح رطوبة", "لوح حريق", "قطاع C", "أوميغا", "أسياخ", "وردات", "فيشر", "كلبسات", "زاوية محيط", "مسامير", "شريط", "معجون فواصل"].map((g, i) => ({ id: `c${i}`, role: g, group: g })),
+    components: ["لوح عادي", "لوح رطوبة", "لوح حريق", "قطاع C", "أوميغا", "أسياخ", "وردات", "فيشر", "كلبسات", "زاوية محيط", "مسامير", "شريط", "معجون فواصل"].map((g, i) => ({ id: `c${i}`, role: g, group: g, inclusion: "always" as const, variants: null })),
   },
   {
     id: "sy2", code: "interior-paint", kind: "interior_paint", name: "دهانات داخلية", is_active: true,
@@ -127,7 +127,29 @@ export const SAMPLE_SYSTEMS: SystemItem[] = [
       { id: "v4", code: "new", name: "نظام كامل (جديد)", spec_text: null, is_default: true },
       { id: "v5", code: "repaint", name: "إعادة دهان", spec_text: null, is_default: false },
     ],
-    components: ["معجون", "أساس", "دهان جدران", "دهان أسقف", "مقاوم رطوبة", "ديكوري", "صنفرة", "نايلون", "شريط"].map((g, i) => ({ id: `d${i}`, role: g, group: g })),
+    components: (
+      [
+        ["عازل إسمنتي", "off"], ["معجون", "on"], ["أساس", "on"], ["دهان جدران", "always"], ["دهان أسقف", "always"],
+        ["مقاوم رطوبة", "always"], ["ديكوري", "always"], ["صنفرة", "on"], ["نايلون", "on"], ["شريط", "on"],
+      ] as const
+    ).map(([g, inclusion], i) => ({ id: `d${i}`, role: g, group: g, inclusion, variants: null })),
+  },
+  {
+    id: "sy3", code: "exterior-paint", kind: "exterior_paint", name: "دهانات خارجية", is_active: true,
+    spec_text: "معالجة الشروخ، أساس خارجي، معجون خارجي، دهان أكريليك وجهين أو بروفايل أو رش حسب الاختيار.",
+    variants: [
+      { id: "v6", code: "roller", name: "دهان بالرولة", spec_text: null, is_default: true },
+      { id: "v7", code: "profile", name: "بروفايل / تكسير", spec_text: null, is_default: false },
+      { id: "v8", code: "spray", name: "رش", spec_text: null, is_default: false },
+    ],
+    components: [
+      { id: "e1", role: "sealer", group: "عازل إسمنتي", inclusion: "off", variants: null },
+      { id: "e2", role: "ext_primer", group: "أساس خارجي", inclusion: "on", variants: null },
+      { id: "e3", role: "ext_putty", group: "معجون خارجي", inclusion: "on", variants: ["roller", "spray"] },
+      { id: "e4", role: "acrylic", group: "أكريليك خارجي", inclusion: "always", variants: ["roller"] },
+      { id: "e5", role: "profile", group: "بروفايل", inclusion: "always", variants: ["profile"] },
+      { id: "e6", role: "spray_acrylic", group: "أكريليك رش", inclusion: "always", variants: ["spray"] },
+    ],
   },
 ];
 

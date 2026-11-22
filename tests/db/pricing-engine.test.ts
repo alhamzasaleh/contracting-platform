@@ -76,6 +76,26 @@ describe("pricing engine seed (Appendix A.6)", () => {
     expect(r.rows).toEqual([{ purchase_unit: "L", brand: "جوتن Jotun" }]);
   });
 
+  it("sets the scope of work: optional items, sealer off, putty not for profile", async () => {
+    const r = await as({ userId: owner }, (q) =>
+      q(`select s.code, c.role, c.inclusion, c.variant_codes from public.system_components c join public.systems s on s.id = c.system_id
+         where c.role in ('sealer', 'primer', 'ext_putty', 'wall_finish') order by s.code, c.role`),
+    );
+    expect(r.rows).toEqual([
+      { code: "exterior-paint", role: "ext_putty", inclusion: "on", variant_codes: ["roller", "spray"] },
+      { code: "exterior-paint", role: "sealer", inclusion: "off", variant_codes: null },
+      { code: "interior-paint", role: "primer", inclusion: "on", variant_codes: null },
+      { code: "interior-paint", role: "sealer", inclusion: "off", variant_codes: null },
+      { code: "interior-paint", role: "wall_finish", inclusion: "always", variant_codes: null },
+    ]);
+    const sealer = await as({ userId: owner }, (q) => q("select category from public.products where name = 'عازل إسمنتي'"));
+    expect(sealer.rows).toEqual([{ category: "sealer" }]);
+  });
+
+  it("keeps the scope helper private", async () => {
+    await expectDenied(as({ userId: owner }, (q) => q("select private.apply_scope_defaults($1)", [org])));
+  });
+
   it("refuses seeding for a viewer or another organization", async () => {
     await expectDenied(as({ userId: viewer }, (q) => q("select public.seed_pricing_engine($1)", [org])), /not allowed/);
     await expectDenied(as({ userId: owner }, (q) => q("select public.seed_pricing_engine($1)", [orgB])), /not allowed/);
