@@ -9,6 +9,7 @@ export default async function CatalogueLayout({ children }: { children: React.Re
   const tabs = [
     { href: "/catalogue", label: t("tabServices"), exact: true },
     { href: "/catalogue/materials", label: t("tabMaterials") },
+    { href: "/catalogue/suppliers", label: t("tabSuppliers") },
     ...(can(session, "costs.view")
       ? [
           { href: "/catalogue/labour", label: t("tabLabour") },

@@ -55,14 +55,31 @@ export function employeeCost(e: EmployeeCostInput, items: CostItem[], workingDay
   return { salary, statutory, monthlyTotal, perDay: monthlyTotal / days };
 }
 
-export type RecipeLine = { qty_per_unit: number; waste_percent: number | null; unit_price: number | null };
+export type RecipeLine = { qty_per_unit: number | null; waste_percent: number | null; unit_price: number | null };
+
+/**
+ * Quantity of a material per service unit (m²).
+ * coverage mode: coats ÷ coverage per unit (e.g. 2 coats ÷ 35 m²/gallon).
+ * fixed mode: the entered quantity.
+ */
+export function recipeQtyPerUnit(line: {
+  calc_mode: "fixed" | "coverage";
+  qty_per_unit: number | null;
+  coats: number;
+  coverage_per_unit: number | null;
+}): number | null {
+  if (line.calc_mode === "coverage") {
+    return line.coverage_per_unit && line.coverage_per_unit > 0 ? line.coats / line.coverage_per_unit : null;
+  }
+  return line.qty_per_unit;
+}
 
 /** Material cost for one service unit (m²), including waste. Lines without a price are skipped and reported. */
 export function materialCostPerUnit(lines: RecipeLine[], defaultWastePercent: number) {
   let total = 0;
   let missingPrices = 0;
   for (const l of lines) {
-    if (l.unit_price == null) {
+    if (l.unit_price == null || l.qty_per_unit == null) {
       missingPrices++;
       continue;
     }

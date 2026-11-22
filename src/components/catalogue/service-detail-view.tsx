@@ -11,8 +11,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Segmented } from "@/components/ui/segmented";
 import type { ActionResult } from "@/lib/actions";
-import { materialCostPerUnit, suggestedDurationDays } from "@/lib/costing";
+import { materialCostPerUnit, recipeQtyPerUnit, suggestedDurationDays } from "@/lib/costing";
 import { cn } from "@/lib/utils";
 import { ServiceDialog, SwitchField, type ServiceInput, type ServiceSummary } from "./services-view";
 
@@ -30,11 +31,15 @@ export type RecipeLine = {
   material_id: string;
   material_name: string;
   material_unit: string;
-  qty_per_unit: number;
+  material_brand: string | null;
+  coverage_per_unit: number | null;
+  calc_mode: "fixed" | "coverage";
+  coats: number;
+  qty_per_unit: number | null;
   waste_percent: number | null;
   unit_price: number | null; // null = no price or hidden
 };
-export type MaterialOption = { id: string; name_ar: string; unit: string };
+export type MaterialOption = { id: string; name_ar: string; unit: string; brand: string | null; coverage_per_unit: number | null };
 
 export type ServiceDetailActions = {
   saveService: (i: ServiceInput) => Promise<ActionResult<{ code: string }>>;
@@ -78,10 +83,12 @@ export function ServiceDetailView({
   const [specDialog, setSpecDialog] = React.useState<Spec | "new" | null>(null);
   const [recipeDialog, setRecipeDialog] = React.useState<RecipeLine | "new" | null>(null);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [pickedMaterial, setPickedMaterial] = React.useState<string>("");
 
   const waste = service.waste_percent ?? defaultWastePercent;
+  const qtyOf = (r: RecipeLine) => recipeQtyPerUnit(r);
   const cost = materialCostPerUnit(
-    recipe.map((r) => ({ qty_per_unit: r.qty_per_unit, waste_percent: r.waste_percent ?? waste, unit_price: r.unit_price })),
+    recipe.map((r) => ({ qty_per_unit: qtyOf(r), waste_percent: r.waste_percent ?? waste, unit_price: r.unit_price })),
     waste,
   );
 
@@ -189,7 +196,8 @@ export function ServiceDetailView({
                 <ul className="divide-y divide-border">
                   {recipe.map((r) => {
                     const w = r.waste_percent ?? waste;
-                    const lineCost = r.unit_price != null ? r.qty_per_unit * (1 + w / 100) * r.unit_price : null;
+                    const q = qtyOf(r);
+                    const lineCost = r.unit_price != null && q != null ? q * (1 + w / 100) * r.unit_price : null;
                     return (
                       <li key={r.id}>
                         <button
@@ -199,9 +207,20 @@ export function ServiceDetailView({
                           className="flex w-full items-center gap-3 px-5 py-3 text-start transition-colors enabled:hover:bg-surface-2/60 sm:px-6"
                         >
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-[15px] font-bold">{r.material_name}</p>
+                            <p className="truncate text-[15px] font-bold">
+                              {r.material_name}
+                              {r.material_brand && <span className="font-normal text-muted-foreground"> · {r.material_brand}</span>}
+                            </p>
+                            {r.calc_mode === "coverage" && (
+                              <p className="num text-[13px] text-muted-foreground">
+                                {t("catalogue.coatsCount", { n: fmt.number(r.coats, r.coats % 1 ? 1 : 0) })} ÷{" "}
+                                {r.coverage_per_unit
+                                  ? t("catalogue.coversPer", { area: fmt.number(r.coverage_per_unit, 2), unit: t(`units.${r.material_unit}`) })
+                                  : t("catalogue.noCoverage")}
+                              </p>
+                            )}
                             <p className="num text-[13px] text-muted-foreground">
-                              {fmt.number(r.qty_per_unit, 3)} {t(`units.${r.material_unit}`)} / {t(`units.${service.unit}`)} · {t("catalogue.waste")} {fmt.number(w, 1)}%
+                              {q != null ? `${fmt.number(q, 4)} ${t(`units.${r.material_unit}`)} / ${t(`units.${service.unit}`)}` : "—"} · {t("catalogue.waste")} {fmt.number(w, 1)}%
                             </p>
                           </div>
                           {canSeeCosts && (
@@ -397,6 +416,8 @@ export function ServiceDetailView({
                     ...(recipeDialog !== "new" ? { id: recipeDialog.id } : {}),
                     service_id: service.id,
                     material_id: recipeDialog !== "new" ? recipeDialog.material_id : str(fd, "material_id"),
+                    calc_mode: str(fd, "calc_mode") || "fixed",
+                    coats: str(fd, "coats") || "1",
                     qty_per_unit: str(fd, "qty_per_unit"),
                     waste_percent: str(fd, "waste_percent"),
                     notes: null,
@@ -414,7 +435,7 @@ export function ServiceDetailView({
                   {r ? (
                     <Input value={r.material_name} disabled readOnly />
                   ) : (
-                    <NativeSelect name="material_id" defaultValue="">
+                    <NativeSelect name="material_id" defaultValue="" onChange={(e) => setPickedMaterial(e.target.value)}>
                       <option value="" disabled>
                         —
                       </option>
@@ -422,15 +443,21 @@ export function ServiceDetailView({
                         .filter((m) => !used.has(m.id))
                         .map((m) => (
                           <option key={m.id} value={m.id}>
-                            {m.name_ar} ({t(`units.${m.unit}`)})
+                            {m.name_ar}
+                            {m.brand ? ` — ${m.brand}` : ""} ({t(`units.${m.unit}`)})
                           </option>
                         ))}
                     </NativeSelect>
                   )}
                 </Field>
-                <Field id="rc-qty" label={t("catalogue.qtyPerUnit")} error={fieldText(errors.qty_per_unit)}>
-                  <NumberInput name="qty_per_unit" defaultValue={r?.qty_per_unit ?? ""} />
-                </Field>
+                <RecipeQtyFields
+                  key={r?.id ?? pickedMaterial}
+                  line={r}
+                  material={materials.find((m) => m.id === (r?.material_id ?? pickedMaterial))}
+                  unitLabel={(u) => t(`units.${u}`)}
+                  errors={errors}
+                  fieldText={fieldText}
+                />
                 <Field id="rc-waste" label={t("catalogue.wastePercent")} hint={t("catalogue.wasteHint")} optional={t("common.optional")} error={fieldText(errors.waste_percent)}>
                   <NumberInput name="waste_percent" defaultValue={r?.waste_percent ?? ""} suffix="%" />
                 </Field>
@@ -482,5 +509,66 @@ function DurationCalculator({ stages }: { stages: Stage[] }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function RecipeQtyFields({
+  line,
+  material,
+  unitLabel,
+  errors,
+  fieldText,
+}: {
+  line?: RecipeLine;
+  material?: MaterialOption;
+  unitLabel: (u: string) => string;
+  errors: Record<string, string>;
+  fieldText: (k?: string) => string | undefined;
+}) {
+  const t = useTranslations("catalogue");
+  const { fmt } = useFormatter();
+  const coverage = line?.coverage_per_unit ?? material?.coverage_per_unit ?? null;
+  const [mode, setMode] = React.useState<"coverage" | "fixed">(line?.calc_mode ?? (coverage ? "coverage" : "fixed"));
+  const [coats, setCoats] = React.useState(String(line?.coats ?? 1));
+  const unit = unitLabel(line?.material_unit ?? material?.unit ?? "piece");
+  const c = Number(coats) || 0;
+
+  return (
+    <>
+      <input type="hidden" name="calc_mode" value={mode} />
+      <div className="grid gap-2">
+        <span className="text-[13px] font-medium">{t("calcMode")}</span>
+        <Segmented
+          name={t("calcMode")}
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: "coverage", label: t("modeCoverage") },
+            { value: "fixed", label: t("modeFixed") },
+          ]}
+          className="w-full"
+        />
+      </div>
+      {mode === "coverage" ? (
+        <>
+          <Field id="rc-coats" label={t("coats")} hint={t("coatsHint")} error={fieldText(errors.coats)}>
+            <NumberInput name="coats" value={coats} onChange={(e) => setCoats(e.target.value)} />
+          </Field>
+          <div className="rounded-xl bg-surface-2 px-4 py-3 text-[14px]">
+            {coverage ? (
+              <p className="num">
+                {t("coversPer", { area: fmt.number(coverage, 2), unit })} → <b>{fmt.number(c / coverage, 4)} {unit}</b> / م²
+              </p>
+            ) : (
+              <p className="text-warning">{t("noCoverageHint")}</p>
+            )}
+          </div>
+        </>
+      ) : (
+        <Field id="rc-qty" label={t("qtyPerUnit")} error={fieldText(errors.qty_per_unit)}>
+          <NumberInput name="qty_per_unit" defaultValue={line?.qty_per_unit ?? ""} suffix={unit} />
+        </Field>
+      )}
+    </>
   );
 }

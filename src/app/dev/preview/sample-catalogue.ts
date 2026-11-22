@@ -5,12 +5,19 @@ import type { Employee } from "@/components/team/employees-view";
 import type { CostItemRow } from "@/components/team/cost-items-view";
 
 /** Illustrative sample data for the design preview only. */
+export const SAMPLE_SUPPLIERS = [
+  { id: "sp1", name: "مؤسسة الدهانات الحديثة", contact_name: "أبو خالد", phone: "966551112233", vat_number: "310000000000003", city: "الرياض", notes: null, is_active: true },
+  { id: "sp2", name: "مستودع مواد البناء", contact_name: null, phone: null, vat_number: null, city: "الرياض", notes: null, is_active: true },
+];
+
+const h = (unit_price: number, effective_from: string, supplier_name: string | null = null, source: string | null = null) => ({ unit_price, effective_from, source, supplier_name });
+
 export const SAMPLE_MATERIALS: MaterialItem[] = [
-  { id: "m1", name_ar: "لوح جبس عادي 12.5مم", name_en: null, category: "جبس", unit: "sheet", scope: "general", sku: null, is_active: true, price: 23, priceSince: "2026-11-10", history: [{ unit_price: 23, effective_from: "2026-11-10", source: "مورد الرياض" }, { unit_price: 21.5, effective_from: "2026-08-01", source: null }] },
-  { id: "m2", name_ar: "قطاع أوميغا", name_en: null, category: "جبس", unit: "piece", scope: "general", sku: null, is_active: true, price: 6.5, priceSince: "2026-10-02", history: [{ unit_price: 6.5, effective_from: "2026-10-02", source: null }] },
-  { id: "m3", name_ar: "شريط فواصل", name_en: null, category: "جبس", unit: "roll", scope: "general", sku: null, is_active: true, price: 12, priceSince: "2026-09-15", history: [{ unit_price: 12, effective_from: "2026-09-15", source: null }] },
-  { id: "m4", name_ar: "معجون جاهز", name_en: null, category: "دهانات", unit: "bucket", scope: "general", sku: null, is_active: true, price: null, priceSince: null, history: [] },
-  { id: "m5", name_ar: "دهان داخلي — لون العميل", name_en: null, category: "دهانات", unit: "gallon", scope: "project", sku: null, is_active: true, price: 85, priceSince: "2026-11-01", history: [{ unit_price: 85, effective_from: "2026-11-01", source: null }, { unit_price: 90, effective_from: "2026-06-01", source: null }] },
+  { id: "m1", name_ar: "لوح جبس عادي 12.5مم", name_en: null, category: "جبس", unit: "sheet", scope: "general", sku: null, brand: "كناوف", package_desc: "لوح 120×240", coverage_per_unit: 2.88, preferred_supplier_id: "sp2", preferred_supplier_name: "مستودع مواد البناء", is_active: true, price: 23, priceSince: "2026-11-10", supplierPrices: [{ supplier_id: "sp2", supplier_name: "مستودع مواد البناء", unit_price: 23, since: "2026-11-10" }], history: [h(23, "2026-11-10", "مستودع مواد البناء"), h(21.5, "2026-08-01")] },
+  { id: "m2", name_ar: "قطاع أوميغا", name_en: null, category: "جبس", unit: "piece", scope: "general", sku: null, brand: null, package_desc: "طول 3م", coverage_per_unit: null, preferred_supplier_id: null, preferred_supplier_name: null, is_active: true, price: 6.5, priceSince: "2026-10-02", supplierPrices: [], history: [h(6.5, "2026-10-02")] },
+  { id: "m3", name_ar: "شريط فواصل", name_en: null, category: "جبس", unit: "roll", scope: "general", sku: null, brand: null, package_desc: "لفة 90م", coverage_per_unit: null, preferred_supplier_id: null, preferred_supplier_name: null, is_active: true, price: 12, priceSince: "2026-09-15", supplierPrices: [], history: [h(12, "2026-09-15")] },
+  { id: "m4", name_ar: "معجون جاهز", name_en: null, category: "دهانات", unit: "bucket", scope: "general", sku: null, brand: "الجزيرة", package_desc: "سطل 25 كجم", coverage_per_unit: 30, preferred_supplier_id: null, preferred_supplier_name: null, is_active: true, price: null, priceSince: null, supplierPrices: [], history: [] },
+  { id: "m5", name_ar: "دهان داخلي مطفي", name_en: null, category: "دهانات", unit: "gallon", scope: "project", sku: null, brand: "جوتن", package_desc: "جالون 3.6 لتر", coverage_per_unit: 35, preferred_supplier_id: "sp1", preferred_supplier_name: "مؤسسة الدهانات الحديثة", is_active: true, price: 85, priceSince: "2026-11-01", supplierPrices: [{ supplier_id: "sp2", supplier_name: "مستودع مواد البناء", unit_price: 82, since: "2026-11-05" }, { supplier_id: "sp1", supplier_name: "مؤسسة الدهانات الحديثة", unit_price: 85, since: "2026-11-01" }], history: [h(82, "2026-11-05", "مستودع مواد البناء"), h(85, "2026-11-01", "مؤسسة الدهانات الحديثة"), h(90, "2026-06-01", "مؤسسة الدهانات الحديثة")] },
 ];
 
 export const SAMPLE_SERVICES: ServiceSummary[] = [
@@ -34,9 +41,9 @@ export const SAMPLE_SPECS: Spec[] = [
 ];
 
 export const SAMPLE_RECIPE: RecipeLine[] = [
-  { id: "r1", material_id: "m1", material_name: "لوح جبس عادي 12.5مم", material_unit: "sheet", qty_per_unit: 0.35, waste_percent: null, unit_price: 23 },
-  { id: "r2", material_id: "m2", material_name: "قطاع أوميغا", material_unit: "piece", qty_per_unit: 1.2, waste_percent: null, unit_price: 6.5 },
-  { id: "r3", material_id: "m3", material_name: "شريط فواصل", material_unit: "roll", qty_per_unit: 0.02, waste_percent: 0, unit_price: 12 },
+  { id: "r1", material_id: "m1", material_name: "لوح جبس عادي 12.5مم", material_unit: "sheet", material_brand: "كناوف", coverage_per_unit: 2.88, calc_mode: "coverage", coats: 1, qty_per_unit: null, waste_percent: null, unit_price: 23 },
+  { id: "r2", material_id: "m2", material_name: "قطاع أوميغا", material_unit: "piece", material_brand: null, coverage_per_unit: null, calc_mode: "fixed", coats: 1, qty_per_unit: 1.2, waste_percent: null, unit_price: 6.5 },
+  { id: "r3", material_id: "m3", material_name: "شريط فواصل", material_unit: "roll", material_brand: null, coverage_per_unit: null, calc_mode: "fixed", coats: 1, qty_per_unit: 0.02, waste_percent: 0, unit_price: 12 },
 ];
 
 export const SAMPLE_COST_ITEMS: (CostItemRow & { name_ar: string })[] = [

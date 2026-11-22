@@ -206,11 +206,14 @@ const recipeSchema = z
     id: id.optional(),
     service_id: id,
     material_id: id,
-    qty_per_unit: num({ min: 0.0001, max: 100000 }),
+    calc_mode: z.enum(["fixed", "coverage"]),
+    coats: num({ min: 0.1, max: 20 }),
+    qty_per_unit: optionalNum({ min: 0.0001, max: 100000 }),
     waste_percent: optionalNum({ min: 0, max: 100 }),
     notes: optionalText(500),
   })
-  .strict();
+  .strict()
+  .refine((d) => d.calc_mode === "coverage" || d.qty_per_unit != null, { path: ["qty_per_unit"], message: "required" });
 
 export async function saveRecipeLine(input: unknown): Promise<ActionResult> {
   const ctx = await authorize("catalogue.manage");
@@ -243,6 +246,10 @@ const materialSchema = z
     unit: z.enum(MATERIAL_UNITS),
     scope: z.enum(["general", "project"]),
     sku: optionalText(60),
+    brand: optionalText(80),
+    package_desc: optionalText(80),
+    coverage_per_unit: optionalNum({ min: 0.0001, max: 100000 }),
+    preferred_supplier_id: z.preprocess((v) => (v === "" ? null : v), id.nullable()),
     is_active: z.boolean(),
     initial_price: optionalNum({ min: 0, max: 10_000_000 }).optional(),
   })
@@ -268,9 +275,12 @@ export async function saveMaterial(input: unknown): Promise<ActionResult> {
   if (initial_price != null && row) {
     const session = await getSession();
     if (can(session, "costs.view")) {
-      const { error: pErr } = await ctx.supabase
-        .from("material_prices")
-        .insert({ organization_id: ctx.orgId, material_id: row.id, unit_price: initial_price });
+      const { error: pErr } = await ctx.supabase.from("material_prices").insert({
+        organization_id: ctx.orgId,
+        material_id: row.id,
+        unit_price: initial_price,
+        supplier_id: data.preferred_supplier_id ?? null,
+      });
       if (pErr) return dbError(pErr)!;
     }
   }
@@ -283,6 +293,7 @@ const priceSchema = z
     unit_price: num({ min: 0, max: 10_000_000 }),
     effective_from: optionalDate,
     source: optionalText(160),
+    supplier_id: z.preprocess((v) => (v === "" ? null : v), id.nullable()),
   })
   .strict();
 
@@ -389,5 +400,38 @@ export async function savePricingSettings(input: unknown): Promise<ActionResult>
   const { error } = await ctx.supabase
     .from("pricing_settings")
     .upsert({ ...parsed.data, organization_id: ctx.orgId }, { onConflict: "organization_id" });
+  return dbError(error) ?? done();
+}
+
+// --- Suppliers ----------------------------------------------------------------
+
+const supplierSchema = z
+  .object({
+    id: id.optional(),
+    name: z.string().trim().min(2, "required").max(160),
+    contact_name: optionalText(120),
+    phone: z.preprocess(
+      (v) => (typeof v === "string" ? v.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/\D/g, "") || null : v),
+      z.string().regex(/^\d{8,15}$/, "phoneInvalid").nullable(),
+    ),
+    vat_number: z.preprocess(
+      (v) => (typeof v === "string" ? v.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/\s/g, "") || null : v),
+      z.string().regex(/^3\d{13}3$/, "vatInvalid").nullable(),
+    ),
+    city: optionalText(80),
+    notes: optionalText(1000),
+    is_active: z.boolean(),
+  })
+  .strict();
+
+export async function saveSupplier(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize("catalogue.manage");
+  if (!isCtx(ctx)) return ctx;
+  const parsed = supplierSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
+  const { id: supplierId, ...data } = parsed.data;
+  const { error } = supplierId
+    ? await ctx.supabase.from("suppliers").update(data).eq("id", supplierId).eq("organization_id", ctx.orgId)
+    : await ctx.supabase.from("suppliers").insert({ ...data, organization_id: ctx.orgId });
   return dbError(error) ?? done();
 }

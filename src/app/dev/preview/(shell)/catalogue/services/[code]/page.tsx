@@ -8,7 +8,7 @@ export default function P() {
       stages={SAMPLE_STAGES}
       specs={SAMPLE_SPECS}
       recipe={SAMPLE_RECIPE}
-      materials={SAMPLE_MATERIALS.map((m) => ({ id: m.id, name_ar: m.name_ar, unit: m.unit }))}
+      materials={SAMPLE_MATERIALS.map((m) => ({ id: m.id, name_ar: m.name_ar, unit: m.unit, brand: m.brand, coverage_per_unit: m.coverage_per_unit }))}
       defaultWastePercent={5}
       canManage
       canSeeCosts

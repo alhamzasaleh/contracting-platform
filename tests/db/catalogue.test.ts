@@ -152,3 +152,50 @@ describe("employees (HR)", () => {
     );
   });
 });
+
+describe("suppliers and coverage", () => {
+  let supplierA: string, supplierB: string, mat: string;
+
+  it("uses the preferred supplier's price as the current price", async () => {
+    await as({ userId: owner }, async (q) => {
+      supplierA = (await q<{ id: string }>("insert into public.suppliers (organization_id, name) values ($1,'مؤسسة الدهانات') returning id", [org])).rows[0].id;
+      supplierB = (await q<{ id: string }>("insert into public.suppliers (organization_id, name) values ($1,'مورد ثاني') returning id", [org])).rows[0].id;
+      mat = (await q<{ id: string }>(
+        "insert into public.materials (organization_id, name_ar, unit, brand, coverage_per_unit, preferred_supplier_id) values ($1,'دهان مطفي','gallon','جوتن',35,$2) returning id",
+        [org, supplierA],
+      )).rows[0].id;
+      await q("insert into public.material_prices (organization_id, material_id, unit_price, supplier_id, effective_from) values ($1,$2,80,$3,current_date - 5)", [org, mat, supplierA]);
+      await q("insert into public.material_prices (organization_id, material_id, unit_price, supplier_id) values ($1,$2,75,$3)", [org, mat, supplierB]);
+    });
+    const cur = await as({ userId: owner }, (q) => q("select unit_price from public.material_current_prices where material_id = $1", [mat]));
+    expect(cur.rows[0].unit_price).toBe("80.0000");
+    const per = await as({ userId: owner }, (q) => q("select count(*)::int as n from public.material_supplier_prices where material_id = $1", [mat]));
+    expect(per.rows[0].n).toBe(2);
+  });
+
+  it("accepts coverage-mode recipe lines without a fixed quantity", async () => {
+    const svc = await asAdmin(async (q) => (await q<{ id: string }>("select id from public.services where organization_id = $1 and code = 'interior-paint'", [org])).rows[0].id);
+    await as({ userId: owner }, (q) =>
+      q("insert into public.service_material_recipes (organization_id, service_id, material_id, calc_mode, coats) values ($1,$2,$3,'coverage',2)", [org, svc, mat]),
+    );
+    const board = await asAdmin(async (q) => (await q<{ id: string }>("select id from public.materials where organization_id = $1 and unit = 'sheet' limit 1", [org])).rows[0].id);
+    await expectDenied(
+      as({ userId: owner }, (q) =>
+        q("insert into public.service_material_recipes (organization_id, service_id, material_id, calc_mode) values ($1,$2,$3,'fixed')", [org, svc, board]),
+      ),
+      /recipes_qty_required_for_fixed/,
+    );
+  });
+
+  it("refuses another organization's supplier", async () => {
+    const otherSupplier = await as({ userId: ownerB }, async (q) =>
+      (await q<{ id: string }>("insert into public.suppliers (organization_id, name) values ($1,'مورد ب') returning id", [orgB])).rows[0].id,
+    );
+    await expectDenied(
+      as({ userId: owner }, (q) => q("update public.materials set preferred_supplier_id = $1 where id = $2", [otherSupplier, mat])),
+      /another organization/,
+    );
+    const r = await as({ userId: owner }, (q) => q("select count(*)::int as n from public.suppliers"));
+    expect(r.rows[0].n).toBe(2);
+  });
+});

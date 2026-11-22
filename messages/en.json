@@ -392,7 +392,37 @@
     "belowMin": "Must not be below the minimum",
     "delete": "Delete",
     "confirmDelete": "Delete this item?",
-    "waste": "Waste"
+    "waste": "Waste",
+    "tabSuppliers": "Suppliers",
+    "brand": "Brand / manufacturer",
+    "packageDesc": "Package / size",
+    "coverage": "Coverage per unit (m² per coat)",
+    "coverageHint": "E.g. a paint gallon covers 35 m² per coat; a 120×240 gypsum board covers 2.88 m²",
+    "preferredSupplier": "Preferred supplier",
+    "supplier": "Supplier",
+    "sourceNote": "Note (invoice no.…)",
+    "covers": "Covers {area} m²",
+    "pricePerM2": "{price} per m² (per coat)",
+    "suppliersCount": "{n} suppliers",
+    "compareSuppliers": "Compare supplier prices",
+    "cheapest": "Cheapest",
+    "preferred": "Preferred",
+    "calcMode": "Quantity method",
+    "modeCoverage": "By coverage",
+    "modeFixed": "Fixed per m²",
+    "coats": "Coats / layers",
+    "coatsHint": "E.g. 2-coat paint = 2; single-layer gypsum board = 1",
+    "coatsCount": "{n} coats",
+    "coversPer": "covers {area} m² per {unit}",
+    "noCoverage": "Coverage not set",
+    "noCoverageHint": "Set \"coverage per unit\" on the material to calculate the quantity automatically",
+    "newSupplier": "New supplier",
+    "editSupplier": "Edit supplier",
+    "supplierName": "Supplier / company name",
+    "contactName": "Contact person",
+    "vatRegistered": "VAT registered",
+    "emptySuppliersTitle": "No suppliers yet",
+    "emptySuppliersBody": "Add the companies you buy from, then link each material to a supplier and compare prices."
   },
   "units": {
     "m2": "m²",
@@ -485,6 +515,7 @@
     "notFound": "Not found",
     "phoneInvalid": "Enter a valid Saudi mobile number",
     "idInvalid": "ID/Iqama number is 10 digits",
-    "ibanInvalid": "IBAN is SA followed by 22 digits"
+    "ibanInvalid": "IBAN is SA followed by 22 digits",
+    "vatInvalid": "VAT number is 15 digits, starting and ending with 3"
   }
 }

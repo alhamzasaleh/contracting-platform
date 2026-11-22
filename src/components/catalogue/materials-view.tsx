@@ -22,11 +22,19 @@ export type MaterialItem = {
   unit: MaterialUnit;
   scope: "general" | "project";
   sku: string | null;
+  brand: string | null;
+  package_desc: string | null;
+  coverage_per_unit: number | null;
+  preferred_supplier_id: string | null;
+  preferred_supplier_name: string | null;
   is_active: boolean;
   price: number | null;
   priceSince: string | null;
-  history: { unit_price: number; effective_from: string; source: string | null }[];
+  supplierPrices: { supplier_id: string; supplier_name: string; unit_price: number; since: string }[];
+  history: { unit_price: number; effective_from: string; source: string | null; supplier_name: string | null }[];
 };
+
+export type SupplierOption = { id: string; name: string; is_active: boolean };
 
 export type MaterialsActions = {
   saveMaterial: (i: Record<string, unknown>) => Promise<ActionResult>;
@@ -35,11 +43,13 @@ export type MaterialsActions = {
 
 export function MaterialsView({
   materials,
+  suppliers = [],
   canManage,
   canSeeCosts,
   actions,
 }: {
   materials: MaterialItem[];
+  suppliers?: SupplierOption[];
   canManage: boolean;
   canSeeCosts: boolean;
   actions?: MaterialsActions;
@@ -55,7 +65,7 @@ export function MaterialsView({
 
   const q = query.trim().toLowerCase();
   const filtered = q
-    ? materials.filter((m) => [m.name_ar, m.name_en, m.category, m.sku].some((v) => v?.toLowerCase().includes(q)))
+    ? materials.filter((m) => [m.name_ar, m.name_en, m.category, m.sku, m.brand, m.preferred_supplier_name].some((v) => v?.toLowerCase().includes(q)))
     : materials;
   const categories = [...new Set(materials.map((m) => m.category).filter(Boolean))] as string[];
 
@@ -99,6 +109,10 @@ export function MaterialsView({
                   unit: str(fd, "unit"),
                   scope: str(fd, "scope"),
                   sku: str(fd, "sku") || null,
+                  brand: str(fd, "brand") || null,
+                  package_desc: str(fd, "package_desc") || null,
+                  coverage_per_unit: str(fd, "coverage_per_unit"),
+                  preferred_supplier_id: str(fd, "preferred_supplier_id"),
                   is_active: m ? bool(fd, "is_active") : true,
                   ...(m ? {} : { initial_price: str(fd, "initial_price") }),
                 })),
@@ -131,6 +145,30 @@ export function MaterialsView({
             <option key={c} value={c} />
           ))}
         </datalist>
+        <div className="grid grid-cols-2 gap-4">
+          <Field id="mt-brand" label={t("catalogue.brand")} optional={t("common.optional")}>
+            <Input name="brand" defaultValue={m?.brand ?? ""} placeholder="جوتن، الجزيرة، كناوف…" list="material-brands" />
+          </Field>
+          <Field id="mt-pack" label={t("catalogue.packageDesc")} optional={t("common.optional")}>
+            <Input name="package_desc" defaultValue={m?.package_desc ?? ""} placeholder="جالون 3.6 لتر / لوح 120×240" />
+          </Field>
+        </div>
+        <datalist id="material-brands">
+          {[...new Set(materials.map((x) => x.brand).filter(Boolean))].map((b) => (
+            <option key={b} value={b!} />
+          ))}
+        </datalist>
+        <Field id="mt-cov" label={t("catalogue.coverage")} hint={t("catalogue.coverageHint")} optional={t("common.optional")} error={fieldText(errors.coverage_per_unit)}>
+          <NumberInput name="coverage_per_unit" defaultValue={m?.coverage_per_unit ?? ""} suffix="م²" />
+        </Field>
+        <Field id="mt-supplier" label={t("catalogue.preferredSupplier")} optional={t("common.optional")}>
+          <NativeSelect name="preferred_supplier_id" defaultValue={m?.preferred_supplier_id ?? ""}>
+            <option value="">—</option>
+            {suppliers.filter((x) => x.is_active || x.id === m?.preferred_supplier_id).map((x) => (
+              <option key={x.id} value={x.id}>{x.name}</option>
+            ))}
+          </NativeSelect>
+        </Field>
         <Field id="mt-scope" label={t("catalogue.scope")}>
           <NativeSelect name="scope" defaultValue={m?.scope ?? "general"}>
             <option value="general">{t("catalogue.scopeGeneral")}</option>
@@ -177,9 +215,16 @@ export function MaterialsView({
             return (
               <li key={m.id} className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 ${m.is_active ? "" : "opacity-55"}`}>
                 <div className="min-w-0 flex-1 basis-56">
-                  <p className="truncate text-[15px] font-bold">{m.name_ar}</p>
+                  <p className="truncate text-[15px] font-bold">
+                    {m.name_ar}
+                    {m.brand && <span className="font-normal text-muted-foreground"> · {m.brand}</span>}
+                  </p>
                   <p className="flex flex-wrap items-center gap-1.5 text-[13px] text-muted-foreground">
-                    <span>{t(`units.${m.unit}`)}</span>
+                    <span>{m.package_desc || t(`units.${m.unit}`)}</span>
+                    {m.coverage_per_unit && (
+                      <Badge tone="primary" className="num">{t("catalogue.covers", { area: fmt.number(m.coverage_per_unit, 2) })}</Badge>
+                    )}
+                    {m.preferred_supplier_name && <>· <span>{m.preferred_supplier_name}</span></>}
                     {m.category && <>· <span>{m.category}</span></>}
                     {m.scope === "project" && <Badge tone="info">{t("catalogue.scopeProject").split(" (")[0]}</Badge>}
                   </p>
@@ -193,7 +238,14 @@ export function MaterialsView({
                           {trend < 0 && <TrendingDown className="size-4 text-success" />}
                           {fmt.money(m.price)}
                         </p>
-                        {m.priceSince && <p className="num text-xs text-subtle-foreground">{t("catalogue.since", { date: fmt.date(m.priceSince) })}</p>}
+                        {m.coverage_per_unit ? (
+                          <p className="num text-xs text-primary">{t("catalogue.pricePerM2", { price: fmt.money(m.price / m.coverage_per_unit) })}</p>
+                        ) : (
+                          m.priceSince && <p className="num text-xs text-subtle-foreground">{t("catalogue.since", { date: fmt.date(m.priceSince) })}</p>
+                        )}
+                        {m.supplierPrices.length > 1 && (
+                          <p className="num text-xs text-muted-foreground">{t("catalogue.suppliersCount", { n: fmt.number(m.supplierPrices.length) })}</p>
+                        )}
                       </>
                     ) : (
                       <Badge tone="warning">{t("catalogue.noPrice")}</Badge>
@@ -241,6 +293,7 @@ export function MaterialsView({
                     unit_price: str(fd, "unit_price"),
                     effective_from: str(fd, "effective_from"),
                     source: str(fd, "source") || null,
+                    supplier_id: str(fd, "supplier_id"),
                   })),
               { onFieldErrors: setErrors, onSuccess: () => setPricing(null) },
             )
@@ -249,10 +302,18 @@ export function MaterialsView({
           <Field id="pr-price" label={`${t("catalogue.unitPrice")} (${t(`units.${pricing.unit}`)})`} error={fieldText(errors.unit_price)}>
             <NumberInput name="unit_price" defaultValue={pricing.price ?? ""} suffix={t("dashboard.sar")} autoFocus />
           </Field>
+          <Field id="pr-supplier" label={t("catalogue.supplier")} optional={t("common.optional")}>
+            <NativeSelect name="supplier_id" defaultValue={pricing.preferred_supplier_id ?? ""}>
+              <option value="">—</option>
+              {suppliers.filter((x) => x.is_active).map((x) => (
+                <option key={x.id} value={x.id}>{x.name}</option>
+              ))}
+            </NativeSelect>
+          </Field>
           <Field id="pr-date" label={t("catalogue.effectiveFrom")} error={fieldText(errors.effective_from)}>
             <Input name="effective_from" type="date" defaultValue={new Date().toISOString().slice(0, 10)} dir="ltr" />
           </Field>
-          <Field id="pr-source" label={t("catalogue.source")} optional={t("common.optional")}>
+          <Field id="pr-source" label={t("catalogue.sourceNote")} optional={t("common.optional")}>
             <Input name="source" />
           </Field>
         </FormDialog>
@@ -266,12 +327,32 @@ export function MaterialsView({
           onSubmit={() => setHistory(null)}
           submitLabel={t("common.close")}
         >
+          {history.supplierPrices.length > 0 && (
+            <div className="grid gap-2">
+              <p className="text-[13px] font-bold">{t("catalogue.compareSuppliers")}</p>
+              <ol className="divide-y divide-border rounded-xl border border-border">
+                {history.supplierPrices.map((sp, i) => (
+                  <li key={sp.supplier_id} className="flex items-center justify-between gap-3 px-4 py-3">
+                    <span className="flex items-center gap-2 text-[14px]">
+                      {sp.supplier_name}
+                      {i === 0 && history.supplierPrices.length > 1 && <Badge tone="success">{t("catalogue.cheapest")}</Badge>}
+                      {sp.supplier_id === history.preferred_supplier_id && <Badge tone="primary">{t("catalogue.preferred")}</Badge>}
+                    </span>
+                    <span className="num text-[15px] font-bold">{fmt.money(sp.unit_price)}</span>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-2 text-[13px] font-bold">{t("catalogue.priceHistory")}</p>
+            </div>
+          )}
           <ol className="divide-y divide-border rounded-xl border border-border">
             {history.history.map((h, i) => (
               <li key={i} className="flex items-center justify-between gap-3 px-4 py-3">
                 <div>
                   <p className="num text-[14px]">{fmt.date(h.effective_from)}</p>
-                  {h.source && <p className="text-xs text-muted-foreground">{h.source}</p>}
+                  {(h.supplier_name || h.source) && (
+                    <p className="text-xs text-muted-foreground">{[h.supplier_name, h.source].filter(Boolean).join(" · ")}</p>
+                  )}
                 </div>
                 <span className="num text-[15px] font-bold">{fmt.money(h.unit_price)}</span>
               </li>

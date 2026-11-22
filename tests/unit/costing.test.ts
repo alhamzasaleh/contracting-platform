@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { effectiveVatPercent, employeeCost, materialCostPerUnit, suggestedDurationDays, type CostItem } from "@/lib/costing";
+import { effectiveVatPercent, employeeCost, materialCostPerUnit, recipeQtyPerUnit, suggestedDurationDays, type CostItem } from "@/lib/costing";
 
 describe("VAT rule", () => {
   it("is zero until the company has a valid VAT number", () => {
@@ -55,5 +55,23 @@ describe("duration", () => {
     expect(suggestedDurationDays(420, [{ productivity_per_day: 120, fixed_days: 0 }, { productivity_per_day: 80, fixed_days: 1 }, { productivity_per_day: null, fixed_days: 0.5 }])).toBe(10.5);
     expect(suggestedDurationDays(420, [{ productivity_per_day: 120, fixed_days: 0 }], 2)).toBe(2);
     expect(suggestedDurationDays(0, [{ productivity_per_day: 1, fixed_days: 3 }])).toBe(0);
+  });
+});
+
+describe("coverage-based quantities", () => {
+  it("computes paint per m² from coats and coverage", () => {
+    expect(recipeQtyPerUnit({ calc_mode: "coverage", coats: 2, coverage_per_unit: 35, qty_per_unit: null })).toBeCloseTo(2 / 35, 8);
+  });
+  it("computes gypsum boards per m² from board area", () => {
+    expect(recipeQtyPerUnit({ calc_mode: "coverage", coats: 1, coverage_per_unit: 2.88, qty_per_unit: null })).toBeCloseTo(0.3472, 4);
+  });
+  it("returns null when coverage is missing, and fixed quantities as entered", () => {
+    expect(recipeQtyPerUnit({ calc_mode: "coverage", coats: 2, coverage_per_unit: null, qty_per_unit: 1 })).toBeNull();
+    expect(recipeQtyPerUnit({ calc_mode: "fixed", coats: 1, coverage_per_unit: 35, qty_per_unit: 0.5 })).toBe(0.5);
+  });
+  it("prices a 2-coat paint at 80 SAR/gallon covering 35 m² with 5% waste", () => {
+    const q = recipeQtyPerUnit({ calc_mode: "coverage", coats: 2, coverage_per_unit: 35, qty_per_unit: null });
+    const r = materialCostPerUnit([{ qty_per_unit: q, waste_percent: 5, unit_price: 80 }], 5);
+    expect(r.total).toBeCloseTo((2 / 35) * 1.05 * 80, 6); // ≈ 4.80 SAR per m²
   });
 });

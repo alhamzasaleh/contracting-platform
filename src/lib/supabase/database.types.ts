@@ -138,6 +138,20 @@ export type MaterialRow = OrgRow & Upd & {
   sku: string | null;
   is_active: boolean;
   notes: string | null;
+  brand: string | null;
+  package_desc: string | null;
+  coverage_per_unit: number | null;
+  preferred_supplier_id: string | null;
+};
+
+export type SupplierRow = OrgRow & Upd & {
+  name: string;
+  contact_name: string | null;
+  phone: string | null;
+  vat_number: string | null;
+  city: string | null;
+  notes: string | null;
+  is_active: boolean;
 };
 
 export type MaterialPriceRow = OrgRow & {
@@ -145,6 +159,7 @@ export type MaterialPriceRow = OrgRow & {
   unit_price: number;
   effective_from: string;
   source: string | null;
+  supplier_id: string | null;
 };
 
 export type MaterialCurrentPriceRow = {
@@ -153,14 +168,17 @@ export type MaterialCurrentPriceRow = {
   unit_price: number;
   effective_from: string;
   created_at: string;
+  supplier_id: string | null;
 };
 
 export type RecipeRow = OrgRow & Upd & {
   service_id: string;
   material_id: string;
-  qty_per_unit: number;
+  qty_per_unit: number | null;
   waste_percent: number | null;
   notes: string | null;
+  calc_mode: "fixed" | "coverage";
+  coats: number;
 };
 
 export type LabourRateRow = OrgRow & Upd & {
@@ -240,9 +258,11 @@ export type Database = {
       extra_cost_items: Table<ExtraCostItemRow>;
       employees: Table<EmployeeRow>;
       employee_cost_items: Table<EmployeeCostItemRow>;
+      suppliers: Table<SupplierRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
+      material_supplier_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
     };
     Functions: {
       create_organization: { Args: { p_name: string }; Returns: string };

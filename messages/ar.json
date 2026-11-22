@@ -392,7 +392,37 @@
     "belowMin": "لا يقل عن الحد الأدنى",
     "delete": "حذف",
     "confirmDelete": "متأكد من الحذف؟",
-    "waste": "الهدر"
+    "waste": "الهدر",
+    "tabSuppliers": "الموردين",
+    "brand": "الماركة / الشركة",
+    "packageDesc": "العبوة / المقاس",
+    "coverage": "كم تغطي الوحدة (م² للوجه الواحد)",
+    "coverageHint": "مثال: جالون الدهان يغطي 35 م² للوجه، لوح الجبس 120×240 يغطي 2.88 م²",
+    "preferredSupplier": "المورد المعتمد",
+    "supplier": "المورد",
+    "sourceNote": "ملاحظة (رقم الفاتورة…)",
+    "covers": "يغطي {area} م²",
+    "pricePerM2": "{price} للمتر (للوجه)",
+    "suppliersCount": "{n} موردين",
+    "compareSuppliers": "مقارنة أسعار الموردين",
+    "cheapest": "الأرخص",
+    "preferred": "المعتمد",
+    "calcMode": "طريقة حساب الكمية",
+    "modeCoverage": "حسب التغطية",
+    "modeFixed": "كمية ثابتة للمتر",
+    "coats": "عدد الأوجه / الطبقات",
+    "coatsHint": "مثال: دهان وجهين = 2، لوح جبس طبقة واحدة = 1",
+    "coatsCount": "{n} أوجه",
+    "coversPer": "يغطي {area} م² لكل {unit}",
+    "noCoverage": "التغطية غير محددة",
+    "noCoverageHint": "حدد \"كم تغطي الوحدة\" في بيانات المادة لتُحسب الكمية تلقائياً",
+    "newSupplier": "مورد جديد",
+    "editSupplier": "تعديل المورد",
+    "supplierName": "اسم المورد / الشركة",
+    "contactName": "اسم المسؤول",
+    "vatRegistered": "مسجّل ضريبياً",
+    "emptySuppliersTitle": "لا يوجد موردين بعد",
+    "emptySuppliersBody": "أضف الشركات اللي تشتري منها، وبعدها تربط كل مادة بمورد وتقارن الأسعار بينهم."
   },
   "units": {
     "m2": "م²",
@@ -485,6 +515,7 @@
     "notFound": "غير موجود",
     "phoneInvalid": "أدخل رقم جوال سعودي صحيح",
     "idInvalid": "رقم الهوية/الإقامة 10 أرقام",
-    "ibanInvalid": "الآيبان يبدأ بـ SA ثم 22 رقماً"
+    "ibanInvalid": "الآيبان يبدأ بـ SA ثم 22 رقماً",
+    "vatInvalid": "الرقم الضريبي 15 رقماً، يبدأ وينتهي بـ 3"
   }
 }
