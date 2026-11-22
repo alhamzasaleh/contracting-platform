@@ -146,6 +146,9 @@ export type InteriorInput = {
   zones?: InteriorZone[];
   colours: number;
   colourNames?: string[];
+  /** Ceilings can have their own colour(s) — not necessarily white. Default 1. */
+  ceilingColours?: number;
+  ceilingColourNames?: string[];
   variant: "new" | "repaint";
   brand: string;
   crackM?: number;
@@ -198,7 +201,13 @@ export function computeInterior(input: InteriorInput, products: PaintProduct[], 
       }
     }
     const ceilingPaint = get("ceiling_paint");
-    if (ceilingPaint) lines.push(productLine("ceiling_paint", ceilingPaint, { ceilings: ceilings * p.coats.ceilingPaint }, p.wastePercent));
+    if (ceilingPaint) {
+      const n = ceilingPaint.colourSpecific ? (input.ceilingColours ?? 1) : 1;
+      for (const c of colourSplit(ceilings, n, input.ceilingColourNames)) {
+        const key = n > 1 ? `ceiling_paint_${c.colour}` : "ceiling_paint";
+        lines.push(productLine(key, ceilingPaint, { ceilings: c.area * p.coats.ceilingPaint }, p.wastePercent, { colour: n > 1 || input.ceilingColourNames ? c.colour : undefined }));
+      }
+    }
 
     for (const z of zones) {
       const role: PaintRole = z.kind === "wet" ? "moisture" : z.kind === "decorative" ? "decorative" : (z.finishRole ?? "wall_finish");

@@ -141,7 +141,7 @@ const JOTUN: PaintProduct[] = [
   { id: "j_putty", brand: "Jotun", role: "putty", name: "Jotun putty 20 kg", unit: "kg", refPackSize: 20, coveragePerPack: 25, packs: [{ size: 20, price: 45 }], colourSpecific: false },
   { id: "j_primer", brand: "Jotun", role: "primer", name: "Jotun primer 18 L", unit: "L", refPackSize: 18, coveragePerPack: 140, packs: [{ size: 18, price: 120 }], colourSpecific: false },
   { id: "j_finish", brand: "Jotun", role: "wall_finish", name: "Jotun Fenomastic 18 L", unit: "L", refPackSize: 18, coveragePerPack: 120, packs: [{ size: 18, price: 180 }, { size: 4, price: 45 }], colourSpecific: true },
-  { id: "j_ceiling", brand: "Jotun", role: "ceiling_paint", name: "Jotun ceiling 18 L", unit: "L", refPackSize: 18, coveragePerPack: 130, packs: [{ size: 18, price: 140 }], colourSpecific: false },
+  { id: "j_ceiling", brand: "Jotun", role: "ceiling_paint", name: "Jotun ceiling 18 L", unit: "L", refPackSize: 18, coveragePerPack: 130, packs: [{ size: 18, price: 140 }], colourSpecific: true },
   { id: "j_moist", brand: "Jotun", role: "moisture", name: "Jotun moisture 18 L", unit: "L", refPackSize: 18, coveragePerPack: 110, packs: [{ size: 18, price: 230 }], colourSpecific: true },
   { id: "j_deco", brand: "Jotun", role: "decorative", name: "Jotun decorative 5 L", unit: "L", refPackSize: 5, coveragePerPack: 15, packs: [{ size: 5, price: 160 }], colourSpecific: true },
 ];
@@ -219,6 +219,14 @@ describe("golden — interior paint (A.7)", () => {
     }
     // Components without an Al-Jazeera equivalent fall back, with a warning.
     expect(aj.warnings).toContain("brand_fallback_putty");
+  });
+
+  it("lets ceilings have their own colours (not necessarily white)", () => {
+    const two = computeInterior({ ...INTERIOR, ceilingColours: 2, ceilingColourNames: ["أبيض", "بيج"] }, JOTUN, INTERIOR_PARAMS);
+    const lines = two.lines.filter((l) => l.key.startsWith("ceiling_paint"));
+    expect(lines.map((l) => l.colour)).toEqual(["أبيض", "بيج"]);
+    // 125 m² × 2 coats each → 36.35 L → 3 × 18 L per colour (rounded up per colour)
+    expect(lines.map((l) => l.cost)).toEqual([420, 420]);
   });
 
   it("applies VAT only when the company is VAT-registered", () => {

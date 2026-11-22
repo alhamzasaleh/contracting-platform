@@ -79,7 +79,7 @@ export const PAINT_PRODUCTS: PaintProduct[] = [
   { id: "putty", brand: "Generic", role: "putty", name: "Wall putty 20 kg", unit: "kg", refPackSize: 20, coveragePerPack: 25, packs: [{ size: 20, price: 45 }], colourSpecific: false },
   { id: "primer", brand: "Generic", role: "primer", name: "Primer 18 L", unit: "L", refPackSize: 18, coveragePerPack: 140, packs: [{ size: 18, price: 120 }], colourSpecific: false },
   { id: "wall_finish", brand: "Generic", role: "wall_finish", name: "Wall emulsion 18 L", unit: "L", refPackSize: 18, coveragePerPack: 120, packs: [{ size: 18, price: 180 }], colourSpecific: true },
-  { id: "ceiling_paint", brand: "Generic", role: "ceiling_paint", name: "Ceiling paint 18 L", unit: "L", refPackSize: 18, coveragePerPack: 130, packs: [{ size: 18, price: 140 }], colourSpecific: false },
+  { id: "ceiling_paint", brand: "Generic", role: "ceiling_paint", name: "Ceiling paint 18 L", unit: "L", refPackSize: 18, coveragePerPack: 130, packs: [{ size: 18, price: 140 }], colourSpecific: true },
   { id: "moisture", brand: "Generic", role: "moisture", name: "Moisture-resistant 18 L", unit: "L", refPackSize: 18, coveragePerPack: 110, packs: [{ size: 18, price: 230 }], colourSpecific: true },
   { id: "decorative", brand: "Generic", role: "decorative", name: "Decorative system 5 L", unit: "L", refPackSize: 5, coveragePerPack: 15, packs: [{ size: 5, price: 160 }], colourSpecific: true },
   { id: "ext_primer", brand: "Generic", role: "ext_primer", name: "Exterior primer", unit: "L", refPackSize: 18, coveragePerPack: 200, packs: [{ size: 18, price: 135 }], colourSpecific: false },
