@@ -155,13 +155,15 @@
 ### 3.20 Employees, payroll & true labour cost (added by owner)
 - **Employee record**: name, nationality (Saudi / non-Saudi), job (painter, gypsum installer, supervisor, driver…), ID/iqama number and expiry, passport expiry, phone, start date, salary components (basic, housing, transport, other allowances), bank/IBAN for WPS, assigned supervisor/team, status (active, on leave, final exit). Documents (iqama, passport, contract, insurance card) as private files.
 - **Monthly payroll**: salaries + overtime + deductions/advances → payslip per employee; obligations feed the cash-flow forecast (§3.16). Export for the bank / Wage Protection System (Mudad) when needed. Sync salary entries to Qoyod (§3.15).
-- **Government & statutory costs** — each is a configurable line in Settings (amounts change by regulation; never hard-code them, show the "last updated" date and remind the owner to review):
-  - **GOSI** (social insurance) employer share — different rates for Saudi and non-Saudi employees.
-  - **Medical insurance** (mandatory CCHI cover for non-Saudi employees and dependants as applicable) — annual premium per employee, with expiry reminders.
-  - **Iqama** issuance/renewal fee and **work permit / expat levy (المقابل المالي)** — per non-Saudi employee per year.
-  - **Recruitment**: work visa fee, recruitment office fee, air ticket, medical check.
-  - **Sponsorship transfer (نقل الكفالة / نقل خدمات)** fee when hiring locally.
-  - **Exit/re-entry visas**, annual leave ticket, end-of-service benefit (مكافأة نهاية الخدمة) accrual per Saudi Labour Law, annual leave accrual.
+- **Government & statutory costs** — each is a configurable line in Settings (amounts change by regulation; never hard-code them, show the "last updated" date and remind the owner to review). Costs apply to **every** employee unless marked non-Saudi only:
+  - **GOSI** (social insurance) employer share — **all employees**; separate rates for Saudi (pension + occupational hazards + SANED) and non-Saudi (occupational hazards), applied to the contributory wage (basic + housing).
+  - **Medical insurance** — **all employees, Saudi and non-Saudi** (and dependants where the policy covers them) — annual premium per employee/class, with expiry reminders.
+  - Non-Saudi only:
+    - **Iqama** issuance/renewal fee and **work permit / expat levy (المقابل المالي)** — per non-Saudi employee per year.
+    - **Recruitment**: work visa fee, recruitment office fee, air ticket, medical check.
+    - **Sponsorship transfer (نقل الكفالة / نقل خدمات)** fee when hiring locally.
+    - **Exit/re-entry visas** and annual leave ticket.
+  - All employees: end-of-service benefit (مكافأة نهاية الخدمة) accrual per Saudi Labour Law, annual leave accrual.
   - Labour housing and transport (also part of overheads §3.3).
 - **Fully loaded cost per worker**: (monthly salary + allowances + monthly share of all the above) ÷ working days → **cost per worker-day**. This feeds in-house labour pricing (§3.3) and actual project cost (team days on site × cost per worker-day).
 - **Reminders** (§3.18): iqama, passport, insurance and work-permit expiry (e.g. 60/30/7 days before), probation end, contract renewal.
