@@ -229,6 +229,100 @@ export type EmployeeCostItemRow = OrgRow & Upd & {
   sort_order: number;
 };
 
+
+export const PRODUCT_CATEGORIES = [
+  "putty", "primer", "finish_paint", "ceiling_paint", "profile_texture", "spray_paint", "moisture_paint",
+  "decorative", "exterior_primer", "exterior_putty", "exterior_paint", "crack_material", "sundry",
+  "gypsum_board", "c_channel", "omega", "stud", "track", "hanger_rod", "vertical_hanger", "angle",
+  "trough_angle", "shadow_profile", "screws", "washers", "anchors", "clips", "tape", "joint_compound",
+  "insulation", "hatch", "other",
+] as const;
+export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
+export const PURCHASE_UNITS = ["L", "kg", "piece", "sheet", "bar", "box", "roll", "bag", "pack", "m2", "m"] as const;
+export type PurchaseUnit = (typeof PURCHASE_UNITS)[number];
+
+export type BrandRow = OrgRow & Upd & { name: string; is_active: boolean };
+export type EquivalenceGroupRow = OrgRow & Upd & { role: string; name: string; description: string | null };
+export type ProductRow = OrgRow & Upd & {
+  brand_id: string | null;
+  equivalence_group_id: string | null;
+  name: string;
+  category: ProductCategory;
+  purchase_unit: PurchaseUnit;
+  ref_pack_size: number | null;
+  coverage_per_pack: number | null;
+  surface_factor: number;
+  length_m: number | null;
+  contents_per_pack: number | null;
+  area_m2: number | null;
+  colour_specific: boolean;
+  application: "interior" | "exterior" | "both";
+  sheen: string | null;
+  specs: Json;
+  waste_percent: number | null;
+  show_on_quote: boolean;
+  datasheet_path: string | null;
+  notes: string | null;
+  is_active: boolean;
+  legacy_material_id: string | null;
+};
+export type ProductPackRow = OrgRow & { product_id: string; size: number; label: string | null };
+export type ProductPriceRow = OrgRow & {
+  product_id: string;
+  pack_id: string | null;
+  supplier_id: string | null;
+  unit_price: number;
+  effective_from: string;
+  source: string | null;
+};
+export type ProductCurrentPriceRow = {
+  product_id: string;
+  pack_id: string | null;
+  supplier_id: string | null;
+  organization_id: string;
+  unit_price: number;
+  effective_from: string;
+};
+export type SystemKind = "gypsum_ceiling" | "gypsum_partition" | "interior_paint" | "exterior_paint";
+export type SystemRow = OrgRow & Upd & {
+  service_id: string | null;
+  code: string;
+  kind: SystemKind;
+  name: string;
+  spec_text: string | null;
+  params: Json;
+  is_active: boolean;
+  sort_order: number;
+};
+export type SystemVariantRow = OrgRow & Upd & {
+  system_id: string;
+  code: string;
+  name: string;
+  params: Json;
+  spec_text: string | null;
+  is_default: boolean;
+  sort_order: number;
+};
+export type SystemComponentRow = OrgRow & Upd & {
+  system_id: string;
+  role: string;
+  equivalence_group_id: string | null;
+  product_id: string | null;
+  coats: number | null;
+  formula: string | null;
+  sort_order: number;
+};
+export type RateSection = "gypsum" | "interior" | "exterior" | "labour" | "commercial";
+export type ConsumptionRateRow = OrgRow & Upd & {
+  key: string;
+  value: number;
+  unit: string | null;
+  label: string;
+  section: RateSection;
+  sort_order: number;
+  last_reviewed_at: string | null;
+};
+
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -259,10 +353,20 @@ export type Database = {
       employees: Table<EmployeeRow>;
       employee_cost_items: Table<EmployeeCostItemRow>;
       suppliers: Table<SupplierRow>;
+      brands: Table<BrandRow>;
+      equivalence_groups: Table<EquivalenceGroupRow>;
+      products: Table<ProductRow>;
+      product_packs: Table<ProductPackRow>;
+      product_prices: Table<ProductPriceRow>;
+      systems: Table<SystemRow>;
+      system_variants: Table<SystemVariantRow>;
+      system_components: Table<SystemComponentRow>;
+      consumption_rates: Table<ConsumptionRateRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
       material_supplier_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
+      product_current_prices: { Row: ProductCurrentPriceRow; Relationships: [] };
     };
     Functions: {
       create_organization: { Args: { p_name: string }; Returns: string };
@@ -272,6 +376,7 @@ export type Database = {
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
+      seed_pricing_engine: { Args: { p_org: string }; Returns: { products: number; rates: number } };
       seed_employee_cost_items: { Args: { p_org: string }; Returns: number };
       log_event: {
         Args: { p_org: string; p_action: string; p_entity: string; p_entity_id: string; p_details?: Json };

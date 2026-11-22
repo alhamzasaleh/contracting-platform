@@ -68,3 +68,13 @@ test.describe("settings (design preview)", () => {
     await expect(dialog.getByText("مشرف")).toBeVisible();
   });
 });
+
+test.describe("pricing calculator (design preview)", () => {
+  test("prices interior paint with the A.6 defaults and explains a line", async ({ page }) => {
+    await page.goto("/dev/preview/catalogue/calculator");
+    await page.getByRole("radio", { name: "داخلي" }).click();
+    await expect(page.getByText("28,400.00").first()).toBeVisible();
+    await page.getByRole("button", { name: /^معجون —/ }).click();
+    await expect(page.getByText("areaCoats").first()).toBeVisible();
+  });
+});

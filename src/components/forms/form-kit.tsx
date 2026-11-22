@@ -130,7 +130,7 @@ export function FormDialog({
   );
 }
 
-/** Number input: decimal keypad on iPad, LTR digits, accepts Arabic digits. */
+/** Number input (always LTR, unit on its physical right: "345 m²"): decimal keypad on iPad, LTR digits, accepts Arabic digits. */
 export const NumberInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { suffix?: string }>(
   ({ suffix, className, ...props }, ref) => (
     <div className="relative">
@@ -139,11 +139,11 @@ export const NumberInput = React.forwardRef<HTMLInputElement, React.InputHTMLAtt
         inputMode="decimal"
         dir="ltr"
         autoComplete="off"
-        className={cn("font-latin rtl:text-right", suffix && "pe-14", className)}
+        className={cn("font-latin rtl:text-right", suffix && "pr-12", className)}
         {...props}
       />
       {suffix && (
-        <span className="pointer-events-none absolute inset-y-0 end-4 flex items-center text-sm text-subtle-foreground">
+        <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-subtle-foreground">
           {suffix}
         </span>
       )}

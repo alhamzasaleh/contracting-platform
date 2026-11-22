@@ -11,8 +11,11 @@ export default async function PreviewCatalogueLayout({ children }: { children: R
         basePath="/dev/preview"
         tabs={[
           { href: "/catalogue", label: t("tabServices"), exact: true },
-          { href: "/catalogue/materials", label: t("tabMaterials") },
+          { href: "/catalogue/products", label: t("tabProducts") },
+          { href: "/catalogue/systems", label: t("tabSystems") },
           { href: "/catalogue/suppliers", label: t("tabSuppliers") },
+          { href: "/catalogue/calculator", label: t("tabCalculator") },
+          { href: "/catalogue/rates", label: t("tabRates") },
           { href: "/catalogue/labour", label: t("tabLabour") },
           { href: "/catalogue/settings", label: t("tabSettings") },
         ]}
