@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { normalizeSupabaseUrl } from "@/env";
 
 /**
  * Runs before every page request:
@@ -39,7 +40,7 @@ function buildCsp(nonce: string, supabaseUrl?: string) {
 
 export async function proxy(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID());
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   const csp = buildCsp(nonce, supabaseUrl);
   const { pathname, search } = request.nextUrl;

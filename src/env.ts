@@ -1,6 +1,20 @@
 import { z } from "zod";
 
 /**
+ * The Supabase dashboard sometimes shows the Data API URL
+ * (https://<ref>.supabase.co/rest/v1/). The client needs only the origin,
+ * so any path, query or trailing slash is dropped.
+ */
+export function normalizeSupabaseUrl(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  try {
+    return new URL(raw.trim()).origin;
+  } catch {
+    return raw;
+  }
+}
+
+/**
  * Environment variables, validated once. Public values may reach the
  * browser; everything in `serverEnv` must never be imported by client code.
  */
@@ -12,8 +26,8 @@ const publicSchema = z.object({
 
 export function publicEnv() {
   return publicSchema.parse({
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    NEXT_PUBLIC_SUPABASE_URL: normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim(),
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || undefined,
   });
 }

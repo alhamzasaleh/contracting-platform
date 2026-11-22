@@ -26,3 +26,12 @@ describe("design preview gate", () => {
     expect(isDesignPreviewEnabled()).toBe(true);
   });
 });
+
+describe("Supabase URL normalisation", async () => {
+  const { normalizeSupabaseUrl } = await import("@/env");
+  it.each([
+    ["https://abc.supabase.co/rest/v1/", "https://abc.supabase.co"],
+    ["https://abc.supabase.co/", "https://abc.supabase.co"],
+    [" https://abc.supabase.co ", "https://abc.supabase.co"],
+  ])("%s → %s", (input, out) => expect(normalizeSupabaseUrl(input)).toBe(out));
+});

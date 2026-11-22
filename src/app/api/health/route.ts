@@ -16,6 +16,13 @@ export async function GET() {
         ? "other"
         : "missing",
     siteUrl: Boolean(process.env.NEXT_PUBLIC_SITE_URL),
+    supabaseUrlHasPath: (() => {
+      try {
+        return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").pathname.replace(/\/$/, "") !== "";
+      } catch {
+        return null;
+      }
+    })(),
   };
 
   let database = "not checked";

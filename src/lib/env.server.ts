@@ -6,5 +6,5 @@ const serverSchema = z.object({
 });
 
 export function serverEnv() {
-  return serverSchema.parse({ SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY });
+  return serverSchema.parse({ SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY?.trim() });
 }
