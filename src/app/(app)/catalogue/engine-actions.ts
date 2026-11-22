@@ -7,6 +7,8 @@ import { can, getSession } from "@/lib/auth/session";
 import type { Permission } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { familyOf, PRODUCT_CATEGORIES, PURCHASE_UNITS } from "@/lib/supabase/database.types";
+import { FINISH_ROLES } from "@/lib/engine/catalogue";
+import { firstPackSize, missingFields, normaliseProductFields } from "@/lib/catalogue/product-kinds";
 import { num, optionalNum, optionalText } from "@/lib/validation/numbers";
 
 /** Server actions for the pricing-engine catalogue (Appendix A). */
@@ -57,7 +59,8 @@ const productSchema = z
     new_brand: optionalText(80),
     equivalence_group_id: optionalId,
     category: z.enum(PRODUCT_CATEGORIES),
-    purchase_unit: z.enum(PURCHASE_UNITS),
+    // Derived from the category on save; accepted for compatibility.
+    purchase_unit: z.enum(PURCHASE_UNITS).optional().default("piece"),
     ref_pack_size: optionalNum({ min: 0.0001, max: 100000 }),
     coverage_per_pack: optionalNum({ min: 0.0001, max: 100000 }),
     surface_factor: num({ min: 0.1, max: 2 }),
@@ -77,7 +80,8 @@ const productSchema = z
   })
   .strict()
   .superRefine((v, c) => {
-    if (v.coverage_per_pack != null && v.ref_pack_size == null) c.addIssue({ code: "custom", path: ["ref_pack_size"], message: "required" });
+    // The engine needs these to price the product (pack size + coverage for paint, length for bars…).
+    for (const k of missingFields(v.category, normaliseProductFields(v.category, v))) c.addIssue({ code: "custom", path: [k], message: "required" });
   });
 
 export async function saveProduct(input: unknown): Promise<ActionResult> {
@@ -85,7 +89,9 @@ export async function saveProduct(input: unknown): Promise<ActionResult> {
   if (!isCtx(ctx)) return ctx;
   const parsed = productSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
-  const { id: productId, new_brand, initial_pack_size, initial_pack_label, initial_price, initial_supplier_id, ...data } = parsed.data;
+  const { id: productId, new_brand, initial_pack_size, initial_pack_label, initial_price, initial_supplier_id, ...raw } = parsed.data;
+  // Only the fields that belong to this kind of product are kept.
+  const data = normaliseProductFields(raw.category, raw);
 
   if (new_brand) {
     // A new brand supplies this product's family (paint / gypsum / other) — not everything.
@@ -120,7 +126,7 @@ export async function saveProduct(input: unknown): Promise<ActionResult> {
 
   const { data: row, error } = await ctx.supabase.from("products").insert({ ...data, organization_id: ctx.orgId }).select("id").single();
   if (error) return dbError(error)!;
-  const size = initial_pack_size ?? data.ref_pack_size ?? data.contents_per_pack ?? data.length_m ?? data.area_m2;
+  const size = initial_pack_size ?? firstPackSize(data.category, data);
   if (size) {
     const { data: pack, error: e2 } = await ctx.supabase
       .from("product_packs")
@@ -232,6 +238,17 @@ export async function saveComponentInclusion(input: unknown): Promise<ActionResu
   if (!isCtx(ctx)) return ctx;
   const parsed = inclusionSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
+  // The finish coats and gypsum parts are always priced — never optional.
+  const { data: comp } = await ctx.supabase
+    .from("system_components")
+    .select("role, system_id")
+    .eq("id", parsed.data.id)
+    .eq("organization_id", ctx.orgId)
+    .maybeSingle();
+  if (!comp) return { ok: false, error: "invalid" };
+  const { data: sys } = await ctx.supabase.from("systems").select("kind").eq("id", comp.system_id).maybeSingle();
+  const locked = FINISH_ROLES.has(comp.role) || sys?.kind === "gypsum_ceiling" || sys?.kind === "gypsum_partition";
+  if (locked && parsed.data.inclusion !== "always") return { ok: false, error: "invalid" };
   const { error } = await ctx.supabase
     .from("system_components")
     .update({ inclusion: parsed.data.inclusion })

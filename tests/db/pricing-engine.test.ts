@@ -92,6 +92,23 @@ describe("pricing engine seed (Appendix A.6)", () => {
     expect(sealer.rows).toEqual([{ category: "sealer" }]);
   });
 
+  it("never lets the finish coats or gypsum parts become optional", async () => {
+    await expectDenied(
+      as({ userId: owner }, (q) =>
+        q("update public.system_components set inclusion = 'on' where role = 'wall_finish'"),
+      ),
+      /always included/,
+    );
+    await expectDenied(
+      as({ userId: owner }, (q) =>
+        q("update public.system_components c set inclusion = 'off' from public.systems s where s.id = c.system_id and s.kind = 'gypsum_ceiling' and c.role = 'c_channel'"),
+      ),
+      /always included/,
+    );
+    const ok = await as({ userId: owner }, (q) => q("update public.system_components set inclusion = 'off' where role = 'primer' returning id"));
+    expect(ok.rowCount).toBe(1);
+  });
+
   it("keeps the scope helper private", async () => {
     await expectDenied(as({ userId: owner }, (q) => q("select private.apply_scope_defaults($1)", [org])));
   });

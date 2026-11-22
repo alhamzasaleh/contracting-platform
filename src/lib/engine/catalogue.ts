@@ -42,6 +42,7 @@ export type CatalogueData = {
 export type EngineWarning =
   | { kind: "missing_product"; role: string }
   | { kind: "missing_price"; role: string; product: string }
+  | { kind: "missing_data"; role: string; product: string; fields: ("coverage" | "pack" | "price")[] }
   | { kind: "missing_rate"; key: string };
 
 export type EngineConfig = {
@@ -63,6 +64,9 @@ export const GENERIC_BRAND = "عام";
 const PAINT_ROLES: PaintRole[] = ["sealer", "putty", "primer", "wall_finish", "ceiling_paint", "moisture", "decorative", "ext_primer", "ext_putty", "acrylic", "profile", "spray_acrylic"];
 
 const GYPSUM_ROLES = new Set(["board_normal", "board_moisture", "board_fire", "c_channel", "omega", "rod", "vertical_hanger", "edge_angle", "trough_angle", "shadow", "stud", "track"]);
+
+/** The finish coats themselves: always priced (only the method decides which one). */
+export const FINISH_ROLES = new Set(["wall_finish", "ceiling_paint", "moisture", "decorative", "acrylic", "profile", "spray_acrylic"]);
 
 const cheapestPack = (p: CatalogueProduct) =>
   p.packs.filter((k) => k.price != null).sort((a, b) => a.price! / a.size - b.price! / b.size)[0];
@@ -235,8 +239,13 @@ export function buildEngineConfig(data: CatalogueData, opts: { gypsumBrand?: str
   const paintProducts: PaintProduct[] = [];
   for (const role of PAINT_ROLES) {
     for (const p of byRole.get(role) ?? []) {
-      if (!p.coveragePerPack || !p.refPackSize) continue;
       const priced = p.packs.filter((k) => k.price != null).map((k) => ({ size: k.size, price: k.price! }));
+      if (!p.coveragePerPack || !p.refPackSize) {
+        // Can't be priced without coverage and pack size — say exactly what's missing.
+        const fields = [...(!p.coveragePerPack ? (["coverage"] as const) : []), ...(!p.refPackSize ? (["pack"] as const) : []), ...(!priced.length ? (["price"] as const) : [])];
+        warnings.push({ kind: "missing_data", role, product: p.name, fields });
+        continue;
+      }
       if (!priced.length) warnings.push({ kind: "missing_price", role, product: p.name });
       paintProducts.push({
         id: p.id,
@@ -270,7 +279,9 @@ export function buildEngineConfig(data: CatalogueData, opts: { gypsumBrand?: str
     const rows = (data.rules ?? []).filter((r) => r.kind === kind);
     const merged = defaults.map((d) => {
       const row = rows.find((r) => r.role === d.role);
-      return row ? { ...d, inclusion: row.inclusion, variants: row.variants ?? undefined } : d;
+      if (!row) return d;
+      // The finish itself is never optional; only its variants can be narrowed.
+      return { ...d, inclusion: FINISH_ROLES.has(d.role) ? "always" : row.inclusion, variants: row.variants ?? d.variants };
     });
     for (const r of rows) {
       if (!merged.some((m) => m.role === r.role) && r.inclusion !== "always") merged.push({ role: r.role, inclusion: r.inclusion, variants: r.variants ?? undefined });

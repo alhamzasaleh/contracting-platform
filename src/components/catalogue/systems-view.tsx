@@ -1,5 +1,5 @@
 "use client";
-import { Layers, Pencil, Sparkles } from "lucide-react";
+import { Layers, Lock, Pencil, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { FormDialog, str, useActionRunner } from "@/components/forms/form-kit";
@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import type { ActionResult } from "@/lib/actions";
+import { FINISH_ROLES } from "@/lib/engine/catalogue";
 import type { SystemKind } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
 
 type Inclusion = "always" | "on" | "off";
-const NEXT: Record<Inclusion, Inclusion> = { always: "on", on: "off", off: "always" };
 
 export type SystemItem = {
   id: string;
@@ -101,33 +102,41 @@ export function SystemsView({
             </div>
 
             <div className="px-5 pt-4 pb-5">
-              <p className="mb-1 text-[12px] font-bold text-muted-foreground">{t("components")}</p>
-              {canManage && <p className="mb-2 text-[12px] text-subtle-foreground">{t("componentsHint")}</p>}
-              <div className="flex flex-wrap gap-1.5">
+              <p className="mb-2 text-[12px] font-bold text-muted-foreground">{t("components")}</p>
+              <ul className="divide-y divide-border rounded-xl border border-border">
                 {s.components.map((c) => {
                   const variantNames = c.variants?.map((code) => s.variants.find((v) => v.code === code)?.name ?? code);
+                  // Gypsum parts and the finish coats are always priced; only paint preparation items are optional.
+                  const locked = FINISH_ROLES.has(c.role) || s.kind === "gypsum_ceiling" || s.kind === "gypsum_partition";
+                  const value: Inclusion = locked ? "always" : c.inclusion;
                   return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      disabled={!canManage || pending}
-                      title={t(c.inclusion === "always" ? "incAlways" : c.inclusion === "on" ? "incOn" : "incOff")}
-                      onClick={() => run(onSaveInclusion && (() => onSaveInclusion({ id: c.id, inclusion: NEXT[c.inclusion] })), { silent: true })}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] transition enabled:hover:ring-2 enabled:hover:ring-primary/25",
-                        c.inclusion === "always" && "border-transparent bg-primary-soft text-primary",
-                        c.inclusion === "on" && "border-primary/40 bg-surface text-foreground",
-                        c.inclusion === "off" && "border-dashed border-border bg-surface text-muted-foreground",
+                    <li key={c.id} className="flex min-h-11 items-center justify-between gap-3 px-3 py-1.5">
+                      <span className="min-w-0 text-[13px]">
+                        {c.group}
+                        {variantNames && <span className="block text-[11px] text-muted-foreground">{t("onlyFor", { list: variantNames.join("، ") })}</span>}
+                      </span>
+                      {locked || !canManage ? (
+                        <span className={cn("inline-flex shrink-0 items-center gap-1 text-[12px]", value === "off" ? "text-muted-foreground" : "text-primary")}>
+                          {locked && <Lock className="size-3.5" />}
+                          {t(value === "always" ? "incAlways" : value === "on" ? "incOnShort" : "incOffShort")}
+                        </span>
+                      ) : (
+                        <NativeSelect
+                          aria-label={c.group}
+                          value={value}
+                          disabled={pending}
+                          className="h-9 w-auto shrink-0 text-[12px]"
+                          onChange={(e) => run(onSaveInclusion && (() => onSaveInclusion({ id: c.id, inclusion: e.target.value })), { silent: true })}
+                        >
+                          <option value="always">{t("incAlways")}</option>
+                          <option value="on">{t("incOnShort")}</option>
+                          <option value="off">{t("incOffShort")}</option>
+                        </NativeSelect>
                       )}
-                    >
-                      <span className={cn("size-1.5 rounded-full", c.inclusion === "off" ? "bg-subtle-foreground" : "bg-primary")} />
-                      {c.group}
-                      <span className="opacity-70">· {t(c.inclusion === "always" ? "incAlways" : c.inclusion === "on" ? "included" : "notIncluded")}</span>
-                      {variantNames && <span className="opacity-70">· {t("onlyFor", { list: variantNames.join("، ") })}</span>}
-                    </button>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
             </div>
           </section>
         ))}
