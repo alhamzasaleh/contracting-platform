@@ -12,8 +12,7 @@ export default async function PreviewCatalogueLayout({ children }: { children: R
         tabs={[
           { href: "/catalogue", label: t("tabServices"), exact: true },
           { href: "/catalogue/products", label: t("tabProducts") },
-          { href: "/catalogue/systems", label: t("tabSystems") },
-          { href: "/catalogue/suppliers", label: t("tabSuppliers") },
+                { href: "/catalogue/suppliers", label: t("tabSuppliers") },
           { href: "/catalogue/calculator", label: t("tabCalculator") },
           { href: "/catalogue/rates", label: t("tabRates") },
           { href: "/catalogue/labour", label: t("tabLabour") },

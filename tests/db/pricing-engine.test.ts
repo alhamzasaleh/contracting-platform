@@ -187,3 +187,27 @@ describe("pricing engine security", () => {
     expect(a.rows[0].n).toBe(1);
   });
 });
+
+describe("pricing templates and product lines", () => {
+  it("allows two products of the same kind (boards 12.5 and 15 mm)", async () => {
+    const r = await as({ userId: owner }, (q) =>
+      q("insert into public.equivalence_groups (organization_id, role, name, category) values ($1, 'board_normal', 'لوح عادي 15 مم', 'gypsum_board') returning id", [org]),
+    );
+    expect(r.rowCount).toBe(1);
+  });
+
+  it("stores one template per service, editable by managers only, isolated per organization", async () => {
+    await as({ userId: owner }, (q) =>
+      q("insert into public.pricing_templates (organization_id, service, data) values ($1, 'exterior', '{\"options\":{\"method\":\"profile\"}}')", [org]),
+    );
+    const v = await as({ userId: viewer }, (q) => q("select data from public.pricing_templates"));
+    expect(v.rows[0].data.options.method).toBe("profile");
+    const u = await as({ userId: viewer }, (q) => q("update public.pricing_templates set data = '{}' returning id"));
+    expect(u.rowCount).toBe(0);
+    const b = await as({ userId: ownerB }, (q) => q("select count(*)::int as n from public.pricing_templates"));
+    expect(b.rows[0].n).toBe(0);
+    await expectDenied(
+      as({ userId: owner }, (q) => q("insert into public.pricing_templates (organization_id, service) values ($1, 'interior')", [orgB])),
+    );
+  });
+});

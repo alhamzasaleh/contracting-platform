@@ -1,0 +1,204 @@
+"use client";
+import { Calculator, ChevronDown } from "lucide-react";
+import { useTranslations } from "next-intl";
+import * as React from "react";
+import { useFormatter } from "@/components/formatter-provider";
+import { Badge } from "@/components/ui/badge";
+import type { Line } from "@/lib/engine";
+import { cn } from "@/lib/utils";
+
+/** Result panels shared by the pricing screen: KPI tiles and the traceable lines list. */
+
+export function Kpi({
+  label,
+  value,
+  sub,
+  strong,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  strong?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border border-border p-4",
+        strong ? "bg-ink text-ink-foreground" : "bg-surface",
+      )}
+    >
+      <p
+        className={cn(
+          "text-[12px]",
+          strong ? "opacity-75" : "text-muted-foreground",
+        )}
+      >
+        {label}
+      </p>
+      <p className="mt-1 font-latin text-[19px] font-bold leading-tight tabular-nums">
+        {value}
+      </p>
+      {sub && (
+        <p
+          className={cn(
+            "text-[12px]",
+            strong ? "opacity-75" : "text-muted-foreground",
+          )}
+        >
+          {sub}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function LinesTable({ lines, explain }: { lines: Line[]; explain: (role: string) => string[] }) {
+  const t = useTranslations("engine");
+  const { fmt } = useFormatter();
+  const [open, setOpen] = React.useState<string | null>(null);
+  const groups: Line["group"][] = ["material", "labour", "hatch", "extra"];
+
+  const qn = (x: number) =>
+    fmt.number(x, Number.isInteger(x) ? 0 : Number.isInteger(x * 10) ? 1 : 2);
+
+  function purchase(l: Line) {
+    const p = l.purchase;
+    if (p.kind === "packs")
+      return p.packs.map((k) => `${k.count} × ${qn(k.size)}`).join(" + ");
+    if (p.kind === "bars")
+      return t("barsBuy", { n: p.bars, len: qn(p.stockLength) });
+    return `${qn(l.qty)} ${t.has(`lineUnit_${l.unit}`) ? t(`lineUnit_${l.unit}`) : l.unit}`;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+      <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+        <Calculator className="size-4 text-muted-foreground" />
+        <h3 className="text-[14px] font-bold">{t("linesTitle")}</h3>
+        <span className="text-[12px] text-muted-foreground">
+          · {t("linesHint")}
+        </span>
+      </div>
+      {groups.map((g) => {
+        // Unpriced items stay visible (marked), so nothing silently disappears from the total.
+        const list = lines.filter(
+          (l) => l.group === g && (l.cost > 0 || l.group === "material"),
+        );
+        if (!list.length) return null;
+        return (
+          <div key={g}>
+            <p className="bg-surface-sunken/60 px-5 py-1.5 text-[12px] font-bold text-muted-foreground">
+              {t(`group_${g}`)}
+            </p>
+            <ul className="divide-y divide-border">
+              {list.map((l) => {
+                const isOpen = open === l.key;
+                return (
+                  <li key={l.key}>
+                    <button
+                      type="button"
+                      aria-expanded={isOpen}
+                      onClick={() => setOpen(isOpen ? null : l.key)}
+                      className="grid w-full grid-cols-[1fr_auto] items-center gap-3 px-5 py-3 text-start hover:bg-surface-sunken/40"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-[14px] font-medium">
+                          {l.label}
+                        </span>
+                        <span className="block text-[12px] text-muted-foreground">
+                          {l.group === "labour" ? t("qty") : t("buy")}:{" "}
+                          <span className="font-latin">{purchase(l)}</span>
+                          {l.zone && <Badge className="ms-2">{l.zone}</Badge>}
+                          {l.cost === 0 && !l.key.startsWith("missing_") && (
+                            <Badge tone="warning" className="ms-2">
+                              {t("noPriceLine")}
+                            </Badge>
+                          )}
+                        </span>
+                        {l.key.startsWith("missing_") && (
+                          <span className="mt-1.5 grid gap-0.5 rounded-lg bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+                            {explain(l.key.slice("missing_".length)).map((x) => (
+                              <span key={x}>• {x}</span>
+                            ))}
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex items-center gap-2 font-latin tabular-nums">
+                        {fmt.money(l.cost)}
+                        <ChevronDown
+                          className={cn(
+                            "size-4 text-subtle-foreground transition",
+                            isOpen && "rotate-180",
+                          )}
+                        />
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div className="mx-5 mb-3 grid gap-2 rounded-xl bg-surface-sunken p-3.5 text-[13px]">
+                        <p>
+                          <span className="font-bold">{t("formula")}: </span>
+                          <span dir="ltr" className="font-latin">
+                            {l.formula}
+                          </span>
+                        </p>
+                        <dl
+                          className="grid grid-cols-2 gap-x-4 gap-y-1 font-latin sm:grid-cols-3"
+                          dir="ltr"
+                        >
+                          {Object.entries(l.inputs).map(([k, val]) => (
+                            <div key={k} className="flex justify-between gap-2">
+                              <dt className="text-muted-foreground">{k}</dt>
+                              <dd className="tabular-nums">
+                                {typeof val === "number"
+                                  ? fmt.number(val, 3)
+                                  : val}
+                              </dd>
+                            </div>
+                          ))}
+                          <div className="flex justify-between gap-2">
+                            <dt className="text-muted-foreground">need</dt>
+                            <dd className="tabular-nums">
+                              {fmt.number(l.need, 2)} {l.needUnit}
+                            </dd>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <dt className="text-muted-foreground">
+                              unit price
+                            </dt>
+                            <dd className="tabular-nums">
+                              {fmt.number(l.unitPrice, 2)}
+                            </dd>
+                          </div>
+                        </dl>
+                        {l.purchase.kind === "packs" &&
+                          l.purchase.leftover > 0 && (
+                            <p className="text-muted-foreground">
+                              {t("leftover", {
+                                n: fmt.number(l.purchase.leftover, 2),
+                              })}
+                            </p>
+                          )}
+                        {l.purchase.kind === "bars" &&
+                          l.purchase.offcuts.length > 0 && (
+                            <p className="text-muted-foreground">
+                              {t("offcuts", {
+                                n: l.purchase.offcuts.length,
+                                m: fmt.number(
+                                  l.purchase.offcuts.reduce((a, b) => a + b, 0),
+                                  2,
+                                ),
+                              })}
+                            </p>
+                          )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

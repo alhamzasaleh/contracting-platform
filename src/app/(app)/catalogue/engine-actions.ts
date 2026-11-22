@@ -7,7 +7,7 @@ import { can, getSession } from "@/lib/auth/session";
 import type { Permission } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { familyOf, PRODUCT_CATEGORIES, PURCHASE_UNITS, type ProductRow } from "@/lib/supabase/database.types";
-import { CATEGORY_SPEC, DEFAULT_ROLE, firstPackSize, missingFields, normaliseProductFields } from "@/lib/catalogue/product-kinds";
+import { CATEGORY_SPEC, DEFAULT_ROLE, rolesFor, firstPackSize, missingFields, normaliseProductFields } from "@/lib/catalogue/product-kinds";
 import { num, optionalNum, optionalText } from "@/lib/validation/numbers";
 
 /** Server actions for the pricing-engine catalogue (Appendix A). */
@@ -173,6 +173,7 @@ const lineSchema = z
     area_m2: optionalNum({ min: 0.01, max: 100 }),
     colour_specific: z.boolean(),
     waste_percent: optionalNum({ min: 0, max: 100 }),
+    role: z.string().regex(/^[a-z0-9_]{2,40}$/).nullable().optional(),
   })
   .strict()
   .superRefine((v, c) => {
@@ -187,7 +188,7 @@ export async function saveLine(input: unknown): Promise<ActionResult> {
   if (!isCtx(ctx)) return ctx;
   const parsed = lineSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
-  const { id: lineId, ...v } = parsed.data;
+  const { id: lineId, role: chosenRole, ...v } = parsed.data;
   const kind = CATEGORY_SPEC[v.category].kind;
   const data = {
     name: v.name,
@@ -204,13 +205,9 @@ export async function saveLine(input: unknown): Promise<ActionResult> {
     const { error } = await ctx.supabase.from("equivalence_groups").update(data).eq("id", lineId).eq("organization_id", ctx.orgId);
     return dbError(error) ?? done();
   }
-  // A new product takes its category's pricing line when that line doesn't exist yet;
-  // otherwise it's an extra product the owner keeps for reference.
-  const role = DEFAULT_ROLE[v.category];
-  const { data: existing } = role
-    ? await ctx.supabase.from("equivalence_groups").select("id").eq("organization_id", ctx.orgId).eq("role", role).maybeSingle()
-    : { data: null };
-  if (existing) return { ok: false, error: "lineExists" };
+  // The pricing line it serves: the owner's pick when the category has several (board type…).
+  const allowed = rolesFor(v.category);
+  const role = chosenRole && allowed.includes(chosenRole) ? chosenRole : allowed[0];
   const { error } = await ctx.supabase.from("equivalence_groups").insert({
     ...data,
     organization_id: ctx.orgId,

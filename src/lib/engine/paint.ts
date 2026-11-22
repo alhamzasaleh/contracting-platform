@@ -182,7 +182,7 @@ export type InteriorInput = {
 };
 
 export type InteriorParams = {
-  coats: { wallPutty: number; ceilingPutty: number; primer: number; wallFinish: number; ceilingPaint: number; moisture: number; sealer?: number };
+  coats: { wallPutty: number; ceilingPutty: number; primer: number; wallFinish: number; ceilingPaint: number; moisture: number; sealer?: number; primerCeilings?: number };
   repaintSpotPercent: number;
   wastePercent: number;
   sandpaper: { coveragePerCoat: number; price: number };
@@ -226,7 +226,7 @@ export function computeInterior(input: InteriorInput, products: PaintProduct[], 
       if (sealer) lines.push(productLine("sealer", sealer, { walls: walls * (p.coats.sealer ?? 1) }, p.wastePercent));
     }
     const primer = inc("primer") ? get("primer") : undefined;
-    if (primer) lines.push(productLine("primer", primer, { walls: walls * p.coats.primer * spot, ceilings: ceilings * p.coats.primer * spot }, p.wastePercent));
+    if (primer) lines.push(productLine("primer", primer, { walls: walls * p.coats.primer * spot, ceilings: ceilings * (p.coats.primerCeilings ?? p.coats.primer) * spot }, p.wastePercent));
 
     const finish = inc("wall_finish") ? get("wall_finish") : undefined;
     if (finish) {

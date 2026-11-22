@@ -351,6 +351,8 @@ export type ConsumptionRateRow = OrgRow & Upd & {
   last_reviewed_at: string | null;
 };
 
+export type PricingTemplateRow = OrgRow & Upd & { service: "gypsum" | "interior" | "exterior"; data: Json };
+
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -390,6 +392,7 @@ export type Database = {
       system_variants: Table<SystemVariantRow>;
       system_components: Table<SystemComponentRow>;
       consumption_rates: Table<ConsumptionRateRow>;
+      pricing_templates: Table<PricingTemplateRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };

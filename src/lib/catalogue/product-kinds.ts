@@ -162,3 +162,13 @@ export const DEFAULT_ROLE: Partial<Record<ProductCategory, string>> = {
   joint_compound: "joint_compound",
   insulation: "insulation",
 };
+
+/** Pricing lines a category can serve (when more than one, the owner picks). */
+export function rolesFor(category: ProductCategory): string[] {
+  if (category === "gypsum_board") return ["board_normal", "board_moisture", "board_fire"];
+  if (category === "screws") return ["board_screws", "angle_screws"];
+  if (category === "hatch") return ["hatch_30x30", "hatch_40x40", "hatch_50x50", "hatch_60x60", "hatch_60x120"];
+  if (category === "sundry") return ["sandpaper", "floor_nylon", "masking_tape"];
+  const r = DEFAULT_ROLE[category];
+  return r ? [r] : [];
+}

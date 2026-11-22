@@ -70,6 +70,7 @@ export function linesToCatalogue(lines: ProductLine[]): CatalogueProduct[] {
       const cov = brandCoverage(line, b);
       out.push({
         id: b.id,
+        lineId: line.id,
         role: line.role,
         brand: b.brand,
         name: line.name,

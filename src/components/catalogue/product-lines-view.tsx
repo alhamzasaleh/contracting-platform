@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Segmented } from "@/components/ui/segmented";
 import type { ActionResult } from "@/lib/actions";
-import { CATEGORIES_BY_FAMILY, CATEGORY_SPEC } from "@/lib/catalogue/product-kinds";
+import { CATEGORIES_BY_FAMILY, CATEGORY_SPEC, rolesFor } from "@/lib/catalogue/product-kinds";
 import { brandCoverage, lineMissing, type LineBrand, type LinePack, type ProductLine } from "@/lib/catalogue/product-lines";
 import { familyOf, type ProductCategory, type ProductFamily, type PurchaseUnit } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
@@ -163,6 +163,7 @@ export function ProductLinesView({
                   area_m2: str(fd, "area_m2"),
                   colour_specific: kind === "coverage" ? bool(fd, "colour_specific") : false,
                   waste_percent: str(fd, "waste_percent"),
+                  ...(l ? {} : { role: str(fd, "role") || null }),
                 })),
             {
               onFieldErrors: (e) => setErrors(e.coverage_per_unit ? { ...e, ref_area: e.coverage_per_unit } : e),
@@ -182,6 +183,17 @@ export function ProductLinesView({
                     </option>
                   ))}
                 </optgroup>
+              ))}
+            </NativeSelect>
+          </Field>
+        )}
+        {!l && rolesFor(cat).length > 1 && (
+          <Field id="ln-role" label={t("lineRole")}>
+            <NativeSelect name="role" key={cat} defaultValue={rolesFor(cat)[0]}>
+              {rolesFor(cat).map((r) => (
+                <option key={r} value={r}>
+                  {t.has(`role_${r}`) ? t(`role_${r}`) : r.replace("hatch_", "").replace("x", "×")}
+                </option>
               ))}
             </NativeSelect>
           </Field>

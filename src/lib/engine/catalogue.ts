@@ -18,6 +18,8 @@ export type CatalogueProduct = {
   role: string | null;
   brand: string | null;
   name: string;
+  /** The product line (equivalence group) this brand row belongs to. */
+  lineId?: string | null;
   /** Product category (used to explain unlinked products). */
   category?: string;
   unit: string;

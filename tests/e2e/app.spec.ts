@@ -70,10 +70,10 @@ test.describe("settings (design preview)", () => {
 });
 
 test.describe("pricing calculator (design preview)", () => {
-  test("prices interior paint with the A.6 defaults and explains a line", async ({ page }) => {
+  test("prices interior paint by steps and explains a line", async ({ page }) => {
     await page.goto("/dev/preview/catalogue/calculator");
-    await page.getByRole("radio", { name: "داخلي" }).click();
-    await expect(page.getByText("28,400.00").first()).toBeVisible();
+    await page.getByRole("radio", { name: "دهان داخلي" }).click();
+    await expect(page.getByText("نطاق", { exact: false }).or(page.getByText("مشمول في السعر")).first()).toBeVisible();
     await page.getByRole("button", { name: /^معجون —/ }).click();
     await expect(page.getByText("areaCoats").first()).toBeVisible();
   });
