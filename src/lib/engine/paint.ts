@@ -125,6 +125,28 @@ function labourLine(key: string, label: string, qty: number, rate: number, workT
   return { key, group: "labour", label, need: qty, needUnit: unit, purchase: { kind: "units", count: qty }, qty, unit, unitPrice: rate, cost: qty * rate, formula: `${unit} × rate`, inputs: { qty, rate }, workType };
 }
 
+/**
+ * An included item with no usable product: kept as a visible zero-cost line
+ * (never silently dropped) so the owner sees what to complete.
+ */
+function missingLine(role: PaintRole, workType: string): Line {
+  return {
+    key: `missing_${role}`,
+    group: "material",
+    label: `${ROLE_LABEL[role]} — لا يوجد منتج مكتمل`,
+    need: 0,
+    needUnit: "",
+    purchase: { kind: "units", count: 0 },
+    qty: 0,
+    unit: "pack",
+    unitPrice: 0,
+    cost: 0,
+    formula: "no complete product for this line (needs pack size, coverage and price)",
+    inputs: { role },
+    workType,
+  };
+}
+
 /** Splits an area equally over N colours, e.g. 530 m² / 2 → [265, 265]. */
 function colourSplit(area: number, colours: number, names?: string[]): { colour: string; area: number }[] {
   const n = Math.max(1, Math.round(colours));
@@ -176,8 +198,10 @@ export function computeInterior(input: InteriorInput, products: PaintProduct[], 
   const warnings: string[] = [];
   const get = (role: PaintRole) => {
     const prod = resolveProduct(products, role, input.brand);
-    if (!prod) warnings.push(`missing_product_${role}`);
-    else if (prod.brand !== input.brand) warnings.push(`brand_fallback_${role}`);
+    if (!prod) {
+      warnings.push(`missing_product_${role}`);
+      lines.push(missingLine(role, role === "ceiling_paint" ? "ceilings" : "walls"));
+    } else if (prod.brand !== input.brand) warnings.push(`brand_fallback_${role}`);
     return prod;
   };
   const walls = input.wallArea;
@@ -285,7 +309,10 @@ export function computeExterior(input: ExteriorInput, products: PaintProduct[], 
   const area = input.area;
   const get = (role: PaintRole) => {
     const prod = resolveProduct(products, role, input.brand);
-    if (!prod) warnings.push(`missing_product_${role}`);
+    if (!prod) {
+      warnings.push(`missing_product_${role}`);
+      lines.push(missingLine(role, "facades"));
+    }
     return prod;
   };
   const inc = (role: string) => input.scope?.[role] !== false;

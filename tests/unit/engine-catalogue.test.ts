@@ -132,7 +132,7 @@ describe("buildEngineConfig", () => {
 
 describe("a brand's product added by the owner is used", () => {
   it("prices a Jotun exterior profile even when the generic one is incomplete", async () => {
-    const { computeExterior, resolveScope, EXTERIOR_RULES } = await import("@/lib/engine");
+    const { computeExterior, resolveScope } = await import("@/lib/engine");
     const base = seededProducts().map((p) => (p.role === "profile" ? { ...p, coveragePerPack: null } : p));
     const jotun: CatalogueProduct = { ...base.find((p) => p.role === "profile")!, id: "jotun-profile", brand: "Jotun", coveragePerPack: 40, packs: [{ size: 18, price: 300 }] };
     const cfg = buildEngineConfig({ products: [...base, jotun], rates: seededRates() });

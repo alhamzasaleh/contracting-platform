@@ -18,6 +18,8 @@ export type CatalogueProduct = {
   role: string | null;
   brand: string | null;
   name: string;
+  /** Product category (used to explain unlinked products). */
+  category?: string;
   unit: string;
   refPackSize: number | null;
   coveragePerPack: number | null;

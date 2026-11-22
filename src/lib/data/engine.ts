@@ -118,6 +118,7 @@ export async function loadEngineData(session: SessionContext): Promise<Catalogue
         role: p.role,
         brand: p.brand,
         name: p.name,
+        category: p.category,
         unit: p.purchase_unit,
         refPackSize: p.ref_pack_size,
         coveragePerPack: p.coverage_per_pack,

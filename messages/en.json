@@ -824,6 +824,10 @@
     "changeInSystems": "You can make any item optional in Systems.",
     "usedWith": "Used with:",
     "groupRequired": "Choose the line",
-    "notLinked": "Not linked to a line — not used in pricing"
+    "notLinked": "Not linked to a line — not used in pricing",
+    "explainIncomplete": "“{product}” is on this line but incomplete: {fields}",
+    "explainUnlinked": "“{product}” isn't linked to this line — open it and set “Used for”",
+    "explainNone": "No product for this line — add one in Products & brands",
+    "explainOtherLine": "“{product}” is saved on the “{line}” line — open it and change its type and “Used for”"
   }
 }

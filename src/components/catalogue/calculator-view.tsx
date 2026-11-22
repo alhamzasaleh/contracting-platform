@@ -28,6 +28,7 @@ import {
   type EngineResult,
   type Line,
 } from "@/lib/engine";
+import { DEFAULT_ROLE } from "@/lib/catalogue/product-kinds";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn } from "@/lib/utils";
 
@@ -279,6 +280,29 @@ export function CalculatorView({
               : w,
       ),
   ];
+
+  /** Why an included item has no usable product — in plain words, product by product. */
+  const explain = (role: string): string[] => {
+    const name = (p: { name: string; brand: string | null }) => (p.brand ? `${p.name} (${p.brand})` : p.name);
+    const out: string[] = [];
+    for (const p of data.products.filter((x) => x.role === role)) {
+      const w = cfg.warnings.find((x) => (x.kind === "missing_data" || x.kind === "missing_price") && x.role === role && x.product === p.name);
+      const fields = w?.kind === "missing_data" ? w.fields.map(fieldName).join("، ") : fieldName("price");
+      out.push(t("explainIncomplete", { product: name(p), fields }));
+    }
+    for (const p of data.products.filter((x) => !x.role && x.category && DEFAULT_ROLE[x.category as keyof typeof DEFAULT_ROLE] === role)) {
+      out.push(t("explainUnlinked", { product: name(p) }));
+    }
+    // Products that look like this item but were saved under another line (e.g. a profile saved as acrylic).
+    const word = (t.has(`role_${role}`) ? t(`role_${role}`) : role).split(/[ /]/)[0];
+    for (const p of data.products.filter(
+      (x) => x.role && x.role !== role && (DEFAULT_ROLE[x.category as keyof typeof DEFAULT_ROLE] === role || (word.length > 2 && x.name.includes(word))),
+    )) {
+      out.push(t("explainOtherLine", { product: name(p), line: t.has(`role_${p.role}`) ? t(`role_${p.role}`) : p.role! }));
+    }
+    if (!out.length) out.push(t("explainNone"));
+    return out;
+  };
 
   const num = (k: string, label: string, suffix?: string) => (
     <Field id={`calc-${k}`} label={label}>
@@ -558,7 +582,7 @@ export function CalculatorView({
           </ul>
         )}
 
-        <LinesTable lines={result.lines} />
+        <LinesTable lines={result.lines} explain={explain} />
       </div>
     </div>
   );
@@ -607,7 +631,7 @@ function Kpi({
   );
 }
 
-function LinesTable({ lines }: { lines: Line[] }) {
+function LinesTable({ lines, explain }: { lines: Line[]; explain: (role: string) => string[] }) {
   const t = useTranslations("engine");
   const { fmt } = useFormatter();
   const [open, setOpen] = React.useState<string | null>(null);
@@ -664,12 +688,19 @@ function LinesTable({ lines }: { lines: Line[] }) {
                           {l.group === "labour" ? t("qty") : t("buy")}:{" "}
                           <span className="font-latin">{purchase(l)}</span>
                           {l.zone && <Badge className="ms-2">{l.zone}</Badge>}
-                          {l.cost === 0 && (
+                          {l.cost === 0 && !l.key.startsWith("missing_") && (
                             <Badge tone="warning" className="ms-2">
                               {t("noPriceLine")}
                             </Badge>
                           )}
                         </span>
+                        {l.key.startsWith("missing_") && (
+                          <span className="mt-1.5 grid gap-0.5 rounded-lg bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+                            {explain(l.key.slice("missing_".length)).map((x) => (
+                              <span key={x}>• {x}</span>
+                            ))}
+                          </span>
+                        )}
                       </span>
                       <span className="flex items-center gap-2 font-latin tabular-nums">
                         {fmt.money(l.cost)}
