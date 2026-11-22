@@ -1,0 +1,25 @@
+import { BrandStyle } from "@/components/brand-style";
+import { AppShell } from "@/components/shell/app-shell";
+import { getSession } from "@/lib/auth/session";
+import { signedAssetUrl } from "@/lib/org";
+
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const session = await getSession();
+  const logoUrl = await signedAssetUrl(session.organization.logo_path);
+
+  return (
+    <>
+      <BrandStyle primary={session.organization.brand.primary} accent={session.organization.brand.accent} />
+      <AppShell
+        data={{
+          user: { name: session.profile.full_name, phone: session.phone },
+          org: { name: session.organization.name, logoUrl },
+          role: session.role,
+          permissions: session.permissions,
+        }}
+      >
+        {children}
+      </AppShell>
+    </>
+  );
+}

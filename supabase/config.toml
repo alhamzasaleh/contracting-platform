@@ -1,0 +1,17 @@
+# Supabase CLI configuration. The live project is linked in CI with
+# SUPABASE_PROJECT_REF (see .github/workflows/db-migrate.yml).
+project_id = "contracting-platform"
+
+[db]
+major_version = 17
+
+[auth]
+site_url = "http://localhost:3000"
+enable_signup = true
+
+[auth.sms]
+enable_signup = true
+enable_confirmations = true
+max_frequency = "60s"
+otp_length = 6
+otp_expiry = 300

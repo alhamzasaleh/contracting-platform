@@ -1,0 +1,33 @@
+name: Database migrations
+
+# Applies supabase/migrations to the linked Supabase project.
+# Runs manually (Actions → Database migrations → Run workflow) so that every
+# change to the live database is a deliberate decision.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "apply" to apply pending migrations to the live database'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    if: github.event.inputs.confirm == 'apply'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Show pending migrations
+        run: supabase migration list
+      - run: supabase db push
