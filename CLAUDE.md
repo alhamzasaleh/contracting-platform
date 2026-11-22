@@ -139,7 +139,9 @@
 - Fully customisable per-user permissions: per-project access, hide costs/margins, per-user approval limits, temporary delegation.
 - Client and subcontractor access limited to their own items.
 - Approvals needed for: margin below minimum, client discount, large purchases, additional works. Reminders if pending.
-- Login by phone OTP.
+- Login by phone OTP, delivered by **WhatsApp** (authentication template via the WhatsApp Business account), with SMS as fallback.
+- **Face ID / Touch ID / fingerprint** via passkeys (WebAuthn): after the first OTP login, a user can enable biometric sign-in on each device; OTP remains the recovery path.
+- Only known, invited or bootstrap phone numbers may sign in — enforced in the app **and** in Supabase Auth (a "before user created" hook), so the Auth API can't be used to bypass it. Email sign-up stays disabled.
 
 ### 3.18 Notifications
 - In-app push + WhatsApp. Each user chooses what they receive and on which channel.
