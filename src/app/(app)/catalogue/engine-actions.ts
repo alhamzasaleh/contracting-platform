@@ -7,7 +7,7 @@ import { can, getSession } from "@/lib/auth/session";
 import type { Permission } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { familyOf, PRODUCT_CATEGORIES, PURCHASE_UNITS } from "@/lib/supabase/database.types";
-import { firstPackSize, missingFields, normaliseProductFields } from "@/lib/catalogue/product-kinds";
+import { DEFAULT_ROLE, firstPackSize, missingFields, normaliseProductFields } from "@/lib/catalogue/product-kinds";
 import { num, optionalNum, optionalText } from "@/lib/validation/numbers";
 
 /** Server actions for the pricing-engine catalogue (Appendix A). */
@@ -91,6 +91,16 @@ export async function saveProduct(input: unknown): Promise<ActionResult> {
   const { id: productId, new_brand, initial_pack_size, initial_pack_label, initial_price, initial_supplier_id, ...raw } = parsed.data;
   // Only the fields that belong to this kind of product are kept.
   const data = normaliseProductFields(raw.category, raw);
+  // Without a role the calculation can't use the product — fill the category's default.
+  if (!data.equivalence_group_id && DEFAULT_ROLE[data.category]) {
+    const { data: g } = await ctx.supabase
+      .from("equivalence_groups")
+      .select("id")
+      .eq("organization_id", ctx.orgId)
+      .eq("role", DEFAULT_ROLE[data.category]!)
+      .maybeSingle();
+    data.equivalence_group_id = g?.id ?? null;
+  }
 
   if (new_brand) {
     // A new brand supplies this product's family (paint / gypsum / other) — not everything.

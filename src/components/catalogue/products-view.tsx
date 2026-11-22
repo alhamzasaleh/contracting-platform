@@ -31,6 +31,7 @@ import type { ActionResult } from "@/lib/actions";
 import {
   CATEGORIES_BY_FAMILY,
   CATEGORY_SPEC,
+  DEFAULT_ROLE,
 } from "@/lib/catalogue/product-kinds";
 import {
   familyOf,
@@ -315,6 +316,27 @@ export function ProductsView({
           />
         </Field>
 
+        {/* Which calculation line this product feeds (brands doing the same job share it). */}
+        <Field
+          id="pr-group"
+          label={t("engine.group")}
+          hint={t("engine.groupHint")}
+          error={errors.equivalence_group_id ? t("engine.groupRequired") : undefined}
+        >
+          <NativeSelect
+            key={cat}
+            name="equivalence_group_id"
+            defaultValue={p?.group_id ?? groups.find((g) => g.role === DEFAULT_ROLE[cat])?.id ?? ""}
+          >
+            <option value="">{t("engine.ungrouped")}</option>
+            {groupOptions.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <Field id="pr-brand" label={t("engine.brand")}>
             <NativeSelect
@@ -482,24 +504,6 @@ export function ProductsView({
             <ChevronDown className="size-4 transition group-open:rotate-180" />
           </summary>
           <div className="mt-4 grid gap-4">
-            <Field
-              id="pr-group"
-              label={t("engine.group")}
-              hint={t("engine.groupHint")}
-            >
-              <NativeSelect
-                key={cat}
-                name="equivalence_group_id"
-                defaultValue={p?.group_id ?? ""}
-              >
-                <option value="">{t("engine.ungrouped")}</option>
-                {groupOptions.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </NativeSelect>
-            </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 id="pr-waste"
@@ -784,6 +788,7 @@ export function ProductsView({
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-[15px] font-bold">{p.name}</p>
                       <Badge>{p.brand ?? t("engine.genericBrand")}</Badge>
+                      {!p.group_id && <Badge tone="danger">{t("engine.notLinked")}</Badge>}
                       {p.colour_specific && (
                         <Badge tone="info">{t("engine.perColour")}</Badge>
                       )}

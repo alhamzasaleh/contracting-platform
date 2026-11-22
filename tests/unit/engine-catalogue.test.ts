@@ -129,3 +129,18 @@ describe("buildEngineConfig", () => {
     expect(c.paintProducts.filter((p) => p.role === "wall_finish").map((p) => p.brand)).toEqual(["عام", "Jotun"]);
   });
 });
+
+describe("a brand's product added by the owner is used", () => {
+  it("prices a Jotun exterior profile even when the generic one is incomplete", async () => {
+    const { computeExterior, resolveScope, EXTERIOR_RULES } = await import("@/lib/engine");
+    const base = seededProducts().map((p) => (p.role === "profile" ? { ...p, coveragePerPack: null } : p));
+    const jotun: CatalogueProduct = { ...base.find((p) => p.role === "profile")!, id: "jotun-profile", brand: "Jotun", coveragePerPack: 40, packs: [{ size: 18, price: 300 }] };
+    const cfg = buildEngineConfig({ products: [...base, jotun], rates: seededRates() });
+    const scope = resolveScope(cfg.rules.exterior, "profile").scope;
+    const r = computeExterior({ area: 300, method: "profile", colours: 1, brand: "عام", scope }, cfg.paintProducts, cfg.exterior);
+    const finish = r.lines.find((l) => l.key.startsWith("ext_finish"))!;
+    expect(finish.productId).toBe("jotun-profile");
+    // 300 m² × 2 coats ÷ (40/18 m²/L) × 1.05 = 283.5 L → 16 × 18 L × 300
+    expect(finish.cost).toBe(4800);
+  });
+});

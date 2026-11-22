@@ -112,6 +112,14 @@ describe("pricing engine seed (Appendix A.6)", () => {
     ]);
   });
 
+  it("default-role mapping in the migration matches the app (DEFAULT_ROLE)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { DEFAULT_ROLE } = await import("@/lib/catalogue/product-kinds");
+    const sql = readFileSync("supabase/migrations/20261130000001_link_orphan_products.sql", "utf8");
+    const pairs = Object.fromEntries([...sql.matchAll(/when '([a-z_]+)' then '([a-z_]+)'/g)].map(([, c, r]) => [c, r]));
+    expect(pairs).toEqual(DEFAULT_ROLE);
+  });
+
   it("keeps the scope helper private", async () => {
     await expectDenied(as({ userId: owner }, (q) => q("select private.apply_scope_defaults($1)", [org])));
   });

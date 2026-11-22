@@ -126,3 +126,39 @@ export function missingFields(category: ProductCategory, f: ProductFields): (key
       return [];
   }
 }
+
+/**
+ * The pricing role a category fills by default, so a new product is used by the
+ * calculation without extra steps. Categories with several roles (boards by type,
+ * screws, hatches by size) are chosen in the form.
+ */
+export const DEFAULT_ROLE: Partial<Record<ProductCategory, string>> = {
+  putty: "putty",
+  primer: "primer",
+  sealer: "sealer",
+  finish_paint: "wall_finish",
+  ceiling_paint: "ceiling_paint",
+  moisture_paint: "moisture",
+  decorative: "decorative",
+  exterior_primer: "ext_primer",
+  exterior_putty: "ext_putty",
+  exterior_paint: "acrylic",
+  profile_texture: "profile",
+  spray_paint: "spray_acrylic",
+  crack_material: "crack_material",
+  c_channel: "c_channel",
+  omega: "omega",
+  stud: "stud",
+  track: "track",
+  hanger_rod: "rod",
+  vertical_hanger: "vertical_hanger",
+  angle: "edge_angle",
+  trough_angle: "trough_angle",
+  shadow_profile: "shadow",
+  washers: "washers",
+  anchors: "anchors",
+  clips: "clips",
+  tape: "joint_tape",
+  joint_compound: "joint_compound",
+  insulation: "insulation",
+};

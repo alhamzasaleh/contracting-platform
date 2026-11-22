@@ -537,8 +537,8 @@
     "productHint": "Fill only the fields that apply: paint by coverage, metal by length, boards by area, boxes by count.",
     "productName": "Product name",
     "productNamePh": "e.g. Fenomastic matt",
-    "group": "Fills the role of",
-    "groupHint": "Products with the same role are alternatives; switching brand swaps them automatically",
+    "group": "Used for",
+    "groupHint": "The calculation line this product is priced on. Products from different brands on the same line are alternatives.",
     "ungrouped": "No role",
     "brand": "Brand",
     "genericBrand": "Generic",
@@ -822,6 +822,8 @@
     "scopeAllAlways": "Every item is always priced for this system.",
     "alwaysCount": "Always priced ({n})",
     "changeInSystems": "You can make any item optional in Systems.",
-    "usedWith": "Used with:"
+    "usedWith": "Used with:",
+    "groupRequired": "Choose the line",
+    "notLinked": "Not linked to a line — not used in pricing"
   }
 }

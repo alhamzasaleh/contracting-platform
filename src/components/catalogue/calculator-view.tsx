@@ -240,7 +240,9 @@ export function CalculatorView({
       .filter(
         (w) =>
           (w.kind === "missing_price" || w.kind === "missing_data") &&
-          relevant(w.role),
+          relevant(w.role) &&
+          // Another complete product (e.g. the Jotun one) already covers this line.
+          !cfg.paintProducts.some((x) => x.role === w.role && x.name !== w.product && x.packs.some((k) => k.price > 0)),
       )
       .map((w) =>
         w.kind === "missing_data"
