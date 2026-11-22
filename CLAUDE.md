@@ -57,8 +57,9 @@
 - Attach site photos. AI: supervisor can dictate a voice note or upload photos → structured measurements draft for review.
 
 ### 3.3 Costing & pricing
+> The full pricing engine (catalogue, systems, quantity logic, seed values) is in **Appendix A — Pricing Engine**. It is the heart of the product: get it right before building quotes.
 - **Cost price list** for materials and labour, with history.
-- **Service → materials recipe (BOM)**: each service has its consumption per m² (e.g. gypsum: board type, joint tape, screws, omega, washers…), plus a **waste %**.
+- **Service → materials**: parametric "systems" per service (Appendix A), plus a **waste %** per material.
 - **Labour**: in-house or external. External priced **per m²** or **lump sum per project**.
 - **Extra costs**: transport, equipment rental (scaffolding etc.).
 - **Overheads** (labour housing, transport, fixed company costs): fixed % of project cost, set in settings.
@@ -176,7 +177,8 @@
 
 ## 4. Data model (core tables, all with `organization_id`, `created_at`, `created_by`)
 
-organizations · users/memberships (role + permission overrides) · clients · suppliers · subcontractors · services · service_stages · spec_templates · materials · material_prices (history) · service_material_recipes · requests · surveys · survey_items (rooms/areas) · quotes · quote_versions · quote_lines (price snapshot) · contracts · contract_services · addenda · payment_schedules · payments · projects · project_teams · schedule_entries · site_visits (gps, time) · progress_updates · stage_handover_confirmations · purchases · purchase_lines · purchase_attachments · inventory_items · inventory_movements · subcontractor_agreements · subcontractor_payments · petty_cash_accounts · petty_cash_entries · overhead_settings · warranties · maintenance_requests · client_notes · client_portal_links (token, expires_at, revoked) · approvals · notifications · notification_preferences · audit_log · qoyod_sync_jobs · document_sequences · employees · employee_documents · payroll_runs · payroll_lines · employee_cost_settings (GOSI, insurance, iqama, levy, visa, transfer…) · employee_advances · leave_records.
+organizations · users/memberships (role + permission overrides) · clients · suppliers · subcontractors · services · service_stages · spec_templates · materials · material_prices (history) · service_material_recipes · requests · surveys · survey_items (rooms/areas) · quotes · quote_versions · quote_lines (price snapshot) · contracts · contract_services · addenda · payment_schedules · payments · projects · project_teams · schedule_entries · site_visits (gps, time) · progress_updates · stage_handover_confirmations · purchases · purchase_lines · purchase_attachments · inventory_items · inventory_movements · subcontractor_agreements · subcontractor_payments · petty_cash_accounts · petty_cash_entries · overhead_settings · warranties · maintenance_requests · client_notes · client_portal_links (token, expires_at, revoked) · approvals · notifications · notification_preferences · audit_log · qoyod_sync_jobs · document_sequences · employees · employee_documents · payroll_runs · payroll_lines · employee_cost_settings (GOSI, insurance, iqama, levy, visa, transfer…) · employee_advances · leave_records · brands · products (brand, category, pack, coverage, specs, datasheet) · product_prices (per supplier, history) · equivalence_groups · systems · system_variants · system_components (formula-driven) · consumption_rates · project_parameters · zones · consumption_actuals (calibration).
+If the Phase 1 schema is already built, add these through a new migration (non-destructive).
 
 ---
 
@@ -232,8 +234,8 @@ Always show AI output as a **draft for human review**; never auto-post financial
 ## 9. Build phases
 
 1. **Foundation**: repo, Next.js, Supabase, auth (phone OTP), organizations, roles/permissions, RLS, audit log, i18n + RTL, design system & app shell, company settings with logo-colour extraction, document numbering. Deploy.
-2. **Catalogue & costing**: services, stages, spec templates, materials, price history, recipes, waste, labour, overheads, margin rules, **employees & government cost settings → fully loaded cost per worker-day** (§3.20).
-3. **Clients → survey → quote**: requests, measurements (room/total), pricing engine, quote versions, branded PDF, approvals for margin/discount.
+2. **Catalogue & pricing engine (Appendix A)**: brands, products with coverage/pack/price per supplier, datasheet AI import, equivalence groups, systems & variants, consumption rates, labour, overheads, margin rules, seed data from Appendix A.6. Build the quantity engine as a pure, fully unit-tested TypeScript module (golden tests from A.7) before any UI. (Also: employees & government cost settings → fully loaded cost per worker-day, §3.20 — owner addition, kept.)
+3. **Clients → survey → quote**: rooms with L×W×H, zones and overrides, quick-estimate mode, pricing engine UI, multi-option quotes, purchase list, readiness checks, quote versions, branded PDF, approvals for margin/discount.
 4. **Client page & contracts**: portal link, e-acceptance, contract with start date, project types, payment schedule with 75% warning.
 5. **Scheduling**: calendar, team schedule, earliest-start suggestion, overlap warnings.
 6. **Purchases & inventory**: AI invoice reading, estimated vs actual, stock transfers, purchase approvals.
@@ -271,3 +273,100 @@ Guide the owner through each one step by step when it's first needed.
 - Server actions: validate with Zod (`.strict()`), check permission via `getSession()`/`can()`, then write with the user's Supabase client (RLS applies). The service-role client (`src/lib/supabase/admin.ts`) is only for rate limiting and the phone allow-list.
 - UI: page views are pure components taking props, so `/dev/preview` can render them with sample data. Text lives in `messages/ar.json` + `messages/en.json` (same keys; no dots inside keys). Numbers/money/dates go through `useFormatter()` / `getFormatter()` (respects ٠١٢ vs 012). Use logical CSS (`ms-`, `pe-`, `start-`) so RTL and LTR both work.
 - Brand colours: `organizations.brand` → `BrandStyle` derives accessible light/dark tokens (`src/lib/brand/color.ts`). Neutral and "ink" tokens live in `src/app/globals.css`.
+
+## Appendix A — Pricing Engine (the core of the product)
+
+### A.0 Goal and principle
+The owner priced in Excel with three workbooks (gypsum board, interior paint, exterior paint). They worked because inputs were few and everything else was automatic. The app must keep that simplicity and go further:
+- **All complexity lives in the catalogue and settings, entered once.** On site, pricing is choosing, not calculating.
+- **One system for the whole villa, then override only the parts that differ** (e.g. bathrooms moisture-resistant board, kitchen fire-resistant board).
+- **Every quantity is traceable**: tap any line to see how it was calculated (formula + inputs), so the owner trusts the numbers.
+- Every default below is editable per organization, and overridable per project (overridden values are visibly highlighted, as in the Excel).
+
+### A.1 Product catalogue (by brand)
+- **Brands**: Jotun, Al-Jazeera, National, Sipes, Asib, Knauf, Gyproc, etc. (editable list).
+- **Product** fields: brand, product line/name, category (putty, primer, finish paint, profile/texture, spray paint, moisture-resistant paint, decorative, gypsum board, C-channel, omega, stud, track, hanger rod, angle, shadow profile, screws, tape, joint compound…), purchase unit, **pack sizes** (a product may have several: 18 L, 4 L…), **coverage per pack per coat** (m²) with optional surface factors, sheen, interior/exterior, colour-specific (yes/no), technical specs (board: type normal/moisture/fire, thickness 9.5/12.5/15 mm, size 120×240/120×300; metal: length 3/3.6/4 m, gauge/thickness 0.4/0.5/0.6 mm, width), waste %, show-on-quote flag, notes.
+- **Prices per supplier**, with history; the engine uses the organization's preferred supplier or the cheapest, and stores the snapshot in the quote.
+- **Datasheet import (AI)**: upload a product's technical datasheet PDF/photo → AI extracts coverage, pack sizes, recommended coats, drying time, specs → saved as a draft for review.
+- **Equivalence groups**: products from different brands that do the same job (e.g. "interior matt emulsion, standard grade") are grouped, so switching brand swaps every component automatically and recalculates quantities with that brand's own coverage and pack sizes.
+
+### A.2 Systems (assemblies) and variants
+A **system** is a reusable recipe of components with formulas; a **variant** changes options without rebuilding it. Examples:
+- **Interior paint — new, full system**: primer ×1, wall putty ×2, ceiling putty ×1, finish walls ×2, ceiling paint ×2, sanding per putty coat, floor protection, tape, consumables.
+- **Interior paint — repaint**: spot putty and spot primer on X % of area (default 20 %), then full finish coats.
+- **Exterior**: finish method variant = **roller paint | profile/texture | spray** (spray has higher waste, default 15 %, and its own labour rate), primer, exterior putty, acrylic or profile coats, scaffolding/equipment, protection items.
+- **Gypsum ceiling**: board type + thickness, layers (1 or 2), suspension method (**threaded rod + washer** | **vertical C hanger**), hanging height, spacings, edge angle, light troughs, shadow gaps, maintenance hatches.
+- **Gypsum partition**: stud spacing, height, board type per face, layers per face, optional rock-wool insulation.
+Systems carry their **spec text** (coats, method, standards) that flows into quote and contract (§3.4).
+
+### A.3 Survey input (kept minimal)
+- Rooms entered as **L × W × H** (or totals). From that the engine derives: ceiling area = L×W, perimeter = 2(L+W), wall area = perimeter × H − openings. Openings deducted per measurement rule (default: deduct openings > 1 m²; configurable).
+- Rooms grouped into **villas/units** (one contract per villa supported, as in the Excel) and **zones** (wet, kitchen, decorative, façade front/back/sides).
+- **Zone overrides**: base system for the whole unit; a zone can override board type, paint product, coats or method. Areas of overridden zones are subtracted from the base automatically.
+- Linear items: light troughs (m), shadow gaps (m), crack treatment (m); counted items: maintenance hatches by size.
+- **Quick-estimate mode**: total areas only (status "estimated"); the quote states areas are settled on actual measurement; later replaced by measured rooms with a variance report.
+- Survey by voice/photos (AI draft) remains as in §3.2.
+
+### A.4 Quantity logic (must reproduce and improve the Excel)
+Paint (per product, per colour):
+- `qty_litres_or_packs = area × coats ÷ (coverage_per_pack × surface_factor) × (1 + waste)`.
+- **Round up per colour**: each approved colour is a separate purchase (leftovers of one colour can't be used for another). Number of colours comes from the project.
+- **Pack optimisation**: choose the cheapest combination of available pack sizes that covers the need (e.g. 2×18 L + 1×4 L instead of 3×18 L).
+- Sandpaper per m² per putty coat; floor nylon ≈ ceiling area; tape per m² painted; consumables cost per m².
+Gypsum ceilings (computed **per room** from real dimensions, not only from total area):
+- Main C runs = ceil(W ÷ C spacing) + 1, each of length L; omega runs = ceil(L ÷ omega spacing) + 1, each of length W (+ extra omega per metre of light trough).
+- Hangers = runs of C × (ceil(L ÷ hanger spacing) + 1) (+ extra per metre of light trough); rod length per hanger = hanging height + cutting allowance; one washer set and one anchor per hanger.
+- **Cut optimisation**: lay required run lengths onto stock bar lengths (3 / 3.6 / 4 m) with offcut reuse (first-fit-decreasing), so bar counts are realistic, and show expected offcuts.
+- Boards = area × layers ÷ board area × (1 + waste), rounded up, per board type; light trough board allowance per metre.
+- Edge angle = perimeter (or estimated 0.7 m per m² when perimeter unknown); angle screws per metre.
+- Clips at each C/omega crossing; screws per m² per layer; joint tape and joint compound per m² of finished surface.
+Gypsum partitions:
+- Studs = length ÷ stud spacing + 1, each of the partition height; tracks = 2 × length; boards = area × 2 faces × layers per face.
+- Insulation (optional) = partition area.
+Labour: per m² (ceilings, partitions, walls, ceilings paint, repaint, spray, decorative), per linear metre (light troughs, shadow, cracks), per extra layer, or lump sum. Execute-only projects exclude materials automatically.
+Extras: transport, scaffolding/equipment, supervision visits, cleaning & waste removal, furniture/doors/sockets protection, project share of overheads.
+
+### A.5 Price calculation
+- `cost = materials + labour + extras + maintenance hatches`
+- `cost_with_contingency = cost × (1 + contingency %)` (risk reserve, default 5 %)
+- `price = cost_with_contingency ÷ (1 − margin %)` — margin is on **selling price**, not mark-up; show both margin and mark-up.
+- Separate **price per m²** per work type (ceilings vs partitions; walls vs ceilings), **rounded up** to a configurable step (1 / 0.5 / 0.25 / 0.01 SAR).
+- Pricing method: **unit price per measured m²** (settled on actual measurement) or **lump sum** for the defined scope.
+- Discount → owner approval if below minimum margin; VAT 15 % when applicable.
+- **Multi-option quotes**: show the client up to 3 options side by side (brands or methods, e.g. Jotun / Al-Jazeera / Asib, or roller vs profile); the client picks on the client page and the contract uses the chosen option.
+- **Readiness check** before issuing: lists missing inputs and warnings ("ready to issue" / "needs review"), as in the Excel.
+- **Purchase list** generated from the quote: per product, per colour, per supplier, packs to buy, expected leftovers → becomes purchase orders after the contract.
+
+### A.6 Seed defaults (from the owner's Excel — editable, prices are placeholders to update)
+Gypsum (spacings and rates):
+| Parameter | Default |
+|---|---|
+| Main C spacing | 100 cm |
+| Omega spacing | 40 cm |
+| Hanger spacing on C | 100 cm |
+| Stud spacing (partitions) | 60 cm |
+| Partition height | 3 m |
+| Hanging height | 40 cm |
+| Screws per m² per layer | 15 |
+| Joint tape per m² finished | 1.4 m |
+| Joint compound per m² finished | 0.45 kg |
+| Angle screws per m perimeter | 2.5 |
+| Perimeter factor when unknown | 0.7 m per m² ceiling |
+| Light trough: board per m | 0.6 m² |
+| Light trough: extra omega per m | 2 m |
+| Light trough: protection angle per m | 2 m |
+| Light trough: extra hangers per m | 1 |
+| Cutting allowance per hanger | 0.15 m |
+| Team productivity | 40 m²/day |
+| Waste (materials) | 5 % |
+Gypsum catalogue placeholders: board normal 12.5 mm 120×240 (2.88 m²) 22 SAR; moisture 30; fire 34; C 3 m 11; omega 3 m 9; threaded rod 3 m 7; washers box 100 = 25; vertical C hanger 3 m 11; anchors box 100 = 30; clips box 100 = 25; edge angle 3 m 6; angle screws box 100 = 15; shadow profile 3 m 25; trough protection angle 3 m 7; stud 3 m 14; track 3 m 11; board screws box 1000 = 35; tape roll 90 m = 12; compound bag 20 kg = 28. Labour: ceilings 12/m² (includes spot and AC cut-outs), partitions 15/m², extra layer 5/m², light troughs 15/m, shadow 8/m. Maintenance hatches (supply + install): 30×30 = 60, 40×40 = 75, 50×50 = 90, 60×60 = 110, 60×120 = 180. Rock-wool insulation 18/m². Not offered: 60×60 T-grid tile ceilings.
+Interior paint: coverage per pack per coat — putty 20 kg ≈ 25 m² (45 SAR); primer 18 L ≈ 140 m² (120); wall finish 18 L ≈ 120 m² (180); ceiling paint 18 L ≈ 130 m² (140); moisture-resistant 18 L ≈ 110 m² (230); decorative 5 L ≈ 15 m² full system (160); crack material 5 kg ≈ 20 m (25); sandpaper pack ≈ 150 m² per coat (40); floor nylon roll 50 m² (35); tape roll ≈ 60 m² (6); consumables 0.5 SAR/m². Default coats: wall putty 2, ceiling putty 1, primer 1, wall finish 2, ceiling paint 2; repaint spot putty 20 %. Labour: walls full 12/m², ceilings full 14/m², repaint 7/m², decorative +15/m², cracks 5/m. Productivity 120 m²/day.
+Exterior paint: primer ≈ 200 m²/pack (135), exterior putty ≈ 25 m²/pack (90), acrylic ≈ 150 m²/pack ×2 coats (340), spray acrylic ≈ 140 m²/pack ×2 coats, waste 15 % (345), application labour 6/m², sanding & putty 4/m², spray labour 4.5/m², scaffolding/lift rental per day, protection (tape, floor plastic, windows/doors). Productivity 100 m²/day.
+Commercial defaults: quote validity 7 days, target margin 28 %, contingency 5 %, minimum margin set by owner (e.g. 20 %), price rounding 1 SAR, warranty 6 months. Default payment stages (gypsum): on signing → after material supply → after board closing → after final handover; inspection notice 3 days; notices via WhatsApp and email stated in the contract. Contract wording follows the Saudi Civil Transactions Law (contracting chapter); measurement settlement on approved quantities.
+
+### A.7 Golden tests (must pass)
+Build test cases from the Excel sample project so results can be compared: one villa, ceilings 400 m² (of which fire 25 m², moisture 30 m²), partitions 40 m², light troughs 60 m, shadow 80 m, hatches 4×(40×40) + 2×(60×60), rod & washer, 1 layer, hanging 40 cm, spacings 100/40/100/60, partition height 3 m, margin 28 %, contingency 5 %. And interior paint: walls 600 m² (wet 40, decorative 30), ceilings 250 m², new full system, Jotun, 2 colours. Assert quantities, bars/boards/packs, cost, price per m² and totals; also assert that switching brand, switching method (roller → spray) and overriding one zone recalculate correctly.
+
+### A.8 Calibration (learning from real projects)
+- After each project, compare **estimated vs actual** consumption (from purchases and returns to stock) per material and system.
+- When a consistent variance appears (e.g. joint compound +12 % across 3 projects), suggest updating the consumption rate; the owner approves the change. Never change rates automatically.
