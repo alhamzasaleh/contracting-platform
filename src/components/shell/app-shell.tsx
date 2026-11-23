@@ -1,3 +1,4 @@
+import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
 import { OfflineSync } from "./offline-sync";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
@@ -11,9 +12,10 @@ export function AppShell({ data, banner, children }: { data: ShellData; banner?:
         {banner}
         {!data.basePath && <OfflineSync />}
         <Topbar data={data} />
-        <main id="main" className="mx-auto w-full max-w-[1280px] flex-1 px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+2rem)] sm:px-6 lg:px-10 lg:pt-7">
+        <main id="main" className="mx-auto w-full max-w-[1280px] flex-1 px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+6rem)] sm:px-6 lg:px-10 lg:pt-7">
           {children}
         </main>
+        {data.assistant && <AssistantLauncher ready={data.assistant.ready} preview={!!data.basePath} />}
       </div>
     </div>
   );

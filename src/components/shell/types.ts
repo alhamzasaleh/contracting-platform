@@ -9,6 +9,8 @@ export type ShellData = {
   permissions: Permission[];
   /** In-app notifications (bell). */
   notifications?: { items: NotificationItem[]; unread: number; canDecide: boolean };
+  /** Floating assistant button (finance users, AI key configured or not). */
+  assistant?: { ready: boolean };
   /** Base path for links: "" in the app, "/dev/preview" in the design preview. */
   basePath?: string;
 };

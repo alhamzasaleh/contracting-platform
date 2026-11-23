@@ -1,6 +1,7 @@
 import { BrandStyle } from "@/components/brand-style";
 import { AppShell } from "@/components/shell/app-shell";
-import { getSession } from "@/lib/auth/session";
+import { aiConfigured } from "@/lib/ai/invoice";
+import { can, getSession } from "@/lib/auth/session";
 import { loadBell } from "@/lib/data/notifications";
 import { logoDataUrl } from "@/lib/org";
 
@@ -18,6 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           role: session.role,
           permissions: session.permissions,
           notifications,
+          assistant: can(session, "finance.view") ? { ready: aiConfigured() } : undefined,
         }}
       >
         {children}

@@ -353,3 +353,16 @@ test.describe("installable app", () => {
     await expect(page.getByText("ما فيه اتصال بالإنترنت")).toBeVisible();
   });
 });
+
+test.describe("floating assistant (design preview)", () => {
+  test("opens from any page and keeps the question box", async ({ page }) => {
+    await page.goto("/dev/preview/clients");
+    await expect(async () => {
+      await page.getByRole("button", { name: "اسأل المساعد" }).click();
+      await expect(page.getByRole("dialog", { name: "المساعد" })).toBeVisible({ timeout: 1000 });
+    }).toPass();
+    await expect(page.getByRole("dialog", { name: "المساعد" }).getByLabel("اكتب سؤالك…")).toBeVisible();
+    await page.getByRole("button", { name: "إغلاق" }).click();
+    await expect(page.getByRole("button", { name: "اسأل المساعد" })).toBeVisible();
+  });
+});

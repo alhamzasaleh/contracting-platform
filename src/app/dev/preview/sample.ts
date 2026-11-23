@@ -35,6 +35,7 @@ export const SAMPLE_SHELL: ShellData = {
       { id: "n5", kind: "doc_expiry", params: { name: "رفيق أحمد", doc: "id", days: 30 }, link: "/team/payroll", read: true, created_at: new Date(Date.now() - 50 * 3600_000).toISOString() },
     ],
   },
+  assistant: { ready: true },
   basePath: "/dev/preview",
 };
 

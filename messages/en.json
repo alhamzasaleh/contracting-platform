@@ -2202,7 +2202,10 @@
     "e_aiRefused": "I can't answer that question.",
     "e_limited": "You've reached this hour's question limit, try again soon.",
     "e_noAccess": "You don't have access to finance.",
-    "e_invalid": "The question is too short or too long."
+    "e_invalid": "The question is too short or too long.",
+    "open": "Ask the assistant",
+    "full": "Open full page",
+    "close": "Close"
   },
   "offline": {
     "title": "No internet connection",

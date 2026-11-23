@@ -21,7 +21,7 @@ function speechRecognition(): (new () => Recognition) | null {
 }
 
 /** Ask about your own numbers by text or voice; answers are read-only summaries with links to the details. */
-export function AssistantView({ ready, ask, base = "", sample }: { ready: boolean; ask?: (i: unknown) => Promise<ActionResult<AssistantAnswer>>; base?: string; sample?: Msg[] }) {
+export function AssistantView({ ready, ask, base = "", sample, compact, onNavigate }: { ready: boolean; ask?: (i: unknown) => Promise<ActionResult<AssistantAnswer>>; base?: string; sample?: Msg[]; compact?: boolean; onNavigate?: () => void }) {
   const t = useTranslations("assistant");
   const locale = useLocale();
   const [msgs, setMsgs] = React.useState<Msg[]>(sample ?? []);
@@ -76,10 +76,10 @@ export function AssistantView({ ready, ask, base = "", sample }: { ready: boolea
   const suggestions = [t("s1"), t("s2"), t("s3"), t("s4")];
 
   return (
-    <div className="mx-auto grid max-w-3xl gap-4">
+    <div className={cn("grid gap-4", compact ? "h-full min-h-0 grid-rows-[1fr_auto]" : "mx-auto max-w-3xl")}>
       {!ready && <p className="rounded-2xl bg-warning-soft px-4 py-3 text-sm">{t("notReady")}</p>}
 
-      <div className="grid min-h-[40vh] content-start gap-3 rounded-3xl border border-border bg-surface p-4 sm:p-6" aria-live="polite">
+      <div className={cn("grid content-start gap-3", compact ? "min-h-0 overflow-y-auto" : "min-h-[40vh] rounded-3xl border border-border bg-surface p-4 sm:p-6")} aria-live="polite">
         {msgs.length === 0 && (
           <div className="grid justify-items-center gap-3 py-8 text-center">
             <span className="flex size-12 items-center justify-center rounded-full bg-primary-soft text-primary">
@@ -116,7 +116,7 @@ export function AssistantView({ ready, ask, base = "", sample }: { ready: boolea
               {m.answer && m.answer.links.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {m.answer.links.map((l) => (
-                    <Link key={l.href} href={`${base}${l.href}`} className="rounded-full border border-border bg-surface px-3 py-1 text-[13px] font-semibold text-primary hover:border-border-strong">
+                    <Link key={l.href} href={`${base}${l.href}`} onClick={onNavigate} className="rounded-full border border-border bg-surface px-3 py-1 text-[13px] font-semibold text-primary hover:border-border-strong">
                       {l.label}
                     </Link>
                   ))}
@@ -161,7 +161,7 @@ export function AssistantView({ ready, ask, base = "", sample }: { ready: boolea
           <Send className="rtl:-scale-x-100" />
         </Button>
       </form>
-      <p className="text-center text-[12px] text-muted-foreground">{t("disclaimer")}</p>
+      {!compact && <p className="text-center text-[12px] text-muted-foreground">{t("disclaimer")}</p>}
     </div>
   );
 }
