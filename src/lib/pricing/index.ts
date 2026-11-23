@@ -159,6 +159,8 @@ export type PricingContext = {
   catalogue: CatalogueData;
   external: ExternalLabour[];
   crew: CrewMember[];
+  /** in-house teams (Schedule) → one tap picks their members as the crew */
+  teams?: { id: string; name: string; members: string[] }[];
   vatPercent: number;
 };
 

@@ -89,7 +89,7 @@ export const PERMISSION_GROUPS: { key: string; permissions: Permission[] }[] = [
       "finance.view",
       "finance.manage",
       "approvals.decide",
-      "reports.view",
+      // "reports.view" is kept for the database but not offered: reports use finance.view.
     ],
   },
 ];

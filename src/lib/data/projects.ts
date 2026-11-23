@@ -51,6 +51,8 @@ export type ProjectDetail = {
   notes: { id: string; body: string; photos: { path: string; url: string | null }[]; status: "new" | "seen" | "resolved"; reply: string | null; stage_id: string | null; created_at: string }[];
   payments: { seq: number; label: string; amount: number; due_event: string; status: string }[];
   canManage: boolean;
+  /** may record purchases for this project (purchases.manage) */
+  canPurchase: boolean;
   aiEnabled: boolean;
 };
 
@@ -87,6 +89,7 @@ export async function loadProject(session: SessionContext, number: string): Prom
     notes: (notes ?? []).map((n) => ({ ...n, photos: n.photos.map(photo) })),
     payments: (payments ?? []).map((p) => ({ ...p, amount: Number(p.amount) })),
     canManage: can(session, "projects.manage"),
+    canPurchase: can(session, "purchases.manage"),
     aiEnabled: aiConfigured(),
   };
 }

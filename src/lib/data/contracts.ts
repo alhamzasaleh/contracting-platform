@@ -104,6 +104,7 @@ export type ContractDetail = {
   link: { active: boolean; expires_at: string | null; last_opened_at: string | null; open_count: number };
   materialCost: number | null;
   canManage: boolean;
+  canPurchase: boolean;
   addenda: AddendumView[];
   canDecide: boolean;
   canFinance: boolean;
@@ -169,6 +170,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
     link: { active: !!active, expires_at: active?.expires_at ?? null, last_opened_at: active?.last_opened_at ?? null, open_count: active?.open_count ?? 0 },
     materialCost: can(session, "costs.view") ? await materialCost(supabase, c.quote_id, c.quote_version) : null,
     canManage: can(session, "quotes.manage"),
+    canPurchase: can(session, "purchases.manage"),
     addenda: (addenda ?? []).map((a) => ({ ...a, amount: n(a.amount), vat: n(a.vat), total: n(a.total), approval_id: (approvals ?? []).find((x) => x.entity_id === a.id)?.id ?? null })),
     canDecide: can(session, "approvals.decide"),
     canFinance: can(session, "finance.manage"),

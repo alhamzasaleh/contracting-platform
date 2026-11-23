@@ -23,6 +23,7 @@ export const SAMPLE_CONTRACT: ContractDetail = {
   link: { active: true, expires_at: "2027-07-10T00:00:00Z", last_opened_at: "2026-11-22T18:00:00Z", open_count: 3 },
   materialCost: 7200,
   canManage: true,
+  canPurchase: true,
   canDecide: true,
   canFinance: true,
   vatPercent: 0,

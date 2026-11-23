@@ -29,6 +29,12 @@ export async function loadPricingContext(session: SessionContext): Promise<{
       : Promise.resolve({ data: [] as never[] }),
     seeHr ? loadCostItems(session) : Promise.resolve([]),
   ]);
+  const [{ data: teamRows }, { data: memberRows }] = seeHr
+    ? await Promise.all([
+        supabase.from("teams").select("id, name").eq("organization_id", orgId).eq("kind", "inhouse").eq("is_active", true).order("name"),
+        supabase.from("team_members").select("team_id, employee_id").eq("organization_id", orgId),
+      ])
+    : [{ data: [] as { id: string; name: string }[] }, { data: [] as { team_id: string; employee_id: string }[] }];
   const serviceCode = new Map((services ?? []).map((s) => [s.id, s.code]));
   const workingDays = Number(settings?.working_days_per_month ?? 26);
 
@@ -61,6 +67,9 @@ export async function loadPricingContext(session: SessionContext): Promise<{
       catalogue,
       external,
       crew,
+      teams: (teamRows ?? [])
+        .map((t) => ({ id: t.id, name: t.name, members: (memberRows ?? []).filter((m) => m.team_id === t.id).map((m) => m.employee_id).filter((id) => crew.some((c) => c.id === id)) }))
+        .filter((t) => t.members.length > 0),
       vatPercent: effectiveVatPercent(session.organization.vat_number, Number(settings?.vat_percent ?? 15)),
     },
     templates: Object.fromEntries((templates ?? []).map((t) => [t.service, t.data as Partial<Selection>])),

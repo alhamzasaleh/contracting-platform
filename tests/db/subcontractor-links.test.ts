@@ -73,3 +73,41 @@ describe("booking a subcontractor's team prepares his agreement", () => {
     expect((await asAdmin((q) => q("select id from public.subcontractor_agreements where contract_id = $1", [contract]))).rows).toHaveLength(1);
   });
 });
+
+describe("project progress records the subcontractor's work", () => {
+  it("adds only the missing part, per m², up to the agreement", async () => {
+    const { rows: [c] } = await asAdmin((q) => q<{ id: string }>("select contract_id as id from public.subcontractor_agreements where organization_id = $1 limit 1", [org]));
+    const stages = await asAdmin(async (q) => {
+      await q("delete from public.project_stages where contract_id = $1", [c.id]);
+      const a = (await q<{ id: string }>("insert into public.project_stages (organization_id, contract_id, seq, name) values ($1,$2,1,'تجهيز') returning id", [org, c.id])).rows[0].id;
+      const b = (await q<{ id: string }>("insert into public.project_stages (organization_id, contract_id, seq, name, is_final) values ($1,$2,2,'تسليم',true) returning id", [org, c.id])).rows[0].id;
+      return [a, b];
+    });
+    const work = async () =>
+      (await asAdmin((q) => q<{ q: string }>("select coalesce(sum(w.quantity_m2),0) as q from public.subcontractor_work w join public.subcontractor_agreements a on a.id = w.agreement_id where a.contract_id = $1", [c.id]))).rows[0].q;
+    // stage 1 at 50 % → overall 25 % → 165 m² of 660
+    await as({ userId: owner }, (q) => q("update public.project_stages set progress = 50 where id = $1", [stages[0]]));
+    expect(Number(await work())).toBe(165);
+    // the same progress again adds nothing
+    await as({ userId: owner }, (q) => q("update public.project_stages set progress = 50, status = 'in_progress' where id = $1", [stages[0]]));
+    expect(Number(await work())).toBe(165);
+    // both stages done → the whole 660 m², never more
+    await asAdmin((q) => q("update public.project_stages set progress = 100, status = 'confirmed' where contract_id = $1", [c.id]));
+    expect(Number(await work())).toBe(660);
+  });
+});
+
+describe("an external team added in Schedule", () => {
+  it("becomes a subcontractor (found by name or created) and stays one team", async () => {
+    const team = await as({ userId: owner }, async (q) =>
+      (await q<{ id: string }>("insert into public.teams (organization_id, name, kind, services, contact_phone) values ($1,'مؤسسة البلاط','external','{interior}','966500000077') returning id", [org])).rows[0].id);
+    const { rows: [t] } = await asAdmin((q) => q<{ subcontractor_id: string | null }>("select subcontractor_id from public.teams where id = $1", [team]));
+    expect(t.subcontractor_id).not.toBeNull();
+    const sub = await asAdmin((q) => q<{ name: string; phone: string; services: string[] }>("select name, phone, services from public.subcontractors where id = $1", [t.subcontractor_id]));
+    expect(sub.rows).toEqual([{ name: "مؤسسة البلاط", phone: "966500000077", services: ["interior"] }]);
+    expect((await asAdmin((q) => q("select id from public.teams where organization_id = $1 and name like 'مؤسسة البلاط%'", [org]))).rows).toHaveLength(1);
+    // an in-house team stays in-house
+    await as({ userId: owner }, (q) => q("insert into public.teams (organization_id, name, kind) values ($1,'فريق الدهان','inhouse')", [org]));
+    expect((await asAdmin((q) => q("select id from public.subcontractors where organization_id = $1 and name = 'فريق الدهان'", [org]))).rows).toHaveLength(0);
+  });
+});

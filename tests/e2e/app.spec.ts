@@ -143,7 +143,7 @@ test.describe("schedule (design preview)", () => {
     await page.goto("/dev/preview/schedule");
     await page.getByRole("radio", { name: "الفرق" }).click();
     await expect(page.getByText("فريق الجبس")).toBeVisible();
-    await expect(page.getByText("مقاول خارجي")).toBeVisible();
+    await expect(page.getByText("مقاول باطن", { exact: true }).first()).toBeVisible();
   });
 
   test("contract editor suggests the earliest start", async ({ page }) => {
@@ -506,5 +506,13 @@ test.describe("WhatsApp from the owner's own number (design preview)", () => {
     await expect(page.getByText("مراسلة العميل")).toBeVisible();
     await expect(page.getByRole("link", { name: "واتساب العميل" })).toBeVisible();
     await expect(page.getByRole("link", { name: "تذكير بالواتساب" }).first()).toBeVisible();
+  });
+});
+
+test.describe("linked flows (design preview)", () => {
+  test("the project page leads to its contract and to purchases", async ({ page }) => {
+    await page.goto("/dev/preview/projects/detail");
+    await expect(page.getByRole("link", { name: "تسجيل مشتريات للمشروع" })).toHaveAttribute("href", /\/purchases\/new\?project=C-/);
+    await expect(page.getByRole("link", { name: "فتح العقد" }).first()).toHaveAttribute("href", /\/contracts\/C-/);
   });
 });

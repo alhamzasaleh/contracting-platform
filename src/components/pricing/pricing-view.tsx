@@ -379,6 +379,26 @@ export function PricingView({
           ) : ctx.crew.length === 0 ? (
             <p className="text-[12px] text-danger">{t("noCrew")}</p>
           ) : (
+            <>
+            {(ctx.teams?.length ?? 0) > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[12px] text-muted-foreground">{t("pickTeam")}</span>
+                {ctx.teams!.map((tm) => {
+                  const same = tm.members.length === l.crew.length && tm.members.every((id) => l.crew.includes(id));
+                  return (
+                    <button
+                      key={tm.id}
+                      type="button"
+                      aria-pressed={same}
+                      onClick={() => setLabour({ source: "inhouse", crew: [...tm.members] })}
+                      className={cn("min-h-9 rounded-full border px-3 text-[13px] font-semibold", same ? "border-primary bg-primary text-primary-foreground" : "border-border bg-surface hover:border-primary/50")}
+                    >
+                      {tm.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <ul className="grid gap-1">
               {ctx.crew.map((m) => {
                 const on = l.crew.includes(m.id);
@@ -417,6 +437,7 @@ export function PricingView({
                 );
               })}
             </ul>
+            </>
           ))}
         {outcome.labourNote && (
           <p className="text-[12px] text-danger">

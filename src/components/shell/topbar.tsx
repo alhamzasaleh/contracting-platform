@@ -45,6 +45,17 @@ export function Topbar({ data }: { data: ShellData }) {
       router.refresh();
     });
 
+  const signOut = async () => {
+    // A plain <form> inside the menu is unmounted before it submits (the menu closes
+    // on select), so the request is sent directly, then to /login with fresh data.
+    try {
+      await fetch("/auth/signout", { method: "POST", credentials: "same-origin" });
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
+  };
+
   const changeTheme = (v: string) => {
     setTheme(v);
     if (!preview) void updatePreferences({ theme: v as "system" | "light" | "dark" });
@@ -133,13 +144,9 @@ export function Topbar({ data }: { data: ShellData }) {
                 </Link>
               </DropdownMenuItem>
               {!preview && (
-                <form action="/auth/signout" method="post">
-                  <DropdownMenuItem asChild destructive>
-                    <button type="submit" className="w-full">
-                      <LogOut className="rtl:-scale-x-100" /> {t("user.signOut")}
-                    </button>
-                  </DropdownMenuItem>
-                </form>
+                <DropdownMenuItem destructive onSelect={signOut}>
+                  <LogOut className="rtl:-scale-x-100" /> {t("user.signOut")}
+                </DropdownMenuItem>
               )}
             </DropdownMenuContent>
           </DropdownMenu>

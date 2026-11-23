@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { Camera, Check, CheckCircle2, ExternalLink, FileBadge, HardHat, MapPin, MessageSquare, Phone, Send, Sparkles, X } from "lucide-react";
+import { Camera, Check, CheckCircle2, ExternalLink, FileBadge, FileText, HardHat, MapPin, MessageSquare, Phone, Send, ShoppingCart, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -163,9 +163,21 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
               label={tw("btnOpen")}
               text={tw("general", { name: data.client.name, contract: ltr(data.contract.number), org: data.orgName ?? "" })}
             />
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`${base}/contracts/${data.contract.number}`}>
+                <FileText /> {t("openContract")}
+              </Link>
+            </Button>
+            {data.canPurchase && (
+              <Button asChild variant="secondary" size="sm">
+                <Link href={`${base}/purchases/new?project=${data.contract.number}`}>
+                  <ShoppingCart /> {t("recordPurchase")}
+                </Link>
+              </Button>
+            )}
             {final && (
               <Button asChild variant="secondary" size="sm">
-                <Link href={`/print/handover/${data.contract.number}`} target="_blank">
+                <Link href={`${base}/print/handover/${data.contract.number}`} target="_blank">
                   <FileBadge /> {t("certificate")}
                 </Link>
               </Button>

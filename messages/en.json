@@ -377,7 +377,7 @@
     "emptyMaterialsTitle": "No materials yet",
     "emptyMaterialsBody": "Add the materials you use with their cost prices. Every price change is kept in the history.",
     "searchMaterials": "Search materials…",
-    "labourRates": "External labour rates",
+    "labourRates": "Subcontractor rates",
     "labourHint": "Subcontractor prices per m² or lump sum per project. In-house labour is costed from employees.",
     "addLabour": "Add rate",
     "editLabour": "Edit rate",
@@ -1007,17 +1007,17 @@
     "labour": "Labour",
     "labour_rates": "Template rates",
     "labour_inhouse": "Our team",
-    "labour_external": "External labour",
+    "labour_external": "Subcontractor",
     "labourRatesHint": "Using the labour rates saved in the template (per m²).",
     "perM2": "{rate} SAR per m²",
     "lump": "{rate} SAR lump sum",
     "perDay": "{cost} SAR/day",
-    "noExternal": "No external labour for this service — add it in Labour & extras.",
+    "noExternal": "No subcontractor for this service — add one and their rate in Labour & extras.",
     "noCrewAccess": "You don't have access to employee costs.",
     "noCrew": "No active employees — add them in Team.",
     "labourNote_crew_empty": "Choose who will work — template rates are used until then.",
     "labourNote_crew_no_cost": "Some employees have no salary — template rates were used.",
-    "labourNote_external_missing": "Choose the contractor — template rates are used until then.",
+    "labourNote_external_missing": "Choose the subcontractor — template rates are used until then.",
     "gypsumParts": "Gypsum part details (switch off what the client supplies)",
     "reset": "Back to template",
     "saveTemplate": "Save these choices as the {service} template",
@@ -1038,7 +1038,8 @@
     "pastPrice": "{price} / m² (from {n})",
     "pastSlower": "Your projects usually take {pct}% longer than planned — check the contract duration.",
     "pastApply": "Use the suggested margin {m}%",
-    "pastFew": "At least 3 won quotes are needed to suggest a margin."
+    "pastFew": "At least 3 won quotes are needed to suggest a margin.",
+    "pickTeam": "Pick a team:"
   },
   "clients": {
     "title": "Clients",
@@ -1346,8 +1347,8 @@
     "lM": "Metres × rate",
     "team": "Days = area ÷ team productivity per day, × crew daily cost",
     "scaffold": "Days × daily rental",
-    "extUnit": "Area × contractor rate per m²",
-    "extLump": "Contractor lump sum split by area",
+    "extUnit": "Area × subcontractor rate per m²",
+    "extLump": "Subcontractor lump sum split by area",
     "insulation": "Partition area",
     "missing": "No complete product for this line (needs pack size, coverage and price)"
   },
@@ -1538,7 +1539,9 @@
     "attachment": "Annex: quotation",
     "printPdf": "Print / PDF",
     "optionsWaiting": "Offered with options — the contract follows the option the client picks when accepting.",
-    "optionChosen": "The client chose “{label}”"
+    "optionChosen": "The client chose “{label}”",
+    "openProject": "Execution",
+    "recordPurchase": "Record purchase for project"
   },
   "portal": {
     "hello": "Hello {name}",
@@ -1649,10 +1652,10 @@
     "notes": "Notes",
     "delete": "Delete",
     "noTeamsTitle": "No teams yet",
-    "noTeamsBody": "Add your teams (gypsum, painting, or an external contractor) so the system can suggest the earliest start date and warn about clashes.",
+    "noTeamsBody": "Add your teams (gypsum, painting, or a subcontractor) so the system can suggest the earliest start date and warn about clashes.",
     "teamKind": "Team type",
     "teamKind_inhouse": "Our team",
-    "teamKind_external": "External contractor",
+    "teamKind_external": "Subcontractor",
     "inactive": "Inactive",
     "noMembers": "No members",
     "teamName": "Team name",
@@ -1661,7 +1664,7 @@
     "color": "Colour",
     "members": "Members",
     "noRoster": "Add employees on the Employees page to choose them here.",
-    "contactPhone": "Contractor mobile",
+    "contactPhone": "Subcontractor mobile",
     "phoneInvalid": "Invalid mobile number",
     "active": "Team is active",
     "pageTitle": "Schedule",
@@ -1670,7 +1673,7 @@
     "earliestHint": "Earliest free start: {date} ({team})",
     "applyDate": "Use it",
     "allBusy": "Every {service} team is busy in this period — you can continue or pick another date.",
-    "linkedSub": "Subcontractor"
+    "linkedSub": "Linked to subcontractor record"
   },
   "purchases": {
     "title": "Purchases & stock",
@@ -1855,7 +1858,8 @@
     "certSecond": "Second party (Client)",
     "certSigned": "Signed electronically: {name} — {date}",
     "certSignature": "Client signature",
-    "savedOffline": "Saved on this device — it will be sent when you are back online"
+    "savedOffline": "Saved on this device — it will be sent when you are back online",
+    "recordPurchase": "Record purchase for project"
   },
   "addenda": {
     "title": "Additional works (contract addenda)",
