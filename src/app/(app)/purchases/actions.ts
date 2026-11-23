@@ -216,3 +216,145 @@ export async function saveItem(input: unknown): Promise<ActionResult<{ id: strin
   if (error || !data) return fail(error, "save item");
   return done({ id: data.id });
 }
+
+// --- Subcontractors (§3.11) -------------------------------------------------------
+
+const phone = z.preprocess((v) => {
+  if (typeof v !== "string") return v;
+  const d = v.replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(/\D/g, "");
+  if (d === "") return null;
+  return /^05\d{8}$/.test(d) ? `966${d.slice(1)}` : d;
+}, z.string().regex(/^\d{8,15}$/, "phoneInvalid").nullable());
+
+export async function saveSubcontractor(input: unknown): Promise<ActionResult<{ id: string }>> {
+  const ctx = await authorize();
+  if (!isCtx(ctx)) return ctx;
+  const parsed = z
+    .object({
+      id: id.optional(),
+      name: z.string().trim().min(2, "required").max(160),
+      phone,
+      services: z.array(z.enum(["gypsum", "interior", "exterior"])).max(3),
+      vat_number: z.preprocess((v) => (typeof v === "string" ? v.replace(/\D/g, "") || null : v), z.string().regex(/^3\d{13}3$/, "vatInvalid").nullable()),
+      iban: z.preprocess((v) => (typeof v === "string" ? v.replace(/\s/g, "").toUpperCase() || null : v), z.string().regex(/^SA\d{22}$/, "ibanInvalid").nullable()),
+      notes: optText(1000),
+      is_active: z.boolean(),
+    })
+    .strict()
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
+  const { id: subId, ...row } = parsed.data;
+  const { data, error } = subId
+    ? await ctx.supabase.from("subcontractors").update(row).eq("id", subId).eq("organization_id", ctx.orgId).select("id").single()
+    : await ctx.supabase.from("subcontractors").insert({ ...row, organization_id: ctx.orgId }).select("id").single();
+  if (error || !data) return fail(error, "save subcontractor");
+  return done({ id: data.id });
+}
+
+export async function saveAgreement(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize();
+  if (!isCtx(ctx)) return ctx;
+  const parsed = z
+    .object({
+      id: id.optional(),
+      subcontractor_id: id,
+      contract_id: id,
+      scope: z.string().trim().min(2, "required").max(1000),
+      basis: z.enum(["lump", "per_m2"]),
+      rate: z.number().min(0).max(100_000_000),
+      quantity_m2: z.number().min(0).max(1_000_000).nullable(),
+      schedule: z.enum(["weekly", "progress"]),
+      status: z.enum(["active", "closed"]),
+    })
+    .strict()
+    .refine((g) => g.basis === "lump" || g.quantity_m2 != null, { message: "required", path: ["quantity_m2"] })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
+  const { id: agreementId, ...row } = parsed.data;
+  const clean = { ...row, quantity_m2: row.basis === "lump" ? null : row.quantity_m2 };
+  const { error } = agreementId
+    ? await ctx.supabase.from("subcontractor_agreements").update(clean).eq("id", agreementId).eq("organization_id", ctx.orgId)
+    : await ctx.supabase.from("subcontractor_agreements").insert({ ...clean, organization_id: ctx.orgId });
+  if (error) return fail(error, "save agreement");
+  return done();
+}
+
+/** Work done by a subcontractor; the database prices it from the agreement. */
+export async function addSubWork(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize();
+  if (!isCtx(ctx)) return ctx;
+  const parsed = z
+    .object({ agreement_id: id, work_date: day, quantity_m2: z.number().positive().max(1_000_000).nullable(), percent: z.number().positive().max(100).nullable(), note: optText(500) })
+    .strict()
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
+  const { error } = await ctx.supabase.from("subcontractor_work").insert({ ...parsed.data, organization_id: ctx.orgId, amount: 0 });
+  if (error) return fail(error, "sub work");
+  return done();
+}
+
+export async function deleteSubWork(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize();
+  if (!isCtx(ctx)) return ctx;
+  const parsed = z.object({ id }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { error } = await ctx.supabase.from("subcontractor_work").delete().eq("id", parsed.data.id).eq("organization_id", ctx.orgId);
+  if (error) return fail(error, "delete sub work");
+  return done();
+}
+
+/** Paying a subcontractor is a finance action. */
+export async function addSubPayment(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "finance.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z
+    .object({ agreement_id: id, paid_on: day, amount: z.number().positive().max(100_000_000), method: z.enum(["transfer", "cash", "cheque"]), reference: optText(80), note: optText(500) })
+    .strict()
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
+  const supabase = await createClient();
+  const { error } = await supabase.from("subcontractor_payments").insert({ ...parsed.data, organization_id: session.organization.id });
+  if (error) return fail(error, "sub payment");
+  return done();
+}
+
+// --- Petty cash (§3.11) -----------------------------------------------------------
+
+export async function createPettyAccount(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "finance.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ holder_id: id, name: z.string().trim().min(2, "required").max(120) }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
+  const supabase = await createClient();
+  const { error } = await supabase.from("petty_cash_accounts").insert({ ...parsed.data, organization_id: session.organization.id });
+  if (error) return fail(error, "petty account");
+  return done();
+}
+
+/** Top-up / return (finance) or an expense (the holder), optionally with the receipt photo. */
+export async function addPettyEntry(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  const parsed = z
+    .object({
+      account_id: id,
+      kind: z.enum(["topup", "expense", "return"]),
+      entry_date: day,
+      amount: z.number().positive().max(10_000_000),
+      contract_id: id.nullable(),
+      description: z.string().trim().min(1, "required").max(300),
+      supplier_name: optText(160),
+      attachment_path: z.string().max(300).nullable(),
+      ai_extracted: z.boolean(),
+    })
+    .strict()
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
+  const v = parsed.data;
+  if (v.kind !== "expense" && !can(session, "finance.manage")) return { ok: false, error: "noAccess" };
+  const orgId = session.organization.id;
+  if (v.attachment_path && !new RegExp(`^${orgId}/[0-9a-f-]{36}\\.(jpg|png|webp|pdf)$`).test(v.attachment_path)) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase.from("petty_cash_entries").insert({ ...v, contract_id: v.kind === "expense" ? v.contract_id : null, organization_id: orgId });
+  if (error) return fail(error, "petty entry");
+  return done();
+}

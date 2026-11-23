@@ -525,6 +525,7 @@ export type PurchaseRow = OrgRow & Upd & {
   ai_flags: Json;
   notes: string | null;
   recorded_at: string | null;
+  addendum_id: string | null;
 };
 export type PurchaseLineRow = OrgRow & {
   purchase_id: string;
@@ -552,6 +553,7 @@ export type InventoryMovementRow = OrgRow & {
 export type StageStatus = "pending" | "in_progress" | "awaiting_client" | "confirmed";
 export type ProjectStageRow = OrgRow & Upd & {
   contract_id: string;
+  addendum_id: string | null;
   seq: number;
   name: string;
   payment_event: string | null;
@@ -570,6 +572,59 @@ export type ProjectStageRow = OrgRow & Upd & {
 export type SiteVisitRow = OrgRow & { contract_id: string; latitude: number | null; longitude: number | null; accuracy_m: number | null; note: string | null; checked_in_at: string };
 export type ProgressUpdateRow = OrgRow & { contract_id: string; stage_id: string; progress: number; note: string | null; photos: string[]; visible_to_client: boolean };
 export type ClientNoteRow = OrgRow & Upd & { contract_id: string; stage_id: string | null; body: string; photos: string[]; status: "new" | "seen" | "resolved"; reply: string | null };
+
+export type AddendumStatus = "draft" | "pending_approval" | "approved" | "sent" | "accepted" | "rejected" | "cancelled";
+export type AddendumRow = OrgRow & Upd & {
+  number: string;
+  contract_id: string;
+  title: string;
+  description: string;
+  amount: number;
+  vat_percent: number;
+  vat: number;
+  total: number;
+  extra_days: number;
+  status: AddendumStatus;
+  payment_status: "pending" | "requested" | "paid";
+  accepted_at: string | null;
+  accepted_name: string | null;
+  accepted_ip: string | null;
+  accepted_user_agent: string | null;
+  accepted_signature: string | null;
+};
+export type SubcontractorRow = OrgRow & Upd & {
+  name: string;
+  phone: string | null;
+  services: ("gypsum" | "interior" | "exterior")[];
+  vat_number: string | null;
+  iban: string | null;
+  notes: string | null;
+  is_active: boolean;
+};
+export type SubAgreementRow = OrgRow & Upd & {
+  subcontractor_id: string;
+  contract_id: string;
+  scope: string;
+  basis: "lump" | "per_m2";
+  rate: number;
+  quantity_m2: number | null;
+  schedule: "weekly" | "progress";
+  status: "active" | "closed";
+};
+export type SubWorkRow = OrgRow & { agreement_id: string; work_date: string; quantity_m2: number | null; percent: number | null; amount: number; note: string | null };
+export type SubPaymentRow = OrgRow & { agreement_id: string; paid_on: string; amount: number; method: "transfer" | "cash" | "cheque"; reference: string | null; note: string | null };
+export type PettyAccountRow = OrgRow & Upd & { holder_id: string; name: string; is_active: boolean };
+export type PettyEntryRow = OrgRow & {
+  account_id: string;
+  kind: "topup" | "expense" | "return";
+  entry_date: string;
+  amount: number;
+  contract_id: string | null;
+  description: string;
+  supplier_name: string | null;
+  attachment_path: string | null;
+  ai_extracted: boolean;
+};
 
 export type Database = {
   public: {
@@ -625,6 +680,13 @@ export type Database = {
       site_visits: Table<SiteVisitRow>;
       progress_updates: Table<ProgressUpdateRow>;
       client_notes: Table<ClientNoteRow>;
+      addenda: Table<AddendumRow>;
+      subcontractors: Table<SubcontractorRow>;
+      subcontractor_agreements: Table<SubAgreementRow>;
+      subcontractor_work: Table<SubWorkRow>;
+      subcontractor_payments: Table<SubPaymentRow>;
+      petty_cash_accounts: Table<PettyAccountRow>;
+      petty_cash_entries: Table<PettyEntryRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
@@ -639,6 +701,9 @@ export type Database = {
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
+      submit_addendum: { Args: { p_id: string }; Returns: string };
+      portal_addenda: { Args: { p_number: string; p_token: string }; Returns: Json };
+      portal_accept_addendum: { Args: { p_number: string; p_token: string; p_addendum: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };
       portal_execution: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_confirm_stage: { Args: { p_number: string; p_token: string; p_stage: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };
       portal_add_note: { Args: { p_number: string; p_token: string; p_stage: string | null; p_body: string; p_photos: string[] }; Returns: string | null };

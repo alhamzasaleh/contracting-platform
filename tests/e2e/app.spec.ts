@@ -196,3 +196,27 @@ test.describe("execution (design preview)", () => {
     expect(width).toBeLessThanOrEqual(1);
   });
 });
+
+test.describe("additional works, subcontractors, petty cash (design preview)", () => {
+  test("contract shows addenda with owner approval and new delivery date", async ({ page }) => {
+    await page.goto("/dev/preview/contracts/detail");
+    await expect(page.getByText("الأعمال الإضافية (ملاحق العقد)")).toBeVisible();
+    await expect(page.getByText(/التسليم المتوقع بعد الملاحق/)).toBeVisible();
+    await expect(page.getByText("بانتظار موافقة المالك")).toBeVisible();
+  });
+
+  test("client page lists an addendum to accept", async ({ page }) => {
+    await page.goto("/dev/preview/portal/work");
+    await expect(page.getByText("أعمال إضافية", { exact: true })).toBeVisible();
+    const accept = page.getByRole("button", { name: "أوافق على الملحق" });
+    await expect(accept).toBeDisabled();
+  });
+
+  test("subcontractors show earned, paid and due; petty cash shows balance", async ({ page }) => {
+    await page.goto("/dev/preview/purchases/subcontractors");
+    await expect(page.getByText(/مستحق الآن/).first()).toBeVisible();
+    await page.goto("/dev/preview/purchases/petty-cash");
+    await expect(page.getByText("الرصيد")).toBeVisible();
+    await expect(page.getByText("675.00").first()).toBeVisible();
+  });
+});

@@ -12,6 +12,8 @@ export default async function PreviewPurchasesLayout({ children }: { children: R
         tabs={[
           { href: "/purchases", label: t("tabPurchases"), exact: true },
           { href: "/purchases/inventory", label: t("tabInventory") },
+    { href: "/purchases/subcontractors", label: t("tabSubs") },
+    { href: "/purchases/petty-cash", label: t("tabPetty") },
           { href: "/purchases/costs", label: t("tabCosts") },
         ]}
       />

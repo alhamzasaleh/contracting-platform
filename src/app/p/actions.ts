@@ -105,3 +105,32 @@ export async function addNotePortal(fd: FormData): Promise<ActionResult> {
   }
   return { ok: true };
 }
+
+const addendumSchema = z
+  .object({
+    number: z.string().regex(NUMBER_RE),
+    token: z.string().regex(TOKEN_RE),
+    addendum_id: z.uuid(),
+    name: z.string().trim().min(2, "required").max(160),
+    agree: z.literal(true),
+    signature: z.string().regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/).max(200_000).nullable(),
+  })
+  .strict();
+
+/** The client accepts additional works (addendum) from their page. */
+export async function acceptAddendumPortal(input: unknown): Promise<ActionResult> {
+  const parsed = addendumSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const ip = await clientIp();
+  if ((await rateLimit(`portal:addendum:${ip}`, 10, 600)) !== "ok") return { ok: false, error: "rateLimited" };
+  const ua = (await headers()).get("user-agent") ?? "";
+  const v = parsed.data;
+  const { data, error } = await createAdminClient().rpc("portal_accept_addendum", {
+    p_number: v.number, p_token: v.token, p_addendum: v.addendum_id, p_name: v.name, p_signature: v.signature, p_ip: ip, p_user_agent: ua,
+  });
+  if (error) {
+    console.error("[portal] addendum accept failed", { code: error.code });
+    return { ok: false, error: "error" };
+  }
+  return data ? { ok: true } : { ok: false, error: "linkInvalid" };
+}

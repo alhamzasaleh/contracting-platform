@@ -53,4 +53,7 @@ export const SAMPLE_PORTAL_WORK: PortalData = {
     })),
     notes: [{ id: "n1", body: "نبي فتحة التكييف في المجلس أكبر شوي لو سمحتوا.", photos: [], status: "resolved", reply: "أكيد، تم توسيعها اليوم.", stage_id: "s3", created_at: "2026-11-22T16:00:00Z" }],
   },
+  addenda: [
+    { id: "ad3", number: "AD-2026-003", title: "دهان سقف الملحق", description: "معجون وجهين ودهان وجهين لسقف الملحق الخارجي 35 م²، بنفس مواصفات العقد.", amount: 1400, vat_percent: 0, vat: 0, total: 1400, extra_days: 2, status: "sent", payment_status: "pending", accepted_at: null, accepted_name: null },
+  ],
 };

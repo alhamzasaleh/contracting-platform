@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { BrandStyle } from "@/components/brand-style";
 import { PortalView } from "@/components/portal/portal-view";
 import { loadPortal } from "@/lib/portal";
-import { acceptPortal, addNotePortal, confirmStagePortal } from "../../actions";
+import { acceptAddendumPortal, acceptPortal, addNotePortal, confirmStagePortal } from "../../actions";
 
 // Private link: never indexed, never leaked to other sites through the Referer header.
 export const metadata: Metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" };
@@ -26,7 +26,7 @@ export default async function ClientPage({ params }: { params: Promise<{ number:
   return (
     <>
       <BrandStyle primary={data.org.brand.primary} accent={data.org.brand.accent} />
-      <PortalView data={data} logoUrl={logoUrl} number={n} token={token} onAccept={acceptPortal} onConfirmStage={confirmStagePortal} onAddNote={addNotePortal} />
+      <PortalView data={data} logoUrl={logoUrl} number={n} token={token} onAccept={acceptPortal} onConfirmStage={confirmStagePortal} onAddNote={addNotePortal} onAcceptAddendum={acceptAddendumPortal} />
     </>
   );
 }

@@ -90,6 +90,7 @@ export function PortalView({
   onAccept,
   onConfirmStage,
   onAddNote,
+  onAcceptAddendum,
 }: {
   data: PortalData;
   logoUrl: string | null;
@@ -98,6 +99,7 @@ export function PortalView({
   onAccept?: (i: Record<string, unknown>) => Promise<ActionResult>;
   onConfirmStage?: (i: Record<string, unknown>) => Promise<ActionResult>;
   onAddNote?: (fd: FormData) => Promise<ActionResult>;
+  onAcceptAddendum?: (i: Record<string, unknown>) => Promise<ActionResult>;
 }) {
   const t = useTranslations("portal");
   const tp = useTranslations("pricing");
@@ -185,6 +187,7 @@ export function PortalView({
             }}
           />
         )}
+        {(data.addenda ?? []).length > 0 && <Addenda list={data.addenda!} clientName={data.client.name} number={number} token={token} onAccept={onAcceptAddendum} />}
         {ex && ex.stages.length > 0 && <WorkProgress stages={ex.stages} clientName={data.client.name} number={number} token={token} onConfirm={onConfirmStage} />}
         {ex && <ClientNotes data={data} number={number} token={token} onAdd={onAddNote} />}
 
@@ -438,5 +441,74 @@ function ClientNotes({ data, number, token, onAdd }: { data: PortalData; number:
         </ul>
       )}
     </section>
+  );
+}
+
+/** §3.8 additional works: each addendum is accepted separately (with its own payment and extra days). */
+function Addenda({ list, clientName, number, token, onAccept }: { list: NonNullable<PortalData["addenda"]>; clientName: string; number: string; token: string; onAccept?: (i: Record<string, unknown>) => Promise<ActionResult> }) {
+  const t = useTranslations("portal");
+  const { fmt } = useFormatter();
+  return (
+    <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
+      <p className="text-[17px] font-bold">{t("addendaTitle")}</p>
+      {list.map((a) => (
+        <article key={a.id} className={cn("grid gap-2 rounded-2xl p-4", a.status === "sent" ? "border-2 border-primary/50" : "bg-surface-sunken/50")}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-bold">
+              <span className="font-latin">{a.number}</span> · {a.title}
+            </p>
+            <p className="font-latin font-extrabold tabular-nums">{fmt.money(a.total)}</p>
+          </div>
+          <p className="whitespace-pre-line text-[14px] leading-7">{a.description}</p>
+          <p className="text-[13px] text-muted-foreground">
+            {a.vat > 0 ? t("addendumVat", { amount: fmt.money(a.amount), vat: fmt.money(a.vat) }) : t("addendumNoVat")} · {t("addendumDays", { n: a.extra_days })}
+          </p>
+          {a.status === "accepted" ? (
+            <p className="text-[12px] text-success">{t("addendumAccepted", { name: a.accepted_name ?? "", date: fmt.dateTime(a.accepted_at!) })}</p>
+          ) : (
+            <AcceptAddendum id={a.id} clientName={clientName} number={number} token={token} onAccept={onAccept} />
+          )}
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function AcceptAddendum({ id, clientName, number, token, onAccept }: { id: string; clientName: string; number: string; token: string; onAccept?: (i: Record<string, unknown>) => Promise<ActionResult> }) {
+  const t = useTranslations("portal");
+  const router = useRouter();
+  const [name, setName] = React.useState(clientName);
+  const [agree, setAgree] = React.useState(false);
+  const [signature, setSignature] = React.useState<string | null>(null);
+  const [pending, start] = React.useTransition();
+  const [error, setError] = React.useState<string | null>(null);
+  return (
+    <div className="grid gap-3 border-t border-border pt-3">
+      <p className="text-[13px] text-muted-foreground">{t("addendumHint")}</p>
+      <Field id={`ad-${id}`} label={t("yourName")}>
+        <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+      </Field>
+      <SignaturePad onChange={setSignature} />
+      <label className="flex items-start gap-3 text-[14px]">
+        <input type="checkbox" className="mt-1 size-5 accent-[var(--primary)]" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+        <span>{t("addendumAgree")}</span>
+      </label>
+      {error && <p className="text-[13px] text-danger">{error}</p>}
+      <Button
+        loading={pending}
+        disabled={!agree || name.trim().length < 2}
+        onClick={() =>
+          start(async () => {
+            setError(null);
+            if (!onAccept) return;
+            const r = await onAccept({ number, token, addendum_id: id, name: name.trim(), agree, signature });
+            if (r.ok) router.refresh();
+            else setError(r.error === "rateLimited" ? t("errRate") : t("errGeneric"));
+          })
+        }
+      >
+        <Check /> {t("acceptAddendum")}
+      </Button>
+    </div>
   );
 }

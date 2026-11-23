@@ -33,6 +33,10 @@ export async function loadSchedule(session: SessionContext): Promise<ScheduleDat
       : Promise.resolve({ data: [] as never[] }),
     seeProjects ? supabase.from("clients").select("id, name").eq("organization_id", orgId) : Promise.resolve({ data: [] as never[] }),
   ]);
+  // accepted additional works extend the delivery date
+  const { data: addenda } = seeProjects ? await supabase.from("addenda").select("contract_id, extra_days").eq("organization_id", orgId).eq("status", "accepted") : { data: [] };
+  const extra = new Map<string, number>();
+  for (const a of addenda ?? []) extra.set(a.contract_id, (extra.get(a.contract_id) ?? 0) + a.extra_days);
   const byTeam = new Map<string, string[]>();
   for (const m of members ?? []) byTeam.set(m.team_id, [...(byTeam.get(m.team_id) ?? []), m.employee_id]);
   const clientName = new Map(((clients.data ?? []) as { id: string; name: string }[]).map((c) => [c.id, c.name]));
@@ -41,7 +45,7 @@ export async function loadSchedule(session: SessionContext): Promise<ScheduleDat
     roster: (roster ?? []) as ScheduleData["roster"],
     entries: (entries ?? []).map((e) => ({ id: e.id, team_id: e.team_id, contract_id: e.contract_id, kind: e.kind, title: e.title, notes: e.notes, start: e.start_date, end: e.end_date })),
     projects: ((contracts.data ?? []) as { id: string; number: string; client_id: string; service: ServiceKind; status: ContractStatus; start_date: string; duration_days: number }[])
-      .map((c) => ({ id: c.id, number: c.number, client: clientName.get(c.client_id) ?? "—", service: c.service, status: c.status, start: c.start_date, days: c.duration_days, end: addDays(c.start_date, c.duration_days - 1) }))
+      .map((c) => ({ id: c.id, number: c.number, client: clientName.get(c.client_id) ?? "—", service: c.service, status: c.status, start: c.start_date, days: c.duration_days + (extra.get(c.id) ?? 0), end: addDays(c.start_date, c.duration_days + (extra.get(c.id) ?? 0) - 1) }))
       .filter((p) => p.end >= since),
     canManage: can(session, "schedule.manage"),
   };

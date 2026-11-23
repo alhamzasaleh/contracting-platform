@@ -20,6 +20,12 @@ export type PortalData = {
   payments: { seq: number; label: string; percent: number; amount: number; due_event: string; status: string }[];
   expires_at: string;
   execution?: PortalExecution | null;
+  addenda?: PortalAddendum[];
+};
+
+export type PortalAddendum = {
+  id: string; number: string; title: string; description: string; amount: number; vat_percent: number; vat: number; total: number; extra_days: number;
+  status: "sent" | "accepted"; payment_status: string; accepted_at: string | null; accepted_name: string | null;
 };
 
 export type PortalStage = {
@@ -70,5 +76,10 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
       };
     }
   }
-  return { data: { ...d, execution, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
+  let addenda: PortalAddendum[] = [];
+  if (d.contract.status === "accepted") {
+    const { data: ad } = await admin.rpc("portal_addenda", { p_number: number, p_token: token });
+    addenda = ((ad as unknown as PortalAddendum[] | null) ?? []).map((a) => ({ ...a, amount: Number(a.amount), vat: Number(a.vat), total: Number(a.total) }));
+  }
+  return { data: { ...d, execution, addenda, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
 }

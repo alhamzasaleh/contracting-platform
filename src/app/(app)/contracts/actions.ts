@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
 import { linkExpiry, percentSum, scheduleAmounts } from "@/lib/contracts";
+import { effectiveVatPercent } from "@/lib/costing";
 import { createClient } from "@/lib/supabase/server";
 import { publicEnv } from "@/env";
 
@@ -158,4 +159,91 @@ export async function cancelContract(input: unknown): Promise<ActionResult> {
   const { error } = await supabase.from("contracts").update({ status: "cancelled" }).eq("id", parsed.data.id);
   if (!error) await supabase.from("client_portal_links").update({ revoked_at: new Date().toISOString() }).eq("contract_id", parsed.data.id).is("revoked_at", null);
   return error ? fail(error, "cancel") : done();
+}
+
+// --- Additional works (addenda, §3.8) ---------------------------------------------
+
+const addendumSchema = z
+  .object({
+    id: id.optional(),
+    contract_id: id,
+    title: z.string().trim().min(2, "required").max(160),
+    description: z.string().trim().min(2, "required").max(4000),
+    amount: z.number().min(0).max(100_000_000),
+    extra_days: z.number().int().min(0).max(365),
+    submit: z.boolean(),
+  })
+  .strict();
+
+/** Create or edit a draft addendum; VAT follows the company's VAT registration. With submit: to the owner. */
+export async function saveAddendum(input: unknown): Promise<ActionResult<{ status: string }>> {
+  const session = await getSession();
+  if (!can(session, "quotes.manage")) return { ok: false, error: "noAccess" };
+  const parsed = addendumSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: Object.fromEntries(parsed.error.issues.map((i) => [String(i.path[0]), i.message])) };
+  const supabase = await createClient();
+  const orgId = session.organization.id;
+  const { data: settings } = await supabase.from("pricing_settings").select("vat_percent").eq("organization_id", orgId).maybeSingle();
+  const vatPercent = effectiveVatPercent(session.organization.vat_number, Number(settings?.vat_percent ?? 15));
+  const { id: addendumId, submit, ...v } = parsed.data;
+  const amount = Math.round(v.amount * 100) / 100;
+  const vat = Math.round(amount * vatPercent) / 100;
+  const row = { ...v, amount, vat_percent: vatPercent, vat, total: Math.round((amount + vat) * 100) / 100 };
+  const { data: saved, error } = addendumId
+    ? await supabase.from("addenda").update({ ...row, status: "draft" }).eq("id", addendumId).eq("organization_id", orgId).select("id").single()
+    : await supabase.from("addenda").insert({ ...row, organization_id: orgId }).select("id").single();
+  if (error || !saved) return fail(error, "save addendum");
+  if (!submit) return done({ status: "draft" });
+  const { data: status, error: e2 } = await supabase.rpc("submit_addendum", { p_id: saved.id });
+  if (e2) return fail(e2, "submit addendum");
+  return done({ status: String(status) });
+}
+
+/** Approved → visible on the client page for acceptance. */
+export async function sendAddendum(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "quotes.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ id }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase.from("addenda").update({ status: "sent" }).eq("id", parsed.data.id).eq("organization_id", session.organization.id).eq("status", "approved");
+  return error ? fail(error, "send addendum") : done();
+}
+
+export async function cancelAddendum(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "quotes.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ id }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase.from("addenda").update({ status: "cancelled" }).eq("id", parsed.data.id).eq("organization_id", session.organization.id).neq("status", "accepted");
+  return error ? fail(error, "cancel addendum") : done();
+}
+
+/** Owner's decision on an addendum raised by someone else. */
+export async function decideAddendum(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "approvals.decide")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ approval_id: id, decision: z.enum(["approved", "rejected"]) }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("approvals")
+    .update({ status: parsed.data.decision })
+    .eq("id", parsed.data.approval_id)
+    .eq("organization_id", session.organization.id)
+    .eq("entity", "addendum")
+    .eq("status", "pending");
+  return error ? fail(error, "decide addendum") : done();
+}
+
+/** Finance marks the addendum's own payment as received. */
+export async function markAddendumPaid(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "finance.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ id }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase.from("addenda").update({ payment_status: "paid" }).eq("id", parsed.data.id).eq("organization_id", session.organization.id).eq("status", "accepted");
+  return error ? fail(error, "addendum paid") : done();
 }

@@ -121,18 +121,22 @@ export async function loadInventory(session: SessionContext): Promise<InventoryD
   };
 }
 
-export type ProjectCost = ProjectRef & { estimated: number | null; materials: number; expenses: number; actual: number; pending: number };
+export type ProjectCost = ProjectRef & { estimated: number | null; materials: number; expenses: number; subcontractors: number; petty: number; actual: number; pending: number };
 
 /** §3.10 estimated vs actual per project: quote material cost vs recorded purchases + transfers. */
 export async function loadProjectCosts(session: SessionContext): Promise<ProjectCost[]> {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const [{ data: contracts }, { data: clients }, { data: moves }, { data: purchases }] = await Promise.all([
+  const [{ data: contracts }, { data: clients }, { data: moves }, { data: purchases }, { data: subWork }, { data: subAgreements }, { data: petty }] = await Promise.all([
     supabase.from("contracts").select("id, number, client_id, status, quote_id, quote_version").eq("organization_id", orgId).neq("status", "cancelled").order("created_at", { ascending: false }),
     supabase.from("clients").select("id, name").eq("organization_id", orgId),
     supabase.from("inventory_movements").select("contract_id, quantity, unit_cost").eq("organization_id", orgId).not("contract_id", "is", null).limit(20000),
     supabase.from("purchases").select("id, contract_id, status, total, subtotal").eq("organization_id", orgId).not("contract_id", "is", null),
+    supabase.from("subcontractor_work").select("agreement_id, amount").eq("organization_id", orgId).limit(20000),
+    supabase.from("subcontractor_agreements").select("id, contract_id").eq("organization_id", orgId),
+    supabase.from("petty_cash_entries").select("contract_id, amount").eq("organization_id", orgId).eq("kind", "expense").not("contract_id", "is", null).limit(20000),
   ]);
+  const agreementContract = new Map((subAgreements ?? []).map((g) => [g.id, g.contract_id]));
   const names = new Map((clients ?? []).map((c) => [c.id, c.name]));
   const recordedIds = (purchases ?? []).filter((p) => p.status === "recorded").map((p) => p.id);
   const { data: expenseLines } = recordedIds.length
@@ -156,11 +160,14 @@ export async function loadProjectCosts(session: SessionContext): Promise<Project
   return (contracts ?? []).map((c) => {
     const materials = (moves ?? []).filter((m) => m.contract_id === c.id).reduce((s, m) => s + n(m.quantity) * n(m.unit_cost), 0);
     const expenses = (expenseLines ?? []).filter((l) => purchaseContract.get(l.purchase_id) === c.id).reduce((s, l) => s + n(l.amount) * (vatFactor.get(l.purchase_id) ?? 1), 0);
+    const subs = (subWork ?? []).filter((w) => agreementContract.get(w.agreement_id) === c.id).reduce((s, w) => s + n(w.amount), 0);
+    const pettySum = (petty ?? []).filter((e) => e.contract_id === c.id).reduce((s, e) => s + n(e.amount), 0);
     const pending = (purchases ?? []).filter((p) => p.contract_id === c.id && p.status === "pending_approval").reduce((s, p) => s + n(p.total), 0);
     const r = (x: number) => Math.round(x * 100) / 100;
     return {
       id: c.id, number: c.number, client: names.get(c.client_id) ?? "—", status: c.status,
-      estimated: estimates.get(c.id) ?? null, materials: r(materials), expenses: r(expenses), actual: r(materials + expenses), pending: r(pending),
+      estimated: estimates.get(c.id) ?? null, materials: r(materials), expenses: r(expenses), subcontractors: r(subs), petty: r(pettySum),
+      actual: r(materials + expenses + pettySum), pending: r(pending),
     };
   });
 }

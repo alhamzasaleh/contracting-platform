@@ -23,6 +23,13 @@ export const SAMPLE_CONTRACT: ContractDetail = {
   link: { active: true, expires_at: "2027-07-10T00:00:00Z", last_opened_at: "2026-11-22T18:00:00Z", open_count: 3 },
   materialCost: 7200,
   canManage: true,
+  canDecide: true,
+  canFinance: true,
+  vatPercent: 0,
+  addenda: [
+    { id: "ad1", number: "AD-2026-001", title: "بيت إنارة إضافي في المجلس", description: "تنفيذ بيت إنارة بطول 12 م مع شادو، بنفس مواصفات العقد.", amount: 1800, vat: 0, total: 1800, extra_days: 3, status: "accepted", payment_status: "requested", accepted_at: "2026-11-22T10:00:00Z", accepted_name: "أبو محمد", approval_id: null, created_at: "2026-11-21T10:00:00Z" },
+    { id: "ad2", number: "AD-2026-002", title: "دهان سقف الملحق", description: "معجون وجهين ودهان وجهين لسقف الملحق الخارجي 35 م².", amount: 1400, vat: 0, total: 1400, extra_days: 2, status: "pending_approval", payment_status: "pending", accepted_at: null, accepted_name: null, approval_id: "ap9", created_at: "2026-11-22T10:00:00Z" },
+  ],
 };
 
 export const SAMPLE_CONTRACT_DRAFT: ContractDraft = {

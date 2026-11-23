@@ -20,6 +20,7 @@ import type { ContractStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { anyTeamFree, spanOf, suggestStart, type Entry, type TeamInfo } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
+import { AddendaSection, type AddendaActions } from "./addenda-section";
 import { ContractTerms, type ContractOrg } from "./contract-terms";
 
 const TONE: Record<ContractStatus, "neutral" | "primary" | "success" | "danger"> = { draft: "neutral", sent: "primary", accepted: "success", cancelled: "danger" };
@@ -246,6 +247,7 @@ export function ContractView({
   detail,
   org,
   actions,
+  addendaActions,
   base = "",
 }: {
   detail: ContractDetail;
@@ -255,6 +257,7 @@ export function ContractView({
     revoke: (i: Record<string, unknown>) => Promise<ActionResult>;
     cancel: (i: Record<string, unknown>) => Promise<ActionResult>;
   };
+  addendaActions?: AddendaActions;
   base?: string;
 }) {
   const ts = useTranslations("schedule");
@@ -401,6 +404,7 @@ export function ContractView({
         </p>
       )}
 
+      <AddendaSection detail={detail} actions={addendaActions} />
       <ContractTerms
         org={org}
         client={client}

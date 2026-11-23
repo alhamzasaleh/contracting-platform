@@ -6,7 +6,8 @@ import { loadPricingSettings } from "@/lib/data/catalogue";
 import type { Line } from "@/lib/engine";
 import type { ServiceKind } from "@/lib/pricing";
 import type { ClientView } from "@/lib/quotes";
-import type { ContractStatus } from "@/lib/supabase/database.types";
+import { effectiveVatPercent } from "@/lib/costing";
+import type { AddendumStatus, ContractStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
 const n = (v: unknown) => Number(v ?? 0);
@@ -102,6 +103,17 @@ export type ContractDetail = {
   link: { active: boolean; expires_at: string | null; last_opened_at: string | null; open_count: number };
   materialCost: number | null;
   canManage: boolean;
+  addenda: AddendumView[];
+  canDecide: boolean;
+  canFinance: boolean;
+  /** VAT % applied to new addenda (0 without a company VAT number) */
+  vatPercent: number;
+};
+
+export type AddendumView = {
+  id: string; number: string; title: string; description: string; amount: number; vat: number; total: number; extra_days: number;
+  status: AddendumStatus; payment_status: "pending" | "requested" | "paid"; accepted_at: string | null; accepted_name: string | null;
+  approval_id: string | null; created_at: string;
 };
 
 export async function loadContract(session: SessionContext, number: string): Promise<ContractDetail> {
@@ -117,6 +129,14 @@ export async function loadContract(session: SessionContext, number: string): Pro
     supabase.from("client_portal_links").select("expires_at, revoked_at, last_opened_at, open_count").eq("contract_id", c.id).order("created_at", { ascending: false }),
   ]);
   const active = (links ?? []).find((l) => !l.revoked_at && new Date(l.expires_at) > new Date());
+  const [{ data: addenda }, settings] = await Promise.all([
+    supabase.from("addenda").select("id, number, title, description, amount, vat, total, extra_days, status, payment_status, accepted_at, accepted_name, created_at").eq("contract_id", c.id).order("created_at"),
+    loadPricingSettings(session),
+  ]);
+  const pendingIds = (addenda ?? []).filter((a) => a.status === "pending_approval").map((a) => a.id);
+  const { data: approvals } = pendingIds.length
+    ? await supabase.from("approvals").select("id, entity_id").eq("entity", "addendum").eq("status", "pending").in("entity_id", pendingIds)
+    : { data: [] as { id: string; entity_id: string }[] };
   return {
     contract: {
       id: c.id, number: c.number, status: c.status, service: c.service, project_type: c.project_type, start_date: c.start_date,
@@ -130,5 +150,9 @@ export async function loadContract(session: SessionContext, number: string): Pro
     link: { active: !!active, expires_at: active?.expires_at ?? null, last_opened_at: active?.last_opened_at ?? null, open_count: active?.open_count ?? 0 },
     materialCost: can(session, "costs.view") ? await materialCost(supabase, c.quote_id, c.quote_version) : null,
     canManage: can(session, "quotes.manage"),
+    addenda: (addenda ?? []).map((a) => ({ ...a, amount: n(a.amount), vat: n(a.vat), total: n(a.total), approval_id: (approvals ?? []).find((x) => x.entity_id === a.id)?.id ?? null })),
+    canDecide: can(session, "approvals.decide"),
+    canFinance: can(session, "finance.manage"),
+    vatPercent: effectiveVatPercent(session.organization.vat_number, Number(settings?.vat_percent ?? 15)),
   };
 }

@@ -9,6 +9,8 @@ export default async function PurchasesLayout({ children }: { children: React.Re
   const tabs = [
     { href: "/purchases", label: t("tabPurchases"), exact: true },
     { href: "/purchases/inventory", label: t("tabInventory") },
+    { href: "/purchases/subcontractors", label: t("tabSubs") },
+    { href: "/purchases/petty-cash", label: t("tabPetty") },
     ...(can(session, "quotes.view") ? [{ href: "/purchases/costs", label: t("tabCosts") }] : []),
   ];
   return (
