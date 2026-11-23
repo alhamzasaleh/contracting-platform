@@ -11,6 +11,7 @@
 - Build **phase by phase** (section 9). Finish, test and deploy each phase before starting the next.
 - At the start of each phase: show a short plan, then build. At the end: run tests, run the security checklist (section 7), deploy a preview, and summarise what changed.
 - The owner is not a developer and works from an iPad. Explain decisions in plain language, keep setup steps minimal, and do all terminal work yourself.
+- **Always write to the owner in Arabic** — every message, question and choice dialog (owner's instruction). Never ask or reply in English.
 - Never weaken security, RLS or validation to make something "work quickly".
 - Ask before any destructive database migration.
 
