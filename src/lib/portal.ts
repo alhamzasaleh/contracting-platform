@@ -68,7 +68,14 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
   const d = data as unknown as PortalData | null;
   if (!d) return { data: null, logoUrl: null, limited: false };
   let logoUrl: string | null = null;
-  if (d.org.logo_path) {
+  // the approved SVG logo when stored (organization found through the token-checked link)
+  const { data: link } = await admin.rpc("portal_warranty", { p_number: number, p_token: token });
+  const orgId = (link as { org_id?: string } | null)?.org_id;
+  if (orgId) {
+    const { data: o } = await admin.from("organizations").select("logo_svg").eq("id", orgId).maybeSingle();
+    if (o?.logo_svg) logoUrl = `data:image/svg+xml;base64,${Buffer.from(o.logo_svg, "utf8").toString("base64")}`;
+  }
+  if (!logoUrl && d.org.logo_path) {
     // embedded (same origin) so the page can colour it with a CSS mask; signed URL only for large files
     const { data: file } = await admin.storage.from("org-assets").download(d.org.logo_path);
     logoUrl = await blobToDataUrl(file);

@@ -3,14 +3,14 @@ import { ReceiptVoucher } from "@/components/finance/receipt-voucher";
 import { PrintButton } from "@/components/quotes/print-button";
 import { requirePermission } from "@/lib/auth/session";
 import { loadReceipt } from "@/lib/data/receipts";
-import { logoDataUrl } from "@/lib/org";
+import { orgLogoUrl } from "@/lib/org";
 
 /** Print-ready receipt voucher (Share → Print → Save as PDF). */
 export default async function PrintReceiptPage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
   const session = await requirePermission("quotes.view");
   const o = session.organization;
-  const [doc, logoUrl] = await Promise.all([loadReceipt(session, decodeURIComponent(number)), logoDataUrl(o.logo_path)]);
+  const [doc, logoUrl] = await Promise.all([loadReceipt(session, decodeURIComponent(number)), orgLogoUrl(o)]);
   return (
     <main className="min-h-dvh bg-background py-6 print:bg-white print:py-0">
       <BrandStyle primary={o.brand.primary} accent={o.brand.accent} />

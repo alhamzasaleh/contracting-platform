@@ -1,4 +1,4 @@
-import { SAMPLE_LOGO } from "./sample-logo";
+import { SAMPLE_COMPACT_LOGO, SAMPLE_LOGO } from "./sample-logo";
 import type { AuditItem } from "@/components/settings/audit-view";
 import type { InvitationItem, MemberItem } from "@/components/settings/members-view";
 import type { ShellData } from "@/components/shell/types";
@@ -21,7 +21,7 @@ export const SAMPLE_ORG = {
 
 export const SAMPLE_SHELL: ShellData = {
   user: { name: "صالح العتيبي", phone: "966500000001" },
-  org: { name: SAMPLE_ORG.name, logoUrl: SAMPLE_LOGO },
+  org: { name: SAMPLE_ORG.name, logoUrl: SAMPLE_LOGO, compactLogoUrl: SAMPLE_COMPACT_LOGO },
   role: "owner",
   permissions: [...PERMISSIONS],
   notifications: {

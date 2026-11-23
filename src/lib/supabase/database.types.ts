@@ -22,6 +22,9 @@ export type OrganizationRow = Timestamps & {
   signatory_name: string | null;
   signatory_title: string | null;
   logo_path: string | null;
+  /** approved logo as SVG text (full / Arabic-only), set by migrations — preferred over logo_path */
+  logo_svg?: string | null;
+  logo_compact_svg?: string | null;
   brand: Brand;
   default_locale: "ar" | "en";
   timezone: string;

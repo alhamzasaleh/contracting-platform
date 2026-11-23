@@ -4,7 +4,7 @@ import type { NotificationItem } from "@/lib/notifications";
 /** Everything the app shell needs; built from the session (or sample data in preview). */
 export type ShellData = {
   user: { name: string | null; phone: string | null };
-  org: { name: string; logoUrl: string | null };
+  org: { name: string; logoUrl: string | null; /** Arabic-only logo for small sizes */ compactLogoUrl?: string | null };
   role: Role;
   permissions: Permission[];
   /** In-app notifications (bell). */

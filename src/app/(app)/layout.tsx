@@ -3,11 +3,11 @@ import { AppShell } from "@/components/shell/app-shell";
 import { aiConfigured } from "@/lib/ai/invoice";
 import { can, getSession } from "@/lib/auth/session";
 import { loadBell } from "@/lib/data/notifications";
-import { logoDataUrl } from "@/lib/org";
+import { orgCompactLogoUrl, orgLogoUrl } from "@/lib/org";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  const [logoUrl, notifications] = await Promise.all([logoDataUrl(session.organization.logo_path), loadBell(session)]);
+  const [logoUrl, notifications] = await Promise.all([orgLogoUrl(session.organization), loadBell(session)]);
 
   return (
     <>
@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <AppShell
         data={{
           user: { name: session.profile.full_name, phone: session.phone },
-          org: { name: session.organization.name, logoUrl },
+          org: { name: session.organization.name, logoUrl, compactLogoUrl: orgCompactLogoUrl(session.organization) },
           role: session.role,
           permissions: session.permissions,
           notifications,

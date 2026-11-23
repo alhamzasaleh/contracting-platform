@@ -4,7 +4,7 @@ import { PrintButton } from "@/components/quotes/print-button";
 import { Payslips } from "@/components/team/payslips";
 import { requirePermission } from "@/lib/auth/session";
 import { loadPayroll } from "@/lib/data/payroll";
-import { logoDataUrl } from "@/lib/org";
+import { orgLogoUrl } from "@/lib/org";
 
 /** Payslips for a month (Share → Print → PDF on the iPad). hr.view only. */
 export default async function PrintPayrollPage({ params }: { params: Promise<{ month: string }> }) {
@@ -12,7 +12,7 @@ export default async function PrintPayrollPage({ params }: { params: Promise<{ m
   if (!/^\d{4}-\d{2}$/.test(month)) notFound();
   const session = await requirePermission("hr.view");
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh" }).format(new Date());
-  const [data, logoUrl] = await Promise.all([loadPayroll(session, month, today), logoDataUrl(session.organization.logo_path)]);
+  const [data, logoUrl] = await Promise.all([loadPayroll(session, month, today), orgLogoUrl(session.organization)]);
   if (!data.run) notFound();
   const o = session.organization;
   return (

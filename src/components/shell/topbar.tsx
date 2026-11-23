@@ -65,7 +65,7 @@ export function Topbar({ data }: { data: ShellData }) {
         </Button>
         <div className="flex min-w-0 items-center gap-2.5 text-foreground lg:hidden">
           {data.org.logoUrl ? (
-            <BrandLogo src={data.org.logoUrl} label={data.org.name} fit="h-auto w-[min(120px,28vw)] max-h-9" />
+            <BrandLogo src={data.org.compactLogoUrl ?? data.org.logoUrl} label={data.org.name} fit={data.org.compactLogoUrl ? "h-auto w-[min(72px,22vw)] max-h-9" : "h-auto w-[min(120px,28vw)] max-h-9"} />
           ) : (
             <span className="truncate text-[15px] font-semibold">{data.org.name}</span>
           )}
