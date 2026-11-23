@@ -21,6 +21,8 @@ export type LabourItem = {
   rate: number;
   notes: string | null;
   is_active: boolean;
+  /** the same contractor in Purchases → subcontractors and in the schedule's teams */
+  subcontractor_id?: string | null;
 };
 export type ExtraItem = { id: string; name: string; unit: "lump" | "day" | "trip" | "month"; default_amount: number; is_active: boolean };
 
@@ -76,7 +78,10 @@ export function LabourView({
                 <li key={l.id} className={`flex items-center gap-3 px-5 py-3 sm:px-6 ${l.is_active ? "" : "opacity-55"}`}>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-bold">{l.name}</p>
-                    <p className="text-[13px] text-muted-foreground">{serviceName(l.service_id)}</p>
+                    <p className="text-[13px] text-muted-foreground">
+                      {serviceName(l.service_id)}
+                      {l.subcontractor_id && <span className="ms-2 inline-block rounded-full bg-surface-2 px-2 py-0.5 text-[11px]">{t("catalogue.linkedSub")}</span>}
+                    </p>
                   </div>
                   <div className="text-end">
                     <p className="num text-[15px] font-extrabold">{fmt.money(l.rate)}</p>

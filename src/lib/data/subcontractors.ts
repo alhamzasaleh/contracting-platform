@@ -29,6 +29,8 @@ export type SubcontractorsData = {
   projects: ProjectRef[];
   canManage: boolean;
   canPay: boolean;
+  /** their prices on the pricing screen (costs.view only) */
+  rates?: { subcontractor_id: string; basis: "external_per_unit" | "external_lump"; rate: number }[];
 };
 
 export async function loadSubcontractors(session: SessionContext): Promise<SubcontractorsData> {
@@ -51,6 +53,9 @@ export async function loadSubcontractors(session: SessionContext): Promise<Subco
     projects: projectList,
     canManage: can(session, "purchases.manage"),
     canPay: can(session, "finance.manage"),
+    rates: can(session, "costs.view")
+      ? (((await supabase.from("labour_rates").select("subcontractor_id, basis, rate").eq("organization_id", orgId).eq("is_active", true).not("subcontractor_id", "is", null)).data ?? []) as { subcontractor_id: string; basis: "external_per_unit" | "external_lump"; rate: number }[]).map((r) => ({ ...r, rate: n(r.rate) }))
+      : [],
   };
 }
 

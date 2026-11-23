@@ -497,6 +497,7 @@ function Teams({ data, onEdit }: { data: ScheduleData; onEdit?: (t: Partial<Sche
           </div>
           <div className="flex flex-wrap gap-1.5">
             <Badge tone={team.kind === "inhouse" ? "primary" : "info"}>{t(`teamKind_${team.kind}`)}</Badge>
+            {team.subcontractor_id && <Badge>{t("linkedSub")}</Badge>}
             {team.services.map((s) => (
               <Badge key={s}>{tp(`kind_${s}`)}</Badge>
             ))}

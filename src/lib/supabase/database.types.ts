@@ -193,6 +193,8 @@ export type LabourRateRow = OrgRow & Upd & {
   rate: number;
   notes: string | null;
   is_active: boolean;
+  /** the same contractor in subcontractors/teams (linked by a trigger) */
+  subcontractor_id?: string | null;
 };
 
 export type ExtraCostItemRow = OrgRow & Upd & {
@@ -508,6 +510,7 @@ export type TeamRow = OrgRow & Upd & {
   color: string;
   contact_phone: string | null;
   is_active: boolean;
+  subcontractor_id?: string | null;
   notes: string | null;
 };
 export type TeamMemberRow = OrgRow & { team_id: string; employee_id: string };

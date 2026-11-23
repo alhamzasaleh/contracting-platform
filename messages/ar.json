@@ -453,7 +453,8 @@
     "tabSystems": "الأنظمة",
     "tabCalculator": "التسعير",
     "tabRates": "أرقام القالب",
-    "tabCalibration": "الاستهلاك الفعلي"
+    "tabCalibration": "الاستهلاك الفعلي",
+    "linkedSub": "مرتبط بمقاولي الباطن والفرق"
   },
   "units": {
     "m2": "م²",
@@ -1668,7 +1669,8 @@
     "bookTeam": "احجز فريق",
     "earliestHint": "أقرب بدء متاح: {date} ({team})",
     "applyDate": "اعتمده",
-    "allBusy": "كل فرق {service} مشغولة في هذه الفترة — تقدر تكمل، أو اختر موعداً آخر."
+    "allBusy": "كل فرق {service} مشغولة في هذه الفترة — تقدر تكمل، أو اختر موعداً آخر.",
+    "linkedSub": "مقاول باطن"
   },
   "purchases": {
     "title": "المشتريات والمخزون",
@@ -1947,7 +1949,10 @@
     "amount": "المبلغ",
     "payAhead": "المبلغ أكثر من المستحق بالعمل — دفعة مقدمة.",
     "method": "طريقة الدفع",
-    "reference": "المرجع"
+    "reference": "المرجع",
+    "pricingRates": "سعره في التسعير",
+    "ratePerM2": "{rate} / م²",
+    "rateLump": "{rate} مقطوعية"
   },
   "petty": {
     "newAccount": "عهدة جديدة",

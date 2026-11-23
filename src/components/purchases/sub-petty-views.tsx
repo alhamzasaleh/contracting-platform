@@ -61,6 +61,15 @@ export function SubcontractorsView({ data, actions }: { data: SubcontractorsData
                   <p className="text-[13px] text-muted-foreground">
                     {[s.services.map((x) => tp(`kind_${x}`)).join("، "), s.phone && `0${s.phone.slice(3)}`].filter(Boolean).join(" · ")}
                   </p>
+                  {(data.rates ?? []).some((r) => r.subcontractor_id === s.id) && (
+                    <p className="text-[12px] text-muted-foreground">
+                      {t("pricingRates")}:{" "}
+                      {(data.rates ?? [])
+                        .filter((r) => r.subcontractor_id === s.id)
+                        .map((r) => (r.basis === "external_per_unit" ? t("ratePerM2", { rate: fmt.money(r.rate) }) : t("rateLump", { rate: fmt.money(r.rate) })))
+                        .join(" · ")}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {due > 0 && <Badge tone="warning">{t("dueNow", { amount: fmt.money(due) })}</Badge>}

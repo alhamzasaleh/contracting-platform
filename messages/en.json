@@ -453,7 +453,8 @@
     "tabSystems": "Systems",
     "tabCalculator": "Pricing",
     "tabRates": "Template numbers",
-    "tabCalibration": "Actual consumption"
+    "tabCalibration": "Actual consumption",
+    "linkedSub": "Linked to subcontractors & teams"
   },
   "units": {
     "m2": "m²",
@@ -1668,7 +1669,8 @@
     "bookTeam": "Book a team",
     "earliestHint": "Earliest free start: {date} ({team})",
     "applyDate": "Use it",
-    "allBusy": "Every {service} team is busy in this period — you can continue or pick another date."
+    "allBusy": "Every {service} team is busy in this period — you can continue or pick another date.",
+    "linkedSub": "Subcontractor"
   },
   "purchases": {
     "title": "Purchases & stock",
@@ -1947,7 +1949,10 @@
     "amount": "Amount",
     "payAhead": "More than earned — an advance payment.",
     "method": "Method",
-    "reference": "Reference"
+    "reference": "Reference",
+    "pricingRates": "Pricing rate",
+    "ratePerM2": "{rate} / m²",
+    "rateLump": "{rate} lump sum"
   },
   "petty": {
     "newAccount": "New petty cash account",

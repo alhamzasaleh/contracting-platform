@@ -5,7 +5,7 @@ import { addDays, type Entry, type TeamInfo } from "@/lib/schedule";
 import type { ContractStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
-export type ScheduleTeam = TeamInfo & { kind: "inhouse" | "external"; color: string; contact_phone: string | null; notes: string | null; members: string[] };
+export type ScheduleTeam = TeamInfo & { kind: "inhouse" | "external"; color: string; contact_phone: string | null; notes: string | null; members: string[]; subcontractor_id?: string | null };
 export type ScheduleEntry = Entry & { id: string; kind: "work" | "leave" | "other"; title: string | null; notes: string | null };
 export type ScheduleProject = { id: string; number: string; client: string; service: ServiceKind; status: ContractStatus; start: string; end: string; days: number };
 
@@ -24,7 +24,7 @@ export async function loadSchedule(session: SessionContext): Promise<ScheduleDat
   const since = addDays(new Date().toISOString().slice(0, 10), -120);
   const seeProjects = can(session, "quotes.view");
   const [{ data: teams }, { data: members }, { data: entries }, { data: roster }, contracts, clients] = await Promise.all([
-    supabase.from("teams").select("id, name, kind, services, color, contact_phone, is_active, notes").eq("organization_id", orgId).order("name"),
+    supabase.from("teams").select("id, name, kind, services, color, contact_phone, is_active, notes, subcontractor_id").eq("organization_id", orgId).order("name"),
     supabase.from("team_members").select("team_id, employee_id").eq("organization_id", orgId),
     supabase.from("schedule_entries").select("id, team_id, contract_id, kind, title, start_date, end_date, notes").eq("organization_id", orgId).gte("end_date", since).order("start_date"),
     supabase.rpc("schedule_roster", { p_org: orgId }),
