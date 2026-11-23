@@ -31,3 +31,15 @@ describe("effective permissions", () => {
     expect(p).not.toContain("clients.view");
   });
 });
+
+describe("compact and percent formats are identical on the server and in the browser", () => {
+  // Node's ICU keeps currency's default minimum digits ("12.0 ألف") while Chromium drops them
+  // ("12 ألف") → hydration mismatch on the owner home. Minimum digits are set explicitly.
+  it("drops trailing .0 on compact money and percent", () => {
+    const f = createFormatter("ar", "latn");
+    expect(f.compactMoney(12000)).not.toMatch(/\.0/);
+    expect(f.compactMoney(0)).not.toMatch(/\.0/);
+    expect(f.compactMoney(12500)).toMatch(/12\.5/);
+    expect(f.percent(0.2)).not.toMatch(/\.0/);
+  });
+});

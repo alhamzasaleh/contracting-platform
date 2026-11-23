@@ -18,9 +18,9 @@ export function createFormatter(locale: Locale, numerals: Numerals) {
     money: (n: number) =>
       nf("sar", { style: "currency", currency: "SAR", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n),
     compactMoney: (n: number) =>
-      nf("csar", { style: "currency", currency: "SAR", notation: "compact", maximumFractionDigits: 1 }).format(n),
+      nf("csar", { style: "currency", currency: "SAR", notation: "compact", minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(n),
     percent: (ratio: number, digits = 1) =>
-      nf(`p${digits}`, { style: "percent", maximumFractionDigits: digits }).format(ratio),
+      nf(`p${digits}`, { style: "percent", minimumFractionDigits: 0, maximumFractionDigits: digits }).format(ratio),
     date: (d: Date | string) => df("d", { day: "numeric", month: "short", year: "numeric" }).format(new Date(d)),
     dayMonth: (d: Date | string) => df("dm", { day: "numeric", month: "short" }).format(new Date(d)),
     monthYear: (d: Date | string) => df("my", { month: "long", year: "numeric" }).format(new Date(d)),

@@ -516,3 +516,16 @@ test.describe("linked flows (design preview)", () => {
     await expect(page.getByRole("link", { name: "فتح العقد" }).first()).toHaveAttribute("href", /\/contracts\/C-/);
   });
 });
+
+test.describe("no runtime errors (design preview)", () => {
+  // e.g. a hydration mismatch when the server and the browser format a number differently
+  for (const path of ["", "/reports", "/contracts/detail", "/purchases/costs", "/settings/qoyod", "/projects/detail", "/team/payroll"]) {
+    test(`page ${path || "/"} renders without errors`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (e) => errors.push(e.message));
+      await page.goto(`/dev/preview${path}`);
+      await page.waitForTimeout(1500);
+      expect(errors).toEqual([]);
+    });
+  }
+});
