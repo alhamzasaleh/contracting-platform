@@ -78,3 +78,24 @@ test.describe("pricing calculator (design preview)", () => {
     await expect(page.getByText("areaCoats").first()).toBeVisible();
   });
 });
+
+test.describe("clients, survey and quotes (design preview)", () => {
+  test("survey shows quantities per service from the rooms", async ({ page }) => {
+    await page.goto("/dev/preview/clients/survey");
+    await expect(page.getByRole("heading", { name: "الكميات لكل خدمة" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "سعّر جبس" })).toBeVisible();
+  });
+
+  test("quote shows the client document, approval and purchase list", async ({ page }) => {
+    await page.goto("/dev/preview/quotations/detail");
+    await expect(page.getByText("عرض سعر", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /موافقة/ })).toBeVisible();
+    await expect(page.getByText("قائمة المشتريات")).toBeVisible();
+  });
+
+  test("quote editor prices from the survey quantities", async ({ page }) => {
+    await page.goto("/dev/preview/quotations/editor");
+    await expect(page.getByText("الكميات من المعاينة")).toBeVisible();
+    await expect(page.getByRole("button", { name: "حفظ عرض السعر" })).toBeVisible();
+  });
+});

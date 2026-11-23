@@ -33,7 +33,7 @@ export const NAV: NavGroup[] = [
     key: "work",
     items: [
       { key: "clients", href: "/clients", icon: Users, permission: "clients.view" },
-      { key: "quotations", href: "/quotations", icon: FileText, permission: "quotes.view", phase: 3 },
+      { key: "quotations", href: "/quotations", icon: FileText, permission: "quotes.view" },
       { key: "contracts", href: "/contracts", icon: FileSignature, permission: "quotes.view", phase: 4 },
       { key: "projects", href: "/projects", icon: HardHat, permission: "projects.view", phase: 4 },
       { key: "schedule", href: "/schedule", icon: CalendarDays, permission: "schedule.view", phase: 5 },
