@@ -3,13 +3,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.types";
 import { qoyod, QoyodError } from "./client";
 import { qoyodAutoSetup } from "./setup";
-import { customerBody, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, simpleBillBody, vendorBody } from "./payloads";
+import { billPaymentRef, customerBody, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, payrollJournalBody, payrollTag, simpleBillBody, simpleBillPaymentBody, vendorBody } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Ctx = { admin: Admin; key: string; s: QoyodSettingsRow };
 
 /** Jobs that can't run yet (missing setting, waiting for the invoice) carry a code the settings page explains. */
 class Blocked extends Error {}
+/** Not an error: the job waits (e.g. for sending to be switched to "Approved") without using up its tries. */
+class Deferred extends Error {}
 
 const MAX_ATTEMPTS = 6;
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
@@ -48,6 +50,10 @@ export async function runQoyodSync(limit = 20): Promise<{ done: number; failed: 
       await admin.from("qoyod_sync_jobs").update({ status: "done", qoyod_id: id, done_at: new Date().toISOString(), last_error: null }).eq("id", job.id);
       result.done++;
     } catch (e) {
+      if (e instanceof Deferred) {
+        await admin.rpc("qoyod_defer_job", { p_job: job.id, p_minutes: 720, p_reason: e.message });
+        continue;
+      }
       const msg = e instanceof Blocked || e instanceof QoyodError ? e.message : "error";
       const permanent = job.attempts >= MAX_ATTEMPTS || (e instanceof QoyodError && e.status === 401);
       const wait = Math.min(2 ** job.attempts, 60) * 60_000;
@@ -65,12 +71,13 @@ export async function runQoyodSync(limit = 20): Promise<{ done: number; failed: 
 /** Something we create ourselves is missing (e.g. a service product) → prepare it in Qoyod now, once. */
 async function fillMissing(admin: Admin, key: string, s: QoyodSettingsRow): Promise<QoyodSettingsRow> {
   const products = s.service_products ?? {};
-  if (s.inventory_id && s.receive_account_id && s.expense_account_id && products.gypsum && products.interior && products.exterior && s.addendum_product_id) return s;
+  if (s.inventory_id && s.receive_account_id && s.expense_account_id && s.salary_account_id && products.gypsum && products.interior && products.exterior && s.addendum_product_id) return s;
   try {
     const { data: org } = await admin.from("organizations").select("vat_number").eq("id", s.organization_id).single();
     const auto = await qoyodAutoSetup(key, !!org?.vat_number);
     const next = {
       inventory_id: s.inventory_id ?? auto.inventory_id, receive_account_id: s.receive_account_id ?? auto.receive_account_id, expense_account_id: s.expense_account_id ?? auto.expense_account_id,
+      salary_account_id: s.salary_account_id ?? auto.salary_account_id, cash_account_id: s.cash_account_id ?? auto.cash_account_id,
       service_products: { ...auto.service_products, ...products }, addendum_product_id: s.addendum_product_id ?? auto.addendum_product_id,
     };
     await admin.from("qoyod_settings").update(next).eq("organization_id", s.organization_id);
@@ -222,6 +229,41 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number> {
         description: pur.invoice_number ? `${pur.number} — ${pur.invoice_number}` : pur.number, subtotal: Number(pur.subtotal), vat: Number(pur.vat), total: Number(pur.total),
       });
       return createOrFind(ctx, "/simple_bills", "simple_bills", pur.number, body, (r) => (r.simple_bill as { id?: number } | undefined)?.id);
+    }
+    case "bill_payment": {
+      // a draft bill can't be paid in Qoyod: wait until sending is "Approved"
+      if (s.invoice_status !== "Approved") throw new Deferred("waiting:approved");
+      const billId = await doneId(ctx, "bill", `po:${job.entity_id}`);
+      if (!billId) throw new Blocked("waiting:bill");
+      const { data: p } = await ctx.admin.from("purchases").select("number, paid_on, paid_from, paid_reference, total").eq("id", job.entity_id).single();
+      const pur = need(p, "purchase");
+      const accountId = pur.paid_from === "cash" ? need(s.cash_account_id ?? s.receive_account_id, "cash_account") : need(s.receive_account_id, "receive_account");
+      const reference = billPaymentRef(pur.number);
+      const body = simpleBillPaymentBody({
+        reference, billId, accountId, date: pur.paid_on ?? today(), amount: Number(job.amount ?? pur.total),
+        description: pur.paid_reference ? `${pur.number} — ${pur.paid_reference}` : pur.number,
+      });
+      return createOrFind(ctx, "/simple_bill_payments", "simple_bill_payments", reference, body, (r) => (r.payment as { id?: number } | undefined)?.id ?? (r.simple_bill_payment as { id?: number } | undefined)?.id);
+    }
+    case "payroll": {
+      // a journal entry posts immediately (no draft): only once sending is "Approved"
+      if (s.invoice_status !== "Approved") throw new Deferred("waiting:approved");
+      const salaryAccountId = need(s.salary_account_id, "salary_account");
+      const bankAccountId = need(s.receive_account_id, "receive_account");
+      const { data: run } = await ctx.admin.from("payroll_runs").select("month, paid_on").eq("id", job.entity_id).single();
+      const r = need(run, "payroll");
+      const { count } = await ctx.admin.from("payroll_lines").select("id", { count: "exact", head: true }).eq("run_id", job.entity_id);
+      const month = r.month.slice(0, 7);
+      const tag = payrollTag(month);
+      // found again by its month tag if an earlier try reached Qoyod
+      const existing = await qoyod<{ journal_entries?: { id: number; description?: string }[] }>(ctx.key, "GET", `/journal_entries?q[description_cont]=${encodeURIComponent(tag)}`).catch(() => null);
+      const hit = existing?.journal_entries?.find((x) => x.description?.startsWith(tag));
+      if (hit) return hit.id;
+      const body = payrollJournalBody({ month, date: r.paid_on ?? today(), net: Number(job.amount ?? 0), employees: count ?? 0, salaryAccountId, bankAccountId });
+      const created = await qoyod<{ id?: number; journal_entry?: { id?: number } }>(ctx.key, "POST", "/journal_entries", body);
+      const id = Number(created.id ?? created.journal_entry?.id);
+      if (!id) throw new QoyodError(500, "no id returned");
+      return id;
     }
     default:
       throw new Blocked("unsupported");

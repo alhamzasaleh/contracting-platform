@@ -541,6 +541,10 @@ export type PurchaseRow = OrgRow & Upd & {
   notes: string | null;
   recorded_at: string | null;
   addendum_id: string | null;
+  /** supplier paid (set only by record_purchase_payment) */
+  paid_on?: string | null;
+  paid_from?: "bank" | "cash" | null;
+  paid_reference?: string | null;
 };
 export type PurchaseLineRow = OrgRow & {
   purchase_id: string;
@@ -692,11 +696,12 @@ export type ClientMessageRow = {
 };
 export type QoyodSettingsRow = {
   organization_id: string; enabled: boolean; invoice_status: "Draft" | "Approved"; inventory_id: number | null; receive_account_id: number | null; expense_account_id: number | null;
+  salary_account_id: number | null; cash_account_id: number | null;
   service_products: Record<string, number>; addendum_product_id: number | null; sync_from: string | null; key_last4: string | null; key_set_at: string | null; updated_at: string; updated_by: string | null;
 };
-export type QoyodJobKind = "customer" | "vendor" | "invoice" | "invoice_payment" | "bill";
+export type QoyodJobKind = "customer" | "vendor" | "invoice" | "invoice_payment" | "bill" | "bill_payment" | "payroll";
 export type QoyodJobRow = {
-  id: string; organization_id: string; kind: QoyodJobKind; entity_type: "client" | "supplier" | "contract_payment" | "addendum" | "purchase"; entity_id: string; ref: string;
+  id: string; organization_id: string; kind: QoyodJobKind; entity_type: "client" | "supplier" | "contract_payment" | "addendum" | "purchase" | "payroll_run"; entity_id: string; ref: string;
   amount: number | null; status: "queued" | "running" | "done" | "failed"; attempts: number; next_attempt_at: string; last_error: string | null; qoyod_id: number | null; done_at: string | null; created_at: string; updated_at: string;
 };
 
@@ -769,6 +774,7 @@ export type Database = {
       notification_preferences: Table<NotificationPrefRow>;
       notification_deliveries: Table<NotificationDeliveryRow>;
       push_subscriptions: Table<PushSubscriptionRow>;
+      project_members: Table<{ organization_id: string; contract_id: string; user_id: string; created_at: string; created_by: string | null }>;
       qoyod_settings: Table<QoyodSettingsRow>;
       client_receipts: Table<ClientReceiptRow>;
       invoices: Table<InvoiceRow>;
@@ -791,6 +797,9 @@ export type Database = {
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
       run_daily_reminders: { Args: Record<string, never>; Returns: number };
+      record_purchase_payment: { Args: { p_purchase: string; p_date: string; p_from: "bank" | "cash"; p_reference?: string | null }; Returns: undefined };
+      auth_hook_secret: { Args: { p_name: string }; Returns: string | null };
+      qoyod_defer_job: { Args: { p_job: string; p_minutes: number; p_reason: string }; Returns: undefined };
       push_vapid_keys: { Args: { p_public?: string | null; p_private?: string | null }; Returns: Json };
       qoyod_set_key: { Args: { p_org: string; p_key: string }; Returns: undefined };
       qoyod_api_key: { Args: { p_org: string }; Returns: string | null };

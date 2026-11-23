@@ -21,6 +21,9 @@ export type PurchaseDetail = PurchaseListItem & {
   lines: PurchaseLineView[]; attachment_path: string | null; attachmentUrl: string | null; attachmentIsPdf: boolean;
   approval: { id: string; status: string; limit: number | null } | null;
   canManage: boolean; canDecide: boolean;
+  /** the supplier was paid (finance records it; Qoyod gets the bill payment) */
+  paid: { on: string; from: "bank" | "cash"; reference: string | null } | null;
+  canPay: boolean;
 };
 export type PurchaseForm = {
   purchase: PurchaseDetail | null;
@@ -74,6 +77,8 @@ async function detail(session: SessionContext, number: string): Promise<Purchase
     approval: approval ? { id: approval.id, status: approval.status, limit: (approval.details as { limit?: number } | null)?.limit ?? null } : null,
     canManage: can(session, "purchases.manage"),
     canDecide: can(session, "approvals.decide"),
+    paid: p.paid_on ? { on: p.paid_on, from: (p.paid_from ?? "bank") as "bank" | "cash", reference: p.paid_reference ?? null } : null,
+    canPay: can(session, "finance.manage"),
   };
 }
 

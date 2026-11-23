@@ -70,3 +70,45 @@ describe("calibration (A.8)", async () => {
     expect(suggestedCoverage(6.67, 0.15)).toBe(5.8);
   });
 });
+
+describe("Qoyod payroll & supplier payment payloads", async () => {
+  const { payrollJournalBody, simpleBillPaymentBody, billPaymentRef } = await import("@/lib/qoyod/payloads");
+  it("balances the payroll entry and tags the month", () => {
+    const b = payrollJournalBody({ month: "2026-11", date: "2026-11-27", net: 18450.456, employees: 6, salaryAccountId: 51, bankAccountId: 8 });
+    expect(b.journal_entry.debit_amounts[0]).toMatchObject({ account_id: 51, amount: 18450.46 });
+    expect(b.journal_entry.credit_amounts[0]).toMatchObject({ account_id: 8, amount: 18450.46 });
+    expect(b.journal_entry.description.startsWith("[PAYROLL-2026-11]")).toBe(true);
+  });
+  it("pays a simple bill by id with a unique reference", () => {
+    expect(simpleBillPaymentBody({ reference: billPaymentRef("PO-2026-004"), billId: 24, accountId: 8, date: "2026-11-20", amount: 1150, description: "x" })).toEqual({
+      simple_bill_payment: { reference: "PO-2026-004/PAID", description: "x", simple_bill_id: "24", account_id: "8", date: "2026-11-20", amount: "1150.00" },
+    });
+  });
+});
+
+describe("WhatsApp sign-in codes", async () => {
+  const { createHmac } = await import("node:crypto");
+  const { verifyWebhook } = await import("@/lib/auth/webhook");
+  const { whatsappOtpPayload } = await import("@/lib/notifications/whatsapp-payload");
+  const key = Buffer.from("0123456789abcdef0123456789abcdef");
+  const secret = `v1,whsec_${key.toString("base64")}`;
+  const sign = (id: string, ts: number, body: string) => `v1,${createHmac("sha256", key).update(`${id}.${ts}.${body}`).digest("base64")}`;
+  it("accepts Supabase's signature and refuses forged, stale or tampered calls", () => {
+    const now = 1_790_000_000_000;
+    const ts = now / 1000;
+    const body = '{"user":{"phone":"966500000001"},"sms":{"otp":"123456"}}';
+    const h = { id: "msg_1", timestamp: String(ts), signature: sign("msg_1", ts, body) };
+    expect(verifyWebhook(secret, h, body, now)).toBe(true);
+    expect(verifyWebhook(secret, { ...h, signature: `v1,${"A".repeat(44)}` }, body, now)).toBe(false);
+    expect(verifyWebhook(secret, h, body.replace("123456", "000000"), now)).toBe(false);
+    expect(verifyWebhook(secret, h, body, now + 10 * 60_000)).toBe(false);
+    expect(verifyWebhook(secret, { ...h, signature: null }, body, now)).toBe(false);
+  });
+  it("puts the code in the body and the copy-code button", () => {
+    const p = whatsappOtpPayload("966500000001", "123456", "malmas_login", "ar");
+    expect(p.template.components).toEqual([
+      { type: "body", parameters: [{ type: "text", text: "123456" }] },
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: "123456" }] },
+    ]);
+  });
+});

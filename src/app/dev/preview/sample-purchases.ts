@@ -19,7 +19,7 @@ export const SAMPLE_PURCHASES: PurchaseListItem[] = [
 const detail = {
   ...SAMPLE_PURCHASES[0], supplier_id: null, supplier_vat: "300123456700003", subtotal: 6300, vat: 945, notes: null, ai_extracted: true,
   ai_flags: { flags: ["vatNot15"] }, attachment_path: null, attachmentUrl: null, attachmentIsPdf: false,
-  approval: { id: "ap1", status: "pending", limit: 5000 }, canManage: true, canDecide: true,
+  approval: { id: "ap1", status: "pending", limit: 5000 }, canManage: true, canDecide: true, paid: null, canPay: true,
   lines: [
     { seq: 1, kind: "material" as const, item_id: "i1", description: "لوح جبس عادي 12.5 مم", colour: null, quantity: 250, unit: "board", unit_price: 22, amount: 5500 },
     { seq: 2, kind: "material" as const, item_id: "i2", description: "مسامير ألواح", colour: null, quantity: 10, unit: "box", unit_price: 35, amount: 350 },

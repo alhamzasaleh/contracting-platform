@@ -48,7 +48,7 @@ async function applyAutoSetup(session: Awaited<ReturnType<typeof getSession>>, k
   try {
     const auto = await qoyodAutoSetup(key, !!session.organization.vat_number);
     const supabase = await createClient();
-    const { data: cur } = await supabase.from("qoyod_settings").select("enabled, inventory_id, receive_account_id, expense_account_id, service_products, addendum_product_id").eq("organization_id", session.organization.id).maybeSingle();
+    const { data: cur } = await supabase.from("qoyod_settings").select("enabled, inventory_id, receive_account_id, expense_account_id, salary_account_id, cash_account_id, service_products, addendum_product_id").eq("organization_id", session.organization.id).maybeSingle();
     const products = { ...auto.service_products, ...((cur?.service_products ?? {}) as Record<string, number>) };
     const inventory_id = cur?.inventory_id ?? auto.inventory_id;
     const receive_account_id = cur?.receive_account_id ?? auto.receive_account_id;
@@ -56,6 +56,7 @@ async function applyAutoSetup(session: Awaited<ReturnType<typeof getSession>>, k
       .from("qoyod_settings")
       .update({
         inventory_id, receive_account_id, expense_account_id: cur?.expense_account_id ?? auto.expense_account_id,
+        salary_account_id: cur?.salary_account_id ?? auto.salary_account_id, cash_account_id: cur?.cash_account_id ?? auto.cash_account_id,
         service_products: products, addendum_product_id: cur?.addendum_product_id ?? auto.addendum_product_id,
         enabled: cur?.enabled || !!(inventory_id && receive_account_id), updated_by: session.userId,
       })
@@ -111,6 +112,8 @@ const settingsSchema = z
     inventory_id: id,
     receive_account_id: id,
     expense_account_id: id,
+    salary_account_id: id.optional(),
+    cash_account_id: id.optional(),
     service_products: z.object({ gypsum: id, interior: id, exterior: id }).strict(),
     addendum_product_id: id,
   })

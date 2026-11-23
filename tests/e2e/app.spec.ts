@@ -470,3 +470,23 @@ test.describe("AI helpers (design preview)", () => {
     await expect(page.getByText(/راجع معدل الاستهلاك/)).toBeVisible();
   });
 });
+
+test.describe("per-project access (design preview)", () => {
+  test("a member can be limited to selected projects", async ({ page }) => {
+    await page.goto("/dev/preview/settings/members");
+    await page.getByRole("button", { name: "إجراءات" }).nth(1).click();
+    await page.getByRole("menuitem", { name: "تخصيص الصلاحيات" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("المشاريع اللي يشوفها")).toBeVisible();
+    await dialog.getByText("مشاريع محددة", { exact: true }).click();
+    await expect(dialog.getByText("C-2026-004")).toBeVisible();
+    await dialog.getByRole("checkbox").first().check();
+  });
+
+  test("finance records a supplier payment on a recorded purchase", async ({ page }) => {
+    await page.goto("/dev/preview/purchases/recorded");
+    await expect(page.getByText(/سداد المورد —/)).toBeVisible();
+    await page.getByText("نقداً").click();
+    await expect(page.getByRole("button", { name: "تسجيل سداد المورد" })).toBeEnabled();
+  });
+});

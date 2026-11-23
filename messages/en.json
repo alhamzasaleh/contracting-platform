@@ -236,7 +236,12 @@
     "vatHint": "15% VAT is applied automatically to quotes and invoices once you add the VAT number. Without it, VAT is 0%.",
     "notifications": "Notifications",
     "qoyod": "Qoyod",
-    "contract": "Contract clauses"
+    "contract": "Contract clauses",
+    "projectAccess": "Projects they can see",
+    "projectsAll": "All projects",
+    "projectsAssigned": "Selected projects",
+    "noProjects": "No projects yet.",
+    "projectAccessHint": "With “Selected projects” they see only the ticked projects: their contracts, payments, visits, photos, purchases and alerts — everything else is hidden."
   },
   "audit": {
     "insert": "Created",
@@ -1768,7 +1773,16 @@
     "tabSubs": "Subcontractors",
     "tabPetty": "Petty cash",
     "pettyCost": "Petty cash",
-    "subsCost": "Subcontractors"
+    "subsCost": "Subcontractors",
+    "paidOn": "Supplier paid on {date} ({from})",
+    "paidFrom_bank": "from the bank",
+    "paidFrom_cash": "in cash",
+    "payTitle": "Pay the supplier — {total}",
+    "payDate": "Payment date",
+    "payFrom": "Paid from",
+    "payRef": "Transfer reference (optional)",
+    "payButton": "Record supplier payment",
+    "payHint": "Recorded once and sent to Qoyod as a payment of the purchase bill (once sending is “Approved”)."
   },
   "projects": {
     "title": "Projects",
@@ -2256,7 +2270,17 @@
     "e_limited": "Too many attempts — wait a few minutes",
     "autoSetup": "Auto-prepare",
     "autoDone": "Prepared",
-    "e_qoyodSetup": "Automatic preparation failed — pick from the lists manually"
+    "e_qoyodSetup": "Automatic preparation failed — pick from the lists manually",
+    "salaryAccount": "Salaries account",
+    "salaryHint": "The monthly payroll entry is posted to this (expense) account against the bank — sent once sending is “Approved”.",
+    "cashAccount": "Cash account",
+    "cashHint": "For supplier invoices paid in cash. If empty, the bank account is used.",
+    "kind_bill_payment": "Supplier payment",
+    "kind_payroll": "Payroll entry",
+    "waiting_approved": "Waiting for sending to be “Approved” — payments and entries aren't posted on drafts.",
+    "waiting_bill": "Waiting for the purchase bill to be sent first.",
+    "missing_salary_account": "Choose the salaries account.",
+    "missing_cash_account": "Choose the cash account."
   },
   "receipt": {
     "title": "Receipt voucher",

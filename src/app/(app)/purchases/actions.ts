@@ -361,3 +361,26 @@ export async function addPettyEntry(input: unknown): Promise<ActionResult> {
   if (error) return fail(error, "petty entry");
   return done();
 }
+
+const paySchema = z
+  .object({ id: z.uuid(), date: day, from: z.enum(["bank", "cash"]), reference: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v), z.string().trim().max(80).nullable()) })
+  .strict();
+
+/** The supplier was paid for this recorded purchase (finance only); Qoyod receives the bill payment. */
+export async function recordPurchasePayment(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "finance.manage")) return { ok: false, error: "noAccess" };
+  const parsed = paySchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("record_purchase_payment", { p_purchase: parsed.data.id, p_date: parsed.data.date, p_from: parsed.data.from, p_reference: parsed.data.reference });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "noAccess" };
+    if (error.code === "22023") return { ok: false, error: /already/.test(error.message) ? "alreadyPaid" : "invalid" };
+    console.error("[purchases] payment failed", { code: error.code });
+    return { ok: false, error: "error" };
+  }
+  after(runBackground);
+  revalidatePath("/purchases", "layout");
+  return { ok: true };
+}

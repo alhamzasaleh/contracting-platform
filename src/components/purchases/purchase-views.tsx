@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
@@ -421,7 +422,7 @@ export function PurchaseView({
   detail: PurchaseDetail;
   items: ItemRef[];
   base?: string;
-  actions?: { cancel: (i: { id: string }) => Promise<ActionResult>; decide: (i: Record<string, unknown>) => Promise<ActionResult> };
+  actions?: { cancel: (i: { id: string }) => Promise<ActionResult>; decide: (i: Record<string, unknown>) => Promise<ActionResult>; pay?: (i: Record<string, unknown>) => Promise<ActionResult> };
 }) {
   const t = useTranslations("purchases");
   const { fmt } = useFormatter();
@@ -461,6 +462,8 @@ export function PurchaseView({
           )}
         </div>
       </section>
+
+      {d.status === "recorded" && (d.paid || d.canPay) && <SupplierPayment d={d} pay={actions?.pay} />}
 
       {d.status === "pending_approval" && (
         <section className="grid gap-3 rounded-3xl border border-warning/40 bg-warning-soft/60 p-5">
@@ -772,5 +775,43 @@ function Stat({ label, value, strong }: { label: string; value: string; strong?:
       <p className="text-[12px] text-muted-foreground">{label}</p>
       <p className={cn("font-latin tabular-nums", strong ? "text-[16px] font-extrabold" : "font-bold")}>{value}</p>
     </div>
+  );
+}
+
+/** The supplier was paid (finance): date, from bank or cash, optional transfer reference. */
+function SupplierPayment({ d, pay }: { d: PurchaseDetail; pay?: (i: Record<string, unknown>) => Promise<ActionResult> }) {
+  const t = useTranslations("purchases");
+  const { fmt } = useFormatter();
+  const { run, pending } = useActionRunner();
+  const [date, setDate] = React.useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }));
+  const [from, setFrom] = React.useState<"bank" | "cash">("bank");
+  const [ref, setRef] = React.useState("");
+  if (d.paid)
+    return (
+      <section className="flex flex-wrap items-center gap-2 rounded-3xl border border-success/40 bg-success-soft/40 p-4 text-[14px]">
+        <Check className="size-4 text-success" />
+        {t("paidOn", { date: fmt.date(d.paid.on), from: t(`paidFrom_${d.paid.from}`) })}
+        {d.paid.reference && <span className="text-muted-foreground">· {d.paid.reference}</span>}
+      </section>
+    );
+  return (
+    <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
+      <p className="font-bold">{t("payTitle", { total: fmt.money(d.total) })}</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field id="pay-date" label={t("payDate")}>
+          <Input id="pay-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} dir="ltr" />
+        </Field>
+        <Field id="pay-from" label={t("payFrom")}>
+          <Segmented name="pay-from" value={from} onChange={(v) => setFrom(v as "bank" | "cash")} options={[{ value: "bank", label: t("paidFrom_bank") }, { value: "cash", label: t("paidFrom_cash") }]} />
+        </Field>
+        <Field id="pay-ref" label={t("payRef")}>
+          <Input id="pay-ref" value={ref} maxLength={80} onChange={(e) => setRef(e.target.value)} />
+        </Field>
+      </div>
+      <Button className="justify-self-start" loading={pending} onClick={() => run(pay && (() => pay({ id: d.id, date, from, reference: ref })))}>
+        <Check /> {t("payButton")}
+      </Button>
+      <p className="text-[12px] text-muted-foreground">{t("payHint")}</p>
+    </section>
   );
 }

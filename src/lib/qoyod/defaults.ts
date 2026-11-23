@@ -21,5 +21,8 @@ export function pickDefaults(o: QoyodOptions) {
     receiveAccountId: (receive.find((a) => match(a, /بنك|مصرف|bank/i)) ?? receive[0])?.id ?? null,
     salesAccountId: (revenue.find((a) => match(a, /مبيعات|إيرادات|ايرادات|sales|revenue/i)) ?? revenue[0])?.id ?? null,
     expenseAccountId: (expense.find((a) => match(a, /مشتريات|تكلفة|purchases|cost/i)) ?? expense[0])?.id ?? null,
+    // payroll journal entries and cash payments to suppliers (only exact matches — no guessing)
+    salaryAccountId: expense.find((a) => match(a, /رواتب|أجور|اجور|salar|wage/i))?.id ?? null,
+    cashAccountId: receive.find((a) => match(a, /نقد|صندوق|cash/i))?.id ?? null,
   };
 }

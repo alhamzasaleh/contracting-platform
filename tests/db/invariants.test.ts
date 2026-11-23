@@ -14,7 +14,7 @@ const rows = (sql: string) => asAdmin((q) => q<{ name: string }>(sql)).then((r) 
 // Adding one here means you reviewed its checks.
 const AUTHENTICATED_DEFINER = [
   "accept_pending_invitations", "approve_payroll_run", "can_create_organization", "contract_warranties", "create_organization", "create_payroll_run",
-  "log_event", "mark_payroll_paid", "move_stock", "my_permissions", "qoyod_backfill", "qoyod_retry", "qoyod_set_key", "record_client_payment",
+  "log_event", "mark_payroll_paid", "move_stock", "my_permissions", "qoyod_backfill", "qoyod_retry", "qoyod_set_key", "record_client_payment", "record_purchase_payment",
   "schedule_roster", "seed_employee_cost_items", "seed_pricing_engine", "seed_starter_catalogue", "submit_addendum", "submit_purchase",
 ];
 

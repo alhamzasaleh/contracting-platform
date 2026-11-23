@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import { PERMISSION_GROUPS, ROLE_PERMISSIONS, type Permission, type Role } from "@/lib/auth/permissions";
@@ -43,7 +44,12 @@ export type MemberItem = {
   status: "active" | "suspended";
   permissions: Permission[];
   isYou: boolean;
+  /** "assigned" = only the projects in projectIds */
+  projectScope?: "all" | "assigned";
+  projectIds?: string[];
 };
+
+export type ProjectOption = { id: string; number: string; client: string };
 
 export type InvitationItem = {
   id: string;
@@ -55,7 +61,7 @@ export type InvitationItem = {
 
 type Actions = {
   invite: (i: { phone: string; full_name?: string; role: "supervisor" | "finance" | "viewer" }) => Promise<ActionResult>;
-  update: (i: { membershipId: string; role?: Role; status?: "active" | "suspended"; permissions?: Permission[] }) => Promise<ActionResult>;
+  update: (i: { membershipId: string; role?: Role; status?: "active" | "suspended"; permissions?: Permission[]; project_scope?: "all" | "assigned"; contract_ids?: string[] }) => Promise<ActionResult>;
   revoke: (i: { invitationId: string }) => Promise<ActionResult>;
 };
 
@@ -72,7 +78,9 @@ export function MembersView({
   canManage,
   isOwner,
   actions,
+  projects = [],
 }: {
+  projects?: ProjectOption[];
   members: MemberItem[];
   invitations: InvitationItem[];
   canManage: boolean;
@@ -224,8 +232,9 @@ export function MembersView({
       {editing && (
         <PermissionsDialog
           member={editing}
+          projects={projects}
           onClose={() => setEditing(null)}
-          onSave={actions ? (permissions) => actions.update({ membershipId: editing.id, permissions }) : undefined}
+          onSave={actions ? (permissions, access) => actions.update({ membershipId: editing.id, permissions, ...access }) : undefined}
         />
       )}
     </div>
@@ -329,13 +338,18 @@ function PermissionsDialog({
   member,
   onClose,
   onSave,
+  projects,
 }: {
   member: MemberItem;
+  projects: ProjectOption[];
   onClose: () => void;
-  onSave?: (p: Permission[]) => Promise<ActionResult>;
+  onSave?: (p: Permission[], access?: { project_scope: "all" | "assigned"; contract_ids: string[] }) => Promise<ActionResult>;
 }) {
   const t = useTranslations();
   const [selected, setSelected] = React.useState(new Set(member.permissions));
+  const [scope, setScope] = React.useState<"all" | "assigned">(member.projectScope ?? "all");
+  const [assigned, setAssigned] = React.useState(new Set(member.projectIds ?? []));
+  const scoped = member.role !== "owner";
   const [pending, startTransition] = React.useTransition();
   const defaults = new Set(ROLE_PERMISSIONS[member.role]);
 
@@ -353,7 +367,7 @@ function PermissionsDialog({
       return toast(t("preview.banner"));
     }
     startTransition(async () => {
-      const r = await onSave([...selected]);
+      const r = await onSave([...selected], scoped ? { project_scope: scope, contract_ids: scope === "assigned" ? [...assigned] : [] } : undefined);
       if (r.ok) {
         toast.success(t("common.saved"));
         onClose();
@@ -371,6 +385,45 @@ function PermissionsDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto px-6 py-4">
+          {scoped && (
+            <section className="mb-6 grid gap-3">
+              <h4 className="text-[12px] font-semibold text-subtle-foreground">{t("settings.projectAccess")}</h4>
+              <Segmented
+                name="project-scope"
+                value={scope}
+                onChange={(v) => setScope(v as "all" | "assigned")}
+                options={[
+                  { value: "all", label: t("settings.projectsAll") },
+                  { value: "assigned", label: t("settings.projectsAssigned") },
+                ]}
+              />
+              {scope === "assigned" && (
+                <div className="grid gap-1 rounded-xl border border-border p-2">
+                  {projects.length === 0 && <p className="px-2 py-1 text-[13px] text-muted-foreground">{t("settings.noProjects")}</p>}
+                  {projects.map((p) => (
+                    <label key={p.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 hover:bg-surface-2">
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-[var(--primary)]"
+                        checked={assigned.has(p.id)}
+                        onChange={(e) =>
+                          setAssigned((s) => {
+                            const n = new Set(s);
+                            if (e.target.checked) n.add(p.id);
+                            else n.delete(p.id);
+                            return n;
+                          })
+                        }
+                      />
+                      <bdi dir="ltr" className="font-latin text-[13px]">{p.number}</bdi>
+                      <span className="truncate text-[13px] text-muted-foreground">{p.client}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <p className="text-[12px] text-muted-foreground">{t("settings.projectAccessHint")}</p>
+            </section>
+          )}
           <p className="mb-4 text-[13px] text-muted-foreground">{t("settings.permissionsHint")}</p>
           <div className="grid gap-6">
             {PERMISSION_GROUPS.map((g) => (

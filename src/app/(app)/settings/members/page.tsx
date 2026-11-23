@@ -12,7 +12,7 @@ export default async function MembersPage() {
   const [{ data: memberships }, { data: invitations }] = await Promise.all([
     supabase
       .from("memberships")
-      .select("id, user_id, role, status, permission_overrides")
+      .select("id, user_id, role, status, permission_overrides, project_scope")
       .eq("organization_id", orgId)
       .order("created_at"),
     can(session, "members.manage")
@@ -32,6 +32,16 @@ export default async function MembersPage() {
     ? await supabase.from("profiles").select("id, full_name, phone").in("id", userIds)
     : { data: [] };
   const byId = new Map((profiles ?? []).map((p) => [p.id, p]));
+  // projects to assign (members.manage) and who is assigned where
+  const manage = can(session, "members.manage");
+  const [{ data: contracts }, { data: assignments }, { data: clients }] = manage
+    ? await Promise.all([
+        supabase.from("contracts").select("id, number, client_id, status").eq("organization_id", orgId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(300),
+        supabase.from("project_members").select("contract_id, user_id").eq("organization_id", orgId),
+        supabase.from("clients").select("id, name").eq("organization_id", orgId),
+      ])
+    : [{ data: [] }, { data: [] }, { data: [] }];
+  const clientName = new Map((clients ?? []).map((c: { id: string; name: string }) => [c.id, c.name]));
 
   const members: MemberItem[] = (memberships ?? []).map((m) => ({
     id: m.id,
@@ -42,6 +52,8 @@ export default async function MembersPage() {
     status: m.status,
     permissions: effectivePermissions(m.role, m.permission_overrides as PermissionOverrides),
     isYou: m.user_id === session.userId,
+    projectScope: m.project_scope,
+    projectIds: (assignments ?? []).filter((a: { user_id: string }) => a.user_id === m.user_id).map((a: { contract_id: string }) => a.contract_id),
   }));
 
   return (
@@ -51,6 +63,7 @@ export default async function MembersPage() {
       canManage={can(session, "members.manage")}
       isOwner={session.role === "owner"}
       actions={{ invite: inviteMember, update: updateMember, revoke: revokeInvitation }}
+      projects={(contracts ?? []).map((c: { id: string; number: string; client_id: string }) => ({ id: c.id, number: c.number, client: clientName.get(c.client_id) ?? "—" }))}
     />
   );
 }

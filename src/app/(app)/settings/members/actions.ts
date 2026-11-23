@@ -41,6 +41,8 @@ const memberUpdateSchema = z
     role: z.enum(["owner", "supervisor", "finance", "viewer"]).optional(),
     status: z.enum(["active", "suspended"]).optional(),
     permissions: z.array(z.enum(PERMISSIONS)).optional(),
+    project_scope: z.enum(["all", "assigned"]).optional(),
+    contract_ids: z.array(z.uuid()).max(500).optional(),
   })
   .strict();
 
@@ -49,12 +51,13 @@ export async function updateMember(input: z.input<typeof memberUpdateSchema>): P
   if (!can(session, "members.manage")) return { ok: false, error: "noAccess" };
   const parsed = memberUpdateSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
-  const { membershipId, role, status, permissions } = parsed.data;
+  const { membershipId, role, status, permissions, project_scope, contract_ids } = parsed.data;
 
   const supabase = await createClient();
   const patch: Partial<MembershipRow> = {};
   if (role) patch.role = role;
   if (status) patch.status = status;
+  if (project_scope) patch.project_scope = project_scope;
 
   if (permissions) {
     // Store the difference from the role defaults as grant/deny overrides.
@@ -73,7 +76,29 @@ export async function updateMember(input: z.input<typeof memberUpdateSchema>): P
     };
   }
 
-  if (Object.keys(patch).length === 0) return { ok: true };
+  // which projects an "assigned" member sees (RLS: members.manage only)
+  if (contract_ids) {
+    const { data: m } = await supabase.from("memberships").select("user_id").eq("id", membershipId).eq("organization_id", session.organization.id).maybeSingle();
+    if (!m) return { ok: false, error: "notFound" };
+    const { data: current } = await supabase.from("project_members").select("contract_id").eq("user_id", m.user_id).eq("organization_id", session.organization.id);
+    const have = new Set((current ?? []).map((x) => x.contract_id));
+    const want = new Set(contract_ids);
+    const remove = [...have].filter((c) => !want.has(c));
+    const add = [...want].filter((c) => !have.has(c));
+    if (remove.length) {
+      const { error } = await supabase.from("project_members").delete().eq("user_id", m.user_id).in("contract_id", remove);
+      if (error) return { ok: false, error: error.code === "42501" ? "noAccess" : "error" };
+    }
+    if (add.length) {
+      const { error } = await supabase.from("project_members").insert(add.map((contract_id) => ({ organization_id: session.organization.id, contract_id, user_id: m.user_id })));
+      if (error) return { ok: false, error: error.code === "42501" ? "noAccess" : "error" };
+    }
+  }
+
+  if (Object.keys(patch).length === 0) {
+    revalidatePath("/settings/members");
+    return { ok: true };
+  }
 
   const { data, error } = await supabase
     .from("memberships")

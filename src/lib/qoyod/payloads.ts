@@ -91,6 +91,29 @@ export function simpleBillBody(b: {
   };
 }
 
+export function simpleBillPaymentBody(p: { reference: string; billId: number; accountId: number; date: string; amount: number; description: string }) {
+  return { simple_bill_payment: { reference: p.reference, description: p.description, simple_bill_id: String(p.billId), account_id: String(p.accountId), date: p.date, amount: r2(p.amount).toFixed(2) } };
+}
+
+/**
+ * Payroll (§3.20) as a journal entry: salaries expense (debit) ← bank (credit) for the
+ * net salaries paid. The month tag in the description is how a retry finds it again
+ * (journal entries have no reference field in Qoyod).
+ */
+export function payrollJournalBody(j: { month: string; date: string; net: number; employees: number; salaryAccountId: number; bankAccountId: number }) {
+  const amount = r2(j.net);
+  return {
+    journal_entry: {
+      description: payrollTag(j.month) + ` — رواتب ${j.month} (${j.employees} موظف)`,
+      date: j.date,
+      debit_amounts: [{ account_id: j.salaryAccountId, amount, comment: `صافي رواتب ${j.month}` }],
+      credit_amounts: [{ account_id: j.bankAccountId, amount, comment: `صرف رواتب ${j.month}` }],
+    },
+  };
+}
+export const payrollTag = (month: string) => `[PAYROLL-${month}]`;
+export const billPaymentRef = (purchaseNumber: string) => `${purchaseNumber}/PAID`;
+
 /** Readable, unique references in Qoyod (C-2026-001 payment 2 → "C-2026-001/2"). */
 export const invoiceRef = (contractNumber: string, seq: number) => `${contractNumber}/${seq}`;
 export const paymentRef = (invoiceReference: string, paidSoFar: number) => `${invoiceReference}/PAY-${r2(paidSoFar).toFixed(2)}`;
