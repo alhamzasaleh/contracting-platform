@@ -75,7 +75,7 @@ test.describe("pricing calculator (design preview)", () => {
     await page.getByRole("radio", { name: "دهان داخلي" }).click();
     await expect(page.getByText("نطاق", { exact: false }).or(page.getByText("مشمول في السعر")).first()).toBeVisible();
     await page.getByRole("button", { name: /^معجون —/ }).click();
-    await expect(page.getByText("areaCoats").first()).toBeVisible();
+    await expect(page.getByText("المساحة × الأوجه").first()).toBeVisible();
   });
 });
 

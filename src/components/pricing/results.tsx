@@ -5,6 +5,7 @@ import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
 import { Badge } from "@/components/ui/badge";
 import type { Line } from "@/lib/engine";
+import { FORMULA_KEYS } from "@/lib/engine/formula-keys";
 import { cn } from "@/lib/utils";
 
 /** Result panels shared by the pricing screen: KPI tiles and the traceable lines list. */
@@ -55,6 +56,13 @@ export function Kpi({
 export function LinesTable({ lines, explain }: { lines: Line[]; explain: (role: string) => string[] }) {
   const t = useTranslations("engine");
   const { fmt } = useFormatter();
+  const tf = useTranslations("formulas");
+  const ti = useTranslations("inputs");
+  // The engine speaks English internally; show formulas and value names in the user's language.
+  const formulaText = (f: string) => (FORMULA_KEYS[f] && tf.has(FORMULA_KEYS[f]) ? tf(FORMULA_KEYS[f]) : f);
+  const inputName = (k: string) => (ti.has(k) ? ti(k) : k);
+  /** 660 → "660", 11.1111 → "11.11", 0.4 → "0.4" */
+  const trim = (x: number) => fmt.number(x, Number.isInteger(x) ? 0 : Math.abs(x) >= 10 ? 2 : 3);
   const [open, setOpen] = React.useState<string | null>(null);
   const groups: Line["group"][] = ["material", "labour", "hatch", "extra"];
 
@@ -137,34 +145,25 @@ export function LinesTable({ lines, explain }: { lines: Line[]; explain: (role: 
                       <div className="mx-5 mb-3 grid gap-2 rounded-xl bg-surface-sunken p-3.5 text-[13px]">
                         <p>
                           <span className="font-bold">{t("formula")}: </span>
-                          <span dir="ltr" className="font-latin">
-                            {l.formula}
-                          </span>
+                          <span>{formulaText(l.formula)}</span>
                         </p>
-                        <dl
-                          className="grid grid-cols-2 gap-x-4 gap-y-1 font-latin sm:grid-cols-3"
-                          dir="ltr"
-                        >
+                        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
                           {Object.entries(l.inputs).map(([k, val]) => (
                             <div key={k} className="flex justify-between gap-2">
-                              <dt className="text-muted-foreground">{k}</dt>
+                              <dt className="text-muted-foreground">{inputName(k)}</dt>
                               <dd className="tabular-nums">
-                                {typeof val === "number"
-                                  ? fmt.number(val, 3)
-                                  : val}
+                                {typeof val === "number" ? trim(val) : inputName(val)}
                               </dd>
                             </div>
                           ))}
                           <div className="flex justify-between gap-2">
-                            <dt className="text-muted-foreground">need</dt>
+                            <dt className="text-muted-foreground">{inputName("need")}</dt>
                             <dd className="tabular-nums">
-                              {fmt.number(l.need, 2)} {l.needUnit}
+                              {trim(l.need)} {t.has(`lineUnit_${l.needUnit}`) ? t(`lineUnit_${l.needUnit}`) : l.needUnit}
                             </dd>
                           </div>
                           <div className="flex justify-between gap-2">
-                            <dt className="text-muted-foreground">
-                              unit price
-                            </dt>
+                            <dt className="text-muted-foreground">{inputName("unitPrice")}</dt>
                             <dd className="tabular-nums">
                               {fmt.number(l.unitPrice, 2)}
                             </dd>
