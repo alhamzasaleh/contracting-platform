@@ -22,6 +22,7 @@ import { toNumber } from "@/lib/validation/numbers";
 import { anyTeamFree, spanOf, suggestStart, type Entry, type TeamInfo } from "@/lib/schedule";
 import { cn, ltr } from "@/lib/utils";
 import { ReceiptsList } from "@/components/finance/receipts-list";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import { ClausesPanel } from "./clauses-panel";
 import type { ContractTermsConfig } from "@/lib/contracts/terms";
 import { AddendaSection, type AddendaActions } from "./addenda-section";
@@ -428,6 +429,7 @@ export function ContractView({
         </p>
       )}
 
+      {c.status === "accepted" && <ClientMessages detail={detail} orgName={org.name} />}
       <AddendaSection detail={detail} actions={addendaActions} />
       <ReceiptsList items={detail.receipts ?? []} hrefFor={(n) => `/print/receipts/${encodeURIComponent(n)}`} newTab />
       {termsSave && detail.canManage && (c.status === "draft" || c.status === "sent") && (
@@ -457,5 +459,48 @@ export function ContractView({
         />
       )}
     </div>
+  );
+}
+
+/** Ready messages from the owner's own WhatsApp: payment requests, receipts, addenda awaiting acceptance. */
+function ClientMessages({ detail, orgName }: { detail: ContractDetail; orgName: string }) {
+  const t = useTranslations("wa");
+  const { fmt } = useFormatter();
+  const { contract: c, client } = detail;
+  if (!client.phone) return null;
+  const base = { name: client.name, contract: ltr(c.number), org: orgName };
+  const items: { key: string; title: string; text: string; label: string }[] = [
+    ...detail.payments
+      .filter((p) => p.status === "requested")
+      .map((p) => ({ key: `p${p.seq}`, title: `${p.label} · ${fmt.money(p.amount)}`, text: t("payRequest", { ...base, label: p.label, amount: fmt.money(p.amount) }), label: t("btnRemind") })),
+    ...detail.addenda
+      .filter((a) => a.status === "sent")
+      .map((a) => ({ key: a.id, title: `${ltr(a.number)} · ${a.title}`, text: t("addendum", { ...base, number: ltr(a.number), title: a.title, amount: fmt.money(a.total) }), label: t("btnSend") })),
+    ...detail.addenda
+      .filter((a) => a.status === "accepted" && a.payment_status === "requested")
+      .map((a) => ({ key: `pay-${a.id}`, title: `${ltr(a.number)} · ${fmt.money(a.total)}`, text: t("payRequest", { ...base, label: `${ltr(a.number)} — ${a.title}`, amount: fmt.money(a.total) }), label: t("btnRemind") })),
+    ...(detail.receipts ?? [])
+      .slice(-3)
+      .reverse()
+      .map((r) => ({ key: r.number, title: `${ltr(r.number)} · ${fmt.money(r.amount)}`, text: t("receipt", { ...base, amount: fmt.money(r.amount), label: r.label, number: ltr(r.number) }), label: t("btnSend") })),
+  ];
+  if (!items.length) return null;
+  return (
+    <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
+      <div>
+        <p className="flex items-center gap-2 text-[15px] font-bold">
+          <MessageCircle className="size-5" /> {t("sectionTitle")}
+        </p>
+        <p className="text-[12px] text-muted-foreground">{t("sectionHint")}</p>
+      </div>
+      <ul className="grid gap-2">
+        {items.map((i) => (
+          <li key={i.key} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-surface-2 px-3 py-2 text-[13px]">
+            <span className="min-w-0 truncate">{i.title}</span>
+            <WhatsAppButton phone={client.phone} text={i.text} label={i.label} />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

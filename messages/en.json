@@ -2496,5 +2496,20 @@
     "unsupported": "This browser doesn't support biometric sign-in.",
     "failed": "Couldn't turn it on. Try again.",
     "done": "Turned on for this device"
+  },
+  "wa": {
+    "payRequest": "Hello {name}, a reminder of the payment “{label}” for contract {contract}: {amount}. Details are on your project page. Thank you — {org}",
+    "payLate": "Hello {name}, the payment “{label}” for contract {contract} ({amount}) is {days} days late. Kindly settle it; details are on your project page. Thank you — {org}",
+    "receipt": "Hello {name}, we received {amount} — {label} (contract {contract}). Receipt voucher {number} is on your project page. Thank you — {org}",
+    "invoice": "Hello {name}, invoice {number} for {amount} (contract {contract}) has been issued and is on your project page. Thank you — {org}",
+    "stage": "Hello {name}, we finished the “{stage}” stage of your project ({contract}). Please review it and confirm on your project page. Thank you — {org}",
+    "addendum": "Hello {name}, we sent you additional-works addendum {number} ({title}) for {amount}. You can review and accept it on your project page. — {org}",
+    "maintenance": "Hello {name}, maintenance request {number} is done. Please confirm on your project page. Thank you — {org}",
+    "btnRemind": "Remind on WhatsApp",
+    "btnSend": "Send on WhatsApp",
+    "btnNotify": "Tell the client on WhatsApp",
+    "sectionTitle": "Message the client",
+    "sectionHint": "Opens your WhatsApp with the message ready — review it and tap Send.",
+    "none": "Nothing to send right now."
   }
 }

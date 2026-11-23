@@ -4,6 +4,7 @@ import { Camera, Check, CheckCircle2, ExternalLink, FileBadge, HardHat, MapPin, 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import * as React from "react";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import { useFormatter } from "@/components/formatter-provider";
 import { useActionRunner } from "@/components/forms/form-kit";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,7 @@ import { toast } from "sonner";
 import type { ProjectDetail, ProjectListItem, StageView } from "@/lib/data/projects";
 import { coordsFromMapLink, currentStage, distanceMeters, overallProgress } from "@/lib/execution";
 import type { StageStatus } from "@/lib/supabase/database.types";
-import { cn } from "@/lib/utils";
+import { cn, ltr } from "@/lib/utils";
 
 const TONE: Record<StageStatus, "neutral" | "primary" | "warning" | "success"> = { pending: "neutral", in_progress: "primary", awaiting_client: "warning", confirmed: "success" };
 
@@ -260,6 +261,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
 }
 
 function StageCard({ stage: s, open, onToggle, data, actions }: { stage: StageView; open: boolean; onToggle: () => void; data: ProjectDetail; actions?: ProjectActions }) {
+  const tw = useTranslations("wa");
   const t = useTranslations("projects");
   const { fmt } = useFormatter();
   const { run, pending } = useActionRunner();
@@ -417,6 +419,13 @@ function StageCard({ stage: s, open, onToggle, data, actions }: { stage: StageVi
                 <Button loading={pending} disabled={!report.trim()} onClick={() => run(actions && (() => actions.sendStage({ stage_id: s.id, report: report.trim(), ai: aiUsed })))}>
                   <Send /> {s.status === "awaiting_client" ? t("resend") : t("sendToClient")}
                 </Button>
+                {s.status === "awaiting_client" && (
+                  <WhatsAppButton
+                    phone={data.client.phone}
+                    label={tw("btnNotify")}
+                    text={tw("stage", { name: data.client.name, stage: s.name, contract: ltr(data.contract.number), org: data.orgName ?? "" })}
+                  />
+                )}
               </div>
               <p className="text-[12px] text-muted-foreground">{s.is_final ? t("finalHint") : t("sendHint")}</p>
             </div>

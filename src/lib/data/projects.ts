@@ -44,6 +44,8 @@ export type StageView = {
 export type ProjectDetail = {
   contract: { id: string; number: string; service: ServiceKind; start_date: string; duration_days: number; warranty_months: number; accepted_at: string | null };
   client: { name: string; phone: string | null; city: string | null; district: string | null; location_url: string | null };
+  /** company name, signs the ready WhatsApp messages */
+  orgName?: string;
   stages: StageView[];
   visits: { id: string; checked_in_at: string; latitude: number | null; longitude: number | null; accuracy_m: number | null; note: string | null; by: string | null }[];
   notes: { id: string; body: string; photos: { path: string; url: string | null }[]; status: "new" | "seen" | "resolved"; reply: string | null; stage_id: string | null; created_at: string }[];
@@ -75,6 +77,7 @@ export async function loadProject(session: SessionContext, number: string): Prom
   return {
     contract: { id: c.id, number: c.number, service: c.service, start_date: c.start_date, duration_days: c.duration_days, warranty_months: c.warranty_months, accepted_at: c.accepted_at },
     client: client ?? { name: "—", phone: null, city: null, district: null, location_url: null },
+    orgName: session.organization.name,
     stages: (stages ?? []).map((s) => ({
       id: s.id, seq: s.seq, name: s.name, status: s.status, progress: s.progress, is_final: s.is_final, payment_event: s.payment_event,
       report: s.report, report_ai: s.report_ai, sent_at: s.sent_at, confirmed_at: s.confirmed_at, confirmed_name: s.confirmed_name, signed: !!s.confirmed_signature,

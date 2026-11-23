@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import { useFormatter } from "@/components/formatter-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,7 @@ export function MaintenanceView({ data, focus, actions }: { data: MaintenancePag
 
 function RequestCard({ r, data, open, actions }: { r: MaintenanceItem; data: MaintenancePageData; open: boolean; actions?: Actions }) {
   const t = useTranslations("maintenance");
+  const tw = useTranslations("wa");
   const tc = useTranslations("common");
   const { fmt } = useFormatter();
   const router = useRouter();
@@ -132,7 +134,12 @@ function RequestCard({ r, data, open, actions }: { r: MaintenanceItem; data: Mai
             {r.cost > 0 && ` · ${fmt.money(r.cost)}${r.covered ? "" : ` (${t("charged")})`}`}
           </p>
         </div>
-        <Badge tone={TONE[r.status]}>{t(`st_${r.status}`)}</Badge>
+        <span className="flex flex-wrap items-center gap-2">
+          {r.status === "resolved" && (
+            <WhatsAppButton phone={r.client_phone} label={tw("btnNotify")} text={tw("maintenance", { name: r.client, number: ltr(r.number), org: data.orgName ?? "" })} />
+          )}
+          <Badge tone={TONE[r.status]}>{t(`st_${r.status}`)}</Badge>
+        </span>
       </div>
       <p className="whitespace-pre-line text-sm">{r.body}</p>
       {r.photos.length > 0 && (

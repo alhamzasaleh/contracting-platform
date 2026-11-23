@@ -490,3 +490,14 @@ test.describe("per-project access (design preview)", () => {
     await expect(page.getByRole("button", { name: "تسجيل سداد المورد" })).toBeEnabled();
   });
 });
+
+test.describe("WhatsApp from the owner's own number (design preview)", () => {
+  test("collections offer a ready reminder that opens WhatsApp", async ({ page }) => {
+    await page.goto("/dev/preview/reports");
+    const late = page.getByRole("link", { name: "تذكير بالواتساب" }).first();
+    await expect(late).toBeVisible();
+    const href = await late.getAttribute("href");
+    expect(href).toMatch(/^https:\/\/wa\.me\/966551234567\?text=/);
+    expect(decodeURIComponent(href!.split("text=")[1])).toContain("متأخرة");
+  });
+});

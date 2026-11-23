@@ -15,6 +15,8 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 export type PaymentRow = {
   id: string; contract_id: string; contract: string; client: string; seq: number; label: string; amount: number; paid: number; outstanding: number;
   status: "pending" | "requested" | "paid"; requested_at: string | null; expected: string; paid_at: string | null; late: boolean;
+  /** for the ready WhatsApp reminder (owner's own WhatsApp) */
+  client_phone?: string | null;
 };
 export type ProfitRow = {
   id: string; number: string; client: string; service: ServiceKind; revenue: number; estimatedCost: number | null; actualCost: number;
@@ -23,6 +25,8 @@ export type ProfitRow = {
 export type ApprovalRow = { id: string; kind: string; entity: string; entity_id: string; details: Record<string, unknown>; created_at: string; link: string | null };
 export type OwnerFinance = {
   today: string;
+  /** signs the ready WhatsApp messages */
+  orgName?: string;
   cash: { balance: number; on: string; payday: number };
   kpis: { outstanding: number; collectedMonth: number; dueSoon: number; activeProjects: number; payroll: number };
   forecast: ForecastWeek[];
@@ -43,7 +47,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   const orgId = session.organization.id;
   const [{ data: contracts }, { data: clients }, { data: settings }, { data: addenda }, { data: approvals }, { data: stages }] = await Promise.all([
     supabase.from("contracts").select("id, number, client_id, service, status, start_date, duration_days, total, quote_id, quote_version, accepted_at").eq("organization_id", orgId).eq("status", "accepted"),
-    supabase.from("clients").select("id, name").eq("organization_id", orgId),
+    supabase.from("clients").select("id, name, phone").eq("organization_id", orgId),
     supabase.from("finance_settings").select("cash_balance, cash_balance_on, payday").eq("organization_id", orgId).maybeSingle(),
     supabase.from("addenda").select("id, contract_id, number, title, amount, vat, total, extra_days, status, payment_status, accepted_at").eq("organization_id", orgId).eq("status", "accepted"),
     supabase.from("approvals").select("id, kind, entity, entity_id, details, created_at").eq("organization_id", orgId).eq("status", "pending").order("created_at"),
@@ -55,6 +59,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     ids.length ? supabase.from("quote_versions").select("id, quote_id, version, client_view").in("quote_id", (contracts ?? []).map((c) => c.quote_id)) : Promise.resolve({ data: [] as never[] }),
   ]);
   const clientName = new Map((clients ?? []).map((c) => [c.id, c.name]));
+  const clientPhone = new Map((clients ?? []).map((c) => [c.id, (c as { phone?: string | null }).phone ?? null]));
   const extraDays = new Map<string, number>();
   for (const a of addenda ?? []) extraDays.set(a.contract_id, (extraDays.get(a.contract_id) ?? 0) + a.extra_days);
   const contractOf = new Map((contracts ?? []).map((c) => [c.id, c]));
@@ -69,6 +74,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
       id: p.id, contract_id: p.contract_id, contract: c.number, client: clientName.get(c.client_id) ?? "—", seq: p.seq, label: p.label, amount, paid,
       outstanding: r2(Math.max(0, amount - paid)), status: p.status, requested_at: p.requested_at, expected, paid_at: p.paid_at,
       late: p.status === "requested" && !!p.requested_at && p.requested_at.slice(0, 10) <= addDays(today, -7),
+      client_phone: clientPhone.get(c.client_id) ?? null,
     };
   });
   // addenda payments: requested on acceptance, a separate line each
@@ -80,6 +86,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
       id: `ad:${a.id}`, contract_id: a.contract_id, contract: c.number, client: clientName.get(c.client_id) ?? "—", seq: 99, label: `${a.number} — ${a.title}`,
       amount: n(a.total), paid: 0, outstanding: n(a.total), status: "requested", requested_at: a.accepted_at, expected: today, paid_at: null,
       late: !!a.accepted_at && a.accepted_at.slice(0, 10) <= addDays(today, -7),
+      client_phone: clientPhone.get(c.client_id) ?? null,
     });
   }
 
@@ -165,6 +172,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   const monthStart = today.slice(0, 7);
   return {
     today,
+    orgName: session.organization.name,
     cash: { balance: opening, on: settings?.cash_balance_on ?? today, payday },
     kpis: {
       outstanding: r2([...byClient.values()].reduce((s, x) => s + x.outstanding, 0)),

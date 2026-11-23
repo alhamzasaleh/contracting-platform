@@ -112,3 +112,15 @@ describe("WhatsApp sign-in codes", async () => {
     ]);
   });
 });
+
+describe("WhatsApp share links", async () => {
+  const { waHref, waPhone } = await import("@/lib/whatsapp-link");
+  it("normalises Saudi numbers and encodes the message", () => {
+    expect(waPhone("0551234567")).toBe("966551234567");
+    expect(waPhone("٠٥٥١٢٣٤٥٦٧")).toBe("966551234567");
+    expect(waPhone("+966 55 123 4567")).toBe("966551234567");
+    expect(waPhone("12")).toBeNull();
+    expect(waHref("966551234567", "مرحباً & شكراً")).toBe("https://wa.me/966551234567?text=" + encodeURIComponent("مرحباً & شكراً"));
+    expect(waHref(null, "x")).toBeNull();
+  });
+});

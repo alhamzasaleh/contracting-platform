@@ -8,11 +8,16 @@ import { requirePermission } from "@/lib/auth/session";
 import { loadInvoice } from "@/lib/data/invoices";
 import { orgLogoUrl } from "@/lib/org";
 import { invoiceQr } from "@/lib/qr";
+import { ltr } from "@/lib/utils";
+import { WhatsAppButton } from "@/components/whatsapp-button";
+import { getFormatter } from "@/i18n/server";
 
 export default async function InvoicePage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
   const session = await requirePermission("finance.view");
   const t = await getTranslations("invoice");
+  const tw = await getTranslations("wa");
+  const fmt = await getFormatter();
   const [inv, logoUrl] = await Promise.all([loadInvoice(session, decodeURIComponent(number)), orgLogoUrl(session.organization)]);
   return (
     <div className="grid gap-4">
@@ -20,6 +25,12 @@ export default async function InvoicePage({ params }: { params: Promise<{ number
         title={inv.kind === "tax" ? t("taxTitle") : t("title")}
         actions={
           <div className="flex flex-wrap gap-2">
+            <WhatsAppButton
+              size="md"
+              phone={inv.buyer.phone}
+              label={tw("btnSend")}
+              text={tw("invoice", { name: inv.buyer.name ?? "", number: ltr(inv.number), amount: fmt.money(inv.total), contract: ltr(inv.contract), org: inv.seller.legal_name ?? inv.seller.name ?? session.organization.name })}
+            />
             {inv.qoyodJob && (
               <Button asChild variant="secondary">
                 <a href={`/api/qoyod/invoice/${inv.qoyodJob}`} target="_blank" rel="noopener noreferrer"><ExternalLink /> {t("official")}</a>

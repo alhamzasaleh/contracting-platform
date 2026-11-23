@@ -15,7 +15,8 @@ import { Segmented } from "@/components/ui/segmented";
 import type { ActionResult } from "@/lib/actions";
 import type { OwnerFinance, PaymentRow } from "@/lib/data/finance";
 import { toNumber } from "@/lib/validation/numbers";
-import { cn } from "@/lib/utils";
+import { cn, ltr } from "@/lib/utils";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 
 export type ReportActions = {
   record: (i: Record<string, unknown>) => Promise<ActionResult>;
@@ -36,6 +37,7 @@ export function ReportsView({ f, actions, base = "" }: { f: OwnerFinance; action
 
 function Collections({ f, actions, base }: { f: OwnerFinance; actions?: ReportActions; base: string }) {
   const t = useTranslations("finance");
+  const tw = useTranslations("wa");
   const { fmt } = useFormatter();
   const [paying, setPaying] = React.useState<PaymentRow | null>(null);
   const [show, setShow] = React.useState<"open" | "all">("open");
@@ -85,11 +87,24 @@ function Collections({ f, actions, base }: { f: OwnerFinance; actions?: ReportAc
                     </label>
                   )}
                 </div>
-                {f.canManage && p.outstanding > 0 && (
-                  <Button size="sm" className="self-center" onClick={() => setPaying(p)}>
-                    <Banknote /> {t("recordPayment")}
-                  </Button>
-                )}
+                <div className="flex flex-wrap items-center gap-2 self-center">
+                  {p.status === "requested" && p.outstanding > 0 && (
+                    <WhatsAppButton
+                      phone={p.client_phone}
+                      label={tw("btnRemind")}
+                      text={
+                        p.late && p.requested_at
+                          ? tw("payLate", { name: p.client, label: p.label, contract: ltr(p.contract), amount: fmt.money(p.outstanding), days: Math.max(1, Math.round((Date.parse(f.today) - Date.parse(p.requested_at.slice(0, 10))) / 86_400_000)), org: f.orgName ?? "" })
+                          : tw("payRequest", { name: p.client, label: p.label, contract: ltr(p.contract), amount: fmt.money(p.outstanding), org: f.orgName ?? "" })
+                      }
+                    />
+                  )}
+                  {f.canManage && p.outstanding > 0 && (
+                    <Button size="sm" onClick={() => setPaying(p)}>
+                      <Banknote /> {t("recordPayment")}
+                    </Button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

@@ -14,6 +14,8 @@ export type MaintenancePageData = {
   warranties: WarrantyItem[];
   members: { id: string; name: string }[];
   canManage: boolean;
+  /** signs the ready WhatsApp messages */
+  orgName?: string;
 };
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
@@ -57,5 +59,6 @@ export async function loadMaintenance(session: SessionContext): Promise<Maintena
       .sort((a, b) => Number(b.active) - Number(a.active) || a.warranty_end.localeCompare(b.warranty_end)),
     members: (profiles ?? []).map((p) => ({ id: p.id, name: p.full_name || (p.phone ? `0${p.phone.slice(3)}` : "—") })),
     canManage: can(session, "projects.manage"),
+    orgName: session.organization.name,
   };
 }
