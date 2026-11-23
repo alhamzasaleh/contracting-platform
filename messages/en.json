@@ -88,7 +88,18 @@
     "feature2": "A beautiful page per client to follow stages and payments",
     "feature3": "Direct Qoyod integration for e-invoicing",
     "legal": "By continuing you agree to the privacy policy and terms of use.",
-    "rights": "© {year} {name} — All rights reserved"
+    "rights": "© {year} {name} — All rights reserved",
+    "or": "or",
+    "passkey_faceid": "Sign in with Face ID",
+    "passkey_touchid": "Sign in with Touch ID",
+    "passkey_fingerprint": "Sign in with fingerprint",
+    "passkeyFailed": "Biometric sign-in didn't complete. Try again or use a code.",
+    "passkeyNone": "No biometric sign-in is set up on this device. Sign in with a code, then turn it on.",
+    "enrollTitle": "Turn on biometric sign-in?",
+    "enrollBody": "Next time sign in with a touch or a glance — no code needed. The text code always stays available as a backup.",
+    "enroll": "Turn on now",
+    "enrollLater": "Later",
+    "enrolled": "Done — next time sign in with biometrics"
   },
   "onboarding": {
     "title": "Let's set up your company",
@@ -2324,5 +2335,18 @@
     "contractHint": "Changes here apply to this contract only and lock once the client accepts.",
     "fromTemplate": "Copy from the company template",
     "locked": "Accepted — the clauses are locked."
+  },
+  "passkeys": {
+    "title": "Fingerprint & Face ID sign-in",
+    "hint": "Turn it on for each device you use (iPad, phone, computer). The text code stays as a backup.",
+    "add": "Turn on for this device",
+    "empty": "No devices yet.",
+    "added": "Added {date}",
+    "used": "Last used {date}",
+    "remove": "Remove",
+    "removed": "Removed",
+    "unsupported": "This browser doesn't support biometric sign-in.",
+    "failed": "Couldn't turn it on. Try again.",
+    "done": "Turned on for this device"
   }
 }

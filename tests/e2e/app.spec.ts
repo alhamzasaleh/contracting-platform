@@ -394,3 +394,15 @@ test.describe("contract clauses (design preview)", () => {
     await expect(page.locator('input[value="التأمين"]')).toBeVisible();
   });
 });
+
+test.describe("biometric sign-in (design preview)", () => {
+  test("the sign-in page offers biometrics and settings list this user's devices", async ({ page }) => {
+    await page.goto("/dev/preview/login");
+    await expect(page.getByRole("button", { name: /الدخول (بالبصمة|بـ Face ID|بـ Touch ID)/ })).toBeVisible();
+    await page.goto("/dev/preview/settings/preferences");
+    await expect(page.getByText("iPad Safari")).toBeVisible();
+    await page.getByRole("button", { name: "إزالة" }).first().click();
+    await expect(page.getByText("iPad Safari")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "تفعيل على هذا الجهاز" })).toBeVisible();
+  });
+});

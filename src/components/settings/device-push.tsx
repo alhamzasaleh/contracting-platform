@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { removePushSubscription, savePushSubscription, sendPushTest } from "@/app/(app)/notifications/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { deviceName } from "@/lib/client/device";
 
 type State = "loading" | "unsupported" | "ios" | "denied" | "off" | "on";
 
@@ -15,13 +16,6 @@ function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(new ArrayBuffer(raw.length));
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
   return out;
-}
-
-function deviceName(): string {
-  const ua = navigator.userAgent;
-  const os = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "iPad" : /iPhone/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /Mac/.test(ua) ? "Mac" : "Web";
-  const browser = /Edg\//.test(ua) ? "Edge" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "";
-  return `${os} ${browser}`.trim();
 }
 
 async function registration(): Promise<ServiceWorkerRegistration> {

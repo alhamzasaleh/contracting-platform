@@ -58,17 +58,37 @@ export async function verifyOtp(input: z.input<typeof verifySchema>): Promise<Re
     return { ok: false, error: "codeInvalid" };
   }
 
-  // Pending invitations become memberships on first sign-in.
-  await supabase.rpc("accept_pending_invitations");
+  await afterSignIn(supabase, data.user.id);
+  return { ok: true, next: safeNext(next) };
+}
 
-  // Apply the user's saved language/numerals on this device.
-  const { data: profile } = await supabase.from("profiles").select("locale, numerals").eq("id", data.user.id).single();
+/** After any sign-in: pending invitations become memberships; the user's language/numerals apply on this device. */
+async function afterSignIn(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+  await supabase.rpc("accept_pending_invitations");
+  const { data: profile } = await supabase.from("profiles").select("locale, numerals").eq("id", userId).single();
   if (profile) {
     const store = await cookies();
     const opts = { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production" };
     store.set(LOCALE_COOKIE, profile.locale, opts);
     store.set(NUMERALS_COOKIE, profile.numerals, opts);
   }
+}
 
-  return { ok: true, next: safeNext(next) };
+const finishSchema = z.object({ next: z.string().max(500).optional() }).strict();
+
+/**
+ * Passkey sign-in (Face ID / fingerprint): the browser completes the WebAuthn
+ * ceremony with Supabase Auth, which sets the session; here the server checks
+ * that session and finishes the same steps as an OTP sign-in.
+ */
+export async function finishPasskeySignIn(input: z.input<typeof finishSchema>): Promise<Result> {
+  const parsed = finishSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "error" };
+  const limit = await rateLimit(`passkey:ip:${await clientIp()}`, 30, 600);
+  if (limit !== "ok") return { ok: false, error: limit === "limited" ? "rateLimited" : "error" };
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) return { ok: false, error: "error" };
+  await afterSignIn(supabase, data.user.id);
+  return { ok: true, next: safeNext(parsed.data.next) };
 }
