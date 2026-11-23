@@ -167,3 +167,23 @@ describe("risk reserve and rounding", () => {
     expect(priceSelection(sel, Q({ facade: 300 }), c).price.marginPercent).toBeGreaterThan(25);
   });
 });
+
+describe("project type (§3.5)", () => {
+  const c = ctx();
+  const base = defaultSelection("interior", c.catalogue);
+  const q = Q({ walls: 300, ceilings: 100 });
+  const withType = (t: "full" | "labour" | "supply") => priceSelection({ ...base, options: { ...base.options, projectType: t } }, q, c);
+
+  it("labour only: no materials (client supplies them), labour stays", () => {
+    const o = withType("labour");
+    expect(o.price.materials).toBe(0);
+    expect(o.price.labour).toBeGreaterThan(0);
+    expect(o.problems).toEqual([]);
+  });
+
+  it("supply only: materials without labour", () => {
+    const o = withType("supply");
+    expect(o.price.labour).toBe(0);
+    expect(o.price.materials).toBeCloseTo(withType("full").price.materials, 6);
+  });
+});

@@ -104,6 +104,7 @@ export type QuoteDetail = {
   approvals: { id: string; kind: string; status: string; details: Record<string, unknown>; decided_at: string | null; decision_note: string | null }[];
   canManage: boolean;
   canDecide: boolean;
+  contract: { number: string; status: string } | null;
 };
 
 export async function loadQuote(session: SessionContext, number: string): Promise<QuoteDetail> {
@@ -111,11 +112,12 @@ export async function loadQuote(session: SessionContext, number: string): Promis
   const orgId = session.organization.id;
   const { data: q } = await supabase.from("quotes").select("*").eq("organization_id", orgId).eq("number", number).maybeSingle();
   if (!q) notFound();
-  const [{ data: client }, { data: survey }, { data: versions }, { data: approvals }] = await Promise.all([
+  const [{ data: client }, { data: survey }, { data: versions }, { data: approvals }, { data: contract }] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city").eq("id", q.client_id).maybeSingle(),
     q.survey_id ? supabase.from("surveys").select("number").eq("id", q.survey_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("quote_versions").select("id, version, total, created_at, client_view, notes, estimated, quantities").eq("quote_id", q.id).order("version", { ascending: false }),
     supabase.from("approvals").select("id, kind, status, details, decided_at, decision_note").eq("entity", "quote").eq("entity_id", q.id).order("created_at", { ascending: false }),
+    supabase.from("contracts").select("number, status").eq("quote_id", q.id).neq("status", "cancelled").maybeSingle(),
   ]);
   const cur = (versions ?? []).find((v) => v.version === q.current_version) ?? null;
   let internal: QuoteDetail["internal"] = null;
@@ -133,5 +135,6 @@ export async function loadQuote(session: SessionContext, number: string): Promis
     approvals: (approvals ?? []).map((a) => ({ ...a, details: (a.details ?? {}) as Record<string, unknown> })),
     canManage: can(session, "quotes.manage") && can(session, "costs.view"),
     canDecide: can(session, "approvals.decide"),
+    contract: contract ?? null,
   };
 }

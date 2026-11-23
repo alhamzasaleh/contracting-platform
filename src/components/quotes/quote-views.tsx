@@ -1,5 +1,5 @@
 "use client";
-import { CheckCircle2, Copy, FileText, Pencil, Printer, Send, ShieldAlert, XCircle } from "lucide-react";
+import { CheckCircle2, Copy, FileSignature, FileText, Pencil, Printer, Send, ShieldAlert, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -252,7 +252,23 @@ export function QuoteView({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {detail.canManage && quote.status !== "accepted" && (
+          {detail.contract ? (
+            <Button asChild size="sm">
+              <Link href={`${base}/contracts/${detail.contract.number}`}>
+                <FileSignature /> {t("openContract", { number: detail.contract.number })}
+              </Link>
+            </Button>
+          ) : (
+            detail.canManage &&
+            quote.status === "issued" && (
+              <Button asChild size="sm">
+                <Link href={`${base}/contracts/new?quote=${quote.number}`}>
+                  <FileSignature /> {t("createContract")}
+                </Link>
+              </Button>
+            )
+          )}
+          {detail.canManage && quote.status !== "accepted" && !detail.contract && (
             <Button asChild variant="secondary" size="sm">
               <Link href={`${base}/quotations/${quote.number}/edit`}>
                 <Pencil /> {t("editNewVersion")}

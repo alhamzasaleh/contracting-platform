@@ -503,6 +503,14 @@ export function PricingView({
         {/* 2 — method / options as buttons */}
         <section className="grid gap-3 rounded-2xl border border-border bg-surface p-4">
           <p className="text-[14px] font-bold">{t("options")}</p>
+          <Chips
+            label={t("projectType")}
+            value={sel.options.projectType ?? "full"}
+            options={["full", "labour", "supply"] as const}
+            render={(v) => t(`pt_${v}`)}
+            onChange={(v) => setOpt("projectType", v)}
+            modified={(sel.options.projectType ?? "full") !== (tpl.options.projectType ?? "full")}
+          />
           {kind === "exterior" && (
             <Chips
               label={te("method")}

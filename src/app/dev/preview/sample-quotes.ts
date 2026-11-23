@@ -31,6 +31,7 @@ export const SAMPLE_QUOTE: QuoteDetail = {
   approvals: [{ id: "a1", kind: "quote_discount", status: "pending", details: { version: 2, discount: snap.clientView.discount, discountPercent: 5 }, decided_at: null, decision_note: null }],
   canManage: true,
   canDecide: true,
+  contract: null,
 };
 
 export const SAMPLE_QUOTES: QuoteListItem[] = [

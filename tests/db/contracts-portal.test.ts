@@ -83,7 +83,7 @@ describe("client page (portal)", () => {
   });
 
   it("shows the contract with the right token, nothing with a wrong one or wrong number", async () => {
-    const ok = await as("service_role", (q) => q<{ v: Record<string, any> }>("select public.portal_view($1,$2) as v", [`C-${year}-001`, TOKEN]));
+    const ok = await as("service_role", (q) => q<{ v: { contract: { number: string }; payments: unknown[]; quote: { client_view: { total: number } } } }>("select public.portal_view($1,$2) as v", [`C-${year}-001`, TOKEN]));
     expect(ok.rows[0].v.contract.number).toBe(`C-${year}-001`);
     expect(ok.rows[0].v.payments).toHaveLength(2);
     expect(ok.rows[0].v.quote.client_view.total).toBe(10000);

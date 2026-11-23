@@ -99,3 +99,30 @@ test.describe("clients, survey and quotes (design preview)", () => {
     await expect(page.getByRole("button", { name: "حفظ عرض السعر" })).toBeVisible();
   });
 });
+
+test.describe("contracts and client page (design preview)", () => {
+  test("contract editor requires the payments to add up to 100%", async ({ page }) => {
+    await page.goto("/dev/preview/contracts/new");
+    const create = page.getByRole("button", { name: "إنشاء العقد" });
+    await expect(create).toBeDisabled();
+    const percents = page.getByLabel("النسبة");
+    for (const [i, v] of ["40", "30", "20", "10"].entries()) await percents.nth(i).fill(v);
+    await expect(page.getByText("المجموع 100.00%")).toBeVisible();
+  });
+
+  test("client page shows the acceptance with name, optional signature and agreement", async ({ page }) => {
+    await page.goto("/dev/preview/portal");
+    await expect(page.getByRole("heading", { name: /أهلاً/ })).toBeVisible();
+    const accept = page.getByRole("button", { name: "أوافق على العرض والعقد" });
+    await expect(accept).toBeDisabled();
+    await page.getByRole("checkbox").check();
+    await expect(accept).toBeEnabled();
+    const width = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(width).toBeLessThanOrEqual(1);
+  });
+
+  test("a malformed client link is refused before any lookup", async ({ page }) => {
+    await page.goto("/p/C-2026-001/short");
+    await expect(page.getByText("الرابط غير صالح")).toBeVisible();
+  });
+});

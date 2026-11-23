@@ -14,6 +14,7 @@ export const selectionSchema = z
         hangingHeight: z.number().min(0.05).max(3),
         cSpacing: z.number().min(0.2).max(2),
         omegaSpacing: z.number().min(0.1).max(1),
+        projectType: z.enum(["full", "labour", "supply"]).optional(),
       })
       .strict(),
     steps: z.record(

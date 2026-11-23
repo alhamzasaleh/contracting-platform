@@ -51,6 +51,8 @@ export type Options = {
   hangingHeight: number; // m
   cSpacing: number; // m
   omegaSpacing: number; // m
+  /** §3.5: labour + materials | labour only (client supplies materials) | materials supply only. */
+  projectType?: "full" | "labour" | "supply";
 };
 
 export const EXTERIOR_FINISH_ROLE: Record<Options["method"], string> = { roller: "acrylic", profile: "profile", spray: "spray_acrylic" };
@@ -181,7 +183,7 @@ export function stepBrands(c: CatalogueData, step: StepDef, lineId: string | nul
 /** The template's default choices, falling back to the first complete product of each step. */
 export function defaultSelection(kind: ServiceKind, c: CatalogueData, template?: Partial<Selection> | null): Selection {
   const options: Options = {
-    method: "roller", variant: "new", suspension: "rod", layers: 1,
+    method: "roller", variant: "new", suspension: "rod", layers: 1, projectType: "full",
     hangingHeight: c.rates["gypsum.hangingHeight"] ?? 0.4,
     cSpacing: c.rates["gypsum.cSpacing"] ?? 1,
     omegaSpacing: c.rates["gypsum.omegaSpacing"] ?? 0.4,
@@ -298,7 +300,7 @@ export function priceSelection(sel: Selection, q: Quantities, ctx: PricingContex
     result = computeInterior(
       {
         wallArea: q.walls, ceilingArea: q.ceilings, zones, colours: Math.max(1, q.colours), ceilingColours: Math.max(1, q.ceilingColours),
-        variant: o.variant, brand: chosen.find((p) => p.role === "wall_finish")?.brand ?? "", crackM: q.crackM, scope,
+        variant: o.variant, executeOnly: o.projectType === "labour", brand: chosen.find((p) => p.role === "wall_finish")?.brand ?? "", crackM: q.crackM, scope,
       },
       cfg.paintProducts,
       {
@@ -316,7 +318,7 @@ export function priceSelection(sel: Selection, q: Quantities, ctx: PricingContex
     const finishStep = `finish_${o.method}`;
     result = computeExterior(
       {
-        area: q.facade, method: o.method, colours: Math.max(1, q.extColours), brand: chosen.find((p) => p.role === EXTERIOR_FINISH_ROLE[o.method])?.brand ?? "",
+        area: q.facade, method: o.method, executeOnly: o.projectType === "labour", colours: Math.max(1, q.extColours), brand: chosen.find((p) => p.role === EXTERIOR_FINISH_ROLE[o.method])?.brand ?? "",
         scaffoldDays: q.scaffoldDays, scope: { ...scope, sealer: coat("sealer", "facades") > 0 },
       },
       cfg.paintProducts,
@@ -327,7 +329,7 @@ export function priceSelection(sel: Selection, q: Quantities, ctx: PricingContex
       {
         ...(q.gypsumRooms?.length ? { rooms: q.gypsumRooms } : { quickAreas: { normal: q.ceilNormal, moisture: q.ceilMoisture, fire: q.ceilFire } }),
         partitions: q.partitions > 0 ? [{ id: "p", area: q.partitions, boardType: "normal", layersPerFace: 1, insulation: !!sel.steps.insulation?.on }] : [],
-        troughM: q.troughM, shadowM: q.shadowM, hatches: q.hatches, scope,
+        troughM: q.troughM, shadowM: q.shadowM, hatches: q.hatches, scope, executeOnly: o.projectType === "labour",
       },
       cfg.gypsum.catalogue,
       { ...cfg.gypsum.params, suspension: o.suspension, layers: Math.max(1, o.layers), hangingHeight: o.hangingHeight, cSpacing: o.cSpacing, omegaSpacing: o.omegaSpacing },
@@ -342,11 +344,17 @@ export function priceSelection(sel: Selection, q: Quantities, ctx: PricingContex
     for (let i = problems.length - 1; i >= 0; i--) if (!needed.has(problems[i].role)) problems.splice(i, 1);
   }
 
+  // Labour only: the client supplies the materials — nothing to price or report for them.
+  if (o.projectType === "labour") problems.length = 0;
+
   // We chose every product explicitly — brand "fallback" notes don't apply.
   result = { ...result, warnings: result.warnings.filter((w) => !w.startsWith("brand_fallback_")) };
 
   // Labour: our own team, an external contractor, or the template rates.
-  const { result: withLabour, note } = applyLabour(sel, result, ctx, c.rates);
+  const applied = applyLabour(sel, result, ctx, c.rates);
+  const note = o.projectType === "supply" ? null : applied.note;
+  // Supply only: no labour.
+  const withLabour = o.projectType === "supply" ? { ...applied.result, lines: applied.result.lines.filter((l) => l.group !== "labour") } : applied.result;
 
   const price = priceProject([withLabour], {
     contingencyPercent: sel.contingencyPercent ?? cfg.commercial.contingencyPercent,

@@ -436,6 +436,46 @@ export type ApprovalRow = OrgRow & Upd & {
   decision_note: string | null;
 };
 
+
+export type ContractStatus = "draft" | "sent" | "accepted" | "cancelled";
+export type ContractRow = OrgRow & Upd & {
+  number: string;
+  quote_id: string;
+  quote_version: number;
+  client_id: string;
+  service: "gypsum" | "interior" | "exterior";
+  project_type: "full" | "labour" | "supply";
+  start_date: string;
+  duration_days: number;
+  warranty_months: number;
+  total: number;
+  status: ContractStatus;
+  notes: string | null;
+  accepted_at: string | null;
+  accepted_name: string | null;
+  accepted_ip: string | null;
+  accepted_user_agent: string | null;
+  accepted_signature: string | null;
+};
+export type ContractPaymentRow = OrgRow & Upd & {
+  contract_id: string;
+  seq: number;
+  label: string;
+  percent: number;
+  amount: number;
+  due_event: "signing" | "material_supply" | "board_closing" | "primer_done" | "handover" | "custom";
+  status: "pending" | "requested" | "paid";
+  paid_at: string | null;
+};
+export type PortalLinkRow = OrgRow & {
+  contract_id: string;
+  token_hash: string;
+  expires_at: string;
+  revoked_at: string | null;
+  last_opened_at: string | null;
+  open_count: number;
+};
+
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -483,6 +523,9 @@ export type Database = {
       quote_versions: Table<QuoteVersionRow>;
       quote_version_costs: Table<QuoteVersionCostRow>;
       approvals: Table<ApprovalRow>;
+      contracts: Table<ContractRow>;
+      contract_payments: Table<ContractPaymentRow>;
+      client_portal_links: Table<PortalLinkRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
@@ -497,6 +540,8 @@ export type Database = {
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
+      portal_view: { Args: { p_number: string; p_token: string }; Returns: Json };
+      portal_accept: { Args: { p_number: string; p_token: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };
       seed_pricing_engine: { Args: { p_org: string }; Returns: { products: number; rates: number } };
       seed_employee_cost_items: { Args: { p_org: string }; Returns: number };
       log_event: {
