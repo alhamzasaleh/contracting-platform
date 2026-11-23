@@ -25,6 +25,12 @@ export function scheduleAmounts(total: number, percents: number[]): number[] {
 
 export const percentSum = (percents: number[]) => r2(percents.reduce((a, b) => a + b, 0));
 
+/** Cap one payment's percentage so the schedule never totals more than 100 %. */
+export function capPercent(value: number, others: number[]): number {
+  const room = Math.max(0, r2(100 - percentSum(others)));
+  return r2(Math.min(Math.max(0, value), room));
+}
+
 /** §3.7: warn (not block) when the first payment covers less than 75 % of the material cost. */
 export function firstPaymentWarning(firstAmount: number, materialCost: number, threshold = 75): { warn: boolean; coverage: number } {
   if (materialCost <= 0) return { warn: false, coverage: 100 };

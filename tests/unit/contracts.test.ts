@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstPaymentWarning, linkExpiry, percentSum, scheduleAmounts, suggestedDays } from "@/lib/contracts";
+import { capPercent, firstPaymentWarning, linkExpiry, percentSum, scheduleAmounts, suggestedDays } from "@/lib/contracts";
 
 describe("contract helpers", () => {
   it("splits the total by percentages, last payment absorbs rounding", () => {
@@ -22,5 +22,15 @@ describe("contract helpers", () => {
   it("keeps the client link alive until the warranty ends", () => {
     const d = linkExpiry("2026-12-01", 10, 6, new Date("2026-11-23T00:00:00Z"));
     expect(d.toISOString().slice(0, 10)).toBe("2027-07-10");
+  });
+});
+
+describe("capPercent", () => {
+  it("never lets the schedule exceed 100 %", () => {
+    expect(capPercent(50, [40, 30])).toBe(30);
+    expect(capPercent(20, [40, 30])).toBe(20);
+    expect(capPercent(10, [60, 40])).toBe(0);
+    expect(capPercent(-5, [])).toBe(0);
+    expect(capPercent(33.335, [33.33, 33.33])).toBe(33.34);
   });
 });

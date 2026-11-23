@@ -14,7 +14,7 @@ import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { ActionResult } from "@/lib/actions";
-import { firstPaymentWarning, percentSum, scheduleAmounts, type DueEvent } from "@/lib/contracts";
+import { capPercent, firstPaymentWarning, percentSum, scheduleAmounts, type DueEvent } from "@/lib/contracts";
 import type { ContractDetail, ContractDraft, ContractListItem } from "@/lib/data/contracts";
 import type { ContractStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
@@ -52,7 +52,7 @@ export function ContractsView({ contracts, base = "" }: { contracts: ContractLis
   );
 }
 
-type Row = { label: string; percent: number | null; due_event: DueEvent };
+type Row = { label: string; percent: number | null; due_event: DueEvent; text?: string };
 
 /** Create a contract from an issued quote, or edit a draft/sent one. */
 export function ContractEditor({ draft, onSave, base = "" }: { draft: ContractDraft; onSave?: (i: Record<string, unknown>) => Promise<ActionResult<{ number: string }>>; base?: string }) {
@@ -74,6 +74,21 @@ export function ContractEditor({ draft, onSave, base = "" }: { draft: ContractDr
   const amounts = scheduleAmounts(draft.quote.total, percents);
   const warn = draft.materialCost != null && rows.length ? firstPaymentWarning(amounts[0] ?? 0, draft.materialCost) : null;
   const setRow = (i: number, patch: Partial<Row>) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const remaining = Math.max(0, Math.round((100 - sum) * 100) / 100);
+  // typing a percentage can never push the total above 100 %
+  const setPercent = (i: number, raw: string) => {
+    const n = toNumber(raw);
+    if (typeof n !== "number") return setRow(i, { percent: null, text: raw });
+    const capped = capPercent(n, percents.filter((_, j) => j !== i));
+    setRow(i, { percent: capped || null, text: capped === n ? raw : String(capped) });
+  };
+  // put the remainder on the first empty payment, else on the last one
+  const fillRemaining = () => {
+    const i = rows.findIndex((r) => !r.percent);
+    const at = i >= 0 ? i : rows.length - 1;
+    const v = Math.round(((rows[at].percent ?? 0) + remaining) * 100) / 100;
+    setRow(at, { percent: v, text: String(v) });
+  };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
@@ -119,7 +134,7 @@ export function ContractEditor({ draft, onSave, base = "" }: { draft: ContractDr
                   </NativeSelect>
                 </Field>
                 <Field id={`pp-${i}`} label={t("percent")}>
-                  <NumberInput defaultValue={r.percent ?? ""} onChange={(e) => setRow(i, { percent: typeof toNumber(e.target.value) === "number" ? (toNumber(e.target.value) as number) : null })} suffix="%" />
+                  <NumberInput value={r.text ?? (r.percent ?? "")} onChange={(e) => setPercent(i, e.target.value)} suffix="%" />
                 </Field>
                 <Button variant="ghost" size="icon-sm" aria-label={t("removePayment")} onClick={() => setRows((x) => x.filter((_, j) => j !== i))} disabled={rows.length === 1}>
                   <Trash2 />
@@ -128,9 +143,19 @@ export function ContractEditor({ draft, onSave, base = "" }: { draft: ContractDr
               </li>
             ))}
           </ul>
-          <Button variant="ghost" size="sm" className="justify-self-start" onClick={() => setRows((x) => [...x, { label: "", percent: null, due_event: "custom" }])}>
-            <Plus /> {t("addPayment")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setRows((x) => [...x, { label: "", percent: null, due_event: "custom" }])}>
+              <Plus /> {t("addPayment")}
+            </Button>
+            {remaining > 0 && (
+              <>
+                <span className="font-latin text-[13px] text-muted-foreground">{t("remaining", { n: fmt.number(remaining, 2) })}</span>
+                <Button variant="secondary" size="sm" onClick={fillRemaining}>
+                  {t("fillRemaining")}
+                </Button>
+              </>
+            )}
+          </div>
           {warn?.warn && (
             <p className="flex gap-2 rounded-2xl bg-warning-soft px-4 py-3 text-[13px]">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
@@ -169,7 +194,11 @@ export function ContractEditor({ draft, onSave, base = "" }: { draft: ContractDr
         >
           {draft.contract ? t("saveChanges") : t("create")}
         </Button>
-        {Math.abs(sum - 100) >= 0.01 && <p className="text-[12px] text-danger">{t("sumMust100")}</p>}
+        {Math.abs(sum - 100) >= 0.01 ? (
+          <p className="text-[12px] text-danger">{t("sumMust100")}</p>
+        ) : (
+          rows.some((r) => !r.label.trim() || !r.percent) && <p className="text-[12px] text-danger">{t("emptyPayment")}</p>
+        )}
       </aside>
     </div>
   );

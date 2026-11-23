@@ -40,6 +40,14 @@ describe("contracts", () => {
     expect(r.number).toBe(`C-${year}-001`);
   });
 
+  it("a schedule can't total more than 100 %", async () => {
+    await expectDenied(
+      as({ userId: owner }, (q) => q("insert into public.contract_payments (organization_id, contract_id, seq, label, percent, amount) values ($1,$2,3,'زيادة',10,1000)", [org, contract])),
+      /exceed 100/,
+    );
+    await expectDenied(as({ userId: owner }, (q) => q("update public.contract_payments set percent = 60 where contract_id = $1 and seq = 1", [contract])), /exceed 100/);
+  });
+
   it("one active contract per quote", async () => {
     await expectDenied(
       as({ userId: owner }, (q) =>
