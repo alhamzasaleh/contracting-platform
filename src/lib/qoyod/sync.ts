@@ -154,8 +154,9 @@ async function invoiceSource(ctx: Ctx, job: QoyodJobRow): Promise<InvoiceSource>
     const { data: c } = await admin.from("contracts").select("number, client_id, service, quote_id, quote_version").eq("id", pay.contract_id).single();
     const con = need(c, "contract");
     const { data: v } = await admin.from("quote_versions").select("vat_percent").eq("quote_id", con.quote_id).eq("version", con.quote_version).maybeSingle();
+    const { data: inv } = await admin.from("invoices").select("number").eq("payment_id", job.entity_id).maybeSingle();
     return {
-      reference: invoiceRef(con.number, pay.seq),
+      reference: inv?.number ?? invoiceRef(con.number, pay.seq),
       clientId: con.client_id,
       description: `${con.number} — ${pay.label}`,
       line: pay.label,
@@ -170,8 +171,9 @@ async function invoiceSource(ctx: Ctx, job: QoyodJobRow): Promise<InvoiceSource>
   const ad = need(a, "addendum");
   const { data: c } = await admin.from("contracts").select("number, client_id, service").eq("id", ad.contract_id).single();
   const con = need(c, "contract");
+  const { data: inv } = await admin.from("invoices").select("number").eq("addendum_id", job.entity_id).maybeSingle();
   return {
-    reference: ad.number,
+    reference: inv?.number ?? ad.number,
     clientId: con.client_id,
     description: `${ad.number} — ${con.number}`,
     line: ad.title,

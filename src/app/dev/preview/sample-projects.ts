@@ -49,6 +49,7 @@ export const SAMPLE_PORTAL_WORK: PortalData = {
     handover_at: "2026-11-20T10:00:00Z", warranty_end: "2027-05-20", active: true,
     requests: [{ id: "mr1", number: "MR-2026-001", body: "شق بسيط فوق باب المجلس.", photos: [], status: "resolved", reply: "تمت المعالجة وإعادة الدهان.", created_at: "2026-11-21T09:00:00Z", resolved_at: "2026-11-22T15:00:00Z", client_confirmed_at: null }],
   },
+  invoiceDocs: [{ id: "iv1", number: "INV-2026-001", kind: "simple", issue_date: "2026-11-20", due_date: "2026-11-20", description: "عند توقيع العقد", seller: { name: "مؤسسة ملمس" }, buyer: { name: "أبو محمد" }, subtotal: 18400, vat_percent: 0, vat: 0, total: 18400, paid: 18400, official: "p1", has_official: false }],
   receipts: [{ number: "RV-2026-007", label: "عند توقيع العقد", amount: 18400, paid_on: "2026-11-20", method: "transfer", reference: null, created_at: "2026-11-20T09:00:00Z" }],
   execution: {
     stages: SAMPLE_PROJECT.stages.map((s) => ({

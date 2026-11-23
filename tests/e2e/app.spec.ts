@@ -366,3 +366,18 @@ test.describe("floating assistant (design preview)", () => {
     await expect(page.getByRole("button", { name: "اسأل المساعد" })).toBeVisible();
   });
 });
+
+test.describe("invoices (design preview)", () => {
+  test("list filters unpaid/paid and the document shows totals in words", async ({ page }) => {
+    await page.goto("/dev/preview/invoices");
+    await expect(page.getByText("INV-2026-003")).toBeVisible();
+    await expect(page.getByText("INV-2026-001")).toHaveCount(0);
+    await page.getByRole("radio", { name: "مسددة", exact: true }).click();
+    await expect(page.getByText("INV-2026-001")).toBeVisible();
+    await page.goto("/dev/preview/invoices/detail");
+    await expect(page.getByText("فاتورة", { exact: true })).toBeVisible();
+    await expect(page.getByText("فقط تسعة آلاف ومئتان ريال سعودي لا غير")).toBeVisible();
+    await page.goto("/dev/preview/portal/work");
+    await expect(page.getByRole("heading", { name: "الفواتير", exact: true })).toBeVisible();
+  });
+});

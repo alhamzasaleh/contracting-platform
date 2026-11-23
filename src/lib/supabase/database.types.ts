@@ -661,6 +661,12 @@ export type NotificationRow = { id: string; organization_id: string; user_id: st
 export type NotificationPrefRow = { organization_id: string; user_id: string; kind: NotificationKind; in_app: boolean; whatsapp: boolean; updated_at: string };
 export type NotificationDeliveryRow = { id: string; notification_id: string; organization_id: string; channel: "whatsapp"; phone: string; status: "queued" | "sent" | "failed"; attempts: number; last_error: string | null; sent_at: string | null; created_at: string };
 
+export type InvoiceParty = { name: string | null; legal_name?: string | null; cr_number?: string | null; vat_number?: string | null; id_number?: string | null; address?: string | null; city?: string | null; district?: string | null; phone?: string | null };
+export type InvoiceRow = {
+  id: string; organization_id: string; number: string; contract_id: string; payment_id: string | null; addendum_id: string | null; kind: "tax" | "simple";
+  issue_date: string; due_date: string; description: string; seller: InvoiceParty; buyer: InvoiceParty; subtotal: number; vat_percent: number; vat: number; total: number;
+  created_at: string; created_by: string | null;
+};
 export type ClientReceiptRow = {
   id: string; organization_id: string; number: string; contract_id: string; payment_id: string | null; addendum_id: string | null; label: string; amount: number;
   paid_on: string; method: "transfer" | "cash" | "cheque" | "card" | null; reference: string | null; created_at: string; created_by: string | null;
@@ -755,6 +761,7 @@ export type Database = {
       notification_deliveries: Table<NotificationDeliveryRow>;
       qoyod_settings: Table<QoyodSettingsRow>;
       client_receipts: Table<ClientReceiptRow>;
+      invoices: Table<InvoiceRow>;
       maintenance_requests: Table<MaintenanceRow>;
       client_messages: Table<ClientMessageRow>;
       qoyod_sync_jobs: Table<QoyodJobRow>;
@@ -782,6 +789,7 @@ export type Database = {
       portal_add_maintenance: { Args: { p_number: string; p_token: string; p_body: string; p_photos: string[] }; Returns: string | null };
       portal_confirm_maintenance: { Args: { p_number: string; p_token: string; p_request: string }; Returns: boolean };
       contract_warranties: { Args: { p_org: string }; Returns: { contract_id: string; number: string; client_name: string; handover_at: string | null; warranty_end: string | null }[] };
+      portal_invoice_docs: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_receipts: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_invoices: { Args: { p_number: string; p_token: string }; Returns: Json };
       create_payroll_run: { Args: { p_org: string; p_month: string }; Returns: string };

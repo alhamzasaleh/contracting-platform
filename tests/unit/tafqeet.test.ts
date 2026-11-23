@@ -42,3 +42,14 @@ describe("payroll CSV", () => {
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`);
   });
 });
+
+import { invoiceRemaining, invoiceStatus } from "@/lib/invoices";
+describe("invoice status", () => {
+  it("paid, partial, overdue, due", () => {
+    expect(invoiceStatus({ total: 100, paid: 100, due_date: "2026-01-01" }, "2026-11-23")).toBe("paid");
+    expect(invoiceStatus({ total: 100, paid: 0, due_date: "2026-11-01" }, "2026-11-23")).toBe("overdue");
+    expect(invoiceStatus({ total: 100, paid: 40, due_date: "2026-12-01" }, "2026-11-23")).toBe("partial");
+    expect(invoiceStatus({ total: 100, paid: 0, due_date: "2026-12-01" }, "2026-11-23")).toBe("due");
+    expect(invoiceRemaining({ total: 100, paid: 40.004 })).toBe(60);
+  });
+});

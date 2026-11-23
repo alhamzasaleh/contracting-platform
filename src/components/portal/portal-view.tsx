@@ -231,22 +231,26 @@ export function PortalView({
 
         <ReceiptsList items={data.receipts ?? []} hrefFor={(rv) => `/p/${encodeURIComponent(number)}/${token}/receipt/${encodeURIComponent(rv)}`} newTab />
 
-        {!!data.invoices?.length && (
+        {!!data.invoiceDocs?.length && (
           <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="invoices-title">
             <h2 id="invoices-title" className="text-[18px] font-bold">{t("invoicesTitle")}</h2>
             <p className="mt-1 text-[13px] text-muted-foreground">{t("invoicesHint")}</p>
             <ul className="mt-4 grid gap-2">
-              {data.invoices.map((key) => {
-                const pay = key.startsWith("p") ? data.payments.find((p) => `p${p.seq}` === key) : null;
-                return (
-                  <li key={key}>
-                    <a href={`/p/${encodeURIComponent(number)}/${token}/invoice/${encodeURIComponent(key)}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-3 rounded-2xl border border-border px-4 py-3 text-[14px] hover:border-border-strong">
-                      <span>{pay ? pay.label : <DocNo>{key}</DocNo>}</span>
-                      <span className="font-semibold text-primary">{t("invoiceOpen")}</span>
-                    </a>
-                  </li>
-                );
-              })}
+              {data.invoiceDocs.map((i) => (
+                <li key={i.number} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-border px-4 py-3 text-[14px]">
+                  <a href={`/p/${encodeURIComponent(number)}/${token}/bill/${encodeURIComponent(i.number)}`} target="_blank" rel="noopener noreferrer" className="min-w-0 hover:underline">
+                    <DocNo>{i.number}</DocNo> <span className="text-muted-foreground">· {i.description}</span>
+                  </a>
+                  <span className="flex items-center gap-3">
+                    <span className="font-bold">{fmt.money(i.total)}</span>
+                    {i.has_official && (
+                      <a href={`/p/${encodeURIComponent(number)}/${token}/invoice/${encodeURIComponent(i.official)}`} target="_blank" rel="noopener noreferrer" className="text-[13px] font-semibold text-primary hover:underline">
+                        {t("invoiceOfficial")}
+                      </a>
+                    )}
+                  </span>
+                </li>
+              ))}
             </ul>
           </section>
         )}

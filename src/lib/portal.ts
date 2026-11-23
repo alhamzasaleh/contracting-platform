@@ -2,6 +2,7 @@ import "server-only";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import type { ClientView } from "@/lib/quotes";
 import type { ReceiptItem } from "@/lib/receipts";
+import type { InvoiceParty } from "@/lib/supabase/database.types";
 import type { Brand } from "@/lib/supabase/database.types";
 import { blobToDataUrl } from "@/lib/org";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -26,7 +27,13 @@ export type PortalData = {
   /** Payments ("p<seq>") and addenda (AD- number) that have an official invoice from Qoyod. */
   invoices?: string[];
   receipts?: ReceiptItem[];
+  invoiceDocs?: PortalInvoice[];
   warranty?: PortalWarranty | null;
+};
+
+export type PortalInvoice = {
+  id: string; number: string; kind: "tax" | "simple"; issue_date: string; due_date: string; description: string; seller: InvoiceParty; buyer: InvoiceParty;
+  subtotal: number; vat_percent: number; vat: number; total: number; paid: number; official: string; has_official: boolean;
 };
 
 export type PortalMaintenance = {
@@ -116,6 +123,11 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
     const { data: rv } = await admin.rpc("portal_receipts", { p_number: number, p_token: token });
     receipts = ((rv as ReceiptItem[] | null) ?? []).map((r) => ({ ...r, amount: Number(r.amount) }));
   }
+  let invoiceDocs: PortalInvoice[] = [];
+  if (d.contract.status === "accepted") {
+    const { data: inv } = await admin.rpc("portal_invoice_docs", { p_number: number, p_token: token });
+    invoiceDocs = ((inv as PortalInvoice[] | null) ?? []).map((i) => ({ ...i, subtotal: Number(i.subtotal), vat_percent: Number(i.vat_percent), vat: Number(i.vat), total: Number(i.total), paid: Number(i.paid) }));
+  }
   let warranty: PortalWarranty | null = null;
   if (d.contract.status === "accepted") {
     const { data: w } = await admin.rpc("portal_warranty", { p_number: number, p_token: token });
@@ -131,5 +143,5 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
       };
     }
   }
-  return { data: { ...d, execution, addenda, invoices, receipts, warranty, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
+  return { data: { ...d, execution, addenda, invoices, receipts, warranty, invoiceDocs, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
 }
