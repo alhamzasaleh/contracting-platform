@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { loadQoyodOptions, qoyodBackfill, qoyodRetry, qoyodSyncNow, removeQoyodKey, saveQoyodKey, saveQoyodSettings } from "@/app/(app)/settings/qoyod/actions";
+import { loadQoyodOptions, qoyodAutoSetupNow, qoyodBackfill, qoyodRetry, qoyodSyncNow, removeQoyodKey, saveQoyodKey, saveQoyodSettings } from "@/app/(app)/settings/qoyod/actions";
 import { useFormatter } from "@/components/formatter-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -154,7 +154,14 @@ export function QoyodSettingsView({ data, preview, sampleOptions }: { data: Qoyo
       {connected && (
         <Card>
           <CardHeader>
-            <CardTitle>{t("setupTitle")}</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle>{t("setupTitle")}</CardTitle>
+              {data.canManage && (
+                <Button size="sm" variant="secondary" onClick={() => run(() => qoyodAutoSetupNow(), t("autoDone"))} disabled={pending}>
+                  <RefreshCw /> {t("autoSetup")}
+                </Button>
+              )}
+            </div>
             <CardDescription>{t("setupHint")}</CardDescription>
             {optionsError && <p className="mt-2 text-sm text-danger">{optionsError}</p>}
           </CardHeader>

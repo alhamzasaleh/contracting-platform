@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.types";
 import { qoyod, QoyodError } from "./client";
+import { qoyodAutoSetup } from "./setup";
 import { customerBody, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, simpleBillBody, vendorBody } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -36,7 +37,9 @@ export async function runQoyodSync(limit = 20): Promise<{ done: number; failed: 
         admin.from("qoyod_settings").select("*").eq("organization_id", job.organization_id).maybeSingle(),
         admin.rpc("qoyod_api_key", { p_org: job.organization_id }),
       ]);
-      ctxs.set(job.organization_id, s && key ? { admin, key: key as string, s: s as QoyodSettingsRow } : null);
+      let settings = s as QoyodSettingsRow | null;
+      if (settings && key) settings = await fillMissing(admin, key as string, settings);
+      ctxs.set(job.organization_id, settings && key ? { admin, key: key as string, s: settings } : null);
     }
     const ctx = ctxs.get(job.organization_id);
     try {
@@ -57,6 +60,24 @@ export async function runQoyodSync(limit = 20): Promise<{ done: number; failed: 
     }
   }
   return result;
+}
+
+/** Something we create ourselves is missing (e.g. a service product) → prepare it in Qoyod now, once. */
+async function fillMissing(admin: Admin, key: string, s: QoyodSettingsRow): Promise<QoyodSettingsRow> {
+  const products = s.service_products ?? {};
+  if (s.inventory_id && s.receive_account_id && s.expense_account_id && products.gypsum && products.interior && products.exterior && s.addendum_product_id) return s;
+  try {
+    const { data: org } = await admin.from("organizations").select("vat_number").eq("id", s.organization_id).single();
+    const auto = await qoyodAutoSetup(key, !!org?.vat_number);
+    const next = {
+      inventory_id: s.inventory_id ?? auto.inventory_id, receive_account_id: s.receive_account_id ?? auto.receive_account_id, expense_account_id: s.expense_account_id ?? auto.expense_account_id,
+      service_products: { ...auto.service_products, ...products }, addendum_product_id: s.addendum_product_id ?? auto.addendum_product_id,
+    };
+    await admin.from("qoyod_settings").update(next).eq("organization_id", s.organization_id);
+    return { ...s, ...next };
+  } catch {
+    return s;
+  }
 }
 
 function need<T>(v: T | null | undefined, code: string): T {

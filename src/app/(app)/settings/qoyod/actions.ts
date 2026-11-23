@@ -7,6 +7,7 @@ import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
 import { runBackground } from "@/lib/background";
 import { qoyodOptions, type QoyodOptions } from "@/lib/qoyod/client";
+import { qoyodAutoSetup } from "@/lib/qoyod/setup";
 import { runQoyodSync } from "@/lib/qoyod/sync";
 import { rateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -33,8 +34,49 @@ export async function saveQoyodKey(input: unknown): Promise<ActionResult<QoyodOp
     console.error("[qoyod] save key failed", { code: error.code });
     return { ok: false, error: "error" };
   }
+  await applyAutoSetup(session, parsed.data.key);
   revalidatePath(PATH);
-  return { ok: true, data: options };
+  return { ok: true, data: await qoyodOptions(parsed.data.key).catch(() => options) };
+}
+
+/**
+ * Prepare Qoyod from our side: warehouse, accounts and our service products are
+ * picked / created automatically. Only empty settings are filled (the owner's
+ * choices stay); sending is switched on in Draft mode once the basics exist.
+ */
+async function applyAutoSetup(session: Awaited<ReturnType<typeof getSession>>, key: string): Promise<boolean> {
+  try {
+    const auto = await qoyodAutoSetup(key, !!session.organization.vat_number);
+    const supabase = await createClient();
+    const { data: cur } = await supabase.from("qoyod_settings").select("enabled, inventory_id, receive_account_id, expense_account_id, service_products, addendum_product_id").eq("organization_id", session.organization.id).maybeSingle();
+    const products = { ...auto.service_products, ...((cur?.service_products ?? {}) as Record<string, number>) };
+    const inventory_id = cur?.inventory_id ?? auto.inventory_id;
+    const receive_account_id = cur?.receive_account_id ?? auto.receive_account_id;
+    const { error } = await supabase
+      .from("qoyod_settings")
+      .update({
+        inventory_id, receive_account_id, expense_account_id: cur?.expense_account_id ?? auto.expense_account_id,
+        service_products: products, addendum_product_id: cur?.addendum_product_id ?? auto.addendum_product_id,
+        enabled: cur?.enabled || !!(inventory_id && receive_account_id), updated_by: session.userId,
+      })
+      .eq("organization_id", session.organization.id);
+    return !error;
+  } catch {
+    console.error("[qoyod] auto setup failed");
+    return false;
+  }
+}
+
+/** Run the automatic preparation again (e.g. after adding a bank account in Qoyod). */
+export async function qoyodAutoSetupNow(): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "settings.manage")) return { ok: false, error: "noAccess" };
+  if ((await rateLimit(`qoyod:setup:${session.userId}`, 10, 600)) !== "ok") return { ok: false, error: "limited" };
+  const { data: key } = await createAdminClient().rpc("qoyod_api_key", { p_org: session.organization.id });
+  if (!key) return { ok: false, error: "qoyodNoKey" };
+  const ok = await applyAutoSetup(session, key as string);
+  revalidatePath(PATH);
+  return ok ? { ok: true } : { ok: false, error: "qoyodSetup" };
 }
 
 export async function removeQoyodKey(): Promise<ActionResult> {

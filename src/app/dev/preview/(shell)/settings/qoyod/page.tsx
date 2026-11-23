@@ -17,7 +17,7 @@ const DATA: QoyodPageData = {
     { id: "j1", kind: "invoice", status: "done", attempts: 1, last_error: null, qoyod_id: 101, amount: null, created_at: ago(2), done_at: ago(2), label: `C-${y}-004/2 · بعد توريد المواد` },
     { id: "j2", kind: "invoice_payment", status: "done", attempts: 1, last_error: null, qoyod_id: 55, amount: 18400, created_at: ago(1), done_at: ago(1), label: `C-${y}-004/2 · بعد توريد المواد` },
     { id: "j3", kind: "bill", status: "done", attempts: 1, last_error: null, qoyod_id: 77, amount: null, created_at: ago(5), done_at: ago(5), label: `PO-${y}-006 · مؤسسة الأفق للمواد` },
-    { id: "j4", kind: "invoice", status: "queued", attempts: 1, last_error: "missing:product_exterior", qoyod_id: null, amount: null, created_at: ago(0.5), done_at: null, label: `C-${y}-005/1 · عند التوقيع` },
+    { id: "j4", kind: "invoice", status: "queued", attempts: 1, last_error: "network", qoyod_id: null, amount: null, created_at: ago(0.5), done_at: null, label: `C-${y}-005/1 · عند التوقيع` },
     { id: "j5", kind: "bill", status: "failed", attempts: 6, last_error: "HTTP 422: {\"reference\":[\"has already been taken\"]}", qoyod_id: null, amount: null, created_at: ago(26), done_at: null, label: `PO-${y}-003 · مصنع الجبس الوطني` },
   ],
 };
