@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { as, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
+import { as, asServer, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
 
 let owner: string, supervisor: string;
 let org: string, quote: string, quote2: string, client: string, contract: string, pay: string;
@@ -20,7 +20,7 @@ beforeAll(async () => {
     quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
     quote2 = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
     for (const id of [quote, quote2]) {
-      await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1000,1000)", [org, id]);
+      await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1000,1000)", [org, id]);
       await q("select public.issue_quote($1, null)", [id]);
     }
   });

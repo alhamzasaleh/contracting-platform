@@ -726,11 +726,12 @@ function ItemDialog({ onClose, save }: { onClose: () => void; save?: (i: Record<
 
 // --- Estimated vs actual ------------------------------------------------------------
 
-export function ProjectCostsView({ rows, base = "" }: { rows: ProjectCost[]; base?: string }) {
+/** labourHidden: costs are shown but in-house labour isn't because the user lacks hr.view (salaries). */
+export function ProjectCostsView({ rows, base = "", labourHidden = false }: { rows: ProjectCost[]; base?: string; labourHidden?: boolean }) {
   const t = useTranslations("purchases");
   const { fmt } = useFormatter();
   if (!rows.length) return <EmptyState icon={<ShoppingCart />} title={t("noProjectsTitle")} description={t("noProjectsBody")} />;
-  const labourHidden = rows.some((r) => r.labour == null);
+  const noLabour = rows.some((r) => r.labour == null);
   return (
     <div className="grid gap-3">
       <ul className="grid gap-3 [&>*]:min-w-0">
@@ -771,7 +772,7 @@ export function ProjectCostsView({ rows, base = "" }: { rows: ProjectCost[]; bas
           );
         })}
       </ul>
-      <p className="text-[11px] text-subtle-foreground">{labourHidden ? t("actualNoteHidden") : t("actualNote")}</p>
+      <p className="text-[11px] text-subtle-foreground">{labourHidden ? t("actualNoteHidden") : noLabour ? t("actualNoteNoLabour") : t("actualNote")}</p>
     </div>
   );
 }

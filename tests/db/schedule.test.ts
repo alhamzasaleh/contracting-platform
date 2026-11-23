@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { as, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
+import { as, asServer, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
 
 let owner: string, ownerB: string, viewer: string;
 let org: string, orgB: string, contract: string, team: string, employee: string;
@@ -17,7 +17,7 @@ beforeAll(async () => {
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'viewer')", [org, viewer]);
     const client = (await q<{ id: string }>("insert into public.clients (organization_id, name) values ($1,'عميل') returning id", [org])).rows[0].id;
     const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
-    await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1,1)", [org, quote]);
+    await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1,1)", [org, quote]);
     await q("select public.issue_quote($1, null)", [quote]);
     contract = (await q<{ id: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total) values ($1,$2,1,$3,'gypsum','2026-12-01',10,1) returning id", [org, quote, client])).rows[0].id;
     employee = (await q<{ id: string }>("insert into public.employees (organization_id, full_name, job_title, basic_salary) values ($1,'أحمد','مركب جبس',3000) returning id", [org])).rows[0].id;

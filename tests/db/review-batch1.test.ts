@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { employeeCost, type CostItem } from "@/lib/costing";
-import { as, asAdmin, closePool, createUser, expectDenied, resetDatabase, type Q } from "./db";
+import { as, asServer, asAdmin, closePool, createUser, expectDenied, resetDatabase, type Q } from "./db";
 
 /**
  * Review batch 1 (Nov 2026): money & security fixes.
@@ -19,7 +19,7 @@ async function makeContract(total: number, events: string[] = ["signing"], accep
   const token = "tok_" + randomBytes(24).toString("hex");
   const made = await as({ userId: owner }, async (q) => {
     const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
-    await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',$3,$3)", [org, quote, total]);
+    await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',$3,$3)", [org, quote, total]);
     await q("select public.issue_quote($1, null)", [quote]);
     const c = (await q<{ id: string; number: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total, status) values ($1,$2,1,$3,'gypsum',current_date,10,$4,'sent') returning id, number", [org, quote, client, total])).rows[0];
     const payments: string[] = [];
@@ -147,8 +147,8 @@ describe("#3 owner approval can't be bypassed", () => {
   beforeAll(async () => {
     quote = await as({ userId: sup }, async (q) => {
       const id = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
-      const v = (await q<{ id: string }>("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',5000,5000) returning id", [org, id])).rows[0].id;
-      await q("insert into public.quote_version_costs (quote_version_id, organization_id, cost, cost_with_contingency, margin_percent, lines, purchase_list) values ($1,$2,4500,4500,10,'[]','[]')", [v, org]);
+      const v = (await asServer<{ id: string }>(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',5000,5000) returning id", [org, id])).rows[0].id;
+      await asServer(q, "insert into public.quote_version_costs (quote_version_id, organization_id, cost, cost_with_contingency, margin_percent, lines, purchase_list) values ($1,$2,4500,4500,10,'[]','[]')", [v, org]);
       await q("insert into public.approvals (organization_id, kind, entity, entity_id, details) values ($1,'quote_margin','quote',$2,'{\"version\":1}')", [org, id]);
       await q("update public.quotes set status = 'pending_approval' where id = $1", [id]);
       return id;
@@ -175,11 +175,11 @@ describe("#3 owner approval can't be bypassed", () => {
   it("a new version on an issued quote sends it back to draft", async () => {
     const q2 = await as({ userId: owner }, async (q) => {
       const id = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
-      await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',100,100)", [org, id]);
+      await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',100,100)", [org, id]);
       await q("select public.issue_quote($1, null)", [id]);
       return id;
     });
-    await as({ userId: sup }, (q) => q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1,1)", [org, q2]));
+    await as({ userId: sup }, (q) => asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1,1)", [org, q2]));
     const s = await asAdmin((q) => q<{ status: string }>("select status from public.quotes where id = $1", [q2]));
     expect(s.rows[0].status).toBe("draft");
   });
@@ -187,7 +187,7 @@ describe("#3 owner approval can't be bypassed", () => {
   it("a contract needs an issued quote and takes its total from the quote version", async () => {
     const draft = await as({ userId: sup }, async (q) => {
       const id = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
-      await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',100,100)", [org, id]);
+      await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',100,100)", [org, id]);
       return id;
     });
     await expectDenied(as({ userId: sup }, (q) => q("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total) values ($1,$2,1,$3,'gypsum',current_date,5,100)", [org, draft, client])), /issued/);
@@ -202,9 +202,9 @@ describe("#4 stale approvals", () => {
   it("a new version supersedes older pending approvals even when saved by a supervisor", async () => {
     const quote = await as({ userId: sup }, async (q) => {
       const id = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
-      await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',100,100)", [org, id]);
+      await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',100,100)", [org, id]);
       await q("insert into public.approvals (organization_id, kind, entity, entity_id, details) values ($1,'quote_discount','quote',$2,'{\"version\":1}')", [org, id]);
-      await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',100,100)", [org, id]);
+      await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',100,100)", [org, id]);
       return id;
     });
     const a = await asAdmin((q) => q<{ status: string }>("select status from public.approvals where entity_id = $1", [quote]));
@@ -214,7 +214,7 @@ describe("#4 stale approvals", () => {
   it("dropping options cancels the dropped versions' pending approvals", async () => {
     const quote = await as({ userId: sup }, async (q) => {
       const id = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
-      for (let i = 0; i < 2; i++) await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',100,100)", [org, id]);
+      for (let i = 0; i < 2; i++) await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',100,100)", [org, id]);
       await q("update public.quotes set options = '[{\"version\":1,\"label\":\"أ\"},{\"version\":2,\"label\":\"ب\"}]' where id = $1", [id]);
       await q("insert into public.approvals (organization_id, kind, entity, entity_id, details) values ($1,'quote_margin','quote',$2,'{\"version\":1}'),($1,'quote_margin','quote',$2,'{\"version\":2}')", [org, id]);
       await q("update public.quotes set options = null where id = $1", [id]);
@@ -408,12 +408,12 @@ describe("#8 in-house labour actual cost", () => {
       return n;
     };
     const monthStart = Date.parse(`${t.slice(0, 7)}-01`);
-    const monthEnd = Date.UTC(Number(t.slice(0, 4)), Number(t.slice(5, 7)), 0);
     const days = workDays(Math.max(monthStart, Date.parse(t) - 4 * 86_400_000), Date.parse(t));
     const r = await as({ userId: owner }, (q) => q<{ monthly: string; allocated: string; to_date: string }>("select * from public.team_cost_month($1)", [org]));
     expect(Number(r.rows[0].monthly)).toBeCloseTo(monthly, 2);
     expect(Number(r.rows[0].allocated)).toBeCloseTo(days * perDay, 2);
-    expect(Number(r.rows[0].to_date)).toBeCloseTo((monthly * workDays(monthStart, Date.parse(t))) / workDays(monthStart, monthEnd), 1);
+    // the same daily rate as allocated: each member's cost per worker-day × the work days gone so far
+    expect(Number(r.rows[0].to_date)).toBeCloseTo(perDay * workDays(monthStart, Date.parse(t)), 2);
     await expectDenied(as({ userId: sup }, (q) => q("select * from public.team_cost_month($1)", [org])), /not allowed/);
     // finance without hr.view (salaries) doesn't see team cost either
     await as({ userId: owner }, (q) => q(`update public.memberships set permission_overrides = '{"grant":[],"deny":["hr.view"]}' where organization_id = $1 and user_id = $2`, [org, fin]));
@@ -469,18 +469,18 @@ describe("review findings on batch 1", () => {
   it("a quote with unpriced items can't be issued, and an accepted quote's version is frozen", async () => {
     const quote = await as({ userId: owner }, async (q) => {
       const id = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
-      await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total, problems) values ($1,$2,1,'{}','{}','{}',100,100,2)", [org, id]);
+      await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total, problems) values ($1,$2,1,'{}','{}','{}',100,100,2)", [org, id]);
       return id;
     });
     await expectDenied(as({ userId: owner }, (q) => q("select public.issue_quote($1, null)", [quote])), /unpriced/);
     const c = await makeContract(3000);
     await asAdmin((q) => q("update public.quotes set status = 'accepted' where id = $1", [c.quote]));
-    await expectDenied(as({ userId: owner }, (q) => q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,2,'{}','{}','{}',1,1)", [org, c.quote])), /accepted/);
+    await expectDenied(as({ userId: owner }, (q) => asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,2,'{}','{}','{}',1,1)", [org, c.quote])), /accepted/);
   });
 
   it("a version's unpriced count can't be negative", async () => {
     const id = await as({ userId: owner }, async (q) => (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id);
-    await expectDenied(as({ userId: owner }, (q) => q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total, problems) values ($1,$2,1,'{}','{}','{}',1,1,-1)", [org, id])), /problems/);
+    await expectDenied(as({ userId: owner }, (q) => asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total, problems) values ($1,$2,1,'{}','{}','{}',1,1,-1)", [org, id])), /problems/);
   });
 
   it("a payment requested with an earlier request time keeps it, and its invoice is dated then", async () => {
@@ -497,7 +497,7 @@ describe("review findings on batch 1", () => {
       // started 14 days ago, due yesterday, never visited
       await q("update public.contracts set start_date = (now() at time zone 'Asia/Riyadh')::date - 14, duration_days = 13 where id = $1", [c.id]);
       const qv = (await q<{ id: string }>("select v.id from public.quote_versions v where v.quote_id = $1 and v.version = 1", [c.quote])).rows[0].id;
-      await q("insert into public.quote_version_costs (quote_version_id, organization_id, cost, cost_with_contingency, margin_percent, lines, purchase_list) values ($1,$2,100,100,30,'[{\"group\":\"material\",\"cost\":100}]','[]')", [qv, org]);
+      await asServer(q, "insert into public.quote_version_costs (quote_version_id, organization_id, cost, cost_with_contingency, margin_percent, lines, purchase_list) values ($1,$2,100,100,30,'[{\"group\":\"material\",\"cost\":100}]','[]')", [qv, org]);
       const item = (await q<{ id: string }>("insert into public.inventory_items (organization_id, name, unit, is_general) values ($1,'دهان','pail',false) returning id", [org])).rows[0].id;
       await q("insert into public.inventory_movements (organization_id, item_id, contract_id, kind, quantity, unit_cost) values ($1,$2,$3,'issue',10,500)", [org, item, c.id]);
     });

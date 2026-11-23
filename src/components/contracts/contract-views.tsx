@@ -524,14 +524,24 @@ function ClientMessages({ detail, orgName }: { detail: ContractDetail; orgName: 
     ...detail.payments
       .map((p) => ({ p, left: remainingAmount(p.amount, p.paid_amount) }))
       .filter(({ p, left }) => p.status === "requested" && left > 0)
-      .map(({ p, left }) => ({ key: `p${p.seq}`, title: `${p.label} · ${fmt.money(left)}`, text: t("payRequest", { ...base, label: p.label, amount: fmt.money(left) }), label: t("btnRemind") })),
+      .map(({ p, left }) => ({
+        key: `p${p.seq}`, title: `${p.label} · ${fmt.money(left)}`, label: t("btnRemind"),
+        // late (7+ days since the request): the same reminder as /reports
+        text: p.late_days ? t("payLate", { ...base, label: p.label, amount: fmt.money(left), days: p.late_days }) : t("payRequest", { ...base, label: p.label, amount: fmt.money(left) }),
+      })),
     ...detail.addenda
       .filter((a) => a.status === "sent")
       .map((a) => ({ key: a.id, title: `${ltr(a.number)} · ${a.title}`, text: t("addendum", { ...base, number: ltr(a.number), title: a.title, amount: fmt.money(a.total) }), label: t("btnSend") })),
     ...detail.addenda
       .map((a) => ({ a, left: remainingAmount(a.total, a.paid_amount) }))
       .filter(({ a, left }) => a.status === "accepted" && a.payment_status === "requested" && left > 0)
-      .map(({ a, left }) => ({ key: `pay-${a.id}`, title: `${ltr(a.number)} · ${fmt.money(left)}`, text: t("payRequest", { ...base, label: `${ltr(a.number)} — ${a.title}`, amount: fmt.money(left) }), label: t("btnRemind") })),
+      .map(({ a, left }) => {
+        const label = `${ltr(a.number)} — ${a.title}`;
+        return {
+          key: `pay-${a.id}`, title: `${ltr(a.number)} · ${fmt.money(left)}`, label: t("btnRemind"),
+          text: a.late_days ? t("payLate", { ...base, label, amount: fmt.money(left), days: a.late_days }) : t("payRequest", { ...base, label, amount: fmt.money(left) }),
+        };
+      }),
     ...(detail.receipts ?? [])
       .slice(-3)
       .reverse()

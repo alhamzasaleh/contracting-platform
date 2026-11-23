@@ -38,5 +38,5 @@ const OPTIONS: QoyodOptions = {
 };
 
 export default function PreviewQoyod() {
-  return <QoyodSettingsView preview data={DATA} sampleOptions={OPTIONS} />;
+  return <QoyodSettingsView preview data={DATA} sampleOptions={OPTIONS} base="/dev/preview" />;
 }

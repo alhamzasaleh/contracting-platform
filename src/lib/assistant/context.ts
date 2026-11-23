@@ -24,6 +24,8 @@ export type AssistantFacts = {
   overBudget: OwnerFinance["overBudget"];
   forecast: { week: string; inflow: number; outflow: number; balance: number; shortfall: boolean }[];
   pendingApprovals: { kind: string; number: string | null; since: string }[];
+  /** costs are shown without in-house labour (built from salaries: the user lacks hr.view) — profits exclude it */
+  labourHidden: boolean;
 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -65,6 +67,7 @@ export function buildFacts(
     overBudget: f.overBudget,
     forecast: f.forecast.map((w) => ({ week: w.start, inflow: r2(w.inflow), outflow: r2(w.outflow), balance: r2(w.balance), shortfall: w.shortfall })),
     pendingApprovals: f.approvals.map((a) => ({ kind: a.kind, number: typeof a.details.number === "string" ? a.details.number : null, since: a.created_at.slice(0, 10) })),
+    labourHidden: !!f.labourHidden,
   };
 }
 

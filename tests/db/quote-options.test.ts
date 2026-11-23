@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { as, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
+import { as, asServer, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
 
 let owner: string, org: string, quote: string, quote2: string, contract: string, client: string;
 const TOKEN = "tok_" + "o".repeat(40);
@@ -18,7 +18,7 @@ beforeAll(async () => {
     quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'interior') returning id", [org, client])).rows[0].id;
     quote2 = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'interior') returning id", [org, client])).rows[0].id;
     for (const [t, qid] of [[11500, quote], [9200, quote], [5000, quote2]] as const) {
-      await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, vat_percent, vat, total) values ($1,$2,1,'{}','{}','{}',$3,0,0,$3)", [org, qid, t]);
+      await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, vat_percent, vat, total) values ($1,$2,1,'{}','{}','{}',$3,0,0,$3)", [org, qid, t]);
       await q("select public.issue_quote($1, null)", [qid]);
     }
   });

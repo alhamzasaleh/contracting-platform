@@ -4,7 +4,7 @@ import { previewNoop } from "../../../preview-actions";
 import { SAMPLE_CONTRACT, SAMPLE_PAYMENTS } from "../../../sample-contracts";
 import { SAMPLE_ORG } from "../../../sample-quotes";
 
-/** Accepted by the client: signing payment requested and partly paid, material supply waiting for staff to request it. */
+/** Accepted by the client: signing payment requested (9 days ago) and partly paid, material supply waiting for staff to request it. */
 const ACCEPTED: ContractDetail = {
   ...SAMPLE_CONTRACT,
   contract: { ...SAMPLE_CONTRACT.contract, status: "accepted", accepted_at: "2026-11-23T10:15:00Z", accepted_name: SAMPLE_CONTRACT.client.name, accepted_ip: "188.48.10.20", accepted_user_agent: "Mozilla/5.0 (iPhone)", signed: true },
@@ -14,6 +14,8 @@ const ACCEPTED: ContractDetail = {
     status: i === 0 ? "requested" : "pending",
     paid_amount: i === 0 ? Math.round(p.amount / 2) : 0,
     requestable: p.due_event === "material_supply",
+    // requested 9 days ago: the WhatsApp reminder says it's late
+    late_days: i === 0 ? 9 : null,
   })),
 };
 

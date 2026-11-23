@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { as, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
+import { as, asServer, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
 
 let owner: string, ownerB: string, org: string, orgB: string, service: string;
 
@@ -51,7 +51,7 @@ describe("booking a subcontractor's team prepares his agreement", () => {
     const contract = await as({ userId: owner }, async (q) => {
       const client = (await q<{ id: string }>("insert into public.clients (organization_id, name) values ($1,'عميل') returning id", [org])).rows[0].id;
       const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'exterior') returning id", [org, client])).rows[0].id;
-      await q(
+      await asServer(q,
         `insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total)
          values ($1,$2,1,$3::jsonb,'{}',$4::jsonb,18480,18480)`,
         [org, quote, JSON.stringify({ labour: { source: "external", externalId: rate.id } }), JSON.stringify({ workTypes: [{ workType: "facades", area: 660, pricePerM2: 28, total: 18480 }] })],

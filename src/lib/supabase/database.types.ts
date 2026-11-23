@@ -829,6 +829,9 @@ export type Database = {
       record_client_payment: { Args: { p_payment: string; p_paid_on: string; p_amount: number; p_method: string; p_reference: string | null }; Returns: string };
       record_addendum_payment: { Args: { p_addendum: string; p_paid_on: string; p_amount: number; p_method: string; p_reference: string | null }; Returns: string };
       request_contract_payment: { Args: { p_payment: string }; Returns: undefined };
+      requestable_payments: { Args: { p_org: string; p_contract?: string | null }; Returns: { payment_id: string }[] };
+      save_quote_version: { Args: { p_user: string; p_quote: string; p_payload: Json }; Returns: { id: string; version: number }[] };
+      qoyod_wake_waiting: { Args: { p_org: string }; Returns: number };
       issue_quote: { Args: { p_quote: string; p_valid_until: string | null }; Returns: undefined };
       project_labour_costs: { Args: { p_org: string }; Returns: { contract_id: string; labour: number }[] };
       team_cost_month: { Args: { p_org: string }; Returns: { monthly: number; allocated: number; to_date: number }[] };

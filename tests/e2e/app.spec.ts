@@ -519,7 +519,7 @@ test.describe("linked flows (design preview)", () => {
 
 test.describe("no runtime errors (design preview)", () => {
   // e.g. a hydration mismatch when the server and the browser format a number differently
-  for (const path of ["", "/reports", "/contracts/detail", "/purchases/costs", "/settings/qoyod", "/projects/detail", "/team/payroll"]) {
+  for (const path of ["", "/reports", "/contracts/detail", "/contracts/sent", "/purchases/costs", "/settings/qoyod", "/projects/detail", "/team/payroll"]) {
     test(`page ${path || "/"} renders without errors`, async ({ page }) => {
       const errors: string[] = [];
       page.on("pageerror", (e) => errors.push(e.message));

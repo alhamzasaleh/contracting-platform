@@ -141,8 +141,32 @@ export async function saveQoyodSettings(input: unknown): Promise<ActionResult> {
     console.error("[qoyod] settings failed", { code: error.code });
     return { ok: false, error: "error" };
   }
+  // sending switched to "Approved": what waited for it goes now (not in up to 12 hours)
+  if (v.enabled && v.invoice_status === "Approved") {
+    const { error: e } = await supabase.rpc("qoyod_wake_waiting", { p_org: session.organization.id });
+    if (e) console.error("[qoyod] wake failed", { code: e.code });
+    else after(runBackground);
+  }
   revalidatePath(PATH);
   return { ok: true };
+}
+
+/**
+ * The owner approved the draft invoices in Qoyod: send the payments (and anything else
+ * waiting for an approval) now instead of at the next retry.
+ */
+export async function qoyodApprovedSendNow(input: unknown): Promise<ActionResult<{ count: number }>> {
+  const session = await getSession();
+  if (!can(session, "settings.manage") && !can(session, "finance.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({}).strict().safeParse(input ?? {});
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  if ((await rateLimit(`qoyod:wake:${session.organization.id}`, 20, 600)) !== "ok") return { ok: false, error: "limited" };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("qoyod_wake_waiting", { p_org: session.organization.id });
+  if (error) return { ok: false, error: error.code === "42501" ? "noAccess" : "error" };
+  after(runBackground);
+  revalidatePath(PATH);
+  return { ok: true, data: { count: Number(data ?? 0) } };
 }
 
 export async function qoyodSyncNow(): Promise<ActionResult<{ done: number; failed: number }>> {

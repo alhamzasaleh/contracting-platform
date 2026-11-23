@@ -1,10 +1,11 @@
 "use client";
-import { AlertTriangle, CheckCircle2, FileText, KeyRound, Link2, RefreshCw, RotateCcw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, KeyRound, Link2, RefreshCw, RotateCcw, Send } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { loadQoyodOptions, qoyodAutoSetupNow, qoyodBackfill, qoyodRetry, qoyodSyncNow, removeQoyodKey, saveQoyodKey, saveQoyodSettings } from "@/app/(app)/settings/qoyod/actions";
+import { loadQoyodOptions, qoyodApprovedSendNow, qoyodAutoSetupNow, qoyodBackfill, qoyodRetry, qoyodSyncNow, removeQoyodKey, saveQoyodKey, saveQoyodSettings } from "@/app/(app)/settings/qoyod/actions";
 import { useFormatter } from "@/components/formatter-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ const SERVICES = ["gypsum", "interior", "exterior"] as const;
 const num = (v: string) => (v ? Number(v) : null);
 
 /** Settings → Qoyod: key, the accounts/warehouse/products to use, and the sync log. */
-export function QoyodSettingsView({ data, preview, sampleOptions }: { data: QoyodPageData; preview?: boolean; sampleOptions?: QoyodOptions }) {
+export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: { data: QoyodPageData; preview?: boolean; sampleOptions?: QoyodOptions; base?: string }) {
   const t = useTranslations("qoyod");
   const tc = useTranslations("common");
   const te = useTranslations("errors");
@@ -240,17 +241,26 @@ export function QoyodSettingsView({ data, preview, sampleOptions }: { data: Qoyo
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="size-5 text-warning" /> {t("draftTitle")}
             </CardTitle>
-            <CardDescription>{t("draftHint")}</CardDescription>
+            <CardDescription>{t("draftListHint")}</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="flex flex-wrap gap-2">
               {data.draftInvoices!.map((n) => (
-                <li key={n} className="rounded-full border border-border px-3 py-1 text-[13px]">
-                  <bdi dir="ltr" className="font-latin">{n}</bdi>
+                <li key={n}>
+                  <Link href={`${base}/invoices/${n}`} className="inline-flex min-h-9 items-center rounded-full border border-border px-3 py-1 text-[13px] hover:border-primary hover:text-primary">
+                    <bdi dir="ltr" className="font-latin">{n}</bdi>
+                  </Link>
                 </li>
               ))}
             </ul>
           </CardContent>
+          {data.canRetry && (
+            <CardFooter>
+              <Button onClick={() => run(() => qoyodApprovedSendNow({}), t("approvedSent"))} loading={pending}>
+                <Send /> {t("approvedSendNow")}
+              </Button>
+            </CardFooter>
+          )}
         </Card>
       )}
 

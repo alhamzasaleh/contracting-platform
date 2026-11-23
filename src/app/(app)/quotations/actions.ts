@@ -9,6 +9,7 @@ import { loadPricingContext } from "@/lib/data/pricing";
 import { priceSelection, type Selection } from "@/lib/pricing";
 import { selectionSchema } from "@/lib/pricing/schema";
 import { buildSnapshot, readiness } from "@/lib/quotes";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { surveyGaps, surveyQuantities, type SurveyRoom, type SurveyTotals } from "@/lib/survey";
 import type { Json } from "@/lib/supabase/database.types";
@@ -16,9 +17,17 @@ import type { Json } from "@/lib/supabase/database.types";
 const id = z.uuid();
 const n = (v: unknown) => Number(v ?? 0);
 
-function fail(error: { code?: string } | null, what: string): ActionResult<never> {
+function fail(error: { code?: string; message?: string } | null, what: string): ActionResult<never> {
   console.error(`[quotes] ${what} failed`, { code: error?.code });
-  return { ok: false, error: error?.code === "42501" ? "noAccess" : "error" };
+  if (error?.code === "42501") return { ok: false, error: /accepted quote/.test(error.message ?? "") ? "quoteLocked" : "noAccess" };
+  if (error?.code === "22023" && /sent to the client/.test(error.message ?? "")) return { ok: false, error: "quoteContractSent" };
+  return { ok: false, error: "error" };
+}
+
+/** A contract sent to the client freezes its quote until he answers (the database refuses too). */
+async function contractSent(supabase: Awaited<ReturnType<typeof createClient>>, quoteId: string): Promise<boolean> {
+  const { data } = await supabase.from("contracts").select("id").eq("quote_id", quoteId).eq("status", "sent").limit(1);
+  return !!data?.length;
 }
 
 /** Quantities always come from the survey on the server — never from the browser. */
@@ -82,6 +91,7 @@ export async function saveQuoteVersion(input: unknown): Promise<ActionResult<{ n
     const { data: existing } = await supabase.from("quotes").select("id, number, service, survey_id, status").eq("id", quoteId).eq("organization_id", orgId).maybeSingle();
     if (!existing || existing.service !== sel.kind || existing.survey_id !== v.survey_id) return { ok: false, error: "invalid" };
     if (existing.status === "accepted") return { ok: false, error: "quoteLocked" };
+    if (await contractSent(supabase, existing.id)) return { ok: false, error: "quoteContractSent" };
     number = existing.number;
   } else {
     const { data: created, error } = await supabase
@@ -94,25 +104,29 @@ export async function saveQuoteVersion(input: unknown): Promise<ActionResult<{ n
     number = created.number;
   }
 
+  // The version and its costs are written by the database for this user (save_quote_version,
+  // service role only): users can't insert versions themselves, so nobody can freeze a price or
+  // margin that wasn't computed here.
   const cv = snap.clientView;
-  const { data: version, error: e1 } = await supabase
-    .from("quote_versions")
-    .insert({
-      organization_id: orgId, quote_id: quoteId, version: 1,
-      selection: sel as unknown as Json, quantities: src.q as unknown as Json, client_view: cv as unknown as Json,
-      pricing_method: v.method, estimated: src.estimated, discount: cv.discount, subtotal: cv.subtotal,
-      vat_percent: cv.vatPercent, vat: cv.vat, total: cv.total, notes: v.notes,
-      // server-recomputed unpriced items: the database refuses to issue a version that has any
-      problems: outcome.problems.length,
-    })
-    .select("id, version")
-    .single();
-  if (e1) return fail(e1, "version");
-  const { error: e2 } = await supabase.from("quote_version_costs").insert({
-    quote_version_id: version.id, organization_id: orgId, cost: snap.cost, cost_with_contingency: snap.costWithContingency,
-    margin_percent: snap.marginPercent, lines: snap.lines as unknown as Json, purchase_list: snap.purchaseList as unknown as Json,
+  const { data: saved, error: e1 } = await createAdminClient().rpc("save_quote_version", {
+    p_user: session.userId,
+    p_quote: quoteId,
+    p_payload: {
+      version: {
+        selection: sel as unknown as Json, quantities: src.q as unknown as Json, client_view: cv as unknown as Json,
+        pricing_method: v.method, estimated: src.estimated, discount: cv.discount, subtotal: cv.subtotal,
+        vat_percent: cv.vatPercent, vat: cv.vat, total: cv.total, notes: v.notes,
+        // server-recomputed unpriced items: the database refuses to issue a version that has any
+        problems: outcome.problems.length,
+      },
+      costs: {
+        cost: snap.cost, cost_with_contingency: snap.costWithContingency, margin_percent: snap.marginPercent,
+        lines: snap.lines as unknown as Json, purchase_list: snap.purchaseList as unknown as Json,
+      },
+    } as Json,
   });
-  if (e2) return fail(e2, "costs");
+  const version = saved?.[0];
+  if (e1 || !version) return fail(e1, "version");
 
   // Approvals for this version (older pending ones are superseded by the database when the version is saved)
   for (const kind of check.approvals) {
@@ -218,8 +232,8 @@ export async function setQuoteOptions(input: unknown): Promise<ActionResult> {
   const { data: q } = await supabase.from("quotes").select("id, number, status, current_version").eq("id", quote_id).eq("organization_id", orgId).maybeSingle();
   if (!q) return { ok: false, error: "invalid" };
   if (q.status === "accepted") return { ok: false, error: "quoteLocked" };
-  const { data: contract } = await supabase.from("contracts").select("id").eq("quote_id", q.id).neq("status", "cancelled").maybeSingle();
-  if (contract) return { ok: false, error: "quoteLocked" };
+  const { data: contract } = await supabase.from("contracts").select("id, status").eq("quote_id", q.id).neq("status", "cancelled").maybeSingle();
+  if (contract) return { ok: false, error: contract.status === "sent" ? "quoteContractSent" : "quoteLocked" };
 
   const approvals: { kind: "quote_margin" | "quote_discount"; version: number; details: Record<string, unknown> }[] = [];
   if (options) {

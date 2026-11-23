@@ -19,7 +19,8 @@
 --   #8 In-house labour actual cost: scheduled work days (up to today) of in-house
 --      teams × the members' fully loaded cost per worker-day (same formula as
 --      employeeCost() in src/lib/costing). Totals only; needs hr.view (built from
---      salaries). A team booked on several projects the same day is shared equally.
+--      salaries). An employee booked on several projects the same day (in one or more
+--      teams) is shared equally between them.
 --   Review of this batch: legacy "paid" addenda can't be paid again; payments whose
 --      stage isn't on the project can be requested; unpriced versions can't be issued
 --      (quote_versions.problems) and an accepted quote's version is frozen; signing
@@ -29,10 +30,11 @@
 
 -- ---------------------------------------------------------------------------
 -- #6 notify(): the contract can be given explicitly (links are no longer parsed
--- when it is). Same body otherwise.
+-- when it is); a second permission can be required (profit alerts: costs.view + hr.view).
 -- ---------------------------------------------------------------------------
 drop function private.notify(uuid, text, text, jsonb, text, text);
-create or replace function private.notify(p_org uuid, p_permission text, p_kind text, p_params jsonb, p_link text, p_dedupe text default null, p_contract uuid default null)
+create or replace function private.notify(p_org uuid, p_permission text, p_kind text, p_params jsonb, p_link text, p_dedupe text default null, p_contract uuid default null,
+                                          p_also_permission text default null)
 returns void
 language plpgsql
 security definer
@@ -47,7 +49,8 @@ declare
 begin
   for m in select ms.user_id from public.memberships ms
            where ms.organization_id = p_org and ms.status = 'active' loop
-    if not (p_permission = any (private.member_permissions(p_org, m.user_id))) then
+    if not (p_permission = any (private.member_permissions(p_org, m.user_id)))
+       or (p_also_permission is not null and not (p_also_permission = any (private.member_permissions(p_org, m.user_id)))) then
       continue;
     end if;
     if v_contract is not null and not private.member_can_access(p_org, m.user_id, v_contract) then
@@ -78,7 +81,7 @@ begin
   end loop;
 end;
 $$;
-revoke all on function private.notify(uuid, text, text, jsonb, text, text, uuid) from public;
+revoke all on function private.notify(uuid, text, text, jsonb, text, text, uuid, text) from public;
 
 -- Where an approval is decided: the item's page and its project (if any).
 create or replace function private.approval_target(p_entity text, p_entity_id uuid, out link text, out contract_id uuid)
@@ -378,6 +381,27 @@ from public.contracts c
 where c.id = p.contract_id and c.status = 'accepted' and p.due_event = 'signing' and p.status = 'pending';
 
 -- Material supply / custom payments: staff request them (stage payments follow the client's confirmation).
+-- Why a payment can't be requested now (null = it can). One rule for request_contract_payment and
+-- requestable_payments (the button the app shows).
+create or replace function private.payment_request_block(p public.contract_payments)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when not exists (select 1 from public.contracts c where c.id = p.contract_id and c.status = 'accepted') then 'the contract isn''t accepted'
+    -- stage payments follow the client's confirmation, unless the project has no such stage
+    when p.due_event = 'signing'
+         or (p.due_event not in ('material_supply', 'custom')
+             and exists (select 1 from public.project_stages s where s.contract_id = p.contract_id and s.payment_event = p.due_event))
+      then 'stage payments are requested when the client confirms the stage'
+    when p.status <> 'pending' then 'already requested'
+  end
+$$;
+revoke all on function private.payment_request_block(public.contract_payments) from public;
+
 create or replace function public.request_contract_payment(p_payment uuid)
 returns void
 language plpgsql
@@ -386,6 +410,7 @@ set search_path = ''
 as $$
 declare
   p public.contract_payments;
+  v_block text;
 begin
   select * into p from public.contract_payments where id = p_payment for update;
   if p.id is null
@@ -393,23 +418,35 @@ begin
      or not private.can_access_contract(p.organization_id, p.contract_id) then
     raise exception 'not allowed' using errcode = '42501';
   end if;
-  if not exists (select 1 from public.contracts c where c.id = p.contract_id and c.status = 'accepted') then
-    raise exception 'the contract isn''t accepted' using errcode = '22023';
-  end if;
-  -- stage payments follow the client's confirmation, unless the project has no such stage
-  if p.due_event = 'signing'
-     or (p.due_event not in ('material_supply', 'custom')
-         and exists (select 1 from public.project_stages s where s.contract_id = p.contract_id and s.payment_event = p.due_event)) then
-    raise exception 'stage payments are requested when the client confirms the stage' using errcode = '22023';
-  end if;
-  if p.status <> 'pending' then
-    raise exception 'already requested' using errcode = '22023';
+  v_block := private.payment_request_block(p);
+  if v_block is not null then
+    raise exception '%', v_block using errcode = '22023';
   end if;
   update public.contract_payments set status = 'requested' where id = p.id;
 end;
 $$;
 revoke all on function public.request_contract_payment(uuid) from public, anon;
 grant execute on function public.request_contract_payment(uuid) to authenticated, service_role;
+
+-- The payments the caller may request now (exactly what request_contract_payment accepts), so the
+-- app shows the button even when the user can't read the project's stages. Nothing for users
+-- who can't request payments or can't see the project.
+create or replace function public.requestable_payments(p_org uuid, p_contract uuid default null)
+returns table (payment_id uuid)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.id from public.contract_payments p
+  where p.organization_id = p_org and (p_contract is null or p.contract_id = p_contract)
+    and p.status = 'pending'
+    and (private.has_permission(p_org, 'finance.manage') or private.has_permission(p_org, 'quotes.manage'))
+    and private.can_access_contract(p_org, p.contract_id)
+    and private.payment_request_block(p) is null
+$$;
+revoke all on function public.requestable_payments(uuid, uuid) from public, anon;
+grant execute on function public.requestable_payments(uuid, uuid) to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- #3 / #4 Quotes: issue only through issue_quote; approvals superseded by the DB
@@ -454,6 +491,91 @@ end;
 $$;
 create trigger quotes_guard before insert or update on public.quotes
   for each row execute function private.guard_quote();
+
+-- A contract sent to the client freezes its quote: no new version, no other options, until the
+-- client accepts (the acceptance itself moves the quote to the agreed version) or the contract
+-- is cancelled. Definer: the check must see the contract whatever the user may read.
+create or replace function private.guard_quote_sent()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if (new.current_version is distinct from old.current_version or new.options is distinct from old.options)
+     and new.status is distinct from 'accepted'
+     and exists (select 1 from public.contracts c where c.quote_id = new.id and c.status = 'sent') then
+    raise exception 'the contract was sent to the client: the quote can''t change' using errcode = '22023';
+  end if;
+  return new;
+end;
+$$;
+create trigger quotes_guard_sent before update on public.quotes
+  for each row execute function private.guard_quote_sent();
+
+-- Acceptance keeps quotes.current_version = the contract's (chosen) version.
+create or replace function public.portal_accept(p_number text, p_token text, p_name text, p_signature text, p_ip text, p_user_agent text, p_version int default null)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_link public.client_portal_links;
+  v_contract public.contracts;
+  v_total numeric;
+  v_last int;
+begin
+  if p_token is null or char_length(p_token) < 32 or char_length(p_token) > 100 then
+    return false;
+  end if;
+  if p_name is null or char_length(trim(p_name)) < 2 or char_length(p_name) > 160 then
+    raise exception 'name required' using errcode = '22023';
+  end if;
+  if p_signature is not null and (char_length(p_signature) > 200000 or p_signature !~ '^data:image/png;base64,[A-Za-z0-9+/=]+$') then
+    raise exception 'invalid signature' using errcode = '22023';
+  end if;
+  v_link := private.portal_link(p_number, p_token);
+  if v_link.id is null then
+    return false;
+  end if;
+  select * into v_contract from public.contracts where id = v_link.contract_id and status = 'sent' for update;
+  if v_contract.id is null then
+    return false;
+  end if;
+
+  if v_contract.options is not null then
+    if p_version is null or not exists (select 1 from jsonb_array_elements(v_contract.options) e where (e ->> 'version')::int = p_version) then
+      raise exception 'choose an option' using errcode = '22023';
+    end if;
+    select v.total into v_total from public.quote_versions v where v.quote_id = v_contract.quote_id and v.version = p_version;
+    -- the payment amounts follow the agreed percentages of the chosen option (the last absorbs rounding)
+    select max(seq) into v_last from public.contract_payments where contract_id = v_contract.id;
+    update public.contract_payments p
+    set amount = case when p.seq = v_last
+                      then v_total - coalesce((select sum(round(v_total * x.percent / 100, 2)) from public.contract_payments x
+                                               where x.contract_id = v_contract.id and x.seq <> v_last), 0)
+                      else round(v_total * p.percent / 100, 2) end
+    where p.contract_id = v_contract.id;
+    update public.contracts set quote_version = p_version, total = v_total where id = v_contract.id;
+  elsif p_version is not null and p_version <> v_contract.quote_version then
+    raise exception 'no options on this contract' using errcode = '22023';
+  end if;
+
+  update public.contracts
+  set status = 'accepted', accepted_at = now(), accepted_name = trim(p_name), accepted_signature = p_signature,
+      accepted_ip = left(p_ip, 64), accepted_user_agent = left(p_user_agent, 400)
+  where id = v_contract.id;
+  -- the quote shows what the client agreed to (the chosen option)
+  update public.quotes q set status = 'accepted', current_version = coalesce(p_version, v_contract.quote_version) where q.id = v_contract.quote_id;
+  insert into public.audit_log (organization_id, actor_id, action, table_name, record_id, after)
+  values (v_contract.organization_id, null, 'client_accept', 'contracts', v_contract.id::text,
+          jsonb_build_object('name', trim(p_name), 'ip', left(p_ip, 64), 'signed', p_signature is not null, 'option', p_version));
+  return true;
+end;
+$$;
+revoke all on function public.portal_accept(text, text, text, text, text, text, int) from public, anon, authenticated;
+grant execute on function public.portal_accept(text, text, text, text, text, text, int) to service_role;
 
 -- The versions a quote offers: its options, or its current version.
 create or replace function private.offered_versions(p_quote uuid)
@@ -970,19 +1092,6 @@ as $$
   from public.employees e where e.id = p_employee
 $$;
 
--- A team's cost per day: its active members.
-create or replace function private.team_day_cost(p_team uuid)
-returns numeric
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce(sum(private.employee_day_cost(e.id)), 0)
-  from public.team_members m join public.employees e on e.id = m.employee_id
-  where m.team_id = p_team and e.status = 'active'
-$$;
-
 -- Working days between two dates (inclusive): Friday is the weekly rest day
 -- (cost per worker-day = monthly cost ÷ 26 working days).
 create or replace function private.work_days(p_from date, p_to date)
@@ -997,8 +1106,9 @@ $$;
 revoke all on function private.work_days(date, date) from public;
 
 -- In-house labour on a project between two days (inclusive): each booked work day (no Fridays)
--- of an in-house team costs the team's day cost, shared equally between the projects the team
--- is booked on that day (so a day is never charged twice). Overlapping bookings count once.
+-- of each active member of an in-house team costs that employee's day cost, shared equally
+-- between the projects he is booked on that day through any in-house team (so an employee's
+-- day is never charged twice, even when he is in two teams). Overlapping bookings count once.
 create or replace function private.project_labour(p_contract uuid, p_from date default null, p_to date default null)
 returns numeric
 language sql
@@ -1007,24 +1117,28 @@ security definer
 set search_path = ''
 as $$
   with days as (
-    select distinct s.team_id, g::date as d
+    select distinct m.employee_id, g::date as d
     from public.schedule_entries s
-    join public.teams t on t.id = s.team_id
+    join public.teams t on t.id = s.team_id and t.kind = 'inhouse'
+    join public.team_members m on m.team_id = t.id
+    join public.employees e on e.id = m.employee_id and e.status = 'active'
     cross join lateral generate_series(greatest(s.start_date, coalesce(p_from, s.start_date)),
                                        least(s.end_date, coalesce(p_to, (now() at time zone 'Asia/Riyadh')::date)),
                                        interval '1 day') g
-    where s.contract_id = p_contract and s.kind = 'work' and t.kind = 'inhouse'
+    where s.contract_id = p_contract and s.kind = 'work'
       and extract(isodow from g) <> 5
   )
   select coalesce(sum(
-           private.team_day_cost(x.team_id)
+           private.employee_day_cost(x.employee_id)
            / greatest(1, (select count(distinct o.contract_id) from public.schedule_entries o
+                          join public.teams ot on ot.id = o.team_id and ot.kind = 'inhouse'
+                          join public.team_members om on om.team_id = o.team_id and om.employee_id = x.employee_id
                           join public.contracts oc on oc.id = o.contract_id
-                          where o.team_id = x.team_id and o.kind = 'work' and x.d between o.start_date and o.end_date
+                          where o.kind = 'work' and x.d between o.start_date and o.end_date
                             and (oc.status <> 'cancelled' or oc.id = p_contract)))), 0)
   from days x
 $$;
-revoke all on function private.employee_month_cost(uuid), private.employee_day_cost(uuid), private.team_day_cost(uuid),
+revoke all on function private.employee_month_cost(uuid), private.employee_day_cost(uuid),
   private.project_labour(uuid, date, date) from public;
 
 -- Project figures used by the alerts, now with in-house labour.
@@ -1099,13 +1213,12 @@ begin
                                     where m.employee_id = e.id and t.kind = 'inhouse' and t.is_active)), 0), 2),
       round(coalesce((select sum(private.project_labour(c.id, v_start, v_today)) from public.contracts c
                       where c.organization_id = p_org and c.status <> 'cancelled'), 0), 2),
-      -- the share of the month's cost for the work days gone so far (fair comparison early in the month)
-      round(coalesce((select sum(private.employee_month_cost(e.id)) from public.employees e
+      -- the same daily rate as allocated: each member's cost per worker-day × the work days gone so far
+      round(coalesce((select sum(private.employee_day_cost(e.id)) from public.employees e
                       where e.organization_id = p_org and e.status = 'active'
                         and exists (select 1 from public.team_members m join public.teams t on t.id = m.team_id
                                     where m.employee_id = e.id and t.kind = 'inhouse' and t.is_active)), 0)
-            * private.work_days(v_start, v_today)
-            / greatest(private.work_days(v_start, (v_start + interval '1 month - 1 day')::date), 1), 2);
+            * private.work_days(v_start, v_today), 2);
 end;
 $$;
 revoke all on function public.team_cost_month(uuid) from public, anon;
@@ -1241,10 +1354,11 @@ begin
       + coalesce((select sum(a.amount) from public.addenda a where a.contract_id = r.id and a.status = 'accepted'), 0);
     v_actual := v_revenue - (v_act.materials + v_act.subcontractors + v_act.labour);
     v_expected := case when v_est_all > 0 then v_revenue - v_est_all end;
+    -- the profit includes in-house labour (built from salaries): costs.view and hr.view
     if (v_act.materials + v_act.subcontractors + v_act.labour) > 0 and (v_actual < 0 or (v_expected is not null and v_expected > 0 and v_actual < v_expected * 0.5)) then
       perform private.notify(r.organization_id, 'costs.view', 'project_losing',
         jsonb_build_object('number', r.number, 'client', r.client, 'profit', round(v_actual, 2), 'expected', round(v_expected, 2)),
-        '/purchases/costs', 'losing:' || r.id || ':' || case when v_actual < 0 then 'loss' else 'low' end, r.id);
+        '/purchases/costs', 'losing:' || r.id || ':' || case when v_actual < 0 then 'loss' else 'low' end, r.id, 'hr.view');
       v_count := v_count + 1;
     end if;
   end loop;
@@ -1287,3 +1401,138 @@ as $$
       and (auth.uid() is null or p_user = auth.uid() or private.is_member(p_org))
   ), array[]::text[])
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Quote versions are written only by the server. A user with quotes.manage could
+-- otherwise insert a version (and its costs) with any total / margin and issue it
+-- without the owner. saveQuoteVersion recomputes the price on the server and saves it
+-- through public.save_quote_version (service role only), which checks the user.
+-- ---------------------------------------------------------------------------
+revoke insert, update, delete, truncate on public.quote_versions, public.quote_version_costs from authenticated;
+drop policy if exists quote_versions_insert on public.quote_versions;
+drop policy if exists quote_version_costs_insert on public.quote_version_costs;
+
+create or replace function public.save_quote_version(p_user uuid, p_quote uuid, p_payload jsonb)
+returns table (id uuid, version int)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  q public.quotes;
+  v jsonb := p_payload -> 'version';
+  c jsonb := p_payload -> 'costs';
+  v_perms text[];
+  v_id uuid;
+  v_version int;
+begin
+  select * into q from public.quotes x where x.id = p_quote;
+  -- the user: an active member of the quote's organization with quotes.manage (+ costs.view for the costs)
+  v_perms := case when q.id is null or p_user is null then array[]::text[] else private.member_permissions(q.organization_id, p_user) end;
+  if not ('quotes.manage' = any (v_perms)) or (c is not null and jsonb_typeof(c) = 'object' and not ('costs.view' = any (v_perms))) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  if v is null or jsonb_typeof(v) <> 'object' then
+    raise exception 'invalid version' using errcode = '22023';
+  end if;
+  insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, pricing_method, estimated,
+                                     discount, subtotal, vat_percent, vat, total, notes, problems, created_by)
+  values (q.organization_id, q.id, 1, v -> 'selection', v -> 'quantities', v -> 'client_view', coalesce(v ->> 'pricing_method', 'unit'),
+          coalesce((v ->> 'estimated')::boolean, false), coalesce((v ->> 'discount')::numeric, 0), (v ->> 'subtotal')::numeric,
+          coalesce((v ->> 'vat_percent')::numeric, 0), coalesce((v ->> 'vat')::numeric, 0), (v ->> 'total')::numeric, v ->> 'notes',
+          coalesce((v ->> 'problems')::int, 0), p_user)
+  returning quote_versions.id, quote_versions.version into v_id, v_version;
+  if c is not null and jsonb_typeof(c) = 'object' then
+    insert into public.quote_version_costs (quote_version_id, organization_id, cost, cost_with_contingency, margin_percent, lines, purchase_list, created_by)
+    values (v_id, q.organization_id, (c ->> 'cost')::numeric, (c ->> 'cost_with_contingency')::numeric, (c ->> 'margin_percent')::numeric,
+            c -> 'lines', coalesce(c -> 'purchase_list', '[]'::jsonb), p_user);
+  end if;
+  return query select v_id, v_version;
+end;
+$$;
+revoke all on function public.save_quote_version(uuid, uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.save_quote_version(uuid, uuid, jsonb) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- Rows from before amounts were recorded, and approvals from before they carried
+-- their contract. Idempotent; run once here (the triggers issue the receipts,
+-- invoice paid state, client page and Qoyod jobs).
+-- ---------------------------------------------------------------------------
+create or replace function private.review_backfill()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.addenda a
+  set paid_amount = a.total, paid_at = coalesce(a.paid_at, (a.accepted_at at time zone 'Asia/Riyadh')::date, (a.updated_at at time zone 'Asia/Riyadh')::date)
+  where a.payment_status = 'paid' and a.paid_amount is null;
+
+  update public.approvals ap
+  set details = ap.details || jsonb_build_object('contract', c.number)
+  from public.addenda ad join public.contracts c on c.id = ad.contract_id
+  where ap.entity = 'addendum' and ap.entity_id = ad.id and not (ap.details ? 'contract');
+end;
+$$;
+revoke all on function private.review_backfill() from public;
+select private.review_backfill();
+
+-- The client page: a payment marked paid is paid in full (also rows from before amounts were recorded).
+create or replace function public.portal_invoice_docs(p_number text, p_token text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_link public.client_portal_links;
+begin
+  v_link := private.portal_link(p_number, p_token);
+  if v_link.id is null then
+    return null;
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', i.id, 'number', i.number, 'kind', i.kind, 'issue_date', i.issue_date, 'due_date', i.due_date,
+      'description', i.description, 'seller', i.seller, 'buyer', i.buyer, 'subtotal', i.subtotal, 'vat_percent', i.vat_percent, 'vat', i.vat,
+      'total', i.total, 'created_at', i.created_at,
+      'paid', case when p.status = 'paid' or a.payment_status = 'paid' then greatest(i.total, coalesce(p.paid_amount, a.paid_amount, 0))
+                   else coalesce(p.paid_amount, a.paid_amount, 0) end,
+      'official', case when i.payment_id is not null then 'p' || p.seq else a.number end,
+      'has_official', exists (select 1 from public.qoyod_sync_jobs j where j.entity_id = coalesce(i.payment_id, i.addendum_id) and j.kind = 'invoice' and j.status = 'done' and j.qoyod_id is not null))
+      order by i.issue_date, i.number)
+    from public.invoices i
+    left join public.contract_payments p on p.id = i.payment_id
+    left join public.addenda a on a.id = i.addendum_id
+    where i.contract_id = v_link.contract_id), '[]'::jsonb);
+end;
+$$;
+revoke all on function public.portal_invoice_docs(text, text) from public, anon, authenticated;
+grant execute on function public.portal_invoice_docs(text, text) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- Qoyod: the owner approved the draft invoices in Qoyod (or switched sending to
+-- "Approved") → the waiting jobs are sent now instead of in up to 12 hours.
+-- ---------------------------------------------------------------------------
+create or replace function public.qoyod_wake_waiting(p_org uuid)
+returns int
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count int;
+begin
+  if not (private.has_permission(p_org, 'finance.manage') or private.has_permission(p_org, 'settings.manage')) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  update public.qoyod_sync_jobs set next_attempt_at = now()
+  where organization_id = p_org and status = 'queued' and last_error like 'waiting:%';
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke all on function public.qoyod_wake_waiting(uuid) from public, anon;
+grant execute on function public.qoyod_wake_waiting(uuid) to authenticated, service_role;

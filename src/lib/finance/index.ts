@@ -35,6 +35,22 @@ export function canRequestPayment(p: { due_event: DueEvent; status: string }, st
   return p.due_event === "material_supply" || p.due_event === "custom" || !stageEvents.has(p.due_event);
 }
 
+/** Why public.request_contract_payment refused (22023), as a message key; null for anything else. */
+export function paymentRequestError(message: string | null | undefined): "paymentNotAccepted" | "paymentByStage" | "paymentAlreadyRequested" | null {
+  if (!message) return null;
+  if (/isn't accepted/.test(message)) return "paymentNotAccepted";
+  if (/confirms the stage/.test(message)) return "paymentByStage";
+  if (/already requested/.test(message)) return "paymentAlreadyRequested";
+  return null;
+}
+
+/** Days since a payment was requested when it is late (7 days or more), else null. */
+export function lateDays(requestedAt: string | null | undefined, today: string): number | null {
+  if (!requestedAt) return null;
+  const days = Math.round((Date.parse(today) - Date.parse(requestedAt.slice(0, 10))) / 86_400_000);
+  return days >= 7 ? days : null;
+}
+
 /** What is left to collect on an amount (never negative, cents). */
 export function remainingAmount(amount: number, paid: number | null | undefined): number {
   return Math.max(0, r2(amount - (paid ?? 0)));

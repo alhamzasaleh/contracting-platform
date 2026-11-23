@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addendumPaid, ageing, canRequestPayment, expectedPaymentDate, paydays, projectProfit, remainingAmount, weeklyForecast } from "@/lib/finance";
+import { addendumPaid, ageing, canRequestPayment, expectedPaymentDate, lateDays, paydays, paymentRequestError, projectProfit, remainingAmount, weeklyForecast } from "@/lib/finance";
 
 const c = { start_date: "2026-12-01", days: 20 };
 const p = (due_event: Parameters<typeof expectedPaymentDate>[0]["due_event"], extra: Partial<Parameters<typeof expectedPaymentDate>[0]> = {}) => ({ due_event, expected_date: null, status: "pending", requested_at: null, ...extra });
@@ -61,6 +61,21 @@ describe("finance", () => {
     expect(canRequestPayment({ due_event: "board_closing", status: "pending" }, stages)).toBe(false);
     expect(canRequestPayment({ due_event: "signing", status: "pending" }, stages)).toBe(false);
     expect(canRequestPayment({ due_event: "custom", status: "requested" }, stages)).toBe(false);
+  });
+
+  it("explains why the database refused a payment request", () => {
+    expect(paymentRequestError("the contract isn't accepted")).toBe("paymentNotAccepted");
+    expect(paymentRequestError("stage payments are requested when the client confirms the stage")).toBe("paymentByStage");
+    expect(paymentRequestError("already requested")).toBe("paymentAlreadyRequested");
+    expect(paymentRequestError("something else")).toBeNull();
+    expect(paymentRequestError(undefined)).toBeNull();
+  });
+
+  it("a requested payment is late from 7 days (days counted from the request)", () => {
+    expect(lateDays("2026-11-16T09:00:00Z", "2026-11-23")).toBe(7);
+    expect(lateDays("2026-11-17T09:00:00Z", "2026-11-23")).toBeNull();
+    expect(lateDays("2026-10-24", "2026-11-23")).toBe(30);
+    expect(lateDays(null, "2026-11-23")).toBeNull();
   });
 
   it("reminders ask for what is left, and a legacy 'paid' addendum is fully paid", () => {

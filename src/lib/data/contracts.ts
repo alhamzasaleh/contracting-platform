@@ -8,7 +8,7 @@ import type { Line } from "@/lib/engine";
 import type { ServiceKind } from "@/lib/pricing";
 import type { ClientView } from "@/lib/quotes";
 import { effectiveVatPercent } from "@/lib/costing";
-import { canRequestPayment } from "@/lib/finance";
+import { lateDays } from "@/lib/finance";
 import type { AddendumStatus, ContractStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -106,8 +106,10 @@ export type ContractDetail = {
     id?: string;
     /** received so far (record_client_payment) */
     paid_amount?: number;
-    /** staff can ask the client for it now (canRequestPayment: no stage confirmation will) */
+    /** staff can ask the client for it now (public.requestable_payments: exactly what request_contract_payment accepts) */
     requestable?: boolean;
+    /** requested 7+ days ago: days since the request (the WhatsApp reminder says it's late) */
+    late_days?: number | null;
   }[];
   link: { active: boolean; expires_at: string | null; last_opened_at: string | null; open_count: number };
   materialCost: number | null;
@@ -134,6 +136,8 @@ export type AddendumView = {
   approval_id: string | null; created_at: string;
   /** received so far (recorded only through record_addendum_payment) */
   paid_amount?: number;
+  /** payment requested on acceptance 7+ days ago: days since then */
+  late_days?: number | null;
 };
 
 const parseTerms = (v: unknown): ContractTermsConfig => {
@@ -146,22 +150,24 @@ export async function loadContract(session: SessionContext, number: string): Pro
   const orgId = session.organization.id;
   const { data: c } = await supabase.from("contracts").select("*").eq("organization_id", orgId).eq("number", number).maybeSingle();
   if (!c) notFound();
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
   const [{ data: client }, { data: q }, { data: ver }, { data: payments }, { data: links }] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city, district, id_number").eq("id", c.client_id).maybeSingle(),
     supabase.from("quotes").select("number, valid_until").eq("id", c.quote_id).maybeSingle(),
     supabase.from("quote_versions").select("version, created_at, client_view, notes").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle(),
-    supabase.from("contract_payments").select("id, seq, label, percent, amount, due_event, status, paid_amount").eq("contract_id", c.id).order("seq"),
+    supabase.from("contract_payments").select("id, seq, label, percent, amount, due_event, status, paid_amount, requested_at").eq("contract_id", c.id).order("seq"),
     supabase.from("client_portal_links").select("expires_at, revoked_at, last_opened_at, open_count").eq("contract_id", c.id).order("created_at", { ascending: false }),
   ]);
   const active = (links ?? []).find((l) => !l.revoked_at && new Date(l.expires_at) > new Date());
-  const [{ data: addenda }, settings, { data: receipts }, { data: tpl }, { data: stageRows }] = await Promise.all([
+  const [{ data: addenda }, settings, { data: receipts }, { data: tpl }, { data: requestableRows }] = await Promise.all([
     supabase.from("addenda").select("id, number, title, description, amount, vat, total, extra_days, status, payment_status, accepted_at, accepted_name, created_at, paid_amount").eq("contract_id", c.id).order("created_at"),
     loadPricingSettings(session),
     supabase.from("client_receipts").select("number, label, amount, paid_on").eq("contract_id", c.id).order("created_at"),
     supabase.from("contract_templates").select("terms").eq("organization_id", orgId).maybeSingle(),
-    supabase.from("project_stages").select("payment_event").eq("contract_id", c.id),
+    // exactly what request_contract_payment accepts for this user (stages may be hidden from him)
+    c.status === "accepted" ? supabase.rpc("requestable_payments", { p_org: orgId, p_contract: c.id }) : Promise.resolve({ data: [] as { payment_id: string }[] }),
   ]);
-  const stageEvents = new Set((stageRows ?? []).map((s) => s.payment_event).filter((e): e is NonNullable<typeof e> => !!e));
+  const requestable = new Set((requestableRows ?? []).map((r) => r.payment_id));
   const pendingIds = (addenda ?? []).filter((a) => a.status === "pending_approval").map((a) => a.id);
   const { data: approvals } = pendingIds.length
     ? await supabase.from("approvals").select("id, entity_id").eq("entity", "addendum").eq("status", "pending").in("entity_id", pendingIds)
@@ -181,14 +187,18 @@ export async function loadContract(session: SessionContext, number: string): Pro
     quote: { number: q?.number ?? "", version: c.quote_version, date: ver?.created_at ?? c.created_at, valid_until: q?.valid_until ?? null, view: ver?.client_view as unknown as ClientView, notes: ver?.notes ?? null },
     payments: (payments ?? []).map((p) => ({
       ...p, percent: n(p.percent), amount: n(p.amount), paid_amount: n(p.paid_amount),
-      requestable: c.status === "accepted" && canRequestPayment(p, stageEvents),
+      requestable: requestable.has(p.id),
+      late_days: p.status === "requested" ? lateDays(p.requested_at, today) : null,
     })),
     link: { active: !!active, expires_at: active?.expires_at ?? null, last_opened_at: active?.last_opened_at ?? null, open_count: active?.open_count ?? 0 },
     materialCost: can(session, "costs.view") ? await materialCost(supabase, c.quote_id, c.quote_version) : null,
     canManage: can(session, "quotes.manage"),
     canPurchase: can(session, "purchases.manage"),
     canViewProject: can(session, "projects.view"),
-    addenda: (addenda ?? []).map((a) => ({ ...a, amount: n(a.amount), vat: n(a.vat), total: n(a.total), paid_amount: n(a.paid_amount), approval_id: (approvals ?? []).find((x) => x.entity_id === a.id)?.id ?? null })),
+    addenda: (addenda ?? []).map((a) => ({
+      ...a, amount: n(a.amount), vat: n(a.vat), total: n(a.total), paid_amount: n(a.paid_amount), approval_id: (approvals ?? []).find((x) => x.entity_id === a.id)?.id ?? null,
+      late_days: a.status === "accepted" && a.payment_status === "requested" ? lateDays(a.accepted_at, today) : null,
+    })),
     canDecide: can(session, "approvals.decide"),
     canFinance: can(session, "finance.manage"),
     terms: parseTerms(c.terms),

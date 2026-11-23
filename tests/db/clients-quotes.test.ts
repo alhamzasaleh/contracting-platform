@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { as, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
+import { as, asServer, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
 
 let owner: string, ownerB: string, viewer: string, supervisor: string;
 let org: string, orgB: string;
@@ -75,7 +75,7 @@ describe("quotes and versions", () => {
     const versions = await as({ userId: supervisor }, async (q) => {
       const out: number[] = [];
       for (let i = 0; i < 3; i++) {
-        const v = await q<{ version: number }>(
+        const v = await asServer<{ version: number }>(q,
           "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,99,'{}','{}','{}',1000,1000) returning version",
           [org, quote],
         );
@@ -98,7 +98,7 @@ describe("quotes and versions", () => {
   it("hides internal costs from users without costs.view", async () => {
     await as({ userId: owner }, async (q) => {
       const v = (await q<{ id: string }>("select id from public.quote_versions where quote_id = $1 and version = 3", [quote])).rows[0].id;
-      await q("insert into public.quote_version_costs (quote_version_id, organization_id, cost, cost_with_contingency, margin_percent, lines) values ($1,$2,700,735,26.5,'[]')", [v, org]);
+      await asServer(q, "insert into public.quote_version_costs (quote_version_id, organization_id, cost, cost_with_contingency, margin_percent, lines) values ($1,$2,700,735,26.5,'[]')", [v, org]);
     });
     await as({ userId: owner }, (q) => q(`update public.memberships set permission_overrides = '{"grant":["quotes.view"],"deny":[]}' where user_id = $1`, [viewer]));
     const seen = await as({ userId: viewer }, (q) => q("select (select count(*)::int from public.quote_versions) as v, (select count(*)::int from public.quote_version_costs) as c"));

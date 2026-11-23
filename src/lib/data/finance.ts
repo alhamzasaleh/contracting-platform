@@ -3,11 +3,12 @@ import { can, type SessionContext } from "@/lib/auth/session";
 import { loadProjectCosts } from "@/lib/data/purchases";
 import type { Line } from "@/lib/engine";
 import { overallProgress } from "@/lib/execution";
-import { addendumPaid, ageing, canRequestPayment, expectedPaymentDate, paydays, projectProfit, remainingAmount, weeklyForecast, type AgeBucket, type DueEvent, type Flow, type ForecastWeek } from "@/lib/finance";
+import { addendumPaid, ageing, expectedPaymentDate, paydays, projectProfit, remainingAmount, weeklyForecast, type AgeBucket, type DueEvent, type Flow, type ForecastWeek } from "@/lib/finance";
 import type { ServiceKind } from "@/lib/pricing";
 import { costStatus } from "@/lib/purchases";
 import { addDays } from "@/lib/schedule";
 import { createClient } from "@/lib/supabase/server";
+import { ltr } from "@/lib/utils";
 
 const n = (v: unknown) => Number(v ?? 0);
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -60,25 +61,21 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     supabase.from("finance_settings").select("cash_balance, cash_balance_on, payday").eq("organization_id", orgId).maybeSingle(),
     supabase.from("addenda").select("id, contract_id, number, title, amount, vat, total, extra_days, status, payment_status, accepted_at, paid_amount, paid_at").eq("organization_id", orgId).eq("status", "accepted"),
     supabase.from("approvals").select("id, kind, entity, entity_id, details, created_at").eq("organization_id", orgId).eq("status", "pending").order("created_at"),
-    supabase.from("project_stages").select("contract_id, status, progress, is_final, payment_event").eq("organization_id", orgId),
+    supabase.from("project_stages").select("contract_id, status, progress, is_final").eq("organization_id", orgId),
   ]);
   const ids = (contracts ?? []).map((c) => c.id);
-  const [{ data: payments }, { data: versions }] = await Promise.all([
+  const [{ data: payments }, { data: versions }, { data: requestableRows }] = await Promise.all([
     ids.length ? supabase.from("contract_payments").select("id, contract_id, seq, label, amount, due_event, status, requested_at, expected_date, paid_amount, paid_at").in("contract_id", ids).order("seq") : Promise.resolve({ data: [] as never[] }),
     ids.length ? supabase.from("quote_versions").select("id, quote_id, version, client_view").in("quote_id", (contracts ?? []).map((c) => c.quote_id)) : Promise.resolve({ data: [] as never[] }),
+    // exactly what request_contract_payment accepts for this user (stages may be hidden from him)
+    ids.length ? supabase.rpc("requestable_payments", { p_org: orgId }) : Promise.resolve({ data: [] as { payment_id: string }[] }),
   ]);
+  const requestable = new Set((requestableRows ?? []).map((r) => r.payment_id));
   const clientName = new Map((clients ?? []).map((c) => [c.id, c.name]));
   const clientPhone = new Map((clients ?? []).map((c) => [c.id, (c as { phone?: string | null }).phone ?? null]));
   const extraDays = new Map<string, number>();
   for (const a of addenda ?? []) extraDays.set(a.contract_id, (extraDays.get(a.contract_id) ?? 0) + a.extra_days);
   const contractOf = new Map((contracts ?? []).map((c) => [c.id, c]));
-  const stageEvents = new Map<string, Set<string>>();
-  for (const s of stages ?? []) {
-    if (!s.payment_event) continue;
-    const set = stageEvents.get(s.contract_id) ?? new Set<string>();
-    set.add(s.payment_event);
-    stageEvents.set(s.contract_id, set);
-  }
 
   // --- payments (collections) -------------------------------------------------------
   const rows: PaymentRow[] = ((payments ?? []) as { id: string; contract_id: string; seq: number; label: string; amount: number; due_event: DueEvent; status: "pending" | "requested" | "paid"; requested_at: string | null; expected_date: string | null; paid_amount: number | null; paid_at: string | null }[]).map((p) => {
@@ -91,7 +88,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
       outstanding: remainingAmount(amount, paid), status: p.status, requested_at: p.requested_at, expected, paid_at: p.paid_at,
       late: p.status === "requested" && !!p.requested_at && p.requested_at.slice(0, 10) <= addDays(today, -7),
       client_phone: clientPhone.get(c.client_id) ?? null, due_event: p.due_event,
-      requestable: canRequestPayment(p, stageEvents.get(p.contract_id) ?? new Set()),
+      requestable: requestable.has(p.id),
     };
   });
   // addenda payments: requested on acceptance, a separate line each (money recorded by record_addendum_payment)
@@ -103,7 +100,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     const paid = addendumPaid({ payment_status: a.payment_status, paid_amount: n(a.paid_amount), total });
     const status = a.payment_status === "paid" ? "paid" : "requested";
     rows.push({
-      id: `ad:${a.id}`, contract_id: a.contract_id, contract: c.number, client: clientName.get(c.client_id) ?? "—", seq: 99, label: `${a.number} — ${a.title}`,
+      id: `ad:${a.id}`, contract_id: a.contract_id, contract: c.number, client: clientName.get(c.client_id) ?? "—", seq: 99, label: `${ltr(a.number)} — ${a.title}`,
       amount: total, paid, outstanding: status === "paid" ? 0 : remainingAmount(total, paid), status, requested_at: a.accepted_at, expected: today, paid_at: a.paid_at ?? null,
       late: status === "requested" && !!a.accepted_at && a.accepted_at.slice(0, 10) <= addDays(today, -7),
       client_phone: clientPhone.get(c.client_id) ?? null,

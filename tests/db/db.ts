@@ -131,3 +131,22 @@ export async function expectDenied(p: Promise<unknown>, match: RegExp = /./) {
   }
   throw new Error("Expected the database to deny this operation, but it succeeded");
 }
+
+/**
+ * Run a statement as the server (service role) inside the caller's transaction, then switch
+ * back. Quote versions and their costs are written only by the server (save_quote_version);
+ * tests use this to set up versions directly.
+ */
+export async function asServer<T extends pg.QueryResultRow = pg.QueryResultRow>(q: Q, sql: string, params?: unknown[]): Promise<pg.QueryResult<T>> {
+  const { rows } = await q<{ r: string }>("select current_user as r");
+  await q("set local role service_role");
+  let failed = false;
+  try {
+    return await q<T>(sql, params);
+  } catch (e) {
+    failed = true;
+    throw e;
+  } finally {
+    if (!failed) await q(`set local role ${rows[0].r}`);
+  }
+}

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { as, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
+import { as, asServer, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
 
 let owner: string, viewer: string, ownerB: string;
 let org: string, contract: string, draftContract: string;
@@ -26,7 +26,7 @@ beforeAll(async () => {
     const client = (await q<{ id: string }>("insert into public.clients (organization_id, name) values ($1,'عميل') returning id", [org])).rows[0].id;
     for (const svc of ["gypsum", "interior"]) {
       const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,$3) returning id", [org, client, svc])).rows[0].id;
-      await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1000,1000)", [org, quote]);
+      await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1000,1000)", [org, quote]);
       await q("select public.issue_quote($1, null)", [quote]);
       const c = (await q<{ id: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total, status) values ($1,$2,1,$3,$4,current_date,10,1000,'sent') returning id", [org, quote, client, svc])).rows[0].id;
       if (svc === "gypsum") contract = c;

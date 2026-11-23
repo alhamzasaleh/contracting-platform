@@ -557,6 +557,10 @@
     "needsApproval": "Needs approval before issuing",
     "notReady": "Some items aren't priced — complete them, then issue",
     "quoteLocked": "The quote is accepted — it can't be changed",
+    "quoteContractSent": "The contract was sent to the client and waits for his answer — the quote can't change now. Cancel the contract to change it.",
+    "paymentNotAccepted": "Payments are requested once the client accepts the contract",
+    "paymentByStage": "This is a stage payment — it is requested automatically when the client confirms the stage",
+    "paymentAlreadyRequested": "This payment was already requested",
     "contractExists": "A contract already exists for this quote",
     "contractLocked": "The contract is accepted or cancelled — it can't change",
     "quoteNotIssued": "Issue the quote first",
@@ -1797,6 +1801,7 @@
     "labourCost": "In-house labour",
     "actualMaterials": "Actual (materials)",
     "actualNote": "Total actual = materials, expenses, petty cash, subcontractors earned and our team’s scheduled days. The estimate is compared with materials only.",
+    "actualNoteNoLabour": "Total actual = materials, expenses, petty cash and subcontractors' earnings. The estimate is compared with materials only.",
     "actualNoteHidden": "Total actual = materials, expenses, petty cash and subcontractors earned. In-house labour is hidden because it is built from salaries (needs the HR permission). The estimate is compared with materials only."
   },
   "projects": {
@@ -2260,7 +2265,7 @@
     "invoiceStatus": "Invoice status in Qoyod",
     "statusDraft": "Draft (review in Qoyod)",
     "statusApproved": "Approved immediately",
-    "draftHint": "These invoices were sent to Qoyod as drafts and their payments are waiting. Qoyod's API can't approve an existing invoice, so open each one in Qoyod and approve it — the payment is then sent automatically. (Purchase bills are approved automatically before they are paid.)",
+    "draftHint": "Recommended at first: invoices arrive in Qoyod as drafts; you review and approve them there.",
     "approvedHint": "Invoices are approved at once and reported to ZATCA — use once the settings are verified.",
     "enable": "Send to Qoyod",
     "enableHint": "When paused, nothing is sent or queued.",
@@ -2316,7 +2321,10 @@
     "missing_salary_account": "Choose the salaries account.",
     "missing_cash_account": "Choose the cash account.",
     "waiting_invoice_draft": "The invoice is a draft in Qoyod — approve it there and the payment is sent automatically.",
-    "draftTitle": "Invoices to approve in Qoyod"
+    "draftTitle": "Invoices to approve in Qoyod",
+    "draftListHint": "These invoices were sent to Qoyod as drafts and their payments are waiting. Qoyod's API can't approve an existing invoice, so open each one in Qoyod and approve it, then tap “Approved — send now” and the payments are sent right away. (Purchase bills are approved automatically before they are paid.)",
+    "approvedSendNow": "Approved — send now",
+    "approvedSent": "Done — the waiting payments are being sent to Qoyod"
   },
   "receipt": {
     "title": "Receipt voucher",

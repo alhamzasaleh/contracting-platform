@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { as, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
+import { as, asServer, asAdmin, closePool, createUser, expectDenied, resetDatabase } from "./db";
 
 let owner: string, ownerB: string, viewer: string;
 let org: string, orgB: string, client: string, quote: string, contract: string;
@@ -21,7 +21,7 @@ beforeAll(async () => {
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'viewer')", [org, viewer]);
     client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone) values ($1,'أبو محمد','966551234567') returning id", [org])).rows[0].id;
     quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'interior') returning id", [org, client])).rows[0].id;
-    await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{\"total\":10000}',10000,10000)", [org, quote]);
+    await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{\"total\":10000}',10000,10000)", [org, quote]);
     await q("select public.issue_quote($1, null)", [quote]);
   });
 });
@@ -132,7 +132,7 @@ describe("client page (portal)", () => {
     const T2 = "tok2_" + "z".repeat(40);
     await as({ userId: owner }, async (q) => {
       const q2 = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
-      await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1,1)", [org, q2]);
+      await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1,1)", [org, q2]);
       await q("select public.issue_quote($1, null)", [q2]);
       const c2 = (await q<{ id: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total, status) values ($1,$2,1,$3,'gypsum',current_date,3,1,'sent') returning id", [org, q2, client])).rows[0].id;
       await q("insert into public.client_portal_links (organization_id, contract_id, token_hash, expires_at) values ($1,$2,$3, now() + interval '1 day')", [org, c2, hash(T2)]);

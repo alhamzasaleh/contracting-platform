@@ -10,6 +10,7 @@ import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
 import { linkExpiry, percentSum, scheduleAmounts } from "@/lib/contracts";
 import { effectiveVatPercent } from "@/lib/costing";
+import { paymentRequestError } from "@/lib/finance";
 import { termsSchema } from "@/lib/contracts/terms";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -283,7 +284,11 @@ export async function requestPayment(input: unknown): Promise<ActionResult> {
   if (!parsed.success) return { ok: false, error: "invalid" };
   const supabase = await createClient();
   const { error } = await supabase.rpc("request_contract_payment", { p_payment: parsed.data.payment_id });
-  if (error) return fail(error, "request payment");
+  if (error) {
+    const why = error.code === "22023" ? paymentRequestError(error.message) : null;
+    if (why) return { ok: false, error: why };
+    return fail(error, "request payment");
+  }
   after(runBackground);
   revalidatePath("/", "layout");
   return done();
