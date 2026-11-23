@@ -21,7 +21,7 @@ export function Payslips({ org, month, lines }: { org: { name: string; legal_nam
         <article key={l.id} className="mx-auto grid w-full max-w-[720px] gap-4 rounded-3xl border border-border bg-white p-8 text-[14px] text-basalt print:break-after-page print:rounded-none print:border-0">
           <header className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-primary pb-3">
             <div className="flex items-center gap-3">
-              {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="w-[120px] text-basalt" />}
+              {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="text-basalt" fit="h-auto w-[120px] max-h-14" />}
               <p className="font-extrabold">{org.legal_name ?? org.name}</p>
             </div>
             <div className="text-end">

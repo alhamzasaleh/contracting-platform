@@ -244,7 +244,7 @@ export function ClientDetailView({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="grid content-start gap-3">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-[17px] font-bold">{t("surveys")}</h3>
             {canManage && (
               <div className="flex gap-2">

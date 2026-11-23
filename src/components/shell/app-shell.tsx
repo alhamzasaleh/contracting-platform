@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
 import { OfflineSync } from "./offline-sync";
 import { Sidebar } from "./sidebar";
@@ -14,6 +15,7 @@ export function AppShell({ data, banner, children }: { data: ShellData; banner?:
         <Topbar data={data} />
         <main id="main" className="mx-auto w-full max-w-[1280px] flex-1 px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+6rem)] sm:px-6 lg:px-10 lg:pt-7">
           {children}
+          <Rights name={data.org.name} />
         </main>
         {data.assistant && <AssistantLauncher ready={data.assistant.ready} preview={!!data.basePath} />}
       </div>
@@ -39,4 +41,9 @@ export function PageHeader({
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>
   );
+}
+
+function Rights({ name }: { name: string }) {
+  const t = useTranslations("common");
+  return <p className="mt-12 text-center text-[12px] text-subtle-foreground">{t("rights", { year: new Date().getFullYear(), name })}</p>;
 }

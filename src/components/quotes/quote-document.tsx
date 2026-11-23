@@ -53,7 +53,7 @@ export function QuoteDocument({
     <article className="min-w-0 quote-doc mx-auto grid max-w-[820px] gap-6 rounded-3xl border border-border bg-white p-6 text-[14px] text-basalt sm:p-10 print:max-w-none print:rounded-none print:border-0 print:p-0">
       <header className="flex flex-wrap items-start justify-between gap-6 border-b-2 border-primary pb-5">
         <div className="flex flex-wrap items-center gap-4">
-          {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="w-[140px] text-basalt" />}
+          {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="text-basalt" fit="h-auto w-[min(140px,40vw)] max-h-16" />}
           <div>
             <p className="text-[18px] font-extrabold">
               {org.legal_name ?? org.name}

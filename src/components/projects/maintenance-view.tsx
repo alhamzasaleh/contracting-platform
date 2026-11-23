@@ -48,7 +48,7 @@ export function MaintenanceView({ data, focus, actions }: { data: MaintenancePag
         ))}
         <div className="rounded-3xl border border-border bg-surface p-4">
           <p className="text-[13px] text-muted-foreground">{t("kCost", { year })}</p>
-          <p className="mt-1 text-[22px] font-extrabold">{fmt.money(cost)}</p>
+          <p className="mt-1 text-[clamp(1rem,5vw,1.375rem)] font-extrabold break-words">{fmt.money(cost)}</p>
         </div>
       </div>
 

@@ -1,10 +1,9 @@
 "use client";
-import { AlertTriangle, ArrowUpLeft, Check, CheckCircle2, Plus } from "lucide-react";
+import { AlertTriangle, ArrowUpLeft, Check, CheckCircle2, Plus, ListChecks } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useFormatter } from "@/components/formatter-provider";
-import { ArchMark } from "@/components/shell/org-mark";
 import {
   OwnerFinanceSections,
   type FinanceActions,
@@ -247,7 +246,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
           className="overflow-hidden rounded-2xl border border-border bg-surface"
         >
           <div className="flex items-center gap-4 p-5 sm:p-6">
-            <ArchMark className="h-12 w-11" />
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary"><ListChecks className="size-6" /></span>
             <div className="flex-1">
               <h2 className="text-[19px] font-extrabold">{t("setupTitle")}</h2>
               <p className="num text-sm text-muted-foreground">

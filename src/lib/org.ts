@@ -30,3 +30,23 @@ export const logoDataUrl = cache(async (path: string | null): Promise<string | n
   const { data } = await supabase.storage.from("org-assets").download(path);
   return (await blobToDataUrl(data)) ?? (await signedAssetUrl(path));
 });
+
+/**
+ * The sign-in page's identity, before anyone is signed in: while the platform
+ * serves a single company, its name and logo (nothing else). With several
+ * companies (SaaS) the page stays neutral.
+ */
+export const publicIdentity = cache(async (): Promise<{ name: string; logoUrl: string | null } | null> => {
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const admin = createAdminClient();
+    const { data } = await admin.from("organizations").select("name, logo_path").limit(2);
+    if (!data || data.length !== 1) return null;
+    const org = data[0];
+    if (!org.logo_path) return { name: org.name, logoUrl: null };
+    const { data: file } = await admin.storage.from("org-assets").download(org.logo_path);
+    return { name: org.name, logoUrl: await blobToDataUrl(file) };
+  } catch {
+    return null;
+  }
+});

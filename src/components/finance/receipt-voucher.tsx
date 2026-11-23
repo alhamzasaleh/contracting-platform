@@ -17,7 +17,7 @@ export function ReceiptVoucher({ data }: { data: ReceiptDoc }) {
       <span aria-hidden className="absolute end-0 top-0 size-10 bg-clay [clip-path:polygon(0_0,100%_0,100%_100%)] rtl:[clip-path:polygon(0_0,100%_0,0_100%)] print:size-8" />
       <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-primary pb-4">
         <div className="flex flex-wrap items-center gap-3">
-          {data.org.logoUrl && <BrandLogo src={data.org.logoUrl} label={data.org.name} className="w-[140px] text-basalt" />}
+          {data.org.logoUrl && <BrandLogo src={data.org.logoUrl} label={data.org.name} className="text-basalt" fit="h-auto w-[min(140px,40vw)] max-h-16" />}
           <div className="text-[12px] leading-6 text-doc-muted">
             <p className="text-[14px] font-extrabold text-basalt">{org}</p>
             {data.org.cr_number && <p>{t("cr", { n: data.org.cr_number })}</p>}

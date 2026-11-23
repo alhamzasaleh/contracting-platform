@@ -351,7 +351,7 @@ function BrandPreview({
 
   return (
     <Card className="overflow-hidden" style={vars}>
-      <CardHeader className="flex-row items-center justify-between">
+      <CardHeader className="flex-row flex-wrap items-center justify-between">
         <CardTitle>{t("preview")}</CardTitle>
         <Segmented
           name={t("preview")}

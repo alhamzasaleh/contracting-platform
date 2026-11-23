@@ -100,7 +100,7 @@ export function SidebarBrand({ data }: { data: ShellData }) {
     // The logo already carries the name (§6.1): shown alone, gypsum on basalt, no frame.
     <div className="flex min-h-20 items-center px-6 py-4 text-gypsum">
       {data.org.logoUrl ? (
-        <BrandLogo src={data.org.logoUrl} label={data.org.name} className="w-[120px]" />
+        <BrandLogo src={data.org.logoUrl} label={data.org.name} fit="h-auto w-[120px] max-h-14" />
       ) : (
         <p className="min-w-0 truncate text-[17px] leading-tight font-extrabold">{data.org.name}</p>
       )}

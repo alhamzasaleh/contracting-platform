@@ -110,6 +110,7 @@ export function PortalView({
   onConfirmMaintenance?: (i: Record<string, unknown>) => Promise<ActionResult>;
 }) {
   const t = useTranslations("portal");
+  const tc = useTranslations("common");
   const tp = useTranslations("pricing");
   const { fmt } = useFormatter();
   const router = useRouter();
@@ -141,7 +142,7 @@ export function PortalView({
       {/* Hero with the arch motif */}
       <header className="relative overflow-hidden bg-ink text-ink-foreground">
         <div className="mx-auto grid max-w-[880px] gap-6 px-5 pt-10 pb-14 text-gypsum sm:grid-cols-[auto_1fr] sm:items-end [&>*]:min-w-0">
-          {logoUrl && <BrandLogo src={logoUrl} label={org.name} className="w-[160px] text-gypsum" />}
+          {logoUrl && <BrandLogo src={logoUrl} label={org.name} className="text-gypsum" fit="h-auto w-[min(160px,45vw)] max-h-20 sm:max-h-24" />}
           <div className="grid gap-1.5">
             <p className="text-[14px] opacity-75">{org.legal_name ?? org.name}</p>
             <h1 className="text-[28px] leading-tight font-extrabold sm:text-[34px]">{t("hello", { name: data.client.name })}</h1>
@@ -271,6 +272,7 @@ export function PortalView({
           warrantyMonths={c.warranty_months}
         />
         <p className="text-center text-[12px] text-subtle-foreground">{t("footer", { date: fmt.date(data.expires_at) })}</p>
+        <p className="text-center text-[12px] text-subtle-foreground">{tc("rights", { year: new Date().getFullYear(), name: org.legal_name ?? org.name })}</p>
       </main>
     </div>
   );

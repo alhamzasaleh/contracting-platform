@@ -167,6 +167,10 @@
 }
 
 @layer base {
+  /* grid items may shrink below their content (stops long rows widening the page on phones) */
+  .grid > * {
+    min-width: 0;
+  }
   *,
   ::before,
   ::after {

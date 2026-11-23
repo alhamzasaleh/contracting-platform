@@ -234,7 +234,7 @@ export function EmployeesView({
         </div>
         <div className="col-span-2 rounded-2xl bg-primary p-4 text-primary-foreground sm:col-span-1">
           <p className="text-[13px] opacity-80">{t("avgPerDay")}</p>
-          <p className="num mt-1 text-[26px] font-extrabold">{fmt.money(avg)}</p>
+          <p className="num mt-1 text-[clamp(1rem,5vw,1.625rem)] font-extrabold break-words">{fmt.money(avg)}</p>
         </div>
       </div>
 

@@ -56,7 +56,7 @@ export function LabourView({
   return (
     <div className="grid gap-6 xl:grid-cols-2">
       <Card>
-        <CardHeader className="flex-row items-start justify-between gap-3">
+        <CardHeader className="flex-row flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2"><Users className="size-4 text-primary" /> {t("catalogue.labourRates")}</CardTitle>
             <CardDescription>{t("catalogue.labourHint")}</CardDescription>
@@ -95,7 +95,7 @@ export function LabourView({
       </Card>
 
       <Card>
-        <CardHeader className="flex-row items-start justify-between gap-3">
+        <CardHeader className="flex-row flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2"><Truck className="size-4 text-primary" /> {t("catalogue.extraCosts")}</CardTitle>
             <CardDescription>{t("catalogue.extraHint")}</CardDescription>

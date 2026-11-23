@@ -124,7 +124,7 @@ export function ServiceDetailView({
         <div className="grid min-w-0 gap-6">
           {/* Stages */}
           <Card>
-            <CardHeader className="flex-row items-start justify-between gap-3">
+            <CardHeader className="flex-row flex-wrap items-start justify-between gap-3">
               <div>
                 <CardTitle>{t("catalogue.stages")}</CardTitle>
                 <CardDescription>{t("catalogue.stagesHint")}</CardDescription>
@@ -173,7 +173,7 @@ export function ServiceDetailView({
 
           {/* Recipe */}
           <Card>
-            <CardHeader className="flex-row items-start justify-between gap-3">
+            <CardHeader className="flex-row flex-wrap items-start justify-between gap-3">
               <div>
                 <CardTitle>{t("catalogue.recipe")}</CardTitle>
                 <CardDescription>{t("catalogue.recipeHint")}</CardDescription>
@@ -257,7 +257,7 @@ export function ServiceDetailView({
 
           {/* Specs */}
           <Card>
-            <CardHeader className="flex-row items-start justify-between gap-3">
+            <CardHeader className="flex-row flex-wrap items-start justify-between gap-3">
               <div>
                 <CardTitle>{t("catalogue.specs")}</CardTitle>
                 <CardDescription>{t("catalogue.specsHint")}</CardDescription>

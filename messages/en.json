@@ -25,7 +25,8 @@
     "never": "Never",
     "copy": "Copy",
     "copied": "Copied",
-    "required": "This field is required"
+    "required": "This field is required",
+    "rights": "© {year} {name} — All rights reserved"
   },
   "nav": {
     "home": "Home",
@@ -86,7 +87,8 @@
     "feature1": "Accurate pricing with materials, labour and margin",
     "feature2": "A beautiful page per client to follow stages and payments",
     "feature3": "Direct Qoyod integration for e-invoicing",
-    "legal": "By continuing you agree to the privacy policy and terms of use."
+    "legal": "By continuing you agree to the privacy policy and terms of use.",
+    "rights": "© {year} {name} — All rights reserved"
   },
   "onboarding": {
     "title": "Let's set up your company",

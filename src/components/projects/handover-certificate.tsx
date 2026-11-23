@@ -25,7 +25,7 @@ export function HandoverCertificate({ data }: { data: CertificateData }) {
     <article className="mx-auto grid min-w-0 max-w-[820px] gap-5 rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-basalt sm:p-10 print:border-0 print:p-0">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-primary pb-4">
         <div className="flex flex-wrap items-center gap-3">
-          {data.org.logoUrl && <BrandLogo src={data.org.logoUrl} label={data.org.name} className="w-[140px] text-basalt" />}
+          {data.org.logoUrl && <BrandLogo src={data.org.logoUrl} label={data.org.name} className="text-basalt" fit="h-auto w-[min(140px,40vw)] max-h-16" />}
           <div>
             <p className="font-extrabold">{org}</p>
             {data.org.cr_number && <p className="text-[12px] text-doc-muted">{t("cr", { n: data.org.cr_number })}</p>}

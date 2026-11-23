@@ -41,7 +41,7 @@ export function OwnerFinanceSections({ f, actions, base = "" }: { f: OwnerFinanc
           <motion.div key={k.key} variants={item}>
             <Link href={k.href} className="block rounded-2xl border border-border bg-surface p-4 transition-colors hover:border-primary/40 sm:p-5">
               <p className="text-[13px] text-muted-foreground">{t(k.key)}</p>
-              <p className={cn("num mt-2 text-[24px] font-extrabold tabular-nums sm:text-[28px]", k.tone === "warn" && "text-primary")}>{fmt.money(k.value)}</p>
+              <p className={cn("num mt-2 text-[clamp(1rem,5vw,1.5rem)] font-extrabold tabular-nums break-words sm:text-[28px]", k.tone === "warn" && "text-primary")}>{fmt.money(k.value)}</p>
             </Link>
           </motion.div>
         ))}
