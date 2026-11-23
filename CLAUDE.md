@@ -15,6 +15,15 @@
 - Never weaken security, RLS or validation to make something "work quickly".
 - Ask before any destructive database migration.
 
+### 0.1 Quality rules (owner, Nov 2026 — mandatory on every change)
+The owner must not be the one who finds bugs or disconnected pages. Before telling him anything is done:
+
+1. **Debug systematically, never by guessing.** When something is wrong: reproduce it first (a failing test, a command, or the exact steps), find the **root cause** by reading the real code path end to end (UI → action → database → back), state it in one sentence, then fix that cause — not the symptom. One hypothesis at a time; if a fix doesn't work, go back to investigation instead of stacking another fix. After fixing, search for the same mistake elsewhere in the codebase and fix those too.
+2. **Test first.** For every new behaviour or bug fix, write the test that fails before the code exists (unit test in `tests/unit/` for pure logic, DB test in `tests/db/` for RLS/permissions/triggers, Playwright for a full flow), watch it fail for the right reason, then write the code until it passes. A bug fix always comes with the test that would have caught it.
+3. **Verify before claiming.** Never say "done" or "fixed" without fresh evidence from this session: `npm run check` passes (lint + types + unit + DB), and the affected screens open on `/dev/preview` at phone and desktop width. If something could not be run, say so.
+4. **Two independent reviews before reporting.** After the work and its tests pass, run both project agents in parallel on the change: `bug-hunter` (correctness, money, security) and `integration-reviewer` (pages, links, permissions, triggers, documents, client page and Qoyod all connected). Give them the scope (files/feature), not your conclusions. Fix every confirmed finding (with a test), re-run `npm run check`, and only then report to the owner — briefly, in Arabic, including anything left open.
+5. **Think in the whole product.** A feature is not done until every place that should reflect it does: navigation, related pages linking both ways, permissions at every layer, notifications, print/PDF, client page, WhatsApp texts, preview page, both languages. `tests/unit/routes.test.ts` fails on any link to a page that doesn't exist.
+
 ---
 
 ## 1. Tech stack
