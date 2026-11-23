@@ -24,6 +24,7 @@ export const SAMPLE_CONTRACT: ContractDetail = {
   materialCost: 7200,
   canManage: true,
   canPurchase: true,
+  canViewProject: true,
   canDecide: true,
   canFinance: true,
   vatPercent: 0,

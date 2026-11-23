@@ -53,6 +53,8 @@ export type ProjectDetail = {
   canManage: boolean;
   /** may record purchases for this project (purchases.manage) */
   canPurchase: boolean;
+  /** may open the contract page (quotes.view) */
+  canViewContract: boolean;
   aiEnabled: boolean;
 };
 
@@ -89,7 +91,8 @@ export async function loadProject(session: SessionContext, number: string): Prom
     notes: (notes ?? []).map((n) => ({ ...n, photos: n.photos.map(photo) })),
     payments: (payments ?? []).map((p) => ({ ...p, amount: Number(p.amount) })),
     canManage: can(session, "projects.manage"),
-    canPurchase: can(session, "purchases.manage"),
+    canPurchase: can(session, "purchases.manage") && can(session, "quotes.view"),
+    canViewContract: can(session, "quotes.view"),
     aiEnabled: aiConfigured(),
   };
 }

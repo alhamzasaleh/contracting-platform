@@ -20,6 +20,7 @@ export const SAMPLE_PROJECT: ProjectDetail = {
   client: { name: "شركة البناء المتقن", phone: "966551234567", city: "الرياض", district: "الملقا", location_url: "https://www.google.com/maps/place/x/@24.8031,46.6105,17z" },
   canManage: true,
   canPurchase: true,
+  canViewContract: true,
   aiEnabled: true,
   stages: [
     stage(1, "تجهيز الموقع وتحديد المناسيب", "confirmed", 100, { confirmed_at: "2026-11-21T15:00:00Z", confirmed_name: "م. خالد", report: "تم تجهيز الموقع وتحديد المناسيب في جميع الغرف." }),

@@ -105,6 +105,7 @@ export type ContractDetail = {
   materialCost: number | null;
   canManage: boolean;
   canPurchase: boolean;
+  canViewProject: boolean;
   addenda: AddendumView[];
   canDecide: boolean;
   canFinance: boolean;
@@ -171,6 +172,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
     materialCost: can(session, "costs.view") ? await materialCost(supabase, c.quote_id, c.quote_version) : null,
     canManage: can(session, "quotes.manage"),
     canPurchase: can(session, "purchases.manage"),
+    canViewProject: can(session, "projects.view"),
     addenda: (addenda ?? []).map((a) => ({ ...a, amount: n(a.amount), vat: n(a.vat), total: n(a.total), approval_id: (approvals ?? []).find((x) => x.entity_id === a.id)?.id ?? null })),
     canDecide: can(session, "approvals.decide"),
     canFinance: can(session, "finance.manage"),

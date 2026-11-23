@@ -313,7 +313,7 @@ export function ContractView({
               </Link>
             </Button>
           )}
-          {c.status === "accepted" && (
+          {c.status === "accepted" && detail.canViewProject && (
             <Button asChild variant="secondary" size="sm">
               <Link href={`${base}/projects/${c.number}`}>
                 <HardHat /> {t("openProject")}

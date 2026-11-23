@@ -163,11 +163,13 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
               label={tw("btnOpen")}
               text={tw("general", { name: data.client.name, contract: ltr(data.contract.number), org: data.orgName ?? "" })}
             />
-            <Button asChild variant="secondary" size="sm">
-              <Link href={`${base}/contracts/${data.contract.number}`}>
-                <FileText /> {t("openContract")}
-              </Link>
-            </Button>
+            {data.canViewContract && (
+              <Button asChild variant="secondary" size="sm">
+                <Link href={`${base}/contracts/${data.contract.number}`}>
+                  <FileText /> {t("openContract")}
+                </Link>
+              </Button>
+            )}
             {data.canPurchase && (
               <Button asChild variant="secondary" size="sm">
                 <Link href={`${base}/purchases/new?project=${data.contract.number}`}>
@@ -269,9 +271,11 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
               ))}
             </section>
           )}
-          <Link href={`${base}/contracts/${data.contract.number}`} className="text-[13px] text-primary underline">
-            {t("openContract")}
-          </Link>
+          {data.canViewContract && (
+            <Link href={`${base}/contracts/${data.contract.number}`} className="text-[13px] text-primary underline">
+              {t("openContract")}
+            </Link>
+          )}
         </aside>
       </div>
     </div>

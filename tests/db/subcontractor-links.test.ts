@@ -111,3 +111,26 @@ describe("an external team added in Schedule", () => {
     expect((await asAdmin((q) => q("select id from public.subcontractors where organization_id = $1 and name = 'فريق الدهان'", [org]))).rows).toHaveLength(0);
   });
 });
+
+describe("reviewer cases", () => {
+  it("a team named like an already-linked subcontractor is still created (no duplicate-name failure)", async () => {
+    const id = await as({ userId: owner }, async (q) => (await q<{ id: string }>("insert into public.subcontractors (organization_id, name) values ($1,'زيد') returning id", [org])).rows[0].id);
+    await as({ userId: owner }, (q) => q("update public.teams set name = 'فريق زيد' where subcontractor_id = $1", [id]));
+    await as({ userId: owner }, (q) => q("insert into public.teams (organization_id, name, kind) values ($1,'زيد','external')", [org]));
+    const { rows } = await asAdmin((q) => q<{ name: string }>("select s.name from public.teams t join public.subcontractors s on s.id = t.subcontractor_id where t.organization_id = $1 and t.name = 'زيد'", [org]));
+    expect(rows).toEqual([{ name: "زيد (فريق)" }]);
+  });
+
+  it("an automatic entry the owner deletes is not recorded again", async () => {
+    const { rows: [g] } = await asAdmin((q) => q<{ id: string; contract_id: string }>("select id, contract_id from public.subcontractor_agreements where organization_id = $1 limit 1", [org]));
+    await as({ userId: owner }, (q) => q("delete from public.subcontractor_work where agreement_id = $1 and auto", [g.id]));
+    expect((await asAdmin((q) => q<{ auto_progress: boolean }>("select auto_progress from public.subcontractor_agreements where id = $1", [g.id]))).rows[0].auto_progress).toBe(false);
+    await asAdmin((q) => q("update public.project_stages set progress = 99, status = 'in_progress' where contract_id = $1", [g.contract_id]));
+    expect((await asAdmin((q) => q("select id from public.subcontractor_work where agreement_id = $1", [g.id]))).rows).toHaveLength(0);
+  });
+
+  it("staff can't write an entry marked automatic", async () => {
+    const { rows: [g] } = await asAdmin((q) => q<{ id: string }>("select id from public.subcontractor_agreements where organization_id = $1 limit 1", [org]));
+    await expectDenied(as({ userId: owner }, (q) => q("insert into public.subcontractor_work (organization_id, agreement_id, quantity_m2, auto) values ($1,$2,10,true)", [org, g.id])));
+  });
+});

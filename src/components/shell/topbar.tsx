@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import * as React from "react";
+import { toast } from "sonner";
 import { updatePreferences } from "@/app/actions/preferences";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -49,11 +50,15 @@ export function Topbar({ data }: { data: ShellData }) {
     // A plain <form> inside the menu is unmounted before it submits (the menu closes
     // on select), so the request is sent directly, then to /login with fresh data.
     try {
-      await fetch("/auth/signout", { method: "POST", credentials: "same-origin" });
-    } finally {
-      router.replace("/login");
-      router.refresh();
+      const res = await fetch("/auth/signout", { method: "POST", credentials: "same-origin" });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      // still signed in (offline / refused): say so instead of pretending
+      toast.error(t("user.signOutFailed"));
+      return;
     }
+    router.replace("/login");
+    router.refresh();
   };
 
   const changeTheme = (v: string) => {

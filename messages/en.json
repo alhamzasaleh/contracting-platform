@@ -59,7 +59,8 @@
   "user": {
     "profile": "Profile",
     "preferences": "Preferences",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "signOutFailed": "Couldn't sign out — check your connection and try again."
   },
   "roles": {
     "owner": "Owner",
