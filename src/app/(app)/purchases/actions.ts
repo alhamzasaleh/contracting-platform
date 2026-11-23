@@ -268,6 +268,7 @@ export async function saveAgreement(input: unknown): Promise<ActionResult> {
       quantity_m2: z.number().min(0).max(1_000_000).nullable(),
       schedule: z.enum(["weekly", "progress"]),
       status: z.enum(["active", "closed"]),
+      auto_progress: z.boolean().optional(),
     })
     .strict()
     .refine((g) => g.basis === "lump" || g.quantity_m2 != null, { message: "required", path: ["quantity_m2"] })
@@ -275,6 +276,7 @@ export async function saveAgreement(input: unknown): Promise<ActionResult> {
   if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
   const { id: agreementId, ...row } = parsed.data;
   const clean = { ...row, quantity_m2: row.basis === "lump" ? null : row.quantity_m2 };
+  if (clean.auto_progress === undefined) delete clean.auto_progress;
   const { error } = agreementId
     ? await ctx.supabase.from("subcontractor_agreements").update(clean).eq("id", agreementId).eq("organization_id", ctx.orgId)
     : await ctx.supabase.from("subcontractor_agreements").insert({ ...clean, organization_id: ctx.orgId });

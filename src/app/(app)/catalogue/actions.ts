@@ -318,6 +318,7 @@ const labourSchema = z
     id: id.optional(),
     service_id: id.nullable(),
     name: z.string().trim().min(2, "required").max(120),
+    subcontractor_id: id.nullable().optional(),
     basis: z.enum(["external_per_unit", "external_lump"]),
     rate: num({ min: 0, max: 10_000_000 }),
     notes: optionalText(500),

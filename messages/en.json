@@ -455,7 +455,9 @@
     "tabCalculator": "Pricing",
     "tabRates": "Template numbers",
     "tabCalibration": "Actual consumption",
-    "linkedSub": "Linked to subcontractors & teams"
+    "linkedSub": "Linked to subcontractors & teams",
+    "pickSub": "Subcontractor",
+    "newSubByName": "New subcontractor (type the name below)"
   },
   "units": {
     "m2": "m²",
@@ -1957,7 +1959,15 @@
     "reference": "Reference",
     "pricingRates": "Pricing rate",
     "ratePerM2": "{rate} / m²",
-    "rateLump": "{rate} lump sum"
+    "rateLump": "{rate} lump sum",
+    "autoFollows": "Follows project progress",
+    "closed": "Closed",
+    "autoEntry": "auto",
+    "editAgreement": "Edit agreement",
+    "scopeDefault": "As per contract {number}",
+    "autoProgress": "Record his work from project progress",
+    "autoProgressHint": "Each progress update on the project page adds the work done. Editing or deleting an automatic entry turns this off.",
+    "agreementActive": "Agreement active"
   },
   "petty": {
     "newAccount": "New petty cash account",

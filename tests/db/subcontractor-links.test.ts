@@ -117,8 +117,16 @@ describe("reviewer cases", () => {
     const id = await as({ userId: owner }, async (q) => (await q<{ id: string }>("insert into public.subcontractors (organization_id, name) values ($1,'زيد') returning id", [org])).rows[0].id);
     await as({ userId: owner }, (q) => q("update public.teams set name = 'فريق زيد' where subcontractor_id = $1", [id]));
     await as({ userId: owner }, (q) => q("insert into public.teams (organization_id, name, kind) values ($1,'زيد','external')", [org]));
-    const { rows } = await asAdmin((q) => q<{ name: string }>("select s.name from public.teams t join public.subcontractors s on s.id = t.subcontractor_id where t.organization_id = $1 and t.name = 'زيد'", [org]));
-    expect(rows).toEqual([{ name: "زيد (فريق)" }]);
+    const { rows } = await asAdmin((q) => q<{ name: string }>("select s.name from public.teams t join public.subcontractors s on s.id = t.subcontractor_id where t.organization_id = $1 and t.name like 'زيد%' and t.name <> 'فريق زيد'", [org]));
+    expect(rows).toEqual([{ name: "زيد" }]);
+    // the subcontractor follows his renamed team; the new team got its own record
+    expect((await asAdmin((q) => q<{ name: string }>("select name from public.subcontractors where id = $1", [id]))).rows).toEqual([{ name: "فريق زيد" }]);
+    // in-house «عمر» exists → subcontractor «عمر» gets team «عمر (مقاول)»; switching «عمر» to external still works
+    await as({ userId: owner }, (q) => q("insert into public.teams (organization_id, name, kind) values ($1,'عمر','inhouse')", [org]));
+    await as({ userId: owner }, (q) => q("insert into public.subcontractors (organization_id, name) values ($1,'عمر')", [org]));
+    await as({ userId: owner }, (q) => q("update public.teams set kind = 'external' where organization_id = $1 and name = 'عمر'", [org]));
+    const omar = await asAdmin((q) => q<{ team: string; sub: string }>("select t.name as team, s.name as sub from public.teams t join public.subcontractors s on s.id = t.subcontractor_id where t.organization_id = $1 and t.name like 'عمر%' order by t.name", [org]));
+    expect(omar.rows).toEqual([{ team: "عمر (2)", sub: "عمر (2)" }, { team: "عمر (مقاول)", sub: "عمر" }]);
   });
 
   it("an automatic entry the owner deletes is not recorded again", async () => {
@@ -132,5 +140,28 @@ describe("reviewer cases", () => {
   it("staff can't write an entry marked automatic", async () => {
     const { rows: [g] } = await asAdmin((q) => q<{ id: string }>("select id from public.subcontractor_agreements where organization_id = $1 limit 1", [org]));
     await expectDenied(as({ userId: owner }, (q) => q("insert into public.subcontractor_work (organization_id, agreement_id, quantity_m2, auto) values ($1,$2,10,true)", [org, g.id])));
+  });
+});
+
+describe("one record from both sides", () => {
+  it("editing a linked team in Schedule updates the subcontractor", async () => {
+    const { rows: [t] } = await asAdmin((q) => q<{ id: string; subcontractor_id: string }>("select id, subcontractor_id from public.teams where organization_id = $1 and name = 'مؤسسة البلاط'", [org]));
+    await as({ userId: owner }, (q) => q("update public.teams set name = 'مؤسسة البلاط الحديثة', contact_phone = '966500000078' where id = $1", [t.id]));
+    const s = await asAdmin((q) => q<{ name: string; phone: string }>("select name, phone from public.subcontractors where id = $1", [t.subcontractor_id]));
+    expect(s.rows).toEqual([{ name: "مؤسسة البلاط الحديثة", phone: "966500000078" }]);
+    expect((await asAdmin((q) => q("select id from public.teams where subcontractor_id = $1", [t.subcontractor_id]))).rows).toHaveLength(1);
+  });
+});
+
+describe("agreement made mid-project", () => {
+  it("catches up with the progress already recorded", async () => {
+    const { rows: [c] } = await asAdmin((q) => q<{ id: string }>("select contract_id as id from public.subcontractor_agreements where organization_id = $1 limit 1", [org]));
+    const sub = await as({ userId: owner }, async (q) => (await q<{ id: string }>("insert into public.subcontractors (organization_id, name) values ($1,'مقاول متأخر') returning id", [org])).rows[0].id);
+    await as({ userId: owner }, (q) => q("insert into public.subcontractor_agreements (organization_id, subcontractor_id, contract_id, scope, basis, rate, schedule) values ($1,$2,$3,'تشطيب','lump',1000,'progress')", [org, sub, c.id]));
+    const w = await asAdmin((q) => q<{ percent: string; amount: string; auto: boolean }>("select w.percent, w.amount, w.auto from public.subcontractor_work w join public.subcontractor_agreements a on a.id = w.agreement_id where a.subcontractor_id = $1", [sub]));
+    expect(w.rows).toHaveLength(1);
+    expect(Number(w.rows[0].percent)).toBe(99);
+    expect(Number(w.rows[0].amount)).toBe(990);
+    expect(w.rows[0].auto).toBe(true);
   });
 });

@@ -455,7 +455,9 @@
     "tabCalculator": "التسعير",
     "tabRates": "أرقام القالب",
     "tabCalibration": "الاستهلاك الفعلي",
-    "linkedSub": "مرتبط بمقاولي الباطن والفرق"
+    "linkedSub": "مرتبط بمقاولي الباطن والفرق",
+    "pickSub": "مقاول الباطن",
+    "newSubByName": "مقاول جديد (اكتب اسمه تحت)"
   },
   "units": {
     "m2": "م²",
@@ -1957,7 +1959,15 @@
     "reference": "المرجع",
     "pricingRates": "سعره في التسعير",
     "ratePerM2": "{rate} / م²",
-    "rateLump": "{rate} مقطوعية"
+    "rateLump": "{rate} مقطوعية",
+    "autoFollows": "يتبع تقدم المشروع",
+    "closed": "مقفل",
+    "autoEntry": "تلقائي",
+    "editAgreement": "تعديل الاتفاق",
+    "scopeDefault": "حسب العقد {number}",
+    "autoProgress": "سجّل إنجازه تلقائياً من تقدم المشروع",
+    "autoProgressHint": "كل ما حدّثت نسبة الإنجاز في صفحة المشروع ينضاف له المنجز. لو عدّلت أو حذفت قيداً تلقائياً يتوقف ذلك.",
+    "agreementActive": "الاتفاق ساري"
   },
   "petty": {
     "newAccount": "عهدة جديدة",

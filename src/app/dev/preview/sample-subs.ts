@@ -15,14 +15,14 @@ export const SAMPLE_SUBS: SubcontractorsData = {
   ],
   agreements: [
     {
-      id: "g1", subcontractor_id: "s1", contract_id: "k0", scope: "تركيب أسقف الدور الأرضي", basis: "per_m2", rate: 15, quantity_m2: 400, schedule: "weekly", status: "active",
+      id: "g1", subcontractor_id: "s1", contract_id: "k0", scope: "تركيب أسقف الدور الأرضي", basis: "per_m2", rate: 15, quantity_m2: 400, schedule: "weekly", status: "active", auto_progress: false,
       work: [
-        { id: "w1", work_date: "2026-11-21", quantity_m2: 120, percent: null, amount: 1800, note: null },
-        { id: "w2", work_date: "2026-11-22", quantity_m2: 160, percent: null, amount: 2400, note: null },
+        { id: "w1", work_date: "2026-11-21", quantity_m2: 120, percent: null, amount: 1800, note: null, auto: false },
+        { id: "w2", work_date: "2026-11-22", quantity_m2: 160, percent: null, amount: 2400, note: null, auto: false },
       ],
       payments: [{ id: "p1", paid_on: "2026-11-22", amount: 1800, method: "transfer", reference: null }],
     },
-    { id: "g2", subcontractor_id: "s2", contract_id: "k2", scope: "دهان الواجهات بالرش", basis: "lump", rate: 9000, quantity_m2: null, schedule: "progress", status: "active", work: [{ id: "w3", work_date: "2026-11-10", quantity_m2: null, percent: 50, amount: 4500, note: null }], payments: [] },
+    { id: "g2", subcontractor_id: "s2", contract_id: "k2", scope: "دهان الواجهات بالرش", basis: "lump", rate: 9000, quantity_m2: null, schedule: "progress", status: "active", auto_progress: true, work: [{ id: "w3", work_date: "2026-11-10", quantity_m2: null, percent: 50, amount: 4500, note: "تلقائي من تقدم المشروع: 50%", auto: true }], payments: [] },
   ],
 };
 

@@ -634,8 +634,9 @@ export type SubAgreementRow = OrgRow & Upd & {
   quantity_m2: number | null;
   schedule: "weekly" | "progress";
   status: "active" | "closed";
+  auto_progress: boolean;
 };
-export type SubWorkRow = OrgRow & { agreement_id: string; work_date: string; quantity_m2: number | null; percent: number | null; amount: number; note: string | null };
+export type SubWorkRow = OrgRow & { agreement_id: string; work_date: string; quantity_m2: number | null; percent: number | null; amount: number; note: string | null; auto: boolean };
 export type SubPaymentRow = OrgRow & { agreement_id: string; paid_on: string; amount: number; method: "transfer" | "cash" | "cheque"; reference: string | null; note: string | null };
 export type PettyAccountRow = OrgRow & Upd & { holder_id: string; name: string; is_active: boolean };
 export type PettyEntryRow = OrgRow & {

@@ -35,6 +35,7 @@ export function SubcontractorsView({ data, actions }: { data: SubcontractorsData
   const { fmt } = useFormatter();
   const [subDialog, setSubDialog] = React.useState<Partial<SubcontractorsData["subs"][number]> | null>(null);
   const [agreementFor, setAgreementFor] = React.useState<string | null>(null);
+  const [editAgreement, setEditAgreement] = React.useState<SubAgreementView | null>(null);
   const [workFor, setWorkFor] = React.useState<SubAgreementView | null>(null);
   const [payFor, setPayFor] = React.useState<SubAgreementView | null>(null);
   const project = new Map(data.projects.map((p) => [p.id, p]));
@@ -97,9 +98,16 @@ export function SubcontractorsView({ data, actions }: { data: SubcontractorsData
                       <p className="font-bold">
                         {p ? `${p.client} · ${ltr(p.number)}` : "—"} — {g.scope}
                       </p>
-                      <div className="flex gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <Badge>{g.basis === "per_m2" ? t("perM2", { rate: fmt.money(g.rate) }) : t("lump")}</Badge>
                         <Badge tone="info">{t(`sched_${g.schedule}`)}</Badge>
+                        {g.schedule === "progress" && g.auto_progress && g.status === "active" && <Badge tone="primary">{t("autoFollows")}</Badge>}
+                        {g.status === "closed" && <Badge tone="neutral">{t("closed")}</Badge>}
+                        {data.canManage && (
+                          <Button size="sm" variant="ghost" onClick={() => setEditAgreement(g)}>
+                            {t("edit")}
+                          </Button>
+                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-4">
@@ -147,6 +155,9 @@ export function SubcontractorsView({ data, actions }: { data: SubcontractorsData
                                     ? t("workM2", { n: fmt.number(e.quantity_m2, 1) })
                                     : t("workPct", { n: fmt.number(e.percent ?? 0, 0) })
                                   : t(`method_${e.method}` as "method_cash")}
+                                {e.type === "work" && e.auto && (
+                                  <span className="ms-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{t("autoEntry")}</span>
+                                )}
                               </span>
                               <span className="flex items-center gap-1">
                                 <span className={cn("font-latin tabular-nums", e.type === "pay" && "text-success")}>
@@ -169,7 +180,18 @@ export function SubcontractorsView({ data, actions }: { data: SubcontractorsData
         })
       )}
       {subDialog && <SubDialog initial={subDialog} onClose={() => setSubDialog(null)} save={actions?.saveSub} />}
-      {agreementFor && <AgreementDialog subId={agreementFor} projects={data.projects} onClose={() => setAgreementFor(null)} save={actions?.saveAgreement} />}
+      {agreementFor && (
+        <AgreementDialog
+          subId={agreementFor}
+          projects={data.projects}
+          rate={(data.rates ?? []).find((r) => r.subcontractor_id === agreementFor)}
+          onClose={() => setAgreementFor(null)}
+          save={actions?.saveAgreement}
+        />
+      )}
+      {editAgreement && (
+        <AgreementDialog subId={editAgreement.subcontractor_id} projects={data.projects} initial={editAgreement} onClose={() => setEditAgreement(null)} save={actions?.saveAgreement} />
+      )}
       {workFor && <WorkDialog agreement={workFor} today={today0} onClose={() => setWorkFor(null)} save={actions?.addWork} />}
       {payFor && <PayDialog agreement={payFor} today={today0} onClose={() => setPayFor(null)} save={actions?.addPayment} />}
     </div>
@@ -255,33 +277,75 @@ function SubDialog({ initial, onClose, save }: { initial: Partial<Subcontractors
   );
 }
 
-function AgreementDialog({ subId, projects, onClose, save }: { subId: string; projects: SubcontractorsData["projects"]; onClose: () => void; save?: Act }) {
+function AgreementDialog({
+  subId,
+  projects,
+  initial,
+  rate: known,
+  onClose,
+  save,
+}: {
+  subId: string;
+  projects: SubcontractorsData["projects"];
+  /** editing an existing agreement */
+  initial?: SubAgreementView;
+  /** his saved price (pricing «العمالة والمصاريف») pre-fills a new agreement */
+  rate?: { basis: "external_per_unit" | "external_lump"; rate: number };
+  onClose: () => void;
+  save?: Act;
+}) {
   const t = useTranslations("subs");
   const { fmt } = useFormatter();
   const { run, pending, fieldText } = useActionRunner();
-  const [contract, setContract] = React.useState(projects[0]?.id ?? "");
-  const [scope, setScope] = React.useState("");
-  const [basis, setBasis] = React.useState<"per_m2" | "lump">("per_m2");
-  const [rate, setRate] = React.useState("");
-  const [qty, setQty] = React.useState("");
-  const [schedule, setSchedule] = React.useState<"weekly" | "progress">("weekly");
+  const firstProject = initial ? projects.find((p) => p.id === initial.contract_id) : projects[0];
+  const [contract, setContract] = React.useState(initial?.contract_id ?? projects[0]?.id ?? "");
+  const [scope, setScope] = React.useState(initial?.scope ?? (firstProject ? t("scopeDefault", { number: ltr(firstProject.number) }) : ""));
+  const [basis, setBasis] = React.useState<"per_m2" | "lump">(initial?.basis ?? (known?.basis === "external_lump" ? "lump" : "per_m2"));
+  const [rate, setRate] = React.useState(initial ? String(initial.rate) : known ? String(known.rate) : "");
+  const [qty, setQty] = React.useState(initial?.quantity_m2 != null ? String(initial.quantity_m2) : firstProject?.area != null ? String(firstProject.area) : "");
+  const [schedule, setSchedule] = React.useState<"weekly" | "progress">(initial?.schedule ?? "progress");
+  const [active, setActive] = React.useState(initial ? initial.status === "active" : true);
+  const [auto, setAuto] = React.useState(initial ? initial.auto_progress : true);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const pickProject = (id: string) => {
+    setContract(id);
+    const p = projects.find((x) => x.id === id);
+    if (!initial && p) {
+      setScope(t("scopeDefault", { number: ltr(p.number) }));
+      if (p.area != null) setQty(String(p.area));
+    }
+  };
   const total = basis === "lump" ? num(rate) : num(rate) * num(qty);
   return (
     <FormDialog
       open
       onOpenChange={(v) => !v && onClose()}
-      title={t("newAgreement")}
+      title={initial ? t("editAgreement") : t("newAgreement")}
       pending={pending}
       onSubmit={() =>
-        run(save && (() => save({ subcontractor_id: subId, contract_id: contract, scope, basis, rate: num(rate), quantity_m2: basis === "per_m2" ? num(qty) : null, schedule, status: "active" })), {
+        run(
+          save &&
+            (() =>
+              save({
+                ...(initial ? { id: initial.id } : {}),
+                subcontractor_id: subId,
+                contract_id: contract,
+                scope,
+                basis,
+                rate: num(rate),
+                quantity_m2: basis === "per_m2" ? num(qty) : null,
+                schedule,
+                status: active ? "active" : "closed",
+                auto_progress: schedule === "progress" ? auto : false,
+              })),
+          {
           onFieldErrors: setErrors,
           onSuccess: onClose,
         })
       }
     >
       <Field id="ag-p" label={t("project")}>
-        <NativeSelect value={contract} onChange={(e) => setContract(e.target.value)}>
+        <NativeSelect value={contract} onChange={(e) => pickProject(e.target.value)} disabled={!!initial}>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
               {ltr(p.number)} · {p.client}
@@ -304,6 +368,21 @@ function AgreementDialog({ subId, projects, onClose, save }: { subId: string; pr
         )}
       </div>
       <Segmented name={t("schedule")} value={schedule} onChange={setSchedule} options={[{ value: "weekly", label: t("sched_weekly") }, { value: "progress", label: t("sched_progress") }]} />
+      {schedule === "progress" && (
+        <label className="flex items-center justify-between gap-3 text-[14px]">
+          <span>
+            {t("autoProgress")}
+            <span className="block text-[12px] text-muted-foreground">{t("autoProgressHint")}</span>
+          </span>
+          <Switch checked={auto} onCheckedChange={setAuto} aria-label={t("autoProgress")} />
+        </label>
+      )}
+      {initial && (
+        <label className="flex items-center justify-between gap-3 text-[14px]">
+          <span>{t("agreementActive")}</span>
+          <Switch checked={active} onCheckedChange={setActive} aria-label={t("agreementActive")} />
+        </label>
+      )}
       <p className="text-[13px]">
         {t("agreed")}: <span className="font-latin font-bold tabular-nums">{fmt.money(total)}</span> · {t("noRetention")}
       </p>

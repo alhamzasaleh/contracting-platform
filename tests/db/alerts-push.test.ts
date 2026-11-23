@@ -32,7 +32,7 @@ beforeAll(async () => {
       [v, org],
     );
     // delivery date = start + 1 day = 7 days ago
-    contract = (await q<{ id: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total, status) values ($1,$2,1,$3,'gypsum',current_date - 8,1,11500,'sent') returning id", [org, quote, client])).rows[0].id;
+    contract = (await q<{ id: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total, status) values ($1,$2,1,$3,'gypsum',(now() at time zone 'Asia/Riyadh')::date - 8,1,11500,'sent') returning id", [org, quote, client])).rows[0].id;
     await q("insert into public.client_portal_links (organization_id, contract_id, token_hash, expires_at) values ($1,$2,$3, now() + interval '30 days')", [org, contract, hash(TOKEN)]);
   });
   await as("service_role", (q) => q("select public.portal_accept($1,$2,'فهد',null,'1.1.1.1','x')", [C, TOKEN]));

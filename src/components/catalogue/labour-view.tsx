@@ -37,12 +37,15 @@ export function LabourView({
   labour,
   extras,
   services,
+  subcontractors = [],
   canManage,
   actions,
 }: {
   labour: LabourItem[];
   extras: ExtraItem[];
   services: { id: string; name_ar: string }[];
+  /** subcontractors already on file — pick one instead of typing his name again */
+  subcontractors?: { id: string; name: string }[];
   canManage: boolean;
   actions?: LabourActions;
 }) {
@@ -52,6 +55,13 @@ export function LabourView({
   const [labourDialog, setLabourDialog] = React.useState<LabourItem | "new" | null>(null);
   const [extraDialog, setExtraDialog] = React.useState<ExtraItem | "new" | null>(null);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [subPick, setSubPick] = React.useState("");
+  const [rateName, setRateName] = React.useState("");
+  const openLabour = (l: LabourItem | "new") => {
+    setSubPick(l === "new" ? "" : (l.subcontractor_id ?? ""));
+    setRateName(l === "new" ? "" : l.name);
+    setLabourDialog(l);
+  };
   const serviceName = (id: string | null) => services.find((s) => s.id === id)?.name_ar ?? t("catalogue.anyService");
   const unitLabel = { lump: t("catalogue.unitLump"), day: t("catalogue.unitDay"), trip: t("catalogue.unitTrip"), month: t("catalogue.unitMonth") };
 
@@ -64,7 +74,7 @@ export function LabourView({
             <CardDescription>{t("catalogue.labourHint")}</CardDescription>
           </div>
           {canManage && (
-            <Button size="sm" variant="soft" onClick={() => setLabourDialog("new")}>
+            <Button size="sm" variant="soft" onClick={() => openLabour("new")}>
               <Plus /> {t("catalogue.addLabour")}
             </Button>
           )}
@@ -88,7 +98,7 @@ export function LabourView({
                     <Badge>{l.basis === "external_per_unit" ? t("catalogue.basisPerUnit") : t("catalogue.basisLump")}</Badge>
                   </div>
                   {canManage && (
-                    <Button variant="ghost" size="icon-sm" aria-label={t("catalogue.editLabour")} onClick={() => setLabourDialog(l)}>
+                    <Button variant="ghost" size="icon-sm" aria-label={t("catalogue.editLabour")} onClick={() => openLabour(l)}>
                       <Pencil />
                     </Button>
                   )}
@@ -151,6 +161,7 @@ export function LabourView({
                       ...(l ? { id: l.id } : {}),
                       service_id: str(fd, "service_id") || null,
                       name: str(fd, "name"),
+                      subcontractor_id: subPick || null,
                       basis: str(fd, "basis"),
                       rate: str(fd, "rate"),
                       notes: null,
@@ -160,8 +171,25 @@ export function LabourView({
               )
             }
           >
+            {subcontractors.length > 0 && (
+              <Field id="lb-sub" label={t("catalogue.pickSub")}>
+                <NativeSelect
+                  value={subPick}
+                  onChange={(e) => {
+                    setSubPick(e.target.value);
+                    const s = subcontractors.find((x) => x.id === e.target.value);
+                    if (s) setRateName(s.name);
+                  }}
+                >
+                  <option value="">{t("catalogue.newSubByName")}</option>
+                  {subcontractors.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            )}
             <Field id="lb-name" label={t("catalogue.name")} error={fieldText(errors.name)}>
-              <Input name="name" defaultValue={l?.name} placeholder="مقاول دهانات — أبو محمد" />
+              <Input name="name" value={rateName} onChange={(e) => setRateName(e.target.value)} placeholder="مقاول دهانات — أبو محمد" />
             </Field>
             <Field id="lb-svc" label={t("catalogue.service")}>
               <NativeSelect name="service_id" defaultValue={l?.service_id ?? ""}>

@@ -5,22 +5,34 @@ import type { ServiceKind } from "@/lib/pricing";
 import { createClient } from "@/lib/supabase/server";
 
 const n = (v: unknown) => Number(v ?? 0);
-type ProjectRef = { id: string; number: string; client: string };
+/** area = the accepted quote's measured m² (pre-fills a new agreement) */
+type ProjectRef = { id: string; number: string; client: string; area?: number };
 
 async function projects(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string, canSee: boolean): Promise<ProjectRef[]> {
   if (!canSee) return [];
   const [{ data: contracts }, { data: clients }] = await Promise.all([
-    supabase.from("contracts").select("id, number, client_id").eq("organization_id", orgId).eq("status", "accepted").order("created_at", { ascending: false }),
+    supabase.from("contracts").select("id, number, client_id, quote_id, quote_version").eq("organization_id", orgId).eq("status", "accepted").order("created_at", { ascending: false }),
     supabase.from("clients").select("id, name").eq("organization_id", orgId),
   ]);
   const names = new Map((clients ?? []).map((c) => [c.id, c.name]));
-  return (contracts ?? []).map((c) => ({ id: c.id, number: c.number, client: names.get(c.client_id) ?? "—" }));
+  const quoteIds = [...new Set((contracts ?? []).map((c) => c.quote_id))];
+  const { data: versions } = quoteIds.length
+    ? await supabase.from("quote_versions").select("quote_id, version, client_view").eq("organization_id", orgId).in("quote_id", quoteIds)
+    : { data: [] as { quote_id: string; version: number; client_view: unknown }[] };
+  const areaOf = (quote: string, version: number) => {
+    const v = (versions ?? []).find((x) => x.quote_id === quote && x.version === version)?.client_view as { workTypes?: { area?: number }[] } | null;
+    const a = (v?.workTypes ?? []).reduce((s, w) => s + Number(w.area ?? 0), 0);
+    return a > 0 ? Math.round(a * 100) / 100 : undefined;
+  };
+  return (contracts ?? []).map((c) => ({ id: c.id, number: c.number, client: names.get(c.client_id) ?? "—", area: areaOf(c.quote_id, c.quote_version) }));
 }
 
 export type SubAgreementView = {
   id: string; subcontractor_id: string; contract_id: string; scope: string; basis: "lump" | "per_m2"; rate: number; quantity_m2: number | null;
   schedule: "weekly" | "progress"; status: "active" | "closed";
-  work: { id: string; work_date: string; quantity_m2: number | null; percent: number | null; amount: number; note: string | null }[];
+  /** recorded automatically from project progress (progress schedule) */
+  auto_progress: boolean;
+  work: { id: string; work_date: string; quantity_m2: number | null; percent: number | null; amount: number; note: string | null; auto: boolean }[];
   payments: { id: string; paid_on: string; amount: number; method: string; reference: string | null }[];
 };
 export type SubcontractorsData = {
@@ -38,8 +50,8 @@ export async function loadSubcontractors(session: SessionContext): Promise<Subco
   const orgId = session.organization.id;
   const [{ data: subs }, { data: agreements }, { data: work }, { data: payments }, projectList] = await Promise.all([
     supabase.from("subcontractors").select("id, name, phone, services, iban, vat_number, notes, is_active").eq("organization_id", orgId).order("name"),
-    supabase.from("subcontractor_agreements").select("id, subcontractor_id, contract_id, scope, basis, rate, quantity_m2, schedule, status").eq("organization_id", orgId).order("created_at", { ascending: false }),
-    supabase.from("subcontractor_work").select("id, agreement_id, work_date, quantity_m2, percent, amount, note").eq("organization_id", orgId).order("work_date", { ascending: false }).limit(5000),
+    supabase.from("subcontractor_agreements").select("id, subcontractor_id, contract_id, scope, basis, rate, quantity_m2, schedule, status, auto_progress").eq("organization_id", orgId).order("created_at", { ascending: false }),
+    supabase.from("subcontractor_work").select("id, agreement_id, work_date, quantity_m2, percent, amount, note, auto").eq("organization_id", orgId).order("work_date", { ascending: false }).limit(5000),
     supabase.from("subcontractor_payments").select("id, agreement_id, paid_on, amount, method, reference").eq("organization_id", orgId).order("paid_on", { ascending: false }).limit(5000),
     projects(supabase, orgId, can(session, "quotes.view")),
   ]);

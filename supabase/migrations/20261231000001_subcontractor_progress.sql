@@ -131,6 +131,7 @@ set search_path = ''
 as $$
 declare
   v_sub uuid;
+  v_name text := new.name;
 begin
   if new.kind <> 'external' or new.subcontractor_id is not null then
     return null;
@@ -138,23 +139,20 @@ begin
   select id into v_sub from public.subcontractors s
   where s.organization_id = new.organization_id and s.name = new.name
     and not exists (select 1 from public.teams t where t.subcontractor_id = s.id);
-  if v_sub is null then
-    -- the subcontractor's own trigger finds this team by name and links it.
-    -- If the name already belongs to a subcontractor linked to another team,
-    -- this one gets a distinct name ("… (فريق)") rather than failing.
-    insert into public.subcontractors (organization_id, name, services, phone, is_active, created_by)
-    values (new.organization_id,
-            case when exists (select 1 from public.subcontractors x where x.organization_id = new.organization_id and x.name = new.name)
-                 then left(new.name, 150) || ' (فريق)' else new.name end,
-            new.services, new.contact_phone, new.is_active, new.created_by)
-    on conflict (organization_id, name) do nothing
-    returning id into v_sub;
-    if v_sub is not null then
-      update public.teams set subcontractor_id = v_sub where id = new.id and subcontractor_id is null;
-    end if;
-  else
+  if v_sub is not null then
     update public.teams set subcontractor_id = v_sub where id = new.id;
+    return null;
   end if;
+  -- the name may belong to a subcontractor who already has another team
+  if exists (select 1 from public.subcontractors x where x.organization_id = new.organization_id and x.name = v_name) then
+    v_name := left(new.name, 150) || ' (2)';
+  end if;
+  -- tell the subcontractor's own trigger to link THIS team instead of creating one
+  perform set_config('app.link_team', new.id::text, true);
+  insert into public.subcontractors (organization_id, name, services, phone, is_active, created_by)
+  values (new.organization_id, v_name, new.services, new.contact_phone, new.is_active, new.created_by)
+  on conflict (organization_id, name) do nothing;
+  perform set_config('app.link_team', '', true);
   return null;
 end;
 $$;
@@ -163,3 +161,76 @@ create trigger teams_to_subcontractor after insert or update of kind on public.t
 
 -- existing external teams without a subcontractor
 update public.teams set kind = kind where kind = 'external' and subcontractor_id is null;
+
+-- Subcontractor → team, now also linking the exact team that asked for it (above).
+create or replace function private.sync_subcontractor_team()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_name text := left(new.name, 80);
+  v_link text := nullif(current_setting('app.link_team', true), '');
+begin
+  if exists (select 1 from public.teams t where t.subcontractor_id = new.id) then
+    update public.teams
+    set name = case when exists (select 1 from public.teams x where x.organization_id = new.organization_id and x.name = v_name and x.subcontractor_id is distinct from new.id) then name else v_name end,
+        services = new.services, contact_phone = new.phone, is_active = new.is_active
+    where subcontractor_id = new.id;
+  elsif tg_op = 'INSERT' and v_link ~ '^[0-9a-f-]{36}$'
+        and exists (select 1 from public.teams t where t.id = v_link::uuid and t.organization_id = new.organization_id and t.subcontractor_id is null) then
+    update public.teams
+    set subcontractor_id = new.id,
+        name = case when exists (select 1 from public.teams x where x.organization_id = new.organization_id and x.name = v_name and x.id <> v_link::uuid) then name else v_name end
+    where id = v_link::uuid;
+  elsif exists (select 1 from public.teams t where t.organization_id = new.organization_id and t.name = v_name and t.kind = 'external' and t.subcontractor_id is null) then
+    update public.teams set subcontractor_id = new.id, services = new.services, contact_phone = coalesce(contact_phone, new.phone)
+    where organization_id = new.organization_id and name = v_name and kind = 'external' and subcontractor_id is null;
+  else
+    insert into public.teams (organization_id, name, kind, services, contact_phone, is_active, subcontractor_id, color, created_by)
+    values (new.organization_id,
+            case when exists (select 1 from public.teams x where x.organization_id = new.organization_id and x.name = v_name) then left(v_name, 70) || ' (مقاول)' else v_name end,
+            'external', new.services, new.phone, new.is_active, new.id, '#B5653E', new.created_by);
+  end if;
+  return null;
+end;
+$$;
+
+-- Editing a linked team in Schedule updates the subcontractor too (one record, no drift).
+create or replace function private.team_edit_to_subcontractor()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if pg_trigger_depth() > 1 or new.subcontractor_id is null then
+    return null;
+  end if;
+  update public.subcontractors s
+  set name = case when exists (select 1 from public.subcontractors x where x.organization_id = s.organization_id and x.name = new.name and x.id <> s.id) then s.name else new.name end,
+      phone = new.contact_phone, services = new.services, is_active = new.is_active
+  where s.id = new.subcontractor_id
+    and (s.name is distinct from new.name or s.phone is distinct from new.contact_phone
+         or s.services is distinct from new.services or s.is_active is distinct from new.is_active);
+  return null;
+end;
+$$;
+create trigger teams_edit_to_subcontractor after update of name, contact_phone, services, is_active on public.teams
+  for each row execute function private.team_edit_to_subcontractor();
+
+-- An agreement made mid-project catches up with the progress already recorded.
+create or replace function private.agreement_catch_up()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform private.sync_subcontractor_progress(new.contract_id);
+  return null;
+end;
+$$;
+create trigger subcontractor_agreements_catch_up after insert or update of auto_progress, schedule, status, quantity_m2 on public.subcontractor_agreements
+  for each row execute function private.agreement_catch_up();
