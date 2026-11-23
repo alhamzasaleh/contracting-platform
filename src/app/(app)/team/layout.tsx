@@ -13,6 +13,7 @@ export default async function TeamLayout({ children }: { children: React.ReactNo
         tabs={[
           { href: "/team", label: t("tabEmployees"), exact: true },
           { href: "/team/costs", label: t("tabCosts") },
+          { href: "/team/payroll", label: t("tabPayroll") },
         ]}
       />
       {children}

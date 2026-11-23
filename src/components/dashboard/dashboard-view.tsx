@@ -1,5 +1,5 @@
 "use client";
-import { ArrowUpLeft, Check, CheckCircle2, Plus } from "lucide-react";
+import { AlertTriangle, ArrowUpLeft, Check, CheckCircle2, Plus } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -26,6 +26,8 @@ export type DashboardData = {
   /** owner finance (finance.view); without it the home shows the getting-started view */
   finance?: OwnerFinance | null;
   financeActions?: FinanceActions;
+  /** hr.view: documents expiring within 60 days (count, expired) */
+  expiring?: { total: number; expired: number } | null;
 };
 
 const ease = [0.16, 1, 0.3, 1] as const;
@@ -45,6 +47,7 @@ const item = {
  */
 export function DashboardView({ data }: { data: DashboardData }) {
   const t = useTranslations("dashboard");
+  const tp = useTranslations("payroll");
   const { fmt } = useFormatter();
   const hour = Number(
     new Intl.DateTimeFormat("en-u-nu-latn", {
@@ -87,6 +90,17 @@ export function DashboardView({ data }: { data: DashboardData }) {
           </Link>
         </Button>
       </motion.div>
+
+      {data.expiring && data.expiring.total > 0 && (
+        <motion.div variants={item}>
+          <Link href={`${base}/team/payroll`} className="flex items-center gap-2 rounded-2xl border border-warning/40 bg-warning-soft/60 px-4 py-3 text-[14px] hover:bg-warning-soft">
+            <AlertTriangle className="size-4 shrink-0" />
+            {tp("homeExpiring", { n: data.expiring.total })}
+            {data.expiring.expired > 0 && <span className="font-bold text-danger">· {tp("homeExpired", { n: data.expiring.expired })}</span>}
+            <ArrowUpLeft className="ms-auto size-4 ltr:-scale-x-100" />
+          </Link>
+        </motion.div>
+      )}
 
       {data.finance ? (
         <OwnerFinanceSections

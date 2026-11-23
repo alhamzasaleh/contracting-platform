@@ -1,6 +1,7 @@
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 import { can, getSession } from "@/lib/auth/session";
 import { loadOwnerFinance } from "@/lib/data/finance";
+import { expiringDocuments } from "@/lib/hr";
 import { decideFromDashboard, saveCashSettings } from "./reports/actions";
 import { createClient } from "@/lib/supabase/server";
 
@@ -15,11 +16,18 @@ export default async function HomePage() {
   const org = session.organization;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh" }).format(new Date());
   const finance = can(session, "finance.view") ? await loadOwnerFinance(session, today) : null;
+  let expiring: { total: number; expired: number } | null = null;
+  if (can(session, "hr.view")) {
+    const { data: emps } = await supabase.from("employees").select("id, full_name, status, id_expiry, passport_expiry, insurance_expiry").eq("organization_id", org.id);
+    const docs = expiringDocuments(emps ?? [], today);
+    expiring = { total: docs.length, expired: docs.filter((d) => d.level === "expired").length };
+  }
   return (
     <DashboardView
       data={{
         userName: session.profile.full_name,
         finance,
+        expiring,
         financeActions: { decide: decideFromDashboard, saveCash: saveCashSettings },
         setup: [
           { key: "setupCompany", done: Boolean(org.cr_number && org.vat_number), href: "/settings" },

@@ -240,3 +240,15 @@ test.describe("owner finance (design preview)", () => {
     await expect(page.getByText("التكلفة الفعلية").first()).toBeVisible();
   });
 });
+
+test.describe("payroll (design preview)", () => {
+  test("payroll shows expiring documents, live net pay and advances", async ({ page }) => {
+    await page.goto("/dev/preview/team/payroll");
+    await expect(page.getByText("وثائق تنتهي قريباً")).toBeVisible();
+    await expect(page.getByText(/منتهية من 8 يوم/)).toBeVisible();
+    const overtime = page.locator("tbody tr").nth(1).locator("input").first();
+    await overtime.fill("100");
+    await expect(page.locator("tbody tr").nth(1).getByText("3,000.00").first()).toBeVisible();
+    await expect(page.getByText("مسودة").first()).toBeVisible();
+  });
+});

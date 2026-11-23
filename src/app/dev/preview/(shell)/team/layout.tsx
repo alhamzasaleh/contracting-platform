@@ -12,6 +12,7 @@ export default async function PreviewTeamLayout({ children }: { children: React.
         tabs={[
           { href: "/team", label: t("tabEmployees"), exact: true },
           { href: "/team/costs", label: t("tabCosts") },
+          { href: "/team/payroll", label: t("tabPayroll") },
         ]}
       />
       {children}

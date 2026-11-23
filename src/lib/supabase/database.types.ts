@@ -635,6 +635,24 @@ export type PettyEntryRow = OrgRow & {
 
 export type FinanceSettingsRow = { organization_id: string; cash_balance: number; cash_balance_on: string; payday: number; created_at: string; created_by: string | null; updated_at: string };
 
+export type EmployeeAdvanceRow = OrgRow & { employee_id: string; given_on: string; amount: number; note: string | null; deducted_in_run: string | null };
+export type PayrollRunRow = OrgRow & Upd & { month: string; status: "draft" | "approved" | "paid"; approved_at: string | null; approved_by: string | null; paid_on: string | null };
+export type PayrollLineRow = OrgRow & Upd & {
+  run_id: string;
+  employee_id: string;
+  full_name: string;
+  iban: string | null;
+  basic: number;
+  housing: number;
+  transport: number;
+  other: number;
+  overtime: number;
+  deductions: number;
+  advances: number;
+  net: number;
+  note: string | null;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -697,6 +715,9 @@ export type Database = {
       petty_cash_accounts: Table<PettyAccountRow>;
       petty_cash_entries: Table<PettyEntryRow>;
       finance_settings: Table<FinanceSettingsRow>;
+      employee_advances: Table<EmployeeAdvanceRow>;
+      payroll_runs: Table<PayrollRunRow>;
+      payroll_lines: Table<PayrollLineRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
@@ -711,6 +732,9 @@ export type Database = {
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
+      create_payroll_run: { Args: { p_org: string; p_month: string }; Returns: string };
+      approve_payroll_run: { Args: { p_run: string }; Returns: undefined };
+      mark_payroll_paid: { Args: { p_run: string; p_paid_on: string }; Returns: undefined };
       record_client_payment: { Args: { p_payment: string; p_paid_on: string; p_amount: number; p_method: string; p_reference: string | null }; Returns: string };
       submit_addendum: { Args: { p_id: string }; Returns: string };
       portal_addenda: { Args: { p_number: string; p_token: string }; Returns: Json };
