@@ -5,6 +5,8 @@ export type InvoiceDoc = {
   number: string; kind: "tax" | "simple"; issue_date: string; due_date: string; description: string;
   seller: InvoiceParty; buyer: InvoiceParty; subtotal: number; vat_percent: number; vat: number; total: number; paid: number;
   contract: string;
+  /** issue time (for the ZATCA QR) */
+  created_at?: string;
 };
 export type InvoiceStatus = "paid" | "partial" | "overdue" | "due";
 

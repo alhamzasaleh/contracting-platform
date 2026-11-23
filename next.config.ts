@@ -23,6 +23,12 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   typedRoutes: false,
+  // headless Chromium for server-side PDFs: kept out of the bundle, its binary shipped with the PDF routes
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
+  outputFileTracingIncludes: {
+    "/api/pdf/[...doc]": ["./node_modules/@sparticuz/chromium/bin/**"],
+    "/p/[number]/[token]/pdf/[doc]": ["./node_modules/@sparticuz/chromium/bin/**"],
+  },
   turbopack: {
     rules: {
       "*.css": {

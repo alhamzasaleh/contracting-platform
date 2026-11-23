@@ -21,7 +21,7 @@ export default async function PrintQuotePage({ params }: { params: Promise<{ num
     <main className="min-h-dvh bg-background py-6 print:bg-white print:py-0">
       <BrandStyle primary={o.brand.primary} accent={o.brand.accent} />
       <div className="mx-auto mb-4 flex max-w-[820px] justify-end px-4 print:hidden">
-        <PrintButton />
+        <PrintButton pdfHref={`/api/pdf/quotations/${encodeURIComponent(detail.quote.number)}`} />
       </div>
       <QuoteDocument
         org={{ name: o.name, legal_name: o.legal_name, cr_number: o.cr_number, vat_number: o.vat_number, phone: o.phone, city: o.city, logoUrl }}

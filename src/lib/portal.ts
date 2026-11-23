@@ -35,7 +35,7 @@ export type PortalData = {
 
 export type PortalInvoice = {
   id: string; number: string; kind: "tax" | "simple"; issue_date: string; due_date: string; description: string; seller: InvoiceParty; buyer: InvoiceParty;
-  subtotal: number; vat_percent: number; vat: number; total: number; paid: number; official: string; has_official: boolean;
+  subtotal: number; vat_percent: number; vat: number; total: number; paid: number; official: string; has_official: boolean; created_at?: string;
 };
 
 export type PortalMaintenance = {

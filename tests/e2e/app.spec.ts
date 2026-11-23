@@ -406,3 +406,12 @@ test.describe("biometric sign-in (design preview)", () => {
     await expect(page.getByRole("button", { name: "تفعيل على هذا الجهاز" })).toBeVisible();
   });
 });
+
+test.describe("documents (design preview)", () => {
+  test("a tax invoice carries the ZATCA QR; a plain invoice does not", async ({ page }) => {
+    await page.goto("/dev/preview/invoices/tax");
+    await expect(page.getByRole("img", { name: /رمز الاستجابة السريعة/ })).toBeVisible();
+    await page.goto("/dev/preview/invoices/detail");
+    await expect(page.getByRole("img", { name: /رمز الاستجابة السريعة/ })).toHaveCount(0);
+  });
+});

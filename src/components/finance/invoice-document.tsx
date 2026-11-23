@@ -6,7 +6,7 @@ import { invoiceRemaining, type InvoiceDoc } from "@/lib/invoices";
 import { amountInWords } from "@/lib/tafqeet";
 
 /** Invoice (فاتورة / فاتورة ضريبية) — print-grade and branded; "tax" only when issued with a VAT number. */
-export function InvoiceDocument({ data, logoUrl }: { data: InvoiceDoc; logoUrl?: string | null }) {
+export function InvoiceDocument({ data, logoUrl, qr }: { data: InvoiceDoc; logoUrl?: string | null; qr?: string | null }) {
   const t = useTranslations("invoice");
   const locale = useLocale() as "ar" | "en";
   const { fmt } = useFormatter();
@@ -15,7 +15,7 @@ export function InvoiceDocument({ data, logoUrl }: { data: InvoiceDoc; logoUrl?:
   const seller = s.legal_name ?? s.name ?? "";
   const tax = data.kind === "tax";
   return (
-    <article className="relative mx-auto grid min-w-0 max-w-[820px] gap-6 overflow-hidden rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-basalt sm:p-10 print:rounded-none print:border-0 print:p-0">
+    <article className="relative mx-auto grid min-w-0 max-w-[820px] gap-6 overflow-hidden rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-basalt sm:p-10 print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-10">
       <span aria-hidden className="absolute end-0 top-0 size-10 bg-clay [clip-path:polygon(0_0,100%_0,100%_100%)] rtl:[clip-path:polygon(0_0,100%_0,0_100%)] print:size-8" />
       <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-primary pb-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -31,6 +31,10 @@ export function InvoiceDocument({ data, logoUrl }: { data: InvoiceDoc; logoUrl?:
           <p className="text-[26px] font-extrabold text-primary">{tax ? t("taxTitle") : t("title")}</p>
           {tax && <p className="font-latin text-[12px] text-doc-muted">Tax Invoice</p>}
           <p className="font-latin text-[13px]"><bdi dir="ltr" className="whitespace-nowrap">{data.number}</bdi></p>
+          {qr && (
+            // eslint-disable-next-line @next/next/no-img-element -- a small server-made data URL
+            <img src={qr} alt={t("qrAlt")} width={96} height={96} className="ms-auto mt-2 size-24" />
+          )}
         </div>
       </header>
 

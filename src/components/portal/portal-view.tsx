@@ -2,7 +2,7 @@
 import { DocNo } from "@/components/doc-no";
 import { ReceiptsList } from "@/components/finance/receipts-list";
 import { WarrantySection } from "./warranty-section";
-import { Camera, Check, CheckCircle2, Eraser, MessageSquare, PenLine, Send, ShieldCheck, X } from "lucide-react";
+import { Camera, Check, CheckCircle2, Download, Eraser, MessageSquare, PenLine, Send, ShieldCheck, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -180,6 +180,11 @@ export function PortalView({
         </section>
 
         {finalStage && (
+          <a href={`/p/${encodeURIComponent(number)}/${token}/pdf/handover`} className="flex items-center justify-center gap-2 text-[14px] font-semibold text-primary hover:underline print:hidden">
+            <Download className="size-4" /> {t("handoverPdf")}
+          </a>
+        )}
+        {finalStage && (
           <HandoverCertificate
             data={{
               org: { name: org.name, legal_name: org.legal_name, cr_number: org.cr_number, logoUrl },
@@ -255,6 +260,9 @@ export function PortalView({
           </section>
         )}
 
+        <a href={`/p/${encodeURIComponent(number)}/${token}/pdf/contract`} className="flex items-center justify-center gap-2 text-[14px] font-semibold text-primary hover:underline print:hidden">
+          <Download className="size-4" /> {t("contractPdf")}
+        </a>
         <ContractTerms
           terms={data.terms}
           org={org}

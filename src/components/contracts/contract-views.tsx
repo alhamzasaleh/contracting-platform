@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { AlertTriangle, CalendarClock, CalendarDays, Check, Copy, FileSignature, Link2, MessageCircle, Pencil, Plus, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, CalendarClock, CalendarDays, Check, Copy, FileSignature, Link2, MessageCircle, Pencil, Plus, Printer, Trash2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -300,6 +300,11 @@ export function ContractView({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button asChild variant="secondary" size="sm">
+            <Link href={`${base}/print/contracts/${c.number}`} target="_blank">
+              <Printer /> {t("printPdf")}
+            </Link>
+          </Button>
           {c.status !== "cancelled" && (
             <Button asChild variant="secondary" size="sm">
               <Link href={`${base}/schedule?contract=${c.number}`}>

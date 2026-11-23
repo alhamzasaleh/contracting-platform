@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { requirePermission } from "@/lib/auth/session";
 import { loadInvoice } from "@/lib/data/invoices";
 import { orgLogoUrl } from "@/lib/org";
+import { invoiceQr } from "@/lib/qr";
 
 export default async function InvoicePage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
@@ -31,7 +32,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ number
         }
       />
       {inv.qoyodEnabled && <p className="text-[13px] text-muted-foreground">{t(`qoyod_${inv.qoyod}`)}</p>}
-      <InvoiceDocument data={inv} logoUrl={logoUrl} />
+      <InvoiceDocument data={inv} logoUrl={logoUrl} qr={await invoiceQr(inv)} />
     </div>
   );
 }

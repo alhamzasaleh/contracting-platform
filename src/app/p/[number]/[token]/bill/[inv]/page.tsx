@@ -4,6 +4,7 @@ import { BrandStyle } from "@/components/brand-style";
 import { InvoiceDocument } from "@/components/finance/invoice-document";
 import { PrintButton } from "@/components/quotes/print-button";
 import { loadPortal } from "@/lib/portal";
+import { invoiceQr } from "@/lib/qr";
 
 export const metadata: Metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" };
 
@@ -20,9 +21,9 @@ export default async function PortalInvoicePage({ params }: { params: Promise<{ 
     <main className="min-h-dvh bg-background py-6 print:bg-white print:py-0">
       <BrandStyle primary={data.org.brand.primary} accent={data.org.brand.accent} />
       <div className="mx-auto mb-4 flex max-w-[820px] justify-end px-4 print:hidden">
-        <PrintButton />
+        <PrintButton pdfHref={`/p/${encodeURIComponent(n)}/${token}/pdf/${encodeURIComponent(invNumber)}`} />
       </div>
-      <InvoiceDocument data={{ ...doc, contract: data.contract.number }} logoUrl={logoUrl} />
+      <InvoiceDocument data={{ ...doc, contract: data.contract.number }} logoUrl={logoUrl} qr={await invoiceQr(doc)} />
     </main>
   );
 }

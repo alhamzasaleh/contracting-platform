@@ -1144,7 +1144,10 @@
     "pricedLines": "Calculation details (quantities and formulas)",
     "discountPercent": "Client discount (%)",
     "createContract": "Create contract",
-    "openContract": "Contract {number}"
+    "openContract": "Contract {number}",
+    "downloadPdf": "Download PDF",
+    "pdfFailed": "Couldn't make the PDF right now — use Print → Save as PDF.",
+    "printOnly": "Print"
   },
   "doc": {
     "title": "Quotation",
@@ -1418,7 +1421,8 @@
     "s_signingBody": "This contract is made electronically; the second party's acceptance through its private link is a binding signature under the Electronic Transactions Law, and each party keeps a copy.",
     "sigAwaiting": "Awaiting the client's acceptance",
     "sigName": "Name: {name}",
-    "attachment": "Annex: quotation"
+    "attachment": "Annex: quotation",
+    "printPdf": "Print / PDF"
   },
   "portal": {
     "hello": "Hello {name}",
@@ -1481,7 +1485,9 @@
     "invoicesTitle": "Invoices",
     "invoicesHint": "One invoice per payment — print it or save it as PDF.",
     "invoiceOpen": "Open invoice",
-    "invoiceOfficial": "Official copy"
+    "invoiceOfficial": "Official copy",
+    "contractPdf": "Download contract PDF",
+    "handoverPdf": "Download handover certificate PDF"
   },
   "schedule": {
     "view": "View",
@@ -2310,7 +2316,8 @@
     "qoyod_done": "Sent to Qoyod with the same number.",
     "qoyod_failed": "Couldn't send to Qoyod — check the Qoyod log in Settings.",
     "vatNeedsQoyod": "The company is VAT-registered: official tax invoices must be issued electronically via ZATCA — connect Qoyod in Settings so they are sent automatically.",
-    "amount": "Amount"
+    "amount": "Amount",
+    "qrAlt": "Tax invoice QR code (ZATCA)"
   },
   "clauses": {
     "hint": "Hide any clause, change its title and text, or add your own clauses after any clause. Tables (scope, specifications, payments) stay automatic from the quote.",

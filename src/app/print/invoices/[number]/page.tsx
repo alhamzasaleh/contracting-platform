@@ -4,6 +4,7 @@ import { PrintButton } from "@/components/quotes/print-button";
 import { requirePermission } from "@/lib/auth/session";
 import { loadInvoice } from "@/lib/data/invoices";
 import { orgLogoUrl } from "@/lib/org";
+import { invoiceQr } from "@/lib/qr";
 
 /** Print-ready invoice (Share → Print → Save as PDF). */
 export default async function PrintInvoicePage({ params }: { params: Promise<{ number: string }> }) {
@@ -15,9 +16,9 @@ export default async function PrintInvoicePage({ params }: { params: Promise<{ n
     <main className="min-h-dvh bg-background py-6 print:bg-white print:py-0">
       <BrandStyle primary={o.brand.primary} accent={o.brand.accent} />
       <div className="mx-auto mb-4 flex max-w-[820px] justify-end px-4 print:hidden">
-        <PrintButton />
+        <PrintButton pdfHref={`/api/pdf/invoices/${encodeURIComponent(inv.number)}`} />
       </div>
-      <InvoiceDocument data={inv} logoUrl={logoUrl} />
+      <InvoiceDocument data={inv} logoUrl={logoUrl} qr={await invoiceQr(inv)} />
     </main>
   );
 }

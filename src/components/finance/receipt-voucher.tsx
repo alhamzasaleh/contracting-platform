@@ -13,7 +13,7 @@ export function ReceiptVoucher({ data }: { data: ReceiptDoc }) {
   const r = data.receipt;
   const org = data.org.legal_name ?? data.org.name;
   return (
-    <article className="relative mx-auto grid min-w-0 max-w-[820px] gap-6 overflow-hidden rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-basalt sm:p-10 print:rounded-none print:border-0 print:p-0">
+    <article className="relative mx-auto grid min-w-0 max-w-[820px] gap-6 overflow-hidden rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-basalt sm:p-10 print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-10">
       <span aria-hidden className="absolute end-0 top-0 size-10 bg-clay [clip-path:polygon(0_0,100%_0,100%_100%)] rtl:[clip-path:polygon(0_0,100%_0,0_100%)] print:size-8" />
       <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-primary pb-4">
         <div className="flex flex-wrap items-center gap-3">

@@ -37,7 +37,7 @@ async function build(session: SessionContext, filter?: { number: string }): Prom
       return {
         id: i.id, number: i.number, kind: i.kind, issue_date: i.issue_date, due_date: i.due_date, description: i.description,
         seller: i.seller, buyer: i.buyer, subtotal: n(i.subtotal), vat_percent: n(i.vat_percent), vat: n(i.vat), total: n(i.total),
-        paid: paid.get(ent) ?? 0, contract: cnum.get(i.contract_id) ?? "—", client: i.buyer?.name ?? "—",
+        paid: paid.get(ent) ?? 0, created_at: i.created_at, contract: cnum.get(i.contract_id) ?? "—", client: i.buyer?.name ?? "—",
         qoyod: !j ? "none" : j.status === "done" ? "done" : j.status === "failed" ? "failed" : "queued", qoyodJob: j?.status === "done" ? j.id : null,
       };
     }),
