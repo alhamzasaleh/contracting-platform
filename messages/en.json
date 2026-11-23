@@ -557,7 +557,7 @@
     "needsApproval": "Needs approval before issuing",
     "notReady": "Some items aren't priced — complete them, then issue",
     "quoteLocked": "The quote is accepted — it can't be changed",
-    "quoteContractSent": "The contract was sent to the client and waits for his answer — the quote can't change now. Cancel the contract to change it.",
+    "quoteContractSent": "A contract was made from this quote (draft or sent to the client) — the quote can't change now. Cancel the contract to change it.",
     "paymentNotAccepted": "Payments are requested once the client accepts the contract",
     "paymentByStage": "This is a stage payment — it is requested automatically when the client confirms the stage",
     "paymentAlreadyRequested": "This payment was already requested",

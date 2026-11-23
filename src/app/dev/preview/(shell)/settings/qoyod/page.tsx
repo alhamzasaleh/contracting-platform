@@ -12,6 +12,7 @@ const DATA: QoyodPageData = {
   },
   counts: { queued: 1, done: 3, failed: 1 },
   draftInvoices: ["INV-2026-004"],
+  canViewInvoices: true,
   canManage: true,
   canRetry: true,
   jobs: [

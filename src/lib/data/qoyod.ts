@@ -10,6 +10,8 @@ export type QoyodPageData = {
   counts: { queued: number; done: number; failed: number };
   /** invoices sent to Qoyod as drafts whose payments wait: the owner approves them in Qoyod (its API can't) */
   draftInvoices?: string[];
+  /** may open invoice pages (finance.view) — otherwise invoice numbers are plain text */
+  canViewInvoices?: boolean;
   canManage: boolean;
   canRetry: boolean;
 };
@@ -60,6 +62,7 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
     counts: { queued: counts[0].count ?? 0, done: counts[1].count ?? 0, failed: counts[2].count ?? 0 },
     draftInvoices,
     canManage: can(session, "settings.manage"),
+    canViewInvoices: can(session, "finance.view"),
     canRetry: can(session, "settings.manage") || can(session, "finance.manage"),
   };
 }

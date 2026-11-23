@@ -21,7 +21,7 @@ export async function saveQoyodKey(input: unknown): Promise<ActionResult<QoyodOp
   if (!can(session, "settings.manage")) return { ok: false, error: "noAccess" };
   const parsed = z.object({ key: z.string().trim().regex(/^[A-Za-z0-9_-]{8,200}$/) }).strict().safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
-  if ((await rateLimit(`qoyod:key:${session.userId}`, 10, 600)) !== "ok") return { ok: false, error: "limited" };
+  if ((await rateLimit(`qoyod:key:${session.userId}`, 10, 600)) !== "ok") return { ok: false, error: "rateLimited" };
   let options: QoyodOptions;
   try {
     options = await qoyodOptions(parsed.data.key);
@@ -72,7 +72,7 @@ async function applyAutoSetup(session: Awaited<ReturnType<typeof getSession>>, k
 export async function qoyodAutoSetupNow(): Promise<ActionResult> {
   const session = await getSession();
   if (!can(session, "settings.manage")) return { ok: false, error: "noAccess" };
-  if ((await rateLimit(`qoyod:setup:${session.userId}`, 10, 600)) !== "ok") return { ok: false, error: "limited" };
+  if ((await rateLimit(`qoyod:setup:${session.userId}`, 10, 600)) !== "ok") return { ok: false, error: "rateLimited" };
   const { data: key } = await createAdminClient().rpc("qoyod_api_key", { p_org: session.organization.id });
   if (!key) return { ok: false, error: "qoyodNoKey" };
   const ok = await applyAutoSetup(session, key as string);
@@ -94,7 +94,7 @@ export async function removeQoyodKey(): Promise<ActionResult> {
 export async function loadQoyodOptions(): Promise<ActionResult<QoyodOptions>> {
   const session = await getSession();
   if (!can(session, "settings.manage")) return { ok: false, error: "noAccess" };
-  if ((await rateLimit(`qoyod:options:${session.userId}`, 30, 600)) !== "ok") return { ok: false, error: "limited" };
+  if ((await rateLimit(`qoyod:options:${session.userId}`, 30, 600)) !== "ok") return { ok: false, error: "rateLimited" };
   const { data: key } = await createAdminClient().rpc("qoyod_api_key", { p_org: session.organization.id });
   if (!key) return { ok: false, error: "qoyodNoKey" };
   try {
@@ -160,7 +160,7 @@ export async function qoyodApprovedSendNow(input: unknown): Promise<ActionResult
   if (!can(session, "settings.manage") && !can(session, "finance.manage")) return { ok: false, error: "noAccess" };
   const parsed = z.object({}).strict().safeParse(input ?? {});
   if (!parsed.success) return { ok: false, error: "invalid" };
-  if ((await rateLimit(`qoyod:wake:${session.organization.id}`, 20, 600)) !== "ok") return { ok: false, error: "limited" };
+  if ((await rateLimit(`qoyod:wake:${session.organization.id}`, 20, 600)) !== "ok") return { ok: false, error: "rateLimited" };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("qoyod_wake_waiting", { p_org: session.organization.id });
   if (error) return { ok: false, error: error.code === "42501" ? "noAccess" : "error" };
@@ -172,7 +172,7 @@ export async function qoyodApprovedSendNow(input: unknown): Promise<ActionResult
 export async function qoyodSyncNow(): Promise<ActionResult<{ done: number; failed: number }>> {
   const session = await getSession();
   if (!can(session, "settings.manage") && !can(session, "finance.manage")) return { ok: false, error: "noAccess" };
-  if ((await rateLimit(`qoyod:sync:${session.organization.id}`, 20, 600)) !== "ok") return { ok: false, error: "limited" };
+  if ((await rateLimit(`qoyod:sync:${session.organization.id}`, 20, 600)) !== "ok") return { ok: false, error: "rateLimited" };
   const r = await runQoyodSync(20);
   revalidatePath(PATH);
   return { ok: true, data: r };

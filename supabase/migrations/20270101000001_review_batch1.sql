@@ -504,8 +504,8 @@ as $$
 begin
   if (new.current_version is distinct from old.current_version or new.options is distinct from old.options)
      and new.status is distinct from 'accepted'
-     and exists (select 1 from public.contracts c where c.quote_id = new.id and c.status = 'sent') then
-    raise exception 'the contract was sent to the client: the quote can''t change' using errcode = '22023';
+     and exists (select 1 from public.contracts c where c.quote_id = new.id and c.status in ('draft', 'sent')) then
+    raise exception 'a contract was made from this quote: the quote can''t change (sent to the client)' using errcode = '22023';
   end if;
   return new;
 end;
@@ -1213,12 +1213,18 @@ begin
                                     where m.employee_id = e.id and t.kind = 'inhouse' and t.is_active)), 0), 2),
       round(coalesce((select sum(private.project_labour(c.id, v_start, v_today)) from public.contracts c
                       where c.organization_id = p_org and c.status <> 'cancelled'), 0), 2),
-      -- the same daily rate as allocated: each member's cost per worker-day × the work days gone so far
-      round(coalesce((select sum(private.employee_day_cost(e.id)) from public.employees e
-                      where e.organization_id = p_org and e.status = 'active'
-                        and exists (select 1 from public.team_members m join public.teams t on t.id = m.team_id
-                                    where m.employee_id = e.id and t.kind = 'inhouse' and t.is_active)), 0)
-            * private.work_days(v_start, v_today), 2);
+      -- the same daily rate as allocated: each member's cost per worker-day × the work days gone so far,
+      -- never more than the month's cost (months with 27 work days)
+      round(least(
+        coalesce((select sum(private.employee_day_cost(e.id)) from public.employees e
+                  where e.organization_id = p_org and e.status = 'active'
+                    and exists (select 1 from public.team_members m join public.teams t on t.id = m.team_id
+                                where m.employee_id = e.id and t.kind = 'inhouse' and t.is_active)), 0)
+          * private.work_days(v_start, v_today),
+        coalesce((select sum(private.employee_month_cost(e.id)) from public.employees e
+                  where e.organization_id = p_org and e.status = 'active'
+                    and exists (select 1 from public.team_members m join public.teams t on t.id = m.team_id
+                                where m.employee_id = e.id and t.kind = 'inhouse' and t.is_active)), 0)), 2);
 end;
 $$;
 revoke all on function public.team_cost_month(uuid) from public, anon;
@@ -1423,14 +1429,19 @@ declare
   q public.quotes;
   v jsonb := p_payload -> 'version';
   c jsonb := p_payload -> 'costs';
-  v_perms text[];
   v_id uuid;
   v_version int;
 begin
   select * into q from public.quotes x where x.id = p_quote;
-  -- the user: an active member of the quote's organization with quotes.manage (+ costs.view for the costs)
-  v_perms := case when q.id is null or p_user is null then array[]::text[] else private.member_permissions(q.organization_id, p_user) end;
-  if not ('quotes.manage' = any (v_perms)) or (c is not null and jsonb_typeof(c) = 'object' and not ('costs.view' = any (v_perms))) then
+  if q.id is null or p_user is null then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  -- act as the user for the rest of this transaction: auth.uid() → permissions (incl. delegations),
+  -- created_by and the audit log all see who saved the version
+  perform set_config('request.jwt.claim.sub', p_user::text, true);
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', p_user, 'role', 'authenticated')::text, true);
+  if not private.has_permission(q.organization_id, 'quotes.manage')
+     or (c is not null and jsonb_typeof(c) = 'object' and not private.has_permission(q.organization_id, 'costs.view')) then
     raise exception 'not allowed' using errcode = '42501';
   end if;
   if v is null or jsonb_typeof(v) <> 'object' then

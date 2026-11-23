@@ -247,9 +247,15 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
             <ul className="flex flex-wrap gap-2">
               {data.draftInvoices!.map((n) => (
                 <li key={n}>
-                  <Link href={`${base}/invoices/${n}`} className="inline-flex min-h-9 items-center rounded-full border border-border px-3 py-1 text-[13px] hover:border-primary hover:text-primary">
-                    <bdi dir="ltr" className="font-latin">{n}</bdi>
-                  </Link>
+                  {data.canViewInvoices ? (
+                    <Link href={`${base}/invoices/${n}`} className="inline-flex min-h-9 items-center rounded-full border border-border px-3 py-1 text-[13px] hover:border-primary hover:text-primary">
+                      <bdi dir="ltr" className="font-latin">{n}</bdi>
+                    </Link>
+                  ) : (
+                    <span className="inline-flex min-h-9 items-center rounded-full border border-border px-3 py-1 text-[13px]">
+                      <bdi dir="ltr" className="font-latin">{n}</bdi>
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

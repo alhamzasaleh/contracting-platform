@@ -47,7 +47,9 @@ export function paymentRequestError(message: string | null | undefined): "paymen
 /** Days since a payment was requested when it is late (7 days or more), else null. */
 export function lateDays(requestedAt: string | null | undefined, today: string): number | null {
   if (!requestedAt) return null;
-  const days = Math.round((Date.parse(today) - Date.parse(requestedAt.slice(0, 10))) / 86_400_000);
+  // the request day in Riyadh (a timestamp just after midnight there is still the previous UTC day)
+  const day = requestedAt.length > 10 ? new Date(requestedAt).toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }) : requestedAt;
+  const days = Math.round((Date.parse(today) - Date.parse(day)) / 86_400_000);
   return days >= 7 ? days : null;
 }
 

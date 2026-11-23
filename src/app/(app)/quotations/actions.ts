@@ -24,9 +24,9 @@ function fail(error: { code?: string; message?: string } | null, what: string): 
   return { ok: false, error: "error" };
 }
 
-/** A contract sent to the client freezes its quote until he answers (the database refuses too). */
+/** A contract made from the quote (draft or sent to the client) freezes it (the database refuses too). */
 async function contractSent(supabase: Awaited<ReturnType<typeof createClient>>, quoteId: string): Promise<boolean> {
-  const { data } = await supabase.from("contracts").select("id").eq("quote_id", quoteId).eq("status", "sent").limit(1);
+  const { data } = await supabase.from("contracts").select("id").eq("quote_id", quoteId).in("status", ["draft", "sent"]).limit(1);
   return !!data?.length;
 }
 

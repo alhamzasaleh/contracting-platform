@@ -280,3 +280,22 @@ describe("#8 addendum approvals carry their contract", () => {
     expect(d.rows[0].status).toBe("pending");
   });
 });
+
+describe("third review round", () => {
+  it("a draft contract freezes its quote too (it would be sent on an older version)", async () => {
+    const quote = await newQuote(owner);
+    await saveVersion(owner, quote, 1000, 30);
+    await as({ userId: owner }, async (q) => {
+      await q("select public.issue_quote($1, null)", [quote]);
+      await q("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total, status) values ($1,$2,1,$3,'gypsum',current_date,10,1000,'draft')", [org, quote, client]);
+    });
+    await expectDenied(saveVersion(owner, quote, 800, 30), /contract/);
+  });
+
+  it("saving a version through the server records the user in the audit log", async () => {
+    const quote = await newQuote(owner);
+    const v = await saveVersion(sup, quote, 1000, null);
+    const log = await asAdmin((q) => q<{ actor_id: string | null }>("select actor_id from public.audit_log where table_name = 'quote_versions' and record_id = $1", [v.id]));
+    expect(log.rows.map((r) => r.actor_id)).toEqual([sup]);
+  });
+});

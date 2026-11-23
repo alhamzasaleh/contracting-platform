@@ -74,6 +74,9 @@ describe("finance", () => {
   it("a requested payment is late from 7 days (days counted from the request)", () => {
     expect(lateDays("2026-11-16T09:00:00Z", "2026-11-23")).toBe(7);
     expect(lateDays("2026-11-17T09:00:00Z", "2026-11-23")).toBeNull();
+    // requested 17 Nov 01:30 Riyadh (16 Nov 22:30 UTC): 6 days on the 23rd, not 7
+    expect(lateDays("2026-11-16T22:30:00Z", "2026-11-23")).toBeNull();
+    expect(lateDays("2026-11-16T22:30:00Z", "2026-11-24")).toBe(7);
     expect(lateDays("2026-10-24", "2026-11-23")).toBe(30);
     expect(lateDays(null, "2026-11-23")).toBeNull();
   });
