@@ -1700,7 +1700,8 @@
     "certFirst": "First party (Contractor)",
     "certSecond": "Second party (Client)",
     "certSigned": "Signed electronically: {name} — {date}",
-    "certSignature": "Client signature"
+    "certSignature": "Client signature",
+    "savedOffline": "Saved on this device — it will be sent when you are back online"
   },
   "addenda": {
     "title": "Additional works (contract addenda)",
@@ -2202,5 +2203,15 @@
     "e_limited": "You've reached this hour's question limit, try again soon.",
     "e_noAccess": "You don't have access to finance.",
     "e_invalid": "The question is too short or too long."
+  },
+  "offline": {
+    "title": "No internet connection",
+    "body": "Open the page again once you're back online. Site updates saved on your device are kept and sent automatically.",
+    "retry": "Try again",
+    "offline": "Offline — you can keep working and save site updates on this device",
+    "offlineWaiting": "Offline — {n} update(s) saved on this device, waiting to send",
+    "sending": "Sending {n} saved update(s)…",
+    "synced": "Sent {n} update(s) saved on your device",
+    "dropped": "Couldn't send the “{label}” update (the stage changed) — please enter it again"
   }
 }

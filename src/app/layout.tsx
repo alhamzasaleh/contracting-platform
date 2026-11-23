@@ -9,6 +9,7 @@ import { headers } from "next/headers";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 import { Providers } from "@/components/providers";
+import { ServiceWorkerRegister } from "@/components/shell/sw-register";
 import { dirOf } from "@/i18n/config";
 import { getLocaleSettings } from "@/i18n/server";
 
@@ -29,8 +30,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f2efe9" },
-    { media: "(prefers-color-scheme: dark)", color: "#121416" },
+    { media: "(prefers-color-scheme: light)", color: "#EFEBE3" },
+    { media: "(prefers-color-scheme: dark)", color: "#22262A" },
   ],
 };
 
@@ -44,6 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <NextIntlClientProvider locale={locale} messages={messages} timeZone="Asia/Riyadh">
           <Providers nonce={nonce} locale={locale} numerals={numerals}>
             {children}
+            <ServiceWorkerRegister />
           </Providers>
         </NextIntlClientProvider>
       </body>

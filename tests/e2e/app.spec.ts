@@ -338,3 +338,18 @@ test.describe("assistant (design preview)", () => {
     await expect(page.getByRole("button", { name: "إرسال" })).toBeEnabled();
   });
 });
+
+test.describe("installable app", () => {
+  test("manifest, service worker and offline page are served", async ({ page, request }) => {
+    const m = await request.get("/manifest.webmanifest");
+    expect(m.ok()).toBeTruthy();
+    const json = await m.json();
+    expect(json.display).toBe("standalone");
+    expect(json.icons.length).toBeGreaterThanOrEqual(2);
+    const sw = await request.get("/sw.js");
+    expect(sw.ok()).toBeTruthy();
+    expect(await sw.text()).toContain("OFFLINE_URL");
+    await page.goto("/offline");
+    await expect(page.getByText("ما فيه اتصال بالإنترنت")).toBeVisible();
+  });
+});

@@ -1,3 +1,4 @@
+import { OfflineSync } from "./offline-sync";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import type { ShellData } from "./types";
@@ -8,6 +9,7 @@ export function AppShell({ data, banner, children }: { data: ShellData; banner?:
       <Sidebar data={data} />
       <div className="flex min-w-0 flex-1 flex-col">
         {banner}
+        {!data.basePath && <OfflineSync />}
         <Topbar data={data} />
         <main id="main" className="mx-auto w-full max-w-[1280px] flex-1 px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+2rem)] sm:px-6 lg:px-10 lg:pt-7">
           {children}

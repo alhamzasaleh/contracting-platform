@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
+import { isNetworkError, outboxAdd } from "@/lib/client/outbox";
+import { toast } from "sonner";
 import type { ProjectDetail, ProjectListItem, StageView } from "@/lib/data/projects";
 import { coordsFromMapLink, currentStage, distanceMeters, overallProgress } from "@/lib/execution";
 import type { StageStatus } from "@/lib/supabase/database.types";
@@ -263,7 +265,8 @@ function StageCard({ stage: s, open, onToggle, data, actions }: { stage: StageVi
   const { run, pending } = useActionRunner();
   const [progress, setProgress] = React.useState(s.progress);
   const [note, setNote] = React.useState("");
-  const [photos, setPhotos] = React.useState<{ path: string; preview: string }[]>([]);
+  // a photo is either uploaded (path) or, when there's no connection, kept on the device (blob)
+  const [photos, setPhotos] = React.useState<{ key: string; path?: string; blob?: Blob; preview: string }[]>([]);
   const [uploading, setUploading] = React.useState(false);
   const [visible, setVisible] = React.useState(true);
   const [report, setReport] = React.useState(s.report ?? "");
@@ -279,12 +282,22 @@ function StageCard({ stage: s, open, onToggle, data, actions }: { stage: StageVi
     setErr(null);
     for (const f of [...files].slice(0, 12 - photos.length)) {
       const small = await shrinkImage(f, 1800);
+      const local = { key: crypto.randomUUID(), preview: URL.createObjectURL(small) };
+      if (!navigator.onLine) {
+        setPhotos((p) => [...p, { ...local, blob: small }]);
+        continue;
+      }
       const fd = new FormData();
       fd.set("contract_id", data.contract.id);
       fd.set("file", small);
-      const r = await actions.uploadPhoto(fd);
-      if (r.ok && r.data) setPhotos((p) => [...p, { path: r.data!.path, preview: URL.createObjectURL(small) }]);
-      else setErr(t("photoFailed"));
+      try {
+        const r = await actions.uploadPhoto(fd);
+        if (r.ok && r.data) setPhotos((p) => [...p, { ...local, path: r.data!.path }]);
+        else setErr(t("photoFailed"));
+      } catch (e) {
+        if (isNetworkError(e)) setPhotos((p) => [...p, { ...local, blob: small }]);
+        else setErr(t("photoFailed"));
+      }
     }
     setUploading(false);
   };
@@ -326,10 +339,10 @@ function StageCard({ stage: s, open, onToggle, data, actions }: { stage: StageVi
                 </Button>
                 <input ref={camera} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
                 {photos.map((p) => (
-                  <span key={p.path} className="relative">
+                  <span key={p.key} className="relative">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={p.preview} alt="" className="size-16 rounded-xl object-cover" />
-                    <button type="button" aria-label={t("removePhoto")} onClick={() => setPhotos((x) => x.filter((y) => y.path !== p.path))} className="absolute -end-1 -top-1 rounded-full bg-ink p-0.5 text-ink-foreground">
+                    <button type="button" aria-label={t("removePhoto")} onClick={() => setPhotos((x) => x.filter((y) => y.key !== p.key))} className="absolute -end-1 -top-1 rounded-full bg-ink p-0.5 text-ink-foreground">
                       <X className="size-3" />
                     </button>
                   </span>
@@ -344,14 +357,32 @@ function StageCard({ stage: s, open, onToggle, data, actions }: { stage: StageVi
                 className="justify-self-start"
                 loading={pending}
                 disabled={uploading}
-                onClick={() =>
-                  run(actions && (() => actions.saveProgress({ stage_id: s.id, progress, note: note.trim() || null, photos: photos.map((p) => p.path), visible })), {
-                    onSuccess: () => {
-                      setNote("");
-                      setPhotos([]);
+                onClick={async () => {
+                  const draft = { contractId: data.contract.id, stageId: s.id, label: s.name, progress, note: note.trim() || null, visible, paths: photos.flatMap((p) => (p.path ? [p.path] : [])), blobs: photos.flatMap((p) => (p.blob ? [p.blob] : [])) };
+                  const keepOffline = async () => {
+                    await outboxAdd(draft);
+                    setNote("");
+                    setPhotos([]);
+                    toast(t("savedOffline"));
+                  };
+                  if (actions && (!navigator.onLine || draft.blobs.length)) return keepOffline();
+                  run(
+                    actions &&
+                      (() =>
+                        actions.saveProgress({ stage_id: s.id, progress, note: draft.note, photos: draft.paths, visible }).catch(async (e: unknown): Promise<ActionResult> => {
+                          // the connection dropped while sending: keep it on the device instead of losing it
+                          if (!isNetworkError(e)) throw e;
+                          await outboxAdd(draft);
+                          return { ok: true };
+                        })),
+                    {
+                      onSuccess: () => {
+                        setNote("");
+                        setPhotos([]);
+                      },
                     },
-                  })
-                }
+                  );
+                }}
               >
                 <Check /> {t("saveUpdate")}
               </Button>
