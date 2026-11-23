@@ -26,6 +26,7 @@ export const SAMPLE_CONTRACT: ContractDetail = {
   canDecide: true,
   canFinance: true,
   vatPercent: 0,
+  options: null,
   receipts: [{ number: "RV-2026-007", label: "عند توقيع العقد", amount: amounts[0], paid_on: "2026-11-23" }],
   addenda: [
     { id: "ad1", number: "AD-2026-001", title: "بيت إنارة إضافي في المجلس", description: "تنفيذ بيت إنارة بطول 12 م مع شادو، بنفس مواصفات العقد.", amount: 1800, vat: 0, total: 1800, extra_days: 3, status: "accepted", payment_status: "requested", accepted_at: "2026-11-22T10:00:00Z", accepted_name: "أبو محمد", approval_id: null, created_at: "2026-11-21T10:00:00Z" },
@@ -56,4 +57,22 @@ export const SAMPLE_PORTAL: PortalData = {
   quote: { number: SAMPLE_QUOTE.quote.number, version: 2, date: "2026-11-22T09:00:00Z", valid_until: "2026-11-29", client_view: view, notes: SAMPLE_QUOTE.current!.notes },
   payments: SAMPLE_PAYMENTS,
   expires_at: "2027-07-10T00:00:00Z",
+};
+
+/** The same client page offered with three options (brands) — the client picks one. */
+const optionView = (factor: number, brand: string) => ({
+  ...view,
+  total: Math.round(view.total * factor),
+  subtotal: Math.round(view.subtotal * factor),
+  net: Math.round(view.net * factor),
+  workTypes: view.workTypes.map((w) => ({ ...w, pricePerM2: Math.ceil(w.pricePerM2 * factor), total: Math.round(w.total * factor) })),
+  included: view.included.map((i) => ({ ...i, brand: i.brand ? brand : null })),
+});
+export const SAMPLE_PORTAL_OPTIONS: PortalData = {
+  ...SAMPLE_PORTAL,
+  options: [
+    { version: 2, label: "جوتن", subtotal: Math.round(total), vat: 0, total: Math.round(total), date: "2026-11-22T09:00:00Z", notes: null, client_view: optionView(1, "Jotun") },
+    { version: 3, label: "الجزيرة", subtotal: Math.round(total * 0.9), vat: 0, total: Math.round(total * 0.9), date: "2026-11-22T09:10:00Z", notes: null, client_view: optionView(0.9, "Al-Jazeera") },
+    { version: 4, label: "عسيب", subtotal: Math.round(total * 0.82), vat: 0, total: Math.round(total * 0.82), date: "2026-11-22T09:20:00Z", notes: null, client_view: optionView(0.82, "Asib") },
+  ],
 };

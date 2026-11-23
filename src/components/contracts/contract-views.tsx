@@ -327,6 +327,19 @@ export function ContractView({
         </div>
       </section>
 
+      {detail.options && (
+        <section className="grid gap-2 rounded-3xl border border-border bg-surface p-5 text-[14px]">
+          <p className="font-bold">{c.status === "accepted" ? t("optionChosen", { label: detail.options.find((o) => o.version === detail.quote.version)?.label ?? "" }) : t("optionsWaiting")}</p>
+          <ul className="flex flex-wrap gap-2">
+            {detail.options.map((o) => (
+              <li key={o.version} className={cn("rounded-full border px-3 py-1 text-[13px]", o.version === detail.quote.version && c.status === "accepted" ? "border-primary bg-primary/10 font-bold" : "border-border")}>
+                {o.label} · <span className="font-latin tabular-nums">{fmt.money(o.total)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {c.status === "accepted" && (
         <section className="grid gap-1 rounded-3xl border border-success/40 bg-success-soft/40 p-5 text-[14px]">
           <p className="flex items-center gap-2 font-bold text-success">

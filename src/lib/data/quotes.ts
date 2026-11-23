@@ -99,7 +99,9 @@ export type QuoteDetail = {
   client: { number: string; name: string; phone: string | null; city: string | null };
   survey: { number: string } | null;
   current: { version: number; clientView: ClientView; notes: string | null; estimated: boolean; created_at: string; quantities: Quantities } | null;
-  versions: { version: number; total: number; created_at: string }[];
+  versions: { version: number; total: number; created_at: string; brands: string[] }[];
+  /** 2–3 versions offered side by side (null = a single quote) */
+  options: { version: number; label: string }[] | null;
   internal: { cost: number; costWithContingency: number; marginPercent: number; lines: Line[]; purchaseList: PurchaseItem[] } | null;
   approvals: { id: string; kind: string; status: string; details: Record<string, unknown>; decided_at: string | null; decision_note: string | null }[];
   canManage: boolean;
@@ -130,7 +132,11 @@ export async function loadQuote(session: SessionContext, number: string): Promis
     client: client ?? { number: "", name: "—", phone: null, city: null },
     survey,
     current: cur ? { version: cur.version, clientView: cur.client_view as unknown as ClientView, notes: cur.notes, estimated: cur.estimated, created_at: cur.created_at, quantities: cur.quantities as unknown as Quantities } : null,
-    versions: (versions ?? []).map((v) => ({ version: v.version, total: n(v.total), created_at: v.created_at })),
+    versions: (versions ?? []).map((v) => ({
+      version: v.version, total: n(v.total), created_at: v.created_at,
+      brands: [...new Set(((v.client_view as unknown as ClientView | null)?.included ?? []).map((i) => i.brand).filter((b): b is string => !!b))],
+    })),
+    options: q.options ?? null,
     internal,
     approvals: (approvals ?? []).map((a) => ({ ...a, details: (a.details ?? {}) as Record<string, unknown> })),
     canManage: can(session, "quotes.manage") && can(session, "costs.view"),

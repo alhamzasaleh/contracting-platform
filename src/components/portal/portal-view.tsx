@@ -10,14 +10,14 @@ import { BrandLogo } from "@/components/brand-logo";
 import { ContractTerms } from "@/components/contracts/contract-terms";
 import { useFormatter } from "@/components/formatter-provider";
 import { HandoverCertificate } from "@/components/projects/handover-certificate";
-import { QuoteDocument } from "@/components/quotes/quote-document";
+import { QuoteDocument, workItemLabel } from "@/components/quotes/quote-document";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
 import { portalStep } from "@/lib/execution";
-import type { PortalData, PortalStage } from "@/lib/portal";
+import type { PortalData, PortalOption, PortalStage } from "@/lib/portal";
 import { cn } from "@/lib/utils";
 
 const STEPS = ["quote", "contract", "accepted", "work", "handover", "warranty"] as const;
@@ -120,7 +120,15 @@ export function PortalView({
   const [pending, start] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState(false);
-  const { contract: c, org } = data;
+  const { contract: base, org } = data;
+  const options = data.options ?? [];
+  const [chosen, setChosen] = React.useState<number | null>(null);
+  const picked = options.find((o) => o.version === chosen) ?? null;
+  // until the client picks, the page shows the first option; once picked, everything follows that option
+  const shown = picked ?? options[0] ?? null;
+  const c = shown ? { ...base, total: shown.total } : base;
+  const payments = shown ? scalePayments(data.payments, shown.total) : data.payments;
+  const quoteView = shown ? shown.client_view : data.quote.client_view;
   const accepted = done || c.status === "accepted";
   const ex = data.execution;
   const current = ex ? portalStep("accepted", ex.stages) : accepted ? 2 : 1;
@@ -130,11 +138,12 @@ export function PortalView({
     start(async () => {
       setError(null);
       if (!onAccept) return setDone(true);
-      const r = await onAccept({ number, token, name: name.trim(), agree, signature });
+      if (options.length && !picked) return setError(t("errChooseOption"));
+      const r = await onAccept({ number, token, name: name.trim(), agree, signature, ...(picked ? { version: picked.version } : {}) });
       if (r.ok) {
         setDone(true);
         router.refresh();
-      } else setError(r.error === "rateLimited" ? t("errRate") : r.error === "invalid" ? t("errInvalid") : t("errGeneric"));
+      } else setError(r.error === "rateLimited" ? t("errRate") : r.error === "chooseOption" ? t("errChooseOption") : r.error === "invalid" ? t("errInvalid") : t("errGeneric"));
     });
 
   return (
@@ -206,6 +215,8 @@ export function PortalView({
           </section>
         ) : (
           c.status === "sent" && (
+            <>
+            {options.length > 0 && <OptionsPicker options={options} chosen={chosen} onChoose={(v) => { setChosen(v); setError(null); }} />}
             <section className="grid gap-4 rounded-3xl border-2 border-primary/40 bg-surface p-5">
               <p className="flex items-center gap-2 text-[17px] font-bold">
                 <PenLine className="size-5 text-primary" /> {t("acceptTitle")}
@@ -225,10 +236,11 @@ export function PortalView({
                 <span>{t("agree")}</span>
               </label>
               {error && <p className="text-[13px] text-danger">{error}</p>}
-              <Button size="lg" loading={pending} disabled={!agree || name.trim().length < 2} onClick={accept}>
-                <Check /> {t("acceptButton")}
+              <Button size="lg" loading={pending} disabled={!agree || name.trim().length < 2 || (options.length > 0 && !picked)} onClick={accept}>
+                <Check /> {picked ? t("acceptOption", { label: picked.label }) : t("acceptButton")}
               </Button>
             </section>
+            </>
           )
         )}
 
@@ -268,20 +280,20 @@ export function PortalView({
           org={org}
           client={data.client}
           data={{
-            number: c.number, date: c.created_at ?? data.quote.date, quoteNumber: data.quote.number, view: data.quote.client_view ?? null, service: c.service, project_type: c.project_type, start_date: c.start_date, duration_days: c.duration_days,
-            warranty_months: c.warranty_months, total: c.total, notes: c.notes, method: data.quote.client_view?.method ?? "unit",
-            payments: data.payments, accepted: c.accepted_at ? { at: c.accepted_at, name: c.accepted_name ?? "" } : null,
+            number: c.number, date: c.created_at ?? data.quote.date, quoteNumber: data.quote.number, view: quoteView ?? null, service: c.service, project_type: c.project_type, start_date: c.start_date, duration_days: c.duration_days,
+            warranty_months: c.warranty_months, total: c.total, notes: c.notes, method: quoteView?.method ?? "unit",
+            payments, accepted: c.accepted_at ? { at: c.accepted_at, name: c.accepted_name ?? "" } : null,
           }}
         />
         <QuoteDocument
           org={{ name: org.name, legal_name: org.legal_name, cr_number: org.cr_number, vat_number: org.vat_number, phone: org.phone, city: org.city, logoUrl }}
           number={data.quote.number}
-          version={data.quote.version}
-          date={data.quote.date}
+          version={shown?.version ?? data.quote.version}
+          date={shown?.date ?? data.quote.date}
           validUntil={data.quote.valid_until}
           client={data.client}
-          view={data.quote.client_view}
-          notes={data.quote.notes}
+          view={quoteView}
+          notes={shown ? shown.notes : data.quote.notes}
           warrantyMonths={c.warranty_months}
         />
         <p className="text-center text-[12px] text-subtle-foreground">{t("footer", { date: fmt.date(data.expires_at) })}</p>
@@ -550,5 +562,69 @@ function AcceptAddendum({ id, clientName, number, token, onAccept }: { id: strin
         <Check /> {t("acceptAddendum")}
       </Button>
     </div>
+  );
+}
+
+/** The agreed percentages applied to the chosen option's total (the last payment absorbs rounding) — the database does the same on acceptance. */
+function scalePayments(list: PortalData["payments"], total: number): PortalData["payments"] {
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const last = list.length ? Math.max(...list.map((p) => p.seq)) : 0;
+  const others = list.filter((p) => p.seq !== last).reduce((s, p) => s + r2((total * p.percent) / 100), 0);
+  return list.map((p) => ({ ...p, amount: p.seq === last ? r2(total - others) : r2((total * p.percent) / 100) }));
+}
+
+/** 2–3 options side by side; the client taps one, then accepts. */
+function OptionsPicker({ options, chosen, onChoose }: { options: PortalOption[]; chosen: number | null; onChoose: (v: number) => void }) {
+  const t = useTranslations("portal");
+  const td = useTranslations("doc");
+  const { fmt } = useFormatter();
+  const cheapest = Math.min(...options.map((o) => o.total));
+  return (
+    <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="options-title">
+      <div>
+        <h2 id="options-title" className="text-[18px] font-bold">{t("optionsTitle")}</h2>
+        <p className="mt-1 text-[13px] text-muted-foreground">{t("optionsHint")}</p>
+      </div>
+      <div role="radiogroup" aria-labelledby="options-title" className={cn("grid gap-3", options.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+        {options.map((o) => {
+          const on = chosen === o.version;
+          const brands = [...new Set(o.client_view.included.map((i) => i.brand).filter(Boolean))] as string[];
+          return (
+            <button
+              key={o.version}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onChoose(o.version)}
+              className={cn(
+                "grid min-h-32 content-start gap-2 rounded-2xl border-2 p-4 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                on ? "border-primary bg-primary/5" : "border-border hover:border-primary/50",
+              )}
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className="text-[17px] font-bold">{o.label}</span>
+                <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full border-2", on ? "border-primary bg-primary text-primary-foreground" : "border-border")}>
+                  {on && <Check className="size-4" />}
+                </span>
+              </span>
+              <span className="font-latin text-[22px] font-extrabold tabular-nums">{fmt.money(o.total)}</span>
+              {o.vat > 0 && <span className="text-[12px] text-muted-foreground">{t("optionVatIncluded")}</span>}
+              {o.total === cheapest && options.length > 1 && <span className="w-fit rounded-full bg-surface-2 px-2.5 py-0.5 text-[12px] font-semibold">{t("optionLowest")}</span>}
+              {brands.length > 0 && <span className="text-[13px] text-muted-foreground">{brands.join(" · ")}</span>}
+              {o.client_view.method === "unit" && o.client_view.workTypes.length > 0 && (
+                <span className="grid gap-0.5 text-[12px] text-muted-foreground">
+                  {o.client_view.workTypes.map((w) => (
+                    <span key={w.workType} className="flex justify-between gap-2">
+                      <span>{workItemLabel(td, o.client_view.service, w.workType)}</span>
+                      <span className="font-latin tabular-nums">{t("perM2", { price: fmt.money(w.pricePerM2) })}</span>
+                    </span>
+                  ))}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }

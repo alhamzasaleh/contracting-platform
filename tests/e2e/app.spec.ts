@@ -415,3 +415,27 @@ test.describe("documents (design preview)", () => {
     await expect(page.getByRole("img", { name: /رمز الاستجابة السريعة/ })).toHaveCount(0);
   });
 });
+
+test.describe("multi-option quotes (design preview)", () => {
+  test("staff pick versions as options and name them", async ({ page }) => {
+    await page.goto("/dev/preview/quotations/detail");
+    await expect(page.getByText("عرض بأكثر من خيار (اختياري)")).toBeVisible();
+    const save = page.getByRole("button", { name: "اعتماد الخيارات" });
+    await expect(save).toBeDisabled();
+    for (const box of await page.getByRole("checkbox").all()) await box.check();
+    await expect(page.getByLabel(/اسم الخيار/)).toHaveCount(2);
+    await expect(save).toBeEnabled();
+  });
+
+  test("the client compares options and must pick one before accepting", async ({ page }) => {
+    await page.goto("/dev/preview/portal/options");
+    await expect(page.getByRole("heading", { name: "اختر الخيار المناسب لك" })).toBeVisible();
+    await expect(page.getByRole("radio")).toHaveCount(3);
+    await page.getByLabel("الاسم الكامل").fill("أبو محمد");
+    await page.getByRole("checkbox").check();
+    await expect(page.getByRole("button", { name: "أوافق على العرض والعقد" })).toBeDisabled();
+    await page.getByRole("radio", { name: /الجزيرة/ }).click();
+    await expect(page.getByRole("radio", { name: /الجزيرة/ })).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByRole("button", { name: "أوافق على خيار «الجزيرة»" })).toBeEnabled();
+  });
+});

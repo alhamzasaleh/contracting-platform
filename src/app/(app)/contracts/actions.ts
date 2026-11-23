@@ -82,9 +82,11 @@ export async function saveContract(input: unknown): Promise<ActionResult<{ numbe
     if (e2) return fail(e2, "payments reset");
   } else {
     // From the quote's current, issued version (total and project type are frozen there).
-    const { data: q } = await supabase.from("quotes").select("id, status, current_version, client_id, service").eq("id", v.quote_id!).eq("organization_id", orgId).maybeSingle();
+    const { data: q } = await supabase.from("quotes").select("id, status, current_version, client_id, service, options").eq("id", v.quote_id!).eq("organization_id", orgId).maybeSingle();
     if (!q || q.status !== "issued") return { ok: false, error: "quoteNotIssued" };
-    const { data: ver } = await supabase.from("quote_versions").select("total, selection").eq("quote_id", q.id).eq("version", q.current_version).maybeSingle();
+    // with options the client picks later; until then the contract shows the first one offered
+    const startVersion = q.options?.length ? (q.options.some((o) => o.version === q.current_version) ? q.current_version : q.options[0].version) : q.current_version;
+    const { data: ver } = await supabase.from("quote_versions").select("total, selection").eq("quote_id", q.id).eq("version", startVersion).maybeSingle();
     if (!ver) return { ok: false, error: "invalid" };
     const projectType = ((ver.selection as { options?: { projectType?: string } } | null)?.options?.projectType ?? "full") as "full" | "labour" | "supply";
     total = Number(ver.total);
@@ -94,7 +96,7 @@ export async function saveContract(input: unknown): Promise<ActionResult<{ numbe
       .from("contracts")
       .insert({
         terms: (tpl?.terms ?? {}) as Json,
-        organization_id: orgId, quote_id: q.id, quote_version: q.current_version, client_id: q.client_id, service: q.service,
+        organization_id: orgId, quote_id: q.id, quote_version: startVersion, options: q.options ?? null, client_id: q.client_id, service: q.service,
         project_type: projectType, start_date: v.start_date, duration_days: v.duration_days, warranty_months: v.warranty_months,
         total, notes: v.notes,
       })

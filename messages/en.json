@@ -1147,7 +1147,19 @@
     "openContract": "Contract {number}",
     "downloadPdf": "Download PDF",
     "pdfFailed": "Couldn't make the PDF right now — use Print → Save as PDF.",
-    "printOnly": "Print"
+    "printOnly": "Print",
+    "optionsTitle": "Offer several options (optional)",
+    "optionsHint": "You can still send a single quote as usual. To offer 2–3 options (e.g. Jotun / Al-Jazeera / Asib), price each one as a version (“Edit → new version” with another brand or method), then tick the versions here and name them. The client picks on their page and the contract follows that choice.",
+    "optionN": "Option {n}",
+    "optionLabel": "Option name — version {n}",
+    "optionLabelPlaceholder": "e.g. Jotun",
+    "optionsSave": "Save options",
+    "optionsSingle": "Back to a single quote",
+    "optionsSaved": "Saved — issue the quote again so the client gets the options",
+    "optionsCleared": "Back to a single quote",
+    "optionsMixedType": "All options must be the same project type (supply & install / install only / supply only).",
+    "optionsLocked": "Options can't change once a contract exists.",
+    "optionsActive": "Offered with {n} options — the client picks one"
   },
   "doc": {
     "title": "Quotation",
@@ -1422,7 +1434,9 @@
     "sigAwaiting": "Awaiting the client's acceptance",
     "sigName": "Name: {name}",
     "attachment": "Annex: quotation",
-    "printPdf": "Print / PDF"
+    "printPdf": "Print / PDF",
+    "optionsWaiting": "Offered with options — the contract follows the option the client picks when accepting.",
+    "optionChosen": "The client chose “{label}”"
   },
   "portal": {
     "hello": "Hello {name}",
@@ -1487,7 +1501,14 @@
     "invoiceOpen": "Open invoice",
     "invoiceOfficial": "Official copy",
     "contractPdf": "Download contract PDF",
-    "handoverPdf": "Download handover certificate PDF"
+    "handoverPdf": "Download handover certificate PDF",
+    "optionsTitle": "Choose the option that suits you",
+    "optionsHint": "We prepared more than one option. Tap the one you prefer — the contract, payments and quote details below follow your choice.",
+    "optionVatIncluded": "VAT included",
+    "optionLowest": "Lowest price",
+    "perM2": "{price} / m²",
+    "errChooseOption": "Choose one of the options first.",
+    "acceptOption": "I accept option “{label}”"
   },
   "schedule": {
     "view": "View",

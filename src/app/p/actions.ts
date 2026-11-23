@@ -18,6 +18,8 @@ const acceptSchema = z
     agree: z.literal(true),
     // optional drawn signature as a PNG data URL (size-limited)
     signature: z.string().regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/).max(200_000).nullable(),
+    /** the option the client chose (contracts offered with options) */
+    version: z.number().int().min(1).max(1000).nullable().optional(),
   })
   .strict();
 
@@ -30,9 +32,10 @@ export async function acceptPortal(input: unknown): Promise<ActionResult> {
   const ua = (await headers()).get("user-agent") ?? "";
   const v = parsed.data;
   const { data, error } = await createAdminClient().rpc("portal_accept", {
-    p_number: v.number, p_token: v.token, p_name: v.name, p_signature: v.signature, p_ip: ip, p_user_agent: ua,
+    p_number: v.number, p_token: v.token, p_name: v.name, p_signature: v.signature, p_ip: ip, p_user_agent: ua, p_version: v.version ?? null,
   });
   if (error) {
+    if (error.code === "22023" && /choose an option/.test(error.message)) return { ok: false, error: "chooseOption" };
     console.error("[portal] accept failed", { code: error.code });
     return { ok: false, error: "error" };
   }

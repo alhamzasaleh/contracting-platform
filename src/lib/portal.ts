@@ -31,7 +31,11 @@ export type PortalData = {
   invoiceDocs?: PortalInvoice[];
   terms?: ContractTermsConfig | null;
   warranty?: PortalWarranty | null;
+  /** 2–3 options offered side by side; the client picks one while accepting (empty = single quote) */
+  options?: PortalOption[];
 };
+
+export type PortalOption = { version: number; label: string; subtotal: number; vat: number; total: number; date: string; notes: string | null; client_view: ClientView };
 
 export type PortalInvoice = {
   id: string; number: string; kind: "tax" | "simple"; issue_date: string; due_date: string; description: string; seller: InvoiceParty; buyer: InvoiceParty;
@@ -125,6 +129,11 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
     const { data: rv } = await admin.rpc("portal_receipts", { p_number: number, p_token: token });
     receipts = ((rv as ReceiptItem[] | null) ?? []).map((r) => ({ ...r, amount: Number(r.amount) }));
   }
+  let options: PortalOption[] = [];
+  if (d.contract.status === "sent" || d.contract.status === "draft") {
+    const { data: op } = await admin.rpc("portal_options", { p_number: number, p_token: token });
+    options = ((op as PortalOption[] | null) ?? []).map((o) => ({ ...o, subtotal: Number(o.subtotal), vat: Number(o.vat), total: Number(o.total) }));
+  }
   const { data: rawTerms } = await admin.rpc("portal_contract_terms", { p_number: number, p_token: token });
   const parsedTerms = termsSchema.safeParse(rawTerms ?? {});
   const terms = parsedTerms.success ? parsedTerms.data : null;
@@ -148,5 +157,5 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
       };
     }
   }
-  return { data: { ...d, execution, addenda, invoices, receipts, warranty, invoiceDocs, terms, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
+  return { data: { ...d, options, execution, addenda, invoices, receipts, warranty, invoiceDocs, terms, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
 }

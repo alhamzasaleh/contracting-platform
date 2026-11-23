@@ -25,9 +25,10 @@ export const SAMPLE_QUOTE: QuoteDetail = {
   survey: { number: "SV-2026-004" },
   current: { version: 2, clientView: snap.clientView, notes: "يبدأ العمل بعد اعتماد الألوان من العميل.", estimated: false, created_at: "2026-11-22T09:00:00Z", quantities: SAMPLE_QUANTITIES },
   versions: [
-    { version: 2, total: snap.clientView.total, created_at: "2026-11-22T09:00:00Z" },
-    { version: 1, total: snap.clientView.total + 900, created_at: "2026-11-21T11:00:00Z" },
+    { version: 2, total: snap.clientView.total, created_at: "2026-11-22T09:00:00Z", brands: ["Jotun"] },
+    { version: 1, total: snap.clientView.total + 900, created_at: "2026-11-21T11:00:00Z", brands: ["الجزيرة"] },
   ],
+  options: null,
   internal: { cost: snap.cost, costWithContingency: snap.costWithContingency, marginPercent: snap.marginPercent, lines: snap.lines, purchaseList: snap.purchaseList },
   approvals: [{ id: "a1", kind: "quote_discount", status: "pending", details: { version: 2, discount: snap.clientView.discount, discountPercent: 5 }, decided_at: null, decision_note: null }],
   canManage: true,

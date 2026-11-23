@@ -395,8 +395,11 @@ export type SurveyRoomRow = OrgRow & Upd & {
   sort_order: number;
 };
 export type QuoteStatus = "draft" | "pending_approval" | "issued" | "accepted" | "rejected" | "expired";
+export type QuoteOption = { version: number; label: string };
 export type QuoteRow = OrgRow & Upd & {
   number: string;
+  /** 2–3 versions offered side by side (null = a single quote) */
+  options?: QuoteOption[] | null;
   client_id: string;
   survey_id: string | null;
   service: "gypsum" | "interior" | "exterior";
@@ -446,6 +449,8 @@ export type ApprovalRow = OrgRow & Upd & {
 export type ContractStatus = "draft" | "sent" | "accepted" | "cancelled";
 export type ContractRow = OrgRow & Upd & {
   number: string;
+  /** copied from the quote; the client picks one while accepting */
+  options?: QuoteOption[] | null;
   /** editable clauses (ContractTermsConfig), frozen after acceptance */
   terms?: Json;
   quote_id: string;
@@ -814,7 +819,8 @@ export type Database = {
       move_stock: { Args: { p_item: string; p_quantity: number; p_from: string | null; p_to: string | null; p_note?: string | null }; Returns: string };
       schedule_roster: { Args: { p_org: string }; Returns: { id: string; full_name: string; job_title: string | null }[] };
       portal_view: { Args: { p_number: string; p_token: string }; Returns: Json };
-      portal_accept: { Args: { p_number: string; p_token: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };
+      portal_accept: { Args: { p_number: string; p_token: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string; p_version?: number | null }; Returns: boolean };
+      portal_options: { Args: { p_number: string; p_token: string }; Returns: Json };
       seed_pricing_engine: { Args: { p_org: string }; Returns: { products: number; rates: number } };
       seed_employee_cost_items: { Args: { p_org: string }; Returns: number };
       log_event: {

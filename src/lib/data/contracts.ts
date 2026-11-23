@@ -109,6 +109,8 @@ export type ContractDetail = {
   canFinance: boolean;
   /** VAT % applied to new addenda (0 without a company VAT number) */
   vatPercent: number;
+  /** options offered to the client (the contract follows the one picked on acceptance) */
+  options: { version: number; label: string; total: number }[] | null;
   /** Editable clauses of this contract, and the company template (for "copy from template"). */
   terms?: ContractTermsConfig;
   templateTerms?: ContractTermsConfig | null;
@@ -150,7 +152,11 @@ export async function loadContract(session: SessionContext, number: string): Pro
   const { data: approvals } = pendingIds.length
     ? await supabase.from("approvals").select("id, entity_id").eq("entity", "addendum").eq("status", "pending").in("entity_id", pendingIds)
     : { data: [] as { id: string; entity_id: string }[] };
+  const { data: optRows } = c.options?.length
+    ? await supabase.from("quote_versions").select("version, total").eq("quote_id", c.quote_id).in("version", c.options.map((o) => o.version))
+    : { data: [] as { version: number; total: number }[] };
   return {
+    options: c.options?.length ? c.options.map((o) => ({ ...o, total: n(optRows?.find((r) => r.version === o.version)?.total) })) : null,
     contract: {
       id: c.id, number: c.number, status: c.status, service: c.service, project_type: c.project_type, start_date: c.start_date,
       duration_days: c.duration_days, warranty_months: c.warranty_months, total: n(c.total), notes: c.notes, created_at: c.created_at,

@@ -21,6 +21,7 @@ import { toNumber } from "@/lib/validation/numbers";
 import { cn } from "@/lib/utils";
 import { LinesTable } from "@/components/pricing/results";
 import { QuoteDocument, type DocOrg } from "./quote-document";
+import { QuoteOptionsPanel } from "./quote-options";
 
 const STATUS_TONE: Record<QuoteStatus, "neutral" | "warning" | "primary" | "success" | "danger"> = {
   draft: "neutral",
@@ -225,6 +226,7 @@ export function QuoteView({
   actions?: {
     issue: (i: Record<string, unknown>) => Promise<ActionResult>;
     decide: (i: Record<string, unknown>) => Promise<ActionResult>;
+    options?: (i: Record<string, unknown>) => Promise<ActionResult>;
   };
   base?: string;
 }) {
@@ -382,6 +384,7 @@ export function QuoteView({
               </ul>
             </section>
           )}
+          <QuoteOptionsPanel detail={detail} save={actions?.options} preview={!actions} />
           <section className="grid gap-2 rounded-2xl border border-border bg-surface p-4">
             <p className="text-[14px] font-bold">{t("versions")}</p>
             <ul className="grid gap-1 text-[13px]">
