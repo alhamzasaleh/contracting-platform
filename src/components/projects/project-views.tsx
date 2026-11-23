@@ -85,6 +85,7 @@ export type ProjectActions = {
 };
 
 export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail; actions?: ProjectActions; base?: string }) {
+  const tw = useTranslations("wa");
   const t = useTranslations("projects");
   const tp = useTranslations("pricing");
   const { fmt } = useFormatter();
@@ -157,6 +158,11 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
                 </a>
               </Button>
             )}
+            <WhatsAppButton
+              phone={data.client.phone}
+              label={tw("btnOpen")}
+              text={tw("general", { name: data.client.name, contract: ltr(data.contract.number), org: data.orgName ?? "" })}
+            />
             {final && (
               <Button asChild variant="secondary" size="sm">
                 <Link href={`/print/handover/${data.contract.number}`} target="_blank">

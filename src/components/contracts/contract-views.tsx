@@ -429,7 +429,7 @@ export function ContractView({
         </p>
       )}
 
-      {c.status === "accepted" && <ClientMessages detail={detail} orgName={org.name} />}
+      {(c.status === "accepted" || c.status === "sent") && <ClientMessages detail={detail} orgName={org.name} />}
       <AddendaSection detail={detail} actions={addendaActions} />
       <ReceiptsList items={detail.receipts ?? []} hrefFor={(n) => `/print/receipts/${encodeURIComponent(n)}`} newTab />
       {termsSave && detail.canManage && (c.status === "draft" || c.status === "sent") && (
@@ -470,8 +470,9 @@ function ClientMessages({ detail, orgName }: { detail: ContractDetail; orgName: 
   if (!client.phone) return null;
   const base = { name: client.name, contract: ltr(c.number), org: orgName };
   const items: { key: string; title: string; text: string; label: string }[] = [
+    { key: "general", title: t("generalTitle"), text: t("general", { name: client.name, contract: ltr(c.number), org: orgName }), label: t("btnOpen") },
     ...detail.payments
-      .filter((p) => p.status === "requested")
+      .filter((p) => p.status !== "paid")
       .map((p) => ({ key: `p${p.seq}`, title: `${p.label} · ${fmt.money(p.amount)}`, text: t("payRequest", { ...base, label: p.label, amount: fmt.money(p.amount) }), label: t("btnRemind") })),
     ...detail.addenda
       .filter((a) => a.status === "sent")
@@ -484,7 +485,6 @@ function ClientMessages({ detail, orgName }: { detail: ContractDetail; orgName: 
       .reverse()
       .map((r) => ({ key: r.number, title: `${ltr(r.number)} · ${fmt.money(r.amount)}`, text: t("receipt", { ...base, amount: fmt.money(r.amount), label: r.label, number: ltr(r.number) }), label: t("btnSend") })),
   ];
-  if (!items.length) return null;
   return (
     <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
       <div>

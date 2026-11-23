@@ -2510,6 +2510,9 @@
     "btnNotify": "Tell the client on WhatsApp",
     "sectionTitle": "Message the client",
     "sectionHint": "Opens your WhatsApp with the message ready — review it and tap Send.",
-    "none": "Nothing to send right now."
+    "none": "Nothing to send right now.",
+    "generalTitle": "Message the client",
+    "general": "Hello {name}, this is {org} about your project ({contract}). ",
+    "btnOpen": "WhatsApp the client"
   }
 }

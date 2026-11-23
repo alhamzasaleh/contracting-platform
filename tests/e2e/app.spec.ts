@@ -500,4 +500,11 @@ test.describe("WhatsApp from the owner's own number (design preview)", () => {
     expect(href).toMatch(/^https:\/\/wa\.me\/966551234567\?text=/);
     expect(decodeURIComponent(href!.split("text=")[1])).toContain("متأخرة");
   });
+
+  test("the contract page always offers WhatsApp messages to the client", async ({ page }) => {
+    await page.goto("/dev/preview/contracts/detail");
+    await expect(page.getByText("مراسلة العميل")).toBeVisible();
+    await expect(page.getByRole("link", { name: "واتساب العميل" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "تذكير بالواتساب" }).first()).toBeVisible();
+  });
 });
