@@ -220,3 +220,23 @@ test.describe("additional works, subcontractors, petty cash (design preview)", (
     await expect(page.getByText("675.00").first()).toBeVisible();
   });
 });
+
+test.describe("owner finance (design preview)", () => {
+  test("home shows KPIs, cash-flow warning, approvals and profit", async ({ page }) => {
+    await page.goto("/dev/preview");
+    await expect(page.getByText("المستحق على العملاء")).toBeVisible();
+    await expect(page.getByText(/الرصيد بيصير بالسالب/)).toBeVisible();
+    await expect(page.getByText("شراء فوق حد الموافقة")).toBeVisible();
+    await expect(page.getByText("الربح المتوقع مقابل الفعلي")).toBeVisible();
+  });
+
+  test("collections: late payment flagged, record payment opens", async ({ page }) => {
+    await page.goto("/dev/preview/reports");
+    await expect(page.getByText("متأخرة").first()).toBeVisible();
+    await page.getByRole("button", { name: "تسجيل استلام" }).first().click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.getByRole("radio", { name: "الأرباح" }).click();
+    await expect(page.getByText("التكلفة الفعلية").first()).toBeVisible();
+  });
+});

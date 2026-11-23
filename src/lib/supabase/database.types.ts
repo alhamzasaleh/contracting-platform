@@ -469,6 +469,11 @@ export type ContractPaymentRow = OrgRow & Upd & {
   due_event: "signing" | "material_supply" | "board_closing" | "primer_done" | "handover" | "custom";
   status: "pending" | "requested" | "paid";
   paid_at: string | null;
+  expected_date: string | null;
+  requested_at: string | null;
+  paid_amount: number | null;
+  paid_method: "transfer" | "cash" | "cheque" | "card" | null;
+  paid_reference: string | null;
 };
 export type PortalLinkRow = OrgRow & {
   contract_id: string;
@@ -591,6 +596,8 @@ export type AddendumRow = OrgRow & Upd & {
   accepted_ip: string | null;
   accepted_user_agent: string | null;
   accepted_signature: string | null;
+  paid_at: string | null;
+  paid_amount: number | null;
 };
 export type SubcontractorRow = OrgRow & Upd & {
   name: string;
@@ -625,6 +632,8 @@ export type PettyEntryRow = OrgRow & {
   attachment_path: string | null;
   ai_extracted: boolean;
 };
+
+export type FinanceSettingsRow = { organization_id: string; cash_balance: number; cash_balance_on: string; payday: number; created_at: string; created_by: string | null; updated_at: string };
 
 export type Database = {
   public: {
@@ -687,6 +696,7 @@ export type Database = {
       subcontractor_payments: Table<SubPaymentRow>;
       petty_cash_accounts: Table<PettyAccountRow>;
       petty_cash_entries: Table<PettyEntryRow>;
+      finance_settings: Table<FinanceSettingsRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
@@ -701,6 +711,7 @@ export type Database = {
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
+      record_client_payment: { Args: { p_payment: string; p_paid_on: string; p_amount: number; p_method: string; p_reference: string | null }; Returns: string };
       submit_addendum: { Args: { p_id: string }; Returns: string };
       portal_addenda: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_accept_addendum: { Args: { p_number: string; p_token: string; p_addendum: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };
