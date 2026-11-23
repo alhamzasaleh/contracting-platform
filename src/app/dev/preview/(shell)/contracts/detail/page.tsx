@@ -26,7 +26,7 @@ export default function P() {
       org={SAMPLE_ORG}
       base="/dev/preview"
       actions={{ send: previewNoop, revoke: previewNoop, cancel: previewNoop }}
-      addendaActions={{ save: previewNoop, send: previewNoop, cancel: previewNoop, decide: previewNoop, paid: previewNoop }}
+      addendaActions={{ save: previewNoop, send: previewNoop, cancel: previewNoop, decide: previewNoop, paid: previewNoop, saveCost: previewNoop }}
       termsSave={previewNoop}
       requestPayment={previewNoop}
     />

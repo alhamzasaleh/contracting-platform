@@ -86,7 +86,7 @@ const lineSchema = z
   .object({
     kind: z.enum(["material", "expense"]),
     item_id: id.nullable(),
-    new_item: z.object({ name: z.string().trim().min(2).max(160), unit: z.string().trim().min(1).max(20), is_general: z.boolean() }).strict().nullable(),
+    new_item: z.object({ name: z.string().trim().min(2).max(160), unit: z.string().trim().min(1).max(20), is_general: z.boolean(), product_id: id.nullable().optional() }).strict().nullable(),
     description: z.string().trim().min(1, "required").max(200),
     colour: optText(60),
     quantity: z.number().positive().max(1_000_000),
@@ -129,8 +129,12 @@ export async function savePurchase(input: unknown): Promise<ActionResult<{ numbe
   for (const l of d.lines) {
     let itemId = l.kind === "material" ? l.item_id : null;
     if (l.kind === "material" && !itemId && l.new_item) {
-      const { data: existing } = await ctx.supabase.from("inventory_items").select("id").eq("organization_id", ctx.orgId).eq("name", l.new_item.name).eq("unit", l.new_item.unit).maybeSingle();
-      if (existing) itemId = existing.id;
+      const { data: existing } = await ctx.supabase.from("inventory_items").select("id, product_id").eq("organization_id", ctx.orgId).eq("name", l.new_item.name).eq("unit", l.new_item.unit).maybeSingle();
+      if (existing) {
+        itemId = existing.id;
+        // link an existing unlinked item to the chosen catalogue product (calibration)
+        if (l.new_item.product_id && !existing.product_id) await ctx.supabase.from("inventory_items").update({ product_id: l.new_item.product_id }).eq("id", existing.id);
+      }
       else {
         const { data: created, error } = await ctx.supabase.from("inventory_items").insert({ organization_id: ctx.orgId, ...l.new_item }).select("id").single();
         if (error || !created) return fail(error, "create item");
@@ -208,7 +212,7 @@ export async function saveItem(input: unknown): Promise<ActionResult<{ id: strin
   const ctx = await authorize();
   if (!isCtx(ctx)) return ctx;
   const parsed = z
-    .object({ id: id.optional(), name: z.string().trim().min(2, "required").max(160), unit: z.string().trim().min(1).max(20), is_general: z.boolean() })
+    .object({ id: id.optional(), name: z.string().trim().min(2, "required").max(160), unit: z.string().trim().min(1).max(20), is_general: z.boolean(), product_id: id.nullable().optional() })
     .strict()
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };

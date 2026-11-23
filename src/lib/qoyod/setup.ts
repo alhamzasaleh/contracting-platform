@@ -8,6 +8,7 @@ export type AutoSetupResult = {
   expense_account_id: number | null;
   salary_account_id: number | null;
   cash_account_id: number | null;
+  subcontract_account_id: number | null;
   service_products: Record<string, number>;
   addendum_product_id: number | null;
 };
@@ -20,7 +21,7 @@ export type AutoSetupResult = {
 export async function qoyodAutoSetup(key: string, vatRegistered: boolean): Promise<AutoSetupResult> {
   const options = await qoyodOptions(key);
   const d = pickDefaults(options);
-  const result: AutoSetupResult = { inventory_id: d.inventoryId, receive_account_id: d.receiveAccountId, expense_account_id: d.expenseAccountId, salary_account_id: d.salaryAccountId, cash_account_id: d.cashAccountId, service_products: {}, addendum_product_id: null };
+  const result: AutoSetupResult = { inventory_id: d.inventoryId, receive_account_id: d.receiveAccountId, expense_account_id: d.expenseAccountId, salary_account_id: d.salaryAccountId, cash_account_id: d.cashAccountId, subcontract_account_id: d.subcontractAccountId, service_products: {}, addendum_product_id: null };
   if (!d.salesAccountId) return result;
 
   const [{ categories = [] }, { product_unit_types: units = [] }] = await Promise.all([

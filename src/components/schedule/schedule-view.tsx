@@ -47,18 +47,23 @@ export function ScheduleView({
   today,
   actions,
   openContract,
+  openTeam,
 }: {
   data: ScheduleData;
   today: Day;
   actions?: ScheduleActions;
   /** contract number to book straight away (from the contract page) */
   openContract?: string;
+  /** the team chosen when pricing (from the contract page) — pre-selected in the booking */
+  openTeam?: string;
 }) {
   const t = useTranslations("schedule");
   const [tab, setTab] = React.useState<"timeline" | "teams">(data.teams.length ? "timeline" : "teams");
   const preset = openContract ? data.projects.find((p) => p.number === openContract) : undefined;
   const [entry, setEntry] = React.useState<Partial<ScheduleEntry> | null>(
-    preset && data.canManage && data.teams.length ? { kind: "work", contract_id: preset.id, start: preset.start, end: preset.end } : null,
+    preset && data.canManage && data.teams.length
+      ? { kind: "work", contract_id: preset.id, start: preset.start, end: preset.end, ...(openTeam && data.teams.some((x) => x.id === openTeam && x.is_active) ? { team_id: openTeam } : {}) }
+      : null,
   );
   const [team, setTeam] = React.useState<Partial<ScheduleTeam> | null>(null);
 

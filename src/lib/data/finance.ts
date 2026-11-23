@@ -3,7 +3,8 @@ import { can, type SessionContext } from "@/lib/auth/session";
 import { loadProjectCosts } from "@/lib/data/purchases";
 import type { Line } from "@/lib/engine";
 import { overallProgress } from "@/lib/execution";
-import { addendumPaid, ageing, expectedPaymentDate, paydays, projectProfit, remainingAmount, weeklyForecast, type AgeBucket, type DueEvent, type Flow, type ForecastWeek } from "@/lib/finance";
+import { employeeCost, type CostItem } from "@/lib/costing";
+import { addendumPaid, ageing, expectedPaymentDate, paydays, payrollFlows, projectProfit, remainingAmount, weeklyForecast, type AgeBucket, type DueEvent, type Flow, type ForecastWeek } from "@/lib/finance";
 import type { ServiceKind } from "@/lib/pricing";
 import { costStatus } from "@/lib/purchases";
 import { addDays } from "@/lib/schedule";
@@ -50,6 +51,26 @@ export type OwnerFinance = {
   canManage: boolean;
   canDecide: boolean;
 };
+
+type ApprovalDbRow = { id: string; kind: string; entity: string; entity_id: string; details: unknown; created_at: string };
+function approvalRow(a: ApprovalDbRow): ApprovalRow {
+  const d = (a.details ?? {}) as Record<string, unknown>;
+  const num = typeof d.number === "string" ? d.number : null;
+  const contract = typeof d.contract === "string" ? d.contract : null;
+  const link =
+    a.entity === "purchase" && num ? `/purchases/${num}`
+    : a.entity === "quote" && num ? `/quotations/${num}`
+    : a.entity === "addendum" && contract ? `/contracts/${contract}`
+    : null;
+  return { id: a.id, kind: a.kind, entity: a.entity, entity_id: a.entity_id, details: d, created_at: a.created_at, link };
+}
+
+/** Pending approvals for the home card of someone who decides them without finance.view. */
+export async function loadPendingApprovals(session: SessionContext): Promise<ApprovalRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("approvals").select("id, kind, entity, entity_id, details, created_at").eq("organization_id", session.organization.id).eq("status", "pending").order("created_at");
+  return (data ?? []).map(approvalRow);
+}
 
 /** Everything the owner's home needs (§3.16). finance.view; each part follows its own permission via RLS. */
 export async function loadOwnerFinance(session: SessionContext, today: string): Promise<OwnerFinance> {
@@ -113,9 +134,20 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   const outflows: Flow[] = [];
   let payroll = 0;
   if (can(session, "hr.view")) {
-    const { data: employees } = await supabase.from("employees").select("basic_salary, housing_allowance, transport_allowance, other_allowances, status").eq("organization_id", orgId).neq("status", "final_exit");
+    const [{ data: employees }, { data: items }, { data: runs }] = await Promise.all([
+      supabase.from("employees").select("is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances, status").eq("organization_id", orgId).neq("status", "final_exit"),
+      supabase.from("employee_cost_items").select("code, applies_to, basis, value, amortize_months, is_active").eq("organization_id", orgId),
+      supabase.from("payroll_runs").select("id, month, status").eq("organization_id", orgId).gte("month", `${today.slice(0, 7)}-01`).order("month").limit(12),
+    ]);
     payroll = r2((employees ?? []).reduce((s, e) => s + n(e.basic_salary) + n(e.housing_allowance) + n(e.transport_allowance) + n(e.other_allowances), 0));
-    if (payroll > 0) for (const d of paydays(today, payday, horizon)) outflows.push({ date: d, amount: payroll, label: "salaries", kind: "payroll" });
+    // statutory items paid every month (GOSI %, monthly fees); annual / one-off items aren't monthly cash
+    const monthlyItems = ((items ?? []) as CostItem[]).filter((i) => i.basis === "percent" || i.basis === "monthly").map((i) => ({ ...i, value: n(i.value) }));
+    const statutory = r2((employees ?? []).reduce((s, e) => s + employeeCost({ is_saudi: !!e.is_saudi, basic_salary: n(e.basic_salary), housing_allowance: n(e.housing_allowance), transport_allowance: n(e.transport_allowance), other_allowances: n(e.other_allowances) }, monthlyItems, 26).statutory.reduce((x, i) => x + i.monthly, 0), 0));
+    // a month's payroll run: its net (after overtime, deductions and advances) replaces the gross
+    const runIds = (runs ?? []).map((r) => r.id);
+    const { data: lines } = runIds.length ? await supabase.from("payroll_lines").select("run_id, net").in("run_id", runIds) : { data: [] as { run_id: string; net: number }[] };
+    const runNets = (runs ?? []).map((r) => ({ month: r.month, status: r.status, net: (lines ?? []).filter((l) => l.run_id === r.id).reduce((s, l) => s + n(l.net), 0) }));
+    outflows.push(...payrollFlows(paydays(today, payday, horizon), runNets, payroll, statutory));
   }
   if (can(session, "purchases.view")) {
     const [{ data: work }, { data: paid }, { data: pending }, { data: petty }] = await Promise.all([
@@ -156,7 +188,12 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     const vid = (versions as { id: string; quote_id: string; version: number }[]).filter((v) => (contracts ?? []).some((c) => c.quote_id === v.quote_id && c.quote_version === v.version));
     const { data: vc } = vid.length ? await supabase.from("quote_version_costs").select("quote_version_id, lines").in("quote_version_id", vid.map((v) => v.id)) : { data: [] };
     const total = new Map((vc ?? []).map((x) => [x.quote_version_id, (x.lines as unknown as Line[]).reduce((s, l) => s + l.cost, 0)]));
-    estimated = new Map((contracts ?? []).map((c) => [c.id, total.get(vid.find((v) => v.quote_id === c.quote_id && v.version === c.quote_version)?.id ?? "") ?? 0]).filter(([, v]) => (v as number) > 0) as [string, number][]);
+    // accepted additional works add their own estimated cost (addendum_costs)
+    const accepted = new Set((addenda ?? []).map((a) => a.id));
+    const { data: adCosts } = accepted.size ? await supabase.from("addendum_costs").select("addendum_id, contract_id, material_cost, other_cost").in("addendum_id", [...accepted]) : { data: [] };
+    const extra = new Map<string, number>();
+    for (const a of adCosts ?? []) extra.set(a.contract_id, (extra.get(a.contract_id) ?? 0) + n(a.material_cost) + n(a.other_cost));
+    estimated = new Map((contracts ?? []).map((c) => [c.id, (total.get(vid.find((v) => v.quote_id === c.quote_id && v.version === c.quote_version)?.id ?? "") ?? 0) + (extra.get(c.id) ?? 0)]).filter(([, v]) => (v as number) > 0) as [string, number][]);
   }
   const profits: ProfitRow[] = (contracts ?? []).map((c) => {
     const view = (versions as { quote_id: string; version: number; client_view: { vat?: number } }[] | null)?.find((v) => v.quote_id === c.quote_id && v.version === c.quote_version)?.client_view;
@@ -196,13 +233,15 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   }
 
   const monthStart = today.slice(0, 7);
+  // collected this month = the receipt vouchers issued this month (contract payments and addenda, partial too)
+  const { data: monthReceipts } = await supabase.from("client_receipts").select("amount").eq("organization_id", orgId).gte("paid_on", `${monthStart}-01`).lte("paid_on", today);
   return {
     today,
     orgName: session.organization.name,
     cash: { balance: opening, on: settings?.cash_balance_on ?? today, payday },
     kpis: {
       outstanding: r2([...byClient.values()].reduce((s, x) => s + x.outstanding, 0)),
-      collectedMonth: r2(rows.filter((r) => r.paid_at?.slice(0, 7) === monthStart).reduce((s, r) => s + r.paid, 0)),
+      collectedMonth: r2((monthReceipts ?? []).reduce((s, r) => s + n(r.amount), 0)),
       dueSoon: r2(rows.filter((r) => r.outstanding > 0 && r.expected <= addDays(today, 14)).reduce((s, r) => s + r.outstanding, 0)),
       activeProjects: (contracts ?? []).length - (contracts ?? []).filter((c) => (stages ?? []).some((s) => s.contract_id === c.id && s.is_final && s.status === "confirmed")).length,
       payroll,
@@ -214,17 +253,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     profits,
     delayed,
     overBudget,
-    approvals: (approvals ?? []).map((a) => {
-      const d = (a.details ?? {}) as Record<string, unknown>;
-      const num = typeof d.number === "string" ? d.number : null;
-      const contract = typeof d.contract === "string" ? d.contract : null;
-      const link =
-        a.entity === "purchase" && num ? `/purchases/${num}`
-        : a.entity === "quote" && num ? `/quotations/${num}`
-        : a.entity === "addendum" && contract ? `/contracts/${contract}`
-        : null;
-      return { id: a.id, kind: a.kind, entity: a.entity, entity_id: a.entity_id, details: d, created_at: a.created_at, link };
-    }),
+    approvals: (approvals ?? []).map(approvalRow),
     teamCost,
     labourHidden: can(session, "costs.view") && !can(session, "hr.view"),
     canManage: can(session, "finance.manage"),

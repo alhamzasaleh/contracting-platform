@@ -28,6 +28,7 @@ import {
   priceSelection,
   STEPS,
   stepBrands,
+  stepIncluded,
   stepLines,
   type Labour,
   type Options,
@@ -390,7 +391,7 @@ export function PricingView({
                       key={tm.id}
                       type="button"
                       aria-pressed={same}
-                      onClick={() => setLabour({ source: "inhouse", crew: [...tm.members] })}
+                      onClick={() => setLabour({ source: "inhouse", crew: [...tm.members], teamId: tm.id })}
                       className={cn("min-h-9 rounded-full border px-3 text-[13px] font-semibold", same ? "border-primary bg-primary text-primary-foreground" : "border-border bg-surface hover:border-primary/50")}
                     >
                       {tm.name}
@@ -430,6 +431,8 @@ export function PricingView({
                           crew: v
                             ? [...l.crew, m.id]
                             : l.crew.filter((x) => x !== m.id),
+                          // a hand-picked crew is no longer the team picked with one tap
+                          teamId: null,
                         })
                       }
                     />
@@ -913,13 +916,8 @@ function ScopeSummary({
   const included: string[] = [];
   const excluded: string[] = [];
   for (const s of visible) {
-    const c = sel.steps[s.key];
-    const on = s.toggle
-      ? c.on
-      : s.coats
-        ? s.coats.some((k) => (c.coats[k.key] ?? 0) > 0)
-        : true;
-    (on ? included : excluded).push(t(`step_${s.key}`));
+    // the same rule as the client's quote (parts the client supplies aren't included)
+    (stepIncluded(s, sel.steps[s.key], sel.excluded) ? included : excluded).push(t(`step_${s.key}`));
   }
   return (
     <div className="grid gap-2 rounded-2xl border border-border bg-surface p-4 text-[13px] sm:grid-cols-2">

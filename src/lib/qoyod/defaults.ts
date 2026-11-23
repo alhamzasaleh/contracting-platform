@@ -24,5 +24,6 @@ export function pickDefaults(o: QoyodOptions) {
     // payroll journal entries and cash payments to suppliers (only exact matches — no guessing)
     salaryAccountId: expense.find((a) => match(a, /رواتب|أجور|اجور|salar|wage/i))?.id ?? null,
     cashAccountId: receive.find((a) => match(a, /نقد|صندوق|cash/i))?.id ?? null,
+    subcontractAccountId: expense.find((a) => match(a, /مقاول|باطن|subcontract/i))?.id ?? null,
   };
 }

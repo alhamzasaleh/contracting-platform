@@ -32,6 +32,8 @@ export type SubAgreementView = {
   schedule: "weekly" | "progress"; status: "active" | "closed";
   /** recorded automatically from project progress (progress schedule) */
   auto_progress: boolean;
+  /** an accepted addendum (number) grew this project: review the agreement (any edit clears it) */
+  review?: string | null;
   work: { id: string; work_date: string; quantity_m2: number | null; percent: number | null; amount: number; note: string | null; auto: boolean }[];
   payments: { id: string; paid_on: string; amount: number; method: string; reference: string | null }[];
 };
@@ -50,15 +52,17 @@ export async function loadSubcontractors(session: SessionContext): Promise<Subco
   const orgId = session.organization.id;
   const [{ data: subs }, { data: agreements }, { data: work }, { data: payments }, projectList] = await Promise.all([
     supabase.from("subcontractors").select("id, name, phone, services, iban, vat_number, notes, is_active").eq("organization_id", orgId).order("name"),
-    supabase.from("subcontractor_agreements").select("id, subcontractor_id, contract_id, scope, basis, rate, quantity_m2, schedule, status, auto_progress").eq("organization_id", orgId).order("created_at", { ascending: false }),
+    supabase.from("subcontractor_agreements").select("id, subcontractor_id, contract_id, scope, basis, rate, quantity_m2, schedule, status, auto_progress, review_addendum_id").eq("organization_id", orgId).order("created_at", { ascending: false }),
     supabase.from("subcontractor_work").select("id, agreement_id, work_date, quantity_m2, percent, amount, note, auto").eq("organization_id", orgId).order("work_date", { ascending: false }).limit(5000),
     supabase.from("subcontractor_payments").select("id, agreement_id, paid_on, amount, method, reference").eq("organization_id", orgId).order("paid_on", { ascending: false }).limit(5000),
     projects(supabase, orgId, can(session, "quotes.view")),
   ]);
+  const reviewIds = [...new Set((agreements ?? []).map((g) => g.review_addendum_id).filter((x): x is string => !!x))];
+  const { data: reviewAds } = reviewIds.length ? await supabase.from("addenda").select("id, number").in("id", reviewIds) : { data: [] as { id: string; number: string }[] };
   return {
     subs: subs ?? [],
-    agreements: (agreements ?? []).map((g) => ({
-      ...g, rate: n(g.rate), quantity_m2: g.quantity_m2 == null ? null : n(g.quantity_m2),
+    agreements: (agreements ?? []).map(({ review_addendum_id, ...g }) => ({
+      ...g, review: review_addendum_id ? (reviewAds?.find((a) => a.id === review_addendum_id)?.number ?? null) : null, rate: n(g.rate), quantity_m2: g.quantity_m2 == null ? null : n(g.quantity_m2),
       work: (work ?? []).filter((w) => w.agreement_id === g.id).map((w) => ({ ...w, amount: n(w.amount), quantity_m2: w.quantity_m2 == null ? null : n(w.quantity_m2), percent: w.percent == null ? null : n(w.percent) })),
       payments: (payments ?? []).filter((p) => p.agreement_id === g.id).map((p) => ({ ...p, amount: n(p.amount) })),
     })),

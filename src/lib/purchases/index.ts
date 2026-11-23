@@ -74,3 +74,44 @@ export function stockBalances<M extends { item_id: string; contract_id: string |
   }
   return [...map.values()].map((b) => ({ ...b, quantity: Math.round(b.quantity * 1000) / 1000, value: r2(b.value) })).filter((b) => Math.abs(b.quantity) > 0.0005);
 }
+
+/** A quote purchase-list item (see PurchaseItem in @/lib/quotes). */
+type ListItem = { label: string; brand: string | null; colour: string | null; packs: { size: number; count: number }[]; qty: number; unit: string; cost: number; productId?: string | null };
+export type ListLine = {
+  description: string; colour: string; quantity: number; unit: string; unit_price: number;
+  /** existing stock item id, or "new" */
+  item: string; product_id: string | null;
+  /** general stock (returns to the store) unless it's a colour chosen for this client */
+  general: boolean;
+};
+
+/**
+ * Purchase lines from the accepted quote's purchase list (G2): one line per pack / bar size,
+ * the quoted cost as the suggested price (split by volume between sizes), the catalogue product
+ * kept so the stock item links to it (G3). The user edits everything before saving.
+ */
+export function linesFromPurchaseList(list: ListItem[], items: { id: string; name: string; unit: string; product_id: string | null }[]): ListLine[] {
+  const out: ListLine[] = [];
+  for (const it of list) {
+    const base = it.brand ? `${it.label} — ${it.brand}` : it.label;
+    const colour = it.colour ?? "";
+    const general = !it.colour;
+    const product = it.productId ?? null;
+    const packs = it.packs.filter((p) => p.count > 0 && p.size > 0);
+    const unit = it.unit === "m" ? "bar" : "pack";
+    if (!packs.length) {
+      const qty = it.qty > 0 ? Math.ceil(it.qty * 100) / 100 : 1;
+      const match = items.find((x) => (product && x.product_id === product && x.unit === it.unit) || (x.name === base && x.unit === it.unit));
+      out.push({ description: base.slice(0, 200), colour, quantity: qty, unit: it.unit, unit_price: r2(it.cost / qty), item: match?.id ?? "new", product_id: product, general });
+      continue;
+    }
+    const volume = packs.reduce((s, p) => s + p.size * p.count, 0);
+    for (const p of packs) {
+      const description = `${base} (${p.size})`.slice(0, 200);
+      const share = (it.cost * p.size * p.count) / volume;
+      const match = items.find((x) => (product && x.product_id === product && x.unit === unit && (packs.length === 1 || x.name === description)) || (x.name === description && x.unit === unit));
+      out.push({ description, colour, quantity: p.count, unit, unit_price: r2(share / p.count), item: match?.id ?? "new", product_id: product, general });
+    }
+  }
+  return out;
+}

@@ -32,7 +32,7 @@ export const selectionSchema = z
     labour: z.discriminatedUnion("source", [
       z.object({ source: z.literal("rates") }).strict(),
       z.object({ source: z.literal("external"), externalId: z.uuid().nullable() }).strict(),
-      z.object({ source: z.literal("inhouse"), crew: z.array(z.uuid()).max(50) }).strict(),
+      z.object({ source: z.literal("inhouse"), crew: z.array(z.uuid()).max(50), teamId: z.uuid().nullable().optional() }).strict(),
     ]),
     marginPercent: z.number().min(0).max(90).nullable(),
     contingencyPercent: z.number().min(0).max(50).nullable().optional(),

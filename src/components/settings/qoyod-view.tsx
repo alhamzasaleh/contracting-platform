@@ -182,6 +182,9 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
             <Field id="q-cash" label={t("cashAccount")} hint={t("cashHint")} optional={tc("optional")}>
               {select("q-cash", s.cash_account_id ?? null, (v) => setS({ ...s, cash_account_id: v }), receiveAccounts)}
             </Field>
+            <Field id="q-subcontract" label={t("subcontractAccount")} hint={t("subcontractHint")} optional={tc("optional")}>
+              {select("q-subcontract", s.subcontract_account_id ?? null, (v) => setS({ ...s, subcontract_account_id: v }), expenseAccounts.length ? expenseAccounts : accounts)}
+            </Field>
             {SERVICES.map((sv) => (
               <Field key={sv} id={`q-p-${sv}`} label={t(`product_${sv}`)} hint={sv === "gypsum" ? t("productHint") : undefined}>
                 {select(`q-p-${sv}`, s.service_products[sv] ?? null, (v) => setS({ ...s, service_products: setProduct(s.service_products, sv, v) }), products)}
@@ -220,7 +223,7 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
                     () =>
                       saveQoyodSettings({
                         enabled: s.enabled, invoice_status: s.invoice_status, inventory_id: s.inventory_id, receive_account_id: s.receive_account_id, expense_account_id: s.expense_account_id,
-                        salary_account_id: s.salary_account_id ?? null, cash_account_id: s.cash_account_id ?? null,
+                        salary_account_id: s.salary_account_id ?? null, cash_account_id: s.cash_account_id ?? null, subcontract_account_id: s.subcontract_account_id ?? null,
                         service_products: { gypsum: s.service_products.gypsum ?? null, interior: s.service_products.interior ?? null, exterior: s.service_products.exterior ?? null },
                         addendum_product_id: s.addendum_product_id,
                       }),

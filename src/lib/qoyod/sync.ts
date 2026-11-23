@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.types";
 import { qoyod, QoyodError } from "./client";
 import { qoyodAutoSetup } from "./setup";
-import { approveSimpleBillBody, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, payrollJournalBody, payrollTag, simpleBillBody, simpleBillPaymentBody, vendorBody, waitsForApproved } from "./payloads";
+import { approveSimpleBillBody, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, simpleBillBody, simpleBillPaymentBody, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Ctx = { admin: Admin; key: string; s: QoyodSettingsRow };
@@ -71,13 +71,14 @@ export async function runQoyodSync(limit = 20): Promise<{ done: number; failed: 
 /** Something we create ourselves is missing (e.g. a service product) → prepare it in Qoyod now, once. */
 async function fillMissing(admin: Admin, key: string, s: QoyodSettingsRow): Promise<QoyodSettingsRow> {
   const products = s.service_products ?? {};
-  if (s.inventory_id && s.receive_account_id && s.expense_account_id && s.salary_account_id && products.gypsum && products.interior && products.exterior && s.addendum_product_id) return s;
+  if (s.inventory_id && s.receive_account_id && s.expense_account_id && s.salary_account_id && s.subcontract_account_id && products.gypsum && products.interior && products.exterior && s.addendum_product_id) return s;
   try {
     const { data: org } = await admin.from("organizations").select("vat_number").eq("id", s.organization_id).single();
     const auto = await qoyodAutoSetup(key, !!org?.vat_number);
     const next = {
       inventory_id: s.inventory_id ?? auto.inventory_id, receive_account_id: s.receive_account_id ?? auto.receive_account_id, expense_account_id: s.expense_account_id ?? auto.expense_account_id,
       salary_account_id: s.salary_account_id ?? auto.salary_account_id, cash_account_id: s.cash_account_id ?? auto.cash_account_id,
+      subcontract_account_id: s.subcontract_account_id ?? auto.subcontract_account_id,
       service_products: { ...auto.service_products, ...products }, addendum_product_id: s.addendum_product_id ?? auto.addendum_product_id,
     };
     await admin.from("qoyod_settings").update(next).eq("organization_id", s.organization_id);
@@ -97,7 +98,7 @@ async function doneId(ctx: Ctx, kind: QoyodJobRow["kind"], ref: string): Promise
   return data?.qoyod_id ?? null;
 }
 
-async function remember(ctx: Ctx, kind: "customer" | "vendor", entityType: "client" | "supplier", entityId: string, ref: string, id: number) {
+async function remember(ctx: Ctx, kind: "customer" | "vendor", entityType: "client" | "supplier" | "subcontractor", entityId: string, ref: string, id: number) {
   await ctx.admin.from("qoyod_sync_jobs").upsert(
     { organization_id: ctx.s.organization_id, kind, entity_type: entityType, entity_id: entityId, ref, status: "done", qoyod_id: id, done_at: new Date().toISOString() },
     { onConflict: "organization_id,kind,ref" },
@@ -151,6 +152,86 @@ async function vendorId(ctx: Ctx, p: { supplier_id: string | null; supplier_name
   return id;
 }
 
+/** A subcontractor is a vendor in Qoyod too (created on demand, remembered). */
+async function subcontractorVendorId(ctx: Ctx, subcontractorId: string): Promise<number> {
+  const ref = `sub:${subcontractorId}`;
+  const known = await doneId(ctx, "vendor", ref);
+  if (known) return known;
+  const { data } = await ctx.admin.from("subcontractors").select("name, phone, vat_number").eq("id", subcontractorId).single();
+  const r = await qoyod<{ contact?: { id: number } }>(ctx.key, "POST", "/vendors", vendorBody(need(data, "subcontractor")));
+  const id = need(r.contact?.id, "vendor");
+  await remember(ctx, "vendor", "subcontractor", subcontractorId, ref, id);
+  return id;
+}
+
+/**
+ * What a "bill" job sends: a supplier purchase, a payment to a subcontractor (subcontracting
+ * expense) or a petty-cash expense (expense account). The last two have no VAT recorded.
+ */
+type BillSource = { reference: string; contactId: number; issueDate: string; expenseAccountId: number; description: string; subtotal: number; vat: number; total: number };
+
+async function billSource(ctx: Ctx, job: QoyodJobRow): Promise<BillSource> {
+  const { admin, s } = ctx;
+  if (job.entity_type === "subcontractor_payment") {
+    const { data: p } = await admin.from("subcontractor_payments").select("id, agreement_id, paid_on, amount, reference, note").eq("id", job.entity_id).single();
+    const pay = need(p, "subcontractor_payment");
+    const { data: g } = await admin.from("subcontractor_agreements").select("subcontractor_id, contract_id, scope").eq("id", pay.agreement_id).single();
+    const agr = need(g, "agreement");
+    const { data: c } = await admin.from("contracts").select("number").eq("id", agr.contract_id).maybeSingle();
+    const expenseAccountId = need(s.subcontract_account_id, "subcontract_account");
+    const contactId = await subcontractorVendorId(ctx, agr.subcontractor_id);
+    const amount = Number(pay.amount);
+    return {
+      reference: subcontractorBillRef(pay.id), contactId, issueDate: pay.paid_on, expenseAccountId,
+      description: [c?.number, agr.scope, pay.reference].filter(Boolean).join(" — ").slice(0, 250), subtotal: amount, vat: 0, total: amount,
+    };
+  }
+  if (job.entity_type === "petty_cash") {
+    const { data: e } = await admin.from("petty_cash_entries").select("id, entry_date, amount, description, supplier_name, contract_id").eq("id", job.entity_id).single();
+    const entry = need(e, "petty_cash");
+    const { data: c } = entry.contract_id ? await admin.from("contracts").select("number").eq("id", entry.contract_id).maybeSingle() : { data: null };
+    const expenseAccountId = need(s.expense_account_id, "expense_account");
+    const contactId = await vendorId(ctx, { supplier_id: null, supplier_name: entry.supplier_name?.trim() || PETTY_VENDOR, supplier_vat: null, id: entry.id });
+    const amount = Number(entry.amount);
+    return {
+      reference: pettyBillRef(entry.id), contactId, issueDate: entry.entry_date, expenseAccountId,
+      description: [c?.number, entry.description].filter(Boolean).join(" — ").slice(0, 250), subtotal: amount, vat: 0, total: amount,
+    };
+  }
+  const { data: p } = await admin.from("purchases").select("id, number, supplier_id, supplier_name, supplier_vat, invoice_number, invoice_date, subtotal, vat, total, recorded_at, created_at").eq("id", job.entity_id).single();
+  const pur = need(p, "purchase");
+  const expenseAccountId = need(s.expense_account_id, "expense_account");
+  const contactId = await vendorId(ctx, pur);
+  return {
+    reference: pur.number, contactId, issueDate: pur.invoice_date ?? day(pur.recorded_at ?? pur.created_at), expenseAccountId,
+    description: pur.invoice_number ? `${pur.number} — ${pur.invoice_number}` : pur.number, subtotal: Number(pur.subtotal), vat: Number(pur.vat), total: Number(pur.total),
+  };
+}
+
+/** The bill job a payment belongs to, and how/when it was paid. */
+async function billPayment(ctx: Ctx, job: QoyodJobRow): Promise<{ billRef: string; reference: string; from: "bank" | "cash"; date: string; amount: number; description: string }> {
+  const { admin } = ctx;
+  if (job.entity_type === "subcontractor_payment") {
+    const { data: p } = await admin.from("subcontractor_payments").select("id, paid_on, amount, method, reference").eq("id", job.entity_id).single();
+    const pay = need(p, "subcontractor_payment");
+    const ref = subcontractorBillRef(pay.id);
+    return { billRef: `sb:${pay.id}`, reference: billPaymentRef(ref), from: pay.method === "cash" ? "cash" : "bank", date: pay.paid_on, amount: Number(job.amount ?? pay.amount), description: pay.reference ? `${ref} — ${pay.reference}` : ref };
+  }
+  if (job.entity_type === "petty_cash") {
+    const { data: e } = await admin.from("petty_cash_entries").select("id, entry_date, amount").eq("id", job.entity_id).single();
+    const entry = need(e, "petty_cash");
+    const ref = pettyBillRef(entry.id);
+    // petty cash is cash in the holder's hands
+    return { billRef: `pc:${entry.id}`, reference: billPaymentRef(ref), from: "cash", date: entry.entry_date, amount: Number(job.amount ?? entry.amount), description: ref };
+  }
+  const { data: p } = await admin.from("purchases").select("number, paid_on, paid_from, paid_reference, total").eq("id", job.entity_id).single();
+  const pur = need(p, "purchase");
+  return {
+    billRef: `po:${job.entity_id}`, reference: billPaymentRef(pur.number), from: pur.paid_from === "cash" ? "cash" : "bank", date: pur.paid_on ?? today(),
+    amount: Number(job.amount ?? pur.total), description: pur.paid_reference ? `${pur.number} — ${pur.paid_reference}` : pur.number,
+  };
+}
+
 type InvoiceSource = { reference: string; clientId: string; description: string; line: string; gross: number; vat: number; productId: number; issued: string; due: string };
 
 async function invoiceSource(ctx: Ctx, job: QoyodJobRow): Promise<InvoiceSource> {
@@ -158,34 +239,34 @@ async function invoiceSource(ctx: Ctx, job: QoyodJobRow): Promise<InvoiceSource>
   if (job.entity_type === "contract_payment") {
     const { data: p } = await admin.from("contract_payments").select("contract_id, seq, label, amount, requested_at, expected_date, created_at").eq("id", job.entity_id).single();
     const pay = need(p, "payment");
-    const { data: c } = await admin.from("contracts").select("number, client_id, service, quote_id, quote_version").eq("id", pay.contract_id).single();
+    const { data: c } = await admin.from("contracts").select("number, client_id, service").eq("id", pay.contract_id).single();
     const con = need(c, "contract");
-    const { data: v } = await admin.from("quote_versions").select("vat_percent").eq("quote_id", con.quote_id).eq("version", con.quote_version).maybeSingle();
-    const { data: inv } = await admin.from("invoices").select("number").eq("payment_id", job.entity_id).maybeSingle();
+    // VAT exactly as on the app's own invoice (0 % without a company VAT number at issue)
+    const { data: inv } = await admin.from("invoices").select("number, kind, vat_percent").eq("payment_id", job.entity_id).maybeSingle();
     return {
       reference: inv?.number ?? invoiceRef(con.number, pay.seq),
       clientId: con.client_id,
       description: `${con.number} — ${pay.label}`,
       line: pay.label,
       gross: Number(pay.amount),
-      vat: Number(v?.vat_percent ?? 0),
+      vat: inv?.kind === "tax" ? Number(inv.vat_percent ?? 0) : 0,
       productId: need(s.service_products?.[con.service], `product_${con.service}`),
       issued: day(pay.requested_at ?? pay.created_at),
       due: pay.expected_date ?? day(pay.requested_at ?? pay.created_at),
     };
   }
-  const { data: a } = await admin.from("addenda").select("number, title, total, vat_percent, contract_id, accepted_at, created_at").eq("id", job.entity_id).single();
+  const { data: a } = await admin.from("addenda").select("number, title, total, contract_id, accepted_at, created_at").eq("id", job.entity_id).single();
   const ad = need(a, "addendum");
   const { data: c } = await admin.from("contracts").select("number, client_id, service").eq("id", ad.contract_id).single();
   const con = need(c, "contract");
-  const { data: inv } = await admin.from("invoices").select("number").eq("addendum_id", job.entity_id).maybeSingle();
+  const { data: inv } = await admin.from("invoices").select("number, kind, vat_percent").eq("addendum_id", job.entity_id).maybeSingle();
   return {
     reference: inv?.number ?? ad.number,
     clientId: con.client_id,
     description: `${ad.number} — ${con.number}`,
     line: ad.title,
     gross: Number(ad.total),
-    vat: Number(ad.vat_percent ?? 0),
+    vat: inv?.kind === "tax" ? Number(inv.vat_percent ?? 0) : 0,
     productId: need(s.addendum_product_id ?? s.service_products?.[con.service], "product_addendum"),
     issued: day(ad.accepted_at ?? ad.created_at),
     due: day(ad.accepted_at ?? ad.created_at),
@@ -225,34 +306,26 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number> {
       return createOrFind(ctx, "/invoice_payments", "invoice_payments", reference, body, (r) => r.id ?? (r.invoice_payment as { id?: number } | undefined)?.id);
     }
     case "bill": {
-      const { data: p } = await ctx.admin.from("purchases").select("id, number, supplier_id, supplier_name, supplier_vat, invoice_number, invoice_date, subtotal, vat, total, recorded_at, created_at").eq("id", job.entity_id).single();
-      const pur = need(p, "purchase");
       const inventoryId = need(s.inventory_id, "inventory");
-      const expenseAccountId = need(s.expense_account_id, "expense_account");
-      const contactId = await vendorId(ctx, pur);
+      const b = await billSource(ctx, job);
       const body = simpleBillBody({
-        contactId, reference: pur.number, issueDate: pur.invoice_date ?? day(pur.recorded_at ?? pur.created_at), status: s.invoice_status, inventoryId, expenseAccountId,
-        description: pur.invoice_number ? `${pur.number} — ${pur.invoice_number}` : pur.number, subtotal: Number(pur.subtotal), vat: Number(pur.vat), total: Number(pur.total),
+        contactId: b.contactId, reference: b.reference, issueDate: b.issueDate, status: s.invoice_status, inventoryId, expenseAccountId: b.expenseAccountId,
+        description: b.description, subtotal: b.subtotal, vat: b.vat, total: b.total,
       });
-      return createOrFind(ctx, "/simple_bills", "simple_bills", pur.number, body, (r) => (r.simple_bill as { id?: number } | undefined)?.id);
+      return createOrFind(ctx, "/simple_bills", "simple_bills", b.reference, body, (r) => (r.simple_bill as { id?: number } | undefined)?.id);
     }
     case "bill_payment": {
-      const billId = await doneId(ctx, "bill", `po:${job.entity_id}`);
+      const pay = await billPayment(ctx, job);
+      const billId = await doneId(ctx, "bill", pay.billRef);
       if (!billId) throw new Blocked("waiting:bill");
       // a simple bill sent while sending was "Draft" is approved first (the API allows it for bills)
       const bill = await qoyod<unknown>(ctx.key, "GET", `/simple_bills/${billId}`);
       if (paymentStep("bill_payment", documentStatus(bill, "simple_bill")) === "approve") {
         await qoyod(ctx.key, "PATCH", `/simple_bills/${billId}`, approveSimpleBillBody());
       }
-      const { data: p } = await ctx.admin.from("purchases").select("number, paid_on, paid_from, paid_reference, total").eq("id", job.entity_id).single();
-      const pur = need(p, "purchase");
-      const accountId = pur.paid_from === "cash" ? need(s.cash_account_id ?? s.receive_account_id, "cash_account") : need(s.receive_account_id, "receive_account");
-      const reference = billPaymentRef(pur.number);
-      const body = simpleBillPaymentBody({
-        reference, billId, accountId, date: pur.paid_on ?? today(), amount: Number(job.amount ?? pur.total),
-        description: pur.paid_reference ? `${pur.number} — ${pur.paid_reference}` : pur.number,
-      });
-      return createOrFind(ctx, "/simple_bill_payments", "simple_bill_payments", reference, body, (r) => (r.payment as { id?: number } | undefined)?.id ?? (r.simple_bill_payment as { id?: number } | undefined)?.id);
+      const accountId = pay.from === "cash" ? need(s.cash_account_id ?? s.receive_account_id, "cash_account") : need(s.receive_account_id, "receive_account");
+      const body = simpleBillPaymentBody({ reference: pay.reference, billId, accountId, date: pay.date, amount: pay.amount, description: pay.description });
+      return createOrFind(ctx, "/simple_bill_payments", "simple_bill_payments", pay.reference, body, (r) => (r.payment as { id?: number } | undefined)?.id ?? (r.simple_bill_payment as { id?: number } | undefined)?.id);
     }
     case "payroll": {
       const salaryAccountId = need(s.salary_account_id, "salary_account");

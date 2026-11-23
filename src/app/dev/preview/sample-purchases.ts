@@ -34,6 +34,18 @@ export const SAMPLE_PURCHASE_FORM: PurchaseForm = {
   projects,
   aiEnabled: true,
   vatRegistered: false,
+  products: [
+    { id: "pr1", label: "Knauf — لوح جبس عادي 12.5 مم" },
+    { id: "pr2", label: "Jotun — Fenomastic دهان جدران" },
+  ],
+  quoteList: {
+    contract_id: "k0",
+    lines: [
+      { description: "لوح جبس عادي — Knauf (2.88)", colour: "", quantity: 150, unit: "pack", unit_price: 22, item: "new", product_id: "pr1", general: true },
+      { description: "دهان جدران — Jotun (18)", colour: "بيج", quantity: 4, unit: "pack", unit_price: 180, item: "new", product_id: "pr2", general: false },
+      { description: "فتحات صيانة", colour: "", quantity: 4, unit: "pcs", unit_price: 75, item: "new", product_id: null, general: true },
+    ],
+  },
 };
 export const SAMPLE_PURCHASE_DETAIL = { ...SAMPLE_PURCHASE_FORM, purchase: detail };
 
@@ -41,6 +53,7 @@ export const SAMPLE_INVENTORY: InventoryData = {
   items,
   projects,
   canManage: true,
+  products: [{ id: "pr1", label: "Knauf — لوح جبس عادي 12.5 مم" }],
   balances: [
     { item_id: "i1", contract_id: null, quantity: 120, value: 2640 },
     { item_id: "i1", contract_id: "k0", quantity: 60, value: 1320 },
@@ -50,6 +63,6 @@ export const SAMPLE_INVENTORY: InventoryData = {
 };
 
 export const SAMPLE_COSTS: ProjectCost[] = [
-  { ...projects[0], estimated: 11800, materials: 11950, expenses: 900, subcontractors: 4200, petty: 0, materialsActual: 12850, actual: 20290, pending: 7245, labour: 3240 },
+  { ...projects[0], estimated: 11800, materials: 11950, expenses: 900, subcontractors: 4200, petty: 0, materialsActual: 12850, actual: 20540, pending: 7245, labour: 3240, maintenance: 250 },
   { ...projects[1], estimated: 7200, materials: 4100, expenses: 0, subcontractors: 0, petty: 0, materialsActual: 4100, actual: 4100, pending: 0, labour: 0 },
 ];

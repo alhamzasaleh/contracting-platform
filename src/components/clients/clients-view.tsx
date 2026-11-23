@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { ClipboardList, FileText, MapPin, MessageCircle, Pencil, Phone, Plus, Search, Users } from "lucide-react";
+import { ClipboardList, FileSignature, FileText, HardHat, MapPin, MessageCircle, Pencil, Phone, Plus, Receipt, Search, Users, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -187,6 +187,7 @@ export function ClientDetailView({
 }) {
   const t = useTranslations("clients");
   const tq = useTranslations("quotes");
+  const tcn = useTranslations("contract");
   const { fmt } = useFormatter();
   const router = useRouter();
   const { run, pending } = useActionRunner();
@@ -301,6 +302,68 @@ export function ClientDetailView({
           </ul>
         </section>
       </div>
+      {((detail.contracts?.length ?? 0) > 0 || detail.balance) && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <section className="grid content-start gap-3">
+            <h3 className="text-[17px] font-bold">{t("contracts")}</h3>
+            <ul className="grid gap-2">
+              {(detail.contracts ?? []).map((c) => (
+                <li key={c.number} className="grid gap-2 rounded-2xl border border-border bg-surface px-4 py-3">
+                  <Link href={`${base}/contracts/${c.number}`} className="flex flex-wrap items-center justify-between gap-2 hover:text-primary">
+                    <span className="flex items-center gap-2 font-bold">
+                      <FileSignature className="size-4 text-primary" />
+                      {tq(`service_${c.service}`)} · <DocNo>{c.number}</DocNo>
+                    </span>
+                    <span className="font-latin font-bold tabular-nums">{fmt.money(c.total)}</span>
+                  </Link>
+                  <span className="flex flex-wrap items-center gap-2 text-[12px]">
+                    <Badge tone={c.status === "accepted" ? "success" : "neutral"}>{tcn(`status_${c.status}` as "status_sent")}</Badge>
+                    {c.status === "accepted" && detail.canViewProjects && (
+                      <>
+                        <Link href={`${base}/projects/${c.number}`} className="inline-flex items-center gap-1 text-primary hover:underline">
+                          <HardHat className="size-3.5" /> {t("openProject")}
+                        </Link>
+                        <Link href={`${base}/maintenance?contract=${c.number}`} className="inline-flex items-center gap-1 text-primary hover:underline">
+                          <Wrench className="size-3.5" /> {t("maintenance")}
+                          {c.openMaintenance > 0 && <Badge tone="warning">{c.openMaintenance}</Badge>}
+                        </Link>
+                      </>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+          {detail.balance && (
+            <section className="grid content-start gap-3">
+              <h3 className="text-[17px] font-bold">{t("balance")}</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {(["billed", "received", "outstanding"] as const).map((k) => (
+                  <div key={k} className="rounded-2xl border border-border bg-surface p-3">
+                    <p className="text-[12px] text-muted-foreground">{t(`bal_${k}`)}</p>
+                    <p className={`mt-1 font-latin text-[clamp(0.85rem,3.6vw,1rem)] font-extrabold tabular-nums break-words ${k === "outstanding" && detail.balance!.outstanding > 0 ? "text-warning-foreground" : ""}`}>{fmt.money(detail.balance![k])}</p>
+                  </div>
+                ))}
+              </div>
+              {(detail.invoices?.length ?? 0) > 0 && (
+                <ul className="grid gap-2">
+                  {detail.invoices!.map((i) => (
+                    <li key={i.number}>
+                      <Link href={`${base}/invoices/${i.number}`} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-surface px-4 py-2.5 text-[14px] hover:border-primary/40">
+                        <span className="flex items-center gap-2">
+                          <Receipt className="size-4 text-primary" /> <DocNo>{i.number}</DocNo>
+                          <span className="text-[12px] text-muted-foreground">· {fmt.date(i.issue_date)}</span>
+                        </span>
+                        <span className="font-latin font-bold tabular-nums">{fmt.money(i.total)}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+        </div>
+      )}
       {editing && <ClientDialog client={client} onClose={() => setEditing(false)} onSave={onSave} />}
     </div>
   );

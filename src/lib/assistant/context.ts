@@ -72,4 +72,5 @@ export function buildFacts(
 }
 
 /** Links the assistant may suggest (anything else is dropped). */
-export const SAFE_LINK = /^\/(reports|purchases|maintenance|projects|contracts|team\/payroll|schedule)(\/[A-Z]{1,3}-\d{4}-\d{3,6})?$/;
+export const SAFE_LINK =
+  /^\/(?:reports|schedule|team\/payroll|purchases\/costs|(?:purchases|projects|contracts|invoices|clients|quotations)(?:\/[A-Z]{1,3}-\d{4}-\d{3,6})?|maintenance(?:\?r=MR-\d{4}-\d{3,6})?)$/;

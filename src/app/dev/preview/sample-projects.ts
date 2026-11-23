@@ -42,6 +42,11 @@ export const SAMPLE_PROJECT: ProjectDetail = {
     { seq: 2, label: "بعد تقفيل الألواح", amount: 9000, due_event: "board_closing", status: "pending" },
     { seq: 3, label: "عند التسليم النهائي", amount: 9000, due_event: "handover", status: "pending" },
   ],
+  addenda: [{ number: "AD-2026-001", title: "بيت إنارة إضافي في المجلس", total: 1800, payment_status: "requested", extra_days: 3 }],
+  dates: { start: "2026-11-21", delivery: "2026-12-07", extraDays: 3, warrantyEnd: null },
+  cost: { estimated: 8100, actual: 6420 },
+  openMaintenance: 0,
+  canSchedule: true,
 };
 
 export const SAMPLE_PORTAL_WORK: PortalData = {

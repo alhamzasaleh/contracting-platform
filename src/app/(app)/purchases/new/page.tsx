@@ -6,7 +6,7 @@ import { savePurchase, uploadInvoice } from "../actions";
 export default async function NewPurchasePage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const session = await requirePermission("purchases.manage");
   const { project } = await searchParams;
-  const form = await loadPurchaseForm(session);
+  const form = await loadPurchaseForm(session, undefined, typeof project === "string" ? project : undefined);
   const initial = form.projects.find((p) => p.number === project)?.id;
   return <PurchaseEditor form={form} initialProject={initial} actions={{ upload: uploadInvoice, save: savePurchase }} />;
 }

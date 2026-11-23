@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { AlertTriangle, CalendarClock, CalendarDays, Check, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, Send, ShoppingCart, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, CalendarClock, CalendarDays, Check, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, Send, ShoppingCart, Trash2, Wrench, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -312,7 +312,7 @@ export function ContractView({
           </Button>
           {c.status !== "cancelled" && (
             <Button asChild variant="secondary" size="sm">
-              <Link href={`${base}/schedule?contract=${c.number}`}>
+              <Link href={`${base}/schedule?contract=${c.number}${detail.bookTeam ? `&team=${detail.bookTeam}` : ""}`}>
                 <CalendarDays /> {ts("bookTeam")}
               </Link>
             </Button>
@@ -321,6 +321,14 @@ export function ContractView({
             <Button asChild variant="secondary" size="sm">
               <Link href={`${base}/projects/${c.number}`}>
                 <HardHat /> {t("openProject")}
+              </Link>
+            </Button>
+          )}
+          {c.status === "accepted" && detail.canViewProject && (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`${base}/maintenance?contract=${c.number}`}>
+                <Wrench /> {t("openMaintenance")}
+                {(detail.openMaintenance ?? 0) > 0 && <Badge tone="warning">{detail.openMaintenance}</Badge>}
               </Link>
             </Button>
           )}
@@ -412,7 +420,8 @@ export function ContractView({
             </div>
           )}
           <div className="flex flex-wrap gap-2">
-            {c.status !== "accepted" || link.active ? (
+            {/* reissue any time (also after acceptance, e.g. a lost or expired link) — the database keeps it valid until the warranty ends */}
+            {(
               <Button
                 size="sm"
                 loading={pending}
@@ -430,7 +439,7 @@ export function ContractView({
               >
                 <Link2 /> {link.active ? t("renewLink") : t("createLink")}
               </Button>
-            ) : null}
+            )}
             {link.active && (
               <Button size="sm" variant="ghost" loading={pending} onClick={() => run(actions && (() => actions.revoke({ id: c.id })), { onSuccess: () => setUrl(null) })}>
                 <XCircle /> {t("revokeLink")}
@@ -450,6 +459,7 @@ export function ContractView({
       {c.status === "accepted" && <PaymentRequests detail={detail} request={requestPayment} />}
       {(c.status === "accepted" || c.status === "sent") && <ClientMessages detail={detail} orgName={org.name} />}
       <AddendaSection detail={detail} actions={addendaActions} />
+      <ReceiptsList items={detail.invoices ?? []} hrefFor={(n) => `${base}/invoices/${encodeURIComponent(n)}`} title={t("invoicesTitle")} hint={t("invoicesHint")} id="invoices-title" />
       <ReceiptsList items={detail.receipts ?? []} hrefFor={(n) => `/print/receipts/${encodeURIComponent(n)}`} newTab />
       {termsSave && detail.canManage && (c.status === "draft" || c.status === "sent") && (
         <ClausesPanel mode="contract" initial={detail.terms ?? {}} template={detail.templateTerms} save={(terms) => termsSave({ contract_id: c.id, terms })} />

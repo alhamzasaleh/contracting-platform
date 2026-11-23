@@ -9,6 +9,7 @@ import type { ServiceKind } from "@/lib/pricing";
 import type { ClientView } from "@/lib/quotes";
 import { effectiveVatPercent } from "@/lib/costing";
 import { lateDays } from "@/lib/finance";
+import { bookingTeam } from "@/lib/schedule";
 import type { AddendumStatus, ContractStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -126,8 +127,16 @@ export type ContractDetail = {
   /** Editable clauses of this contract, and the company template (for "copy from template"). */
   terms?: ContractTermsConfig;
   templateTerms?: ContractTermsConfig | null;
-  /** Receipt vouchers issued for this contract (newest last). */
+  /** Receipt vouchers issued for this contract (newest last) — finance.view (RLS). */
   receipts?: { number: string; label: string; amount: number; paid_on: string }[];
+  /** Invoices issued for this contract — finance.view (RLS). */
+  invoices?: { number: string; label: string; amount: number; paid_on: string }[];
+  /** open maintenance requests (the warranty / maintenance page) */
+  openMaintenance?: number;
+  /** sees and enters estimated costs (costs.view) */
+  canCosts?: boolean;
+  /** the team chosen when pricing (in-house team, or the external rate's subcontractor team) — pre-selected when booking */
+  bookTeam?: string | null;
 };
 
 export type AddendumView = {
@@ -138,6 +147,8 @@ export type AddendumView = {
   paid_amount?: number;
   /** payment requested on acceptance 7+ days ago: days since then */
   late_days?: number | null;
+  /** estimated cost (costs.view, addendum_costs) */
+  cost?: { material: number; other: number } | null;
 };
 
 const parseTerms = (v: unknown): ContractTermsConfig => {
@@ -154,7 +165,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
   const [{ data: client }, { data: q }, { data: ver }, { data: payments }, { data: links }] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city, district, id_number").eq("id", c.client_id).maybeSingle(),
     supabase.from("quotes").select("number, valid_until").eq("id", c.quote_id).maybeSingle(),
-    supabase.from("quote_versions").select("version, created_at, client_view, notes").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle(),
+    supabase.from("quote_versions").select("version, created_at, client_view, notes, selection").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle(),
     supabase.from("contract_payments").select("id, seq, label, percent, amount, due_event, status, paid_amount, requested_at").eq("contract_id", c.id).order("seq"),
     supabase.from("client_portal_links").select("expires_at, revoked_at, last_opened_at, open_count").eq("contract_id", c.id).order("created_at", { ascending: false }),
   ]);
@@ -162,13 +173,33 @@ export async function loadContract(session: SessionContext, number: string): Pro
   const [{ data: addenda }, settings, { data: receipts }, { data: tpl }, { data: requestableRows }] = await Promise.all([
     supabase.from("addenda").select("id, number, title, description, amount, vat, total, extra_days, status, payment_status, accepted_at, accepted_name, created_at, paid_amount").eq("contract_id", c.id).order("created_at"),
     loadPricingSettings(session),
-    supabase.from("client_receipts").select("number, label, amount, paid_on").eq("contract_id", c.id).order("created_at"),
+    can(session, "finance.view") ? supabase.from("client_receipts").select("number, label, amount, paid_on").eq("contract_id", c.id).order("created_at") : Promise.resolve({ data: [] as { number: string; label: string; amount: number; paid_on: string }[] }),
     supabase.from("contract_templates").select("terms").eq("organization_id", orgId).maybeSingle(),
     // exactly what request_contract_payment accepts for this user (stages may be hidden from him)
     c.status === "accepted" ? supabase.rpc("requestable_payments", { p_org: orgId, p_contract: c.id }) : Promise.resolve({ data: [] as { payment_id: string }[] }),
   ]);
   const requestable = new Set((requestableRows ?? []).map((r) => r.payment_id));
+  // G1: the team picked when pricing → booked in the schedule
+  const labour = (ver?.selection as { labour?: { source: string; teamId?: string | null; externalId?: string | null } } | null)?.labour ?? null;
+  let bookTeam: string | null = null;
+  if (labour && labour.source !== "rates" && can(session, "schedule.view")) {
+    const [{ data: teams }, { data: rates }] = await Promise.all([
+      supabase.from("teams").select("id, subcontractor_id").eq("organization_id", orgId).eq("is_active", true),
+      labour.source === "external" && labour.externalId ? supabase.from("labour_rates").select("id, subcontractor_id").eq("id", labour.externalId) : Promise.resolve({ data: [] as { id: string; subcontractor_id: string | null }[] }),
+    ]);
+    bookTeam = bookingTeam(labour, rates ?? [], teams ?? []);
+  }
+  const [{ data: invoices }, { count: openMaintenance }] = await Promise.all([
+    can(session, "finance.view")
+      ? supabase.from("invoices").select("number, description, total, issue_date").eq("contract_id", c.id).order("issue_date").order("number")
+      : Promise.resolve({ data: [] as { number: string; description: string; total: number; issue_date: string }[] }),
+    c.status === "accepted" && can(session, "projects.view")
+      ? supabase.from("maintenance_requests").select("id", { count: "exact", head: true }).eq("contract_id", c.id).in("status", ["open", "in_progress", "resolved"])
+      : Promise.resolve({ count: 0 }),
+  ]);
   const pendingIds = (addenda ?? []).filter((a) => a.status === "pending_approval").map((a) => a.id);
+  const adIds = (addenda ?? []).map((a) => a.id);
+  const { data: adCosts } = can(session, "costs.view") && adIds.length ? await supabase.from("addendum_costs").select("addendum_id, material_cost, other_cost").in("addendum_id", adIds) : { data: [] as { addendum_id: string; material_cost: number; other_cost: number }[] };
   const { data: approvals } = pendingIds.length
     ? await supabase.from("approvals").select("id, entity_id").eq("entity", "addendum").eq("status", "pending").in("entity_id", pendingIds)
     : { data: [] as { id: string; entity_id: string }[] };
@@ -198,12 +229,20 @@ export async function loadContract(session: SessionContext, number: string): Pro
     addenda: (addenda ?? []).map((a) => ({
       ...a, amount: n(a.amount), vat: n(a.vat), total: n(a.total), paid_amount: n(a.paid_amount), approval_id: (approvals ?? []).find((x) => x.entity_id === a.id)?.id ?? null,
       late_days: a.status === "accepted" && a.payment_status === "requested" ? lateDays(a.accepted_at, today) : null,
+      cost: (() => {
+        const k = (adCosts ?? []).find((x) => x.addendum_id === a.id);
+        return k ? { material: n(k.material_cost), other: n(k.other_cost) } : null;
+      })(),
     })),
+    canCosts: can(session, "costs.view"),
+    bookTeam,
     canDecide: can(session, "approvals.decide"),
     canFinance: can(session, "finance.manage"),
     terms: parseTerms(c.terms),
     templateTerms: tpl ? parseTerms(tpl.terms) : null,
     receipts: (receipts ?? []).map((r) => ({ number: r.number, label: r.label, amount: Number(r.amount), paid_on: r.paid_on })),
+    invoices: (invoices ?? []).map((i) => ({ number: i.number, label: i.description, amount: Number(i.total), paid_on: i.issue_date })),
+    openMaintenance: openMaintenance ?? 0,
     vatPercent: effectiveVatPercent(session.organization.vat_number, Number(settings?.vat_percent ?? 15)),
   };
 }

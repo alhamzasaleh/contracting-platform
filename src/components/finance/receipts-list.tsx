@@ -4,14 +4,14 @@ import { useTranslations } from "next-intl";
 import { useFormatter } from "@/components/formatter-provider";
 
 /** List of receipt vouchers, each opening the printable voucher. */
-export function ReceiptsList({ items, hrefFor, newTab }: { items: { number: string; label: string; amount: number; paid_on: string }[]; hrefFor: (number: string) => string; newTab?: boolean }) {
+export function ReceiptsList({ items, hrefFor, newTab, title, hint, id = "receipts-title" }: { items: { number: string; label: string; amount: number; paid_on: string }[]; hrefFor: (number: string) => string; newTab?: boolean; title?: string; hint?: string; id?: string }) {
   const t = useTranslations("receipt");
   const { fmt } = useFormatter();
   if (!items.length) return null;
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="receipts-title">
-      <h2 id="receipts-title" className="text-[18px] font-bold">{t("listTitle")}</h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">{t("listHint")}</p>
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby={id}>
+      <h2 id={id} className="text-[18px] font-bold">{title ?? t("listTitle")}</h2>
+      <p className="mt-1 text-[13px] text-muted-foreground">{hint ?? t("listHint")}</p>
       <ul className="mt-4 grid gap-2">
         {items.map((r) => (
           <li key={r.number}>

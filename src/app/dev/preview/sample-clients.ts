@@ -14,6 +14,16 @@ export const SAMPLE_CLIENT_DETAIL: ClientDetail = {
     { id: "q1", number: "Q-2026-007", service: "gypsum", status: "issued", version: 2, total: 31840, created_at: "2026-11-21T10:00:00Z" },
     { id: "q2", number: "Q-2026-008", service: "interior", status: "draft", version: 1, total: 28400, created_at: "2026-11-21T11:00:00Z" },
   ],
+  contracts: [
+    { number: "C-2026-003", service: "gypsum", status: "accepted", total: 31840, openMaintenance: 1 },
+    { number: "C-2026-005", service: "interior", status: "sent", total: 28400, openMaintenance: 0 },
+  ],
+  balance: { billed: 33640, received: 12800, outstanding: 20840 },
+  invoices: [
+    { number: "INV-2026-004", total: 12000, issue_date: "2026-11-19" },
+    { number: "INV-2026-006", total: 1800, issue_date: "2026-11-22" },
+  ],
+  canViewProjects: true,
 };
 
 const r = (id: string, name: string, L: number, W: number, extra: Partial<SurveyDetail["rooms"][number]> = {}) => ({

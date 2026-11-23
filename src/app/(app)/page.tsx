@@ -1,6 +1,6 @@
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 import { can, getSession } from "@/lib/auth/session";
-import { loadOwnerFinance } from "@/lib/data/finance";
+import { loadOwnerFinance, loadPendingApprovals } from "@/lib/data/finance";
 import { expiringDocuments } from "@/lib/hr";
 import { decideFromDashboard, saveCashSettings } from "./reports/actions";
 import { createClient } from "@/lib/supabase/server";
@@ -16,6 +16,8 @@ export default async function HomePage() {
   const org = session.organization;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh" }).format(new Date());
   const finance = can(session, "finance.view") ? await loadOwnerFinance(session, today) : null;
+  // an approver without finance.view still gets the approvals card (approve in one tap)
+  const approvals = !finance && can(session, "approvals.decide") ? await loadPendingApprovals(session) : null;
   let expiring: { total: number; expired: number } | null = null;
   if (can(session, "hr.view")) {
     const { data: emps } = await supabase.from("employees").select("id, full_name, status, id_expiry, passport_expiry, insurance_expiry").eq("organization_id", org.id);
@@ -27,6 +29,7 @@ export default async function HomePage() {
       data={{
         userName: session.profile.full_name,
         finance,
+        approvals,
         expiring,
         financeActions: { decide: decideFromDashboard, saveCash: saveCashSettings },
         setup: [

@@ -11,7 +11,7 @@ export default async function PurchasesLayout({ children }: { children: React.Re
     { href: "/purchases/inventory", label: t("tabInventory") },
     { href: "/purchases/subcontractors", label: t("tabSubs") },
     { href: "/purchases/petty-cash", label: t("tabPetty") },
-    ...(can(session, "quotes.view") ? [{ href: "/purchases/costs", label: t("tabCosts") }] : []),
+    ...(can(session, "costs.view") ? [{ href: "/purchases/costs", label: t("tabCosts") }] : []),
   ];
   return (
     <div className="min-w-0">

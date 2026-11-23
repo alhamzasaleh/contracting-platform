@@ -103,6 +103,22 @@ export function paydays(today: Day, payday: number, until: Day): Day[] {
   return days;
 }
 
+/**
+ * Salary outflows on each payday (§3.16/§3.20): a month's payroll run net when the run exists
+ * (nothing once it is paid — the money already left), otherwise the gross monthly salaries;
+ * plus the statutory items paid every month (GOSI and other monthly items).
+ */
+export function payrollFlows(days: Day[], runs: { month: string; status: string; net: number }[], gross: number, statutoryMonthly: number): Flow[] {
+  const out: Flow[] = [];
+  for (const d of days) {
+    const run = runs.find((r) => r.month.slice(0, 7) === d.slice(0, 7));
+    const salaries = run ? (run.status === "paid" ? 0 : r2(run.net)) : r2(gross);
+    if (salaries > 0) out.push({ date: d, amount: salaries, label: "salaries", kind: "payroll" });
+    if (statutoryMonthly > 0) out.push({ date: d, amount: r2(statutoryMonthly), label: "statutory", kind: "statutory" });
+  }
+  return out;
+}
+
 export type AgeBucket = "0_30" | "31_60" | "61_90" | "90_plus";
 
 /** Receivables ageing from the day each payment was requested. */

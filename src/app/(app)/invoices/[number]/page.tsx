@@ -42,6 +42,16 @@ export default async function InvoicePage({ params }: { params: Promise<{ number
           </div>
         }
       />
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+        <Link href={`/contracts/${inv.contract}`} className="text-primary hover:underline">
+          {t("contractLink")} <bdi dir="ltr" className="font-latin">{inv.contract}</bdi>
+        </Link>
+        {inv.receipts.map((r) => (
+          <Link key={r.number} href={`/print/receipts/${r.number}`} target="_blank" className="text-primary hover:underline">
+            {t("receiptLink")} <bdi dir="ltr" className="font-latin">{r.number}</bdi> · {fmt.money(r.amount)}
+          </Link>
+        ))}
+      </p>
       {inv.qoyodEnabled && <p className="text-[13px] text-muted-foreground">{t(`qoyod_${inv.qoyod}`)}</p>}
       <InvoiceDocument data={inv} logoUrl={logoUrl} qr={await invoiceQr(inv)} />
     </div>

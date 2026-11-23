@@ -91,6 +91,8 @@ type Row = {
   unit: string;
   unit_price: string;
   unclear?: boolean;
+  /** catalogue product for a new stock item (calibration) */
+  product?: string;
 };
 
 export type PurchaseActions = {
@@ -202,7 +204,7 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
             lines: rows.map((r) => ({
               kind: r.kind,
               item_id: r.kind === "material" && r.item && r.item !== "new" ? r.item : null,
-              new_item: r.kind === "material" && r.item === "new" ? { name: (r.newName || r.description).trim(), unit: r.unit.trim() || "pcs", is_general: r.general } : null,
+              new_item: r.kind === "material" && r.item === "new" ? { name: (r.newName || r.description).trim(), unit: r.unit.trim() || "pcs", is_general: r.general, product_id: r.product || null } : null,
               description: r.description,
               colour: r.colour,
               quantity: num(r.quantity),
@@ -312,7 +314,27 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
 
         {/* 3. lines */}
         <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
-          <p className="text-[15px] font-bold">{t("step3")}</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[15px] font-bold">{t("step3")}</p>
+            {form.quoteList && project === form.quoteList.contract_id && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  setRows(
+                    form.quoteList!.lines.map((l) => ({
+                      key: ++rowKey, kind: "material", item: l.item, newName: l.description, newUnit: l.unit, general: l.general,
+                      description: l.description, colour: l.colour, quantity: String(l.quantity), unit: l.unit, unit_price: String(l.unit_price), product: l.product_id ?? "",
+                    })),
+                  )
+                }
+              >
+                <ShoppingCart /> {t("fromQuoteList")}
+              </Button>
+            )}
+          </div>
+          {form.quoteList && project === form.quoteList.contract_id && <p className="text-[12px] text-muted-foreground">{t("fromQuoteListHint")}</p>}
           <ul className="grid gap-2">
             {rows.map((r) => (
               <li key={r.key} className={cn("grid gap-3 rounded-2xl bg-surface-sunken/50 p-3", r.unclear && "ring-2 ring-warning")}>
@@ -345,6 +367,18 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                     <Trash2 />
                   </Button>
                 </div>
+                {r.kind === "material" && r.item === "new" && (form.products?.length ?? 0) > 0 && (
+                  <Field id={`pl-pr-${r.key}`} label={t("catalogueProduct")} hint={t("catalogueProductHint")} optional={t("optional")}>
+                    <NativeSelect value={r.product ?? ""} onChange={(e) => setRow(r.key, { product: e.target.value })}>
+                      <option value="">—</option>
+                      {form.products!.map((x) => (
+                        <option key={x.id} value={x.id}>
+                          {x.label}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </Field>
+                )}
                 {r.kind === "material" && r.item === "new" && (
                   <label className="flex items-center justify-between gap-3 rounded-xl bg-surface px-3 py-2 text-[13px]">
                     <span>
@@ -447,7 +481,18 @@ export function PurchaseView({
           <p className="text-[13px] text-muted-foreground">
             {[d.supplier, d.invoice_number && t("invoiceNo", { n: ltr(d.invoice_number) }), d.invoice_date && fmt.date(d.invoice_date)].filter(Boolean).join(" · ")}
           </p>
-          <p className="text-[13px]">{d.project ? `${t("chargeTo")}: ${d.project.client} · ${ltr(d.project.number)}` : t("toStock")}</p>
+          <p className="text-[13px]">
+            {d.project ? (
+              <>
+                {t("chargeTo")}: {d.project.client} ·{" "}
+                <Link href={`${base}/contracts/${d.project.number}`} className="text-primary hover:underline">
+                  <DocNo>{d.project.number}</DocNo>
+                </Link>
+              </>
+            ) : (
+              t("toStock")
+            )}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {editable && (
@@ -648,7 +693,7 @@ export function InventoryView({
         </ul>
       )}
       {moving && <MoveDialog data={data} item={moving.item} from={moving.from} onClose={() => setMoving(null)} move={actions?.move} />}
-      {newItem && <ItemDialog onClose={() => setNewItem(false)} save={actions?.saveItem} />}
+      {newItem && <ItemDialog onClose={() => setNewItem(false)} save={actions?.saveItem} products={data.products ?? []} />}
     </div>
   );
 }
@@ -692,9 +737,10 @@ function MoveDialog({ data, item, from, onClose, move }: { data: InventoryData; 
   );
 }
 
-function ItemDialog({ onClose, save }: { onClose: () => void; save?: (i: Record<string, unknown>) => Promise<ActionResult<{ id: string }>> }) {
+function ItemDialog({ onClose, save, products }: { onClose: () => void; save?: (i: Record<string, unknown>) => Promise<ActionResult<{ id: string }>>; products: { id: string; label: string }[] }) {
   const t = useTranslations("purchases");
   const { run, pending, fieldText } = useActionRunner();
+  const [product, setProduct] = React.useState("");
   const [name, setName] = React.useState("");
   const [unit, setUnit] = React.useState("pcs");
   const [general, setGeneral] = React.useState(true);
@@ -705,8 +751,27 @@ function ItemDialog({ onClose, save }: { onClose: () => void; save?: (i: Record<
       onOpenChange={(v) => !v && onClose()}
       title={t("newItemButton")}
       pending={pending}
-      onSubmit={() => run(save && (() => save({ name, unit, is_general: general })), { onFieldErrors: setErrors, onSuccess: onClose })}
+      onSubmit={() => run(save && (() => save({ name, unit, is_general: general, product_id: product || null })), { onFieldErrors: setErrors, onSuccess: onClose })}
     >
+      {products.length > 0 && (
+        <Field id="it-p" label={t("catalogueProduct")} hint={t("catalogueProductHint")} optional={t("optional")}>
+          <NativeSelect
+            value={product}
+            onChange={(e) => {
+              setProduct(e.target.value);
+              const label = products.find((x) => x.id === e.target.value)?.label;
+              if (label && !name) setName(label.slice(0, 160));
+            }}
+          >
+            <option value="">—</option>
+            {products.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.label}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+      )}
       <Field id="it-n" label={t("itemName")} error={fieldText(errors.name)}>
         <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
       </Field>
@@ -761,6 +826,7 @@ export function ProjectCostsView({ rows, base = "", labourHidden = false }: { ro
                 <Stat label={t("pettyCost")} value={fmt.money(r.petty)} />
                 <Stat label={t("subsCost")} value={fmt.money(r.subcontractors)} />
                 {r.labour != null && <Stat label={t("labourCost")} value={fmt.money(r.labour)} />}
+                {(r.maintenance ?? 0) > 0 && <Stat label={t("maintenanceCost")} value={fmt.money(r.maintenance ?? 0)} />}
               </div>
               {s.ratio != null && (
                 <div className="h-2.5 overflow-hidden rounded-full bg-surface-sunken" role="meter" aria-valuenow={Math.round(s.ratio * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={t("actualMaterials")}>

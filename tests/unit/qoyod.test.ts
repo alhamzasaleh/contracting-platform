@@ -9,14 +9,14 @@ describe("qoyod payloads", () => {
     expect(netOf(1000, 0)).toBe(1000);
   });
 
-  it("invoice: one line per payment, price before VAT, VAT percent stated", () => {
+  it("invoice: one line per payment, VAT-inclusive price, VAT percent stated", () => {
     const b = invoiceBody({
       contactId: 7, reference: invoiceRef("C-2026-001", 2), description: "C-2026-001 — بعد توريد المواد", issueDate: "2026-11-20", dueDate: "2026-11-10",
       status: "Draft", inventoryId: 1, productId: 33, lineDescription: "بعد توريد المواد", gross: 11500, vatPercent: 15,
     });
     expect(b.invoice.reference).toBe("C-2026-001/2");
     expect(b.invoice.due_date).toBe("2026-11-20"); // never before the issue date
-    expect(b.invoice.line_items).toEqual([{ product_id: 33, description: "بعد توريد المواد", quantity: 1, unit_price: 10000, tax_percent: 15 }]);
+    expect(b.invoice.line_items).toEqual([{ product_id: 33, description: "بعد توريد المواد", quantity: 1, unit_price: 11500, tax_percent: 15, is_inclusive: true }]);
   });
 
   it("payments carry a unique reference per cumulative amount", () => {

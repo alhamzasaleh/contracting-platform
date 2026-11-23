@@ -1,5 +1,6 @@
 "use client";
-import { Plus, ShieldCheck, Wrench } from "lucide-react";
+import { Plus, ShieldCheck, Wrench, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -24,12 +25,15 @@ const STATUSES: MaintenanceStatus[] = ["open", "in_progress", "resolved", "close
 const TONE = { open: "warning", in_progress: "info", resolved: "primary", closed: "success", rejected: "neutral" } as const;
 
 /** §3.13 maintenance requests during warranty + the list of warranties. */
-export function MaintenanceView({ data, focus, actions }: { data: MaintenancePageData; focus: string | null; actions?: Actions }) {
+export function MaintenanceView({ data, focus, contract = null, actions, base = "" }: { data: MaintenancePageData; focus: string | null; contract?: string | null; actions?: Actions; base?: string }) {
   const t = useTranslations("maintenance");
   const { fmt } = useFormatter();
   const [filter, setFilter] = React.useState<"active" | "all">("active");
   const active = (s: MaintenanceStatus) => s === "open" || s === "in_progress" || s === "resolved";
-  const list = data.requests.filter((r) => filter === "all" || active(r.status) || r.number === focus);
+  // ?contract=C-… (from the project / contract page): only that project's requests and warranty
+  const scoped = contract ? data.requests.filter((r) => r.contract === contract) : data.requests;
+  const warranties = contract ? data.warranties.filter((w) => w.number === contract) : data.warranties;
+  const list = scoped.filter((r) => filter === "all" || active(r.status) || r.number === focus);
   const year = new Date().getFullYear().toString();
   const cost = data.requests.filter((r) => r.created_at.startsWith(year)).reduce((s, r) => s + r.cost, 0);
   const kpis = [
@@ -55,7 +59,12 @@ export function MaintenanceView({ data, focus, actions }: { data: MaintenancePag
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Segmented name={t("filter")} value={filter} onChange={setFilter} options={[{ value: "active", label: t("fActive") }, { value: "all", label: t("fAll") }]} />
-        {data.canManage && actions && <NewRequest warranties={data.warranties.filter((w) => w.active)} create={actions.create} />}
+        {contract && (
+          <Link href={`${base}/maintenance`} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-[13px] hover:border-primary/50">
+            {t("onlyProject")} <bdi dir="ltr" className="font-latin">{contract}</bdi> <X className="size-3.5" aria-label={t("showAll")} />
+          </Link>
+        )}
+        {data.canManage && actions && <NewRequest warranties={warranties.filter((w) => w.active)} create={actions.create} />}
       </div>
 
       {list.length === 0 ? (
@@ -63,7 +72,7 @@ export function MaintenanceView({ data, focus, actions }: { data: MaintenancePag
       ) : (
         <div className="grid gap-4">
           {list.map((r) => (
-            <RequestCard key={r.id} r={r} data={data} open={r.number === focus} actions={actions} />
+            <RequestCard key={r.id} r={r} data={data} open={r.number === focus} actions={actions} base={base} />
           ))}
         </div>
       )}
@@ -76,14 +85,17 @@ export function MaintenanceView({ data, focus, actions }: { data: MaintenancePag
           <CardDescription>{t("warrantiesHint")}</CardDescription>
         </CardHeader>
         <CardContent>
-          {data.warranties.length === 0 ? (
+          {warranties.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("noWarranties")}</p>
           ) : (
             <ul className="divide-y divide-border">
-              {data.warranties.map((w) => (
+              {warranties.map((w) => (
                 <li key={w.number} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
                   <span>
-                    <bdi dir="ltr" className="font-latin">{w.number}</bdi> · {w.client}
+                    <Link href={`${base}/contracts/${w.number}`} className="hover:underline">
+                      <bdi dir="ltr" className="font-latin">{w.number}</bdi>
+                    </Link>{" "}
+                    · {w.client}
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="text-muted-foreground">{t("handover", { date: fmt.date(w.handover_at) })}</span>
@@ -99,7 +111,7 @@ export function MaintenanceView({ data, focus, actions }: { data: MaintenancePag
   );
 }
 
-function RequestCard({ r, data, open, actions }: { r: MaintenanceItem; data: MaintenancePageData; open: boolean; actions?: Actions }) {
+function RequestCard({ r, data, open, actions, base }: { r: MaintenanceItem; data: MaintenancePageData; open: boolean; actions?: Actions; base: string }) {
   const t = useTranslations("maintenance");
   const tw = useTranslations("wa");
   const tc = useTranslations("common");
@@ -126,7 +138,13 @@ function RequestCard({ r, data, open, actions }: { r: MaintenanceItem; data: Mai
           <p className="flex items-center gap-2 font-bold">
             <Wrench className="size-4 text-primary" />
             <bdi dir="ltr" className="font-latin">{r.number}</bdi>
-            <span className="font-normal text-muted-foreground">· {ltr(r.contract)} · {r.client}</span>
+            <span className="font-normal text-muted-foreground">
+              ·{" "}
+              <Link href={`${base}/projects/${r.contract}`} className="hover:underline">
+                <bdi dir="ltr" className="font-latin">{r.contract}</bdi>
+              </Link>{" "}
+              · {r.client}
+            </span>
           </p>
           <p className="text-[12px] text-muted-foreground">
             {fmt.dateTime(r.created_at)} · {t(r.source === "client" ? "fromClient" : "fromStaff")}

@@ -82,3 +82,21 @@ export function weekStart(d: Day): Day {
   const dow = new Date(toTime(d)).getUTCDay(); // 0 Sun … 6 Sat
   return addDays(d, -((dow + 1) % 7));
 }
+
+/**
+ * The team to book for a contract, from how its labour was priced (G1): the in-house team picked
+ * with one tap, or the team of the external labour rate's subcontractor. Null when none applies.
+ */
+export function bookingTeam(
+  labour: { source: string; teamId?: string | null; externalId?: string | null; crew?: string[] } | null | undefined,
+  rates: { id: string; subcontractor_id?: string | null }[],
+  teams: { id: string; subcontractor_id?: string | null }[],
+): string | null {
+  if (!labour) return null;
+  if (labour.source === "inhouse" && labour.teamId) return teams.some((t) => t.id === labour.teamId) ? labour.teamId : null;
+  if (labour.source === "external" && labour.externalId) {
+    const sub = rates.find((r) => r.id === labour.externalId)?.subcontractor_id;
+    return (sub && teams.find((t) => t.subcontractor_id === sub)?.id) || null;
+  }
+  return null;
+}

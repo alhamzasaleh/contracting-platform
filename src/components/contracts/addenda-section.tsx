@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { Check, FilePlus2, Pencil, Send, X } from "lucide-react";
+import { Calculator, Check, FilePlus2, Pencil, Send, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
@@ -32,6 +32,8 @@ export type AddendaActions = {
   decide: (i: Record<string, unknown>) => Promise<ActionResult>;
   /** money received for the addendum's own payment (full or partial) */
   paid: (i: Record<string, unknown>) => Promise<ActionResult>;
+  /** its estimated cost (costs.view): counted in the project's estimate and profit */
+  saveCost?: (i: { addendum_id: string; material_cost: number; other_cost: number }) => Promise<ActionResult>;
 };
 
 const riyadhToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
@@ -51,6 +53,7 @@ export function AddendaSection({ detail, actions }: { detail: ContractDetail; ac
   const { run, pending } = useActionRunner();
   const [editing, setEditing] = React.useState<Partial<AddendumView> | null>(null);
   const [paying, setPaying] = React.useState<AddendumView | null>(null);
+  const [costing, setCosting] = React.useState<AddendumView | null>(null);
   const c = detail.contract;
   if (c.status !== "accepted" && detail.addenda.length === 0) return null;
   const delivery = deliveryWithAddenda(c.start_date, c.duration_days, detail.addenda);
@@ -88,6 +91,7 @@ export function AddendaSection({ detail, actions }: { detail: ContractDetail; ac
                 {t("extraDays", { n: a.extra_days })}
                 {a.status === "accepted" && (a.paid_amount ?? 0) > 0 && a.payment_status !== "paid" && ` · ${t("receivedSoFar", { amount: fmt.money(a.paid_amount ?? 0) })}`}
                 {a.accepted_at && ` · ${t("acceptedBy", { name: a.accepted_name ?? "", date: fmt.dateTime(a.accepted_at) })}`}
+                {detail.canCosts && a.cost && ` · ${t("estimatedIs", { amount: fmt.money(a.cost.material + a.cost.other) })}`}
               </p>
               <div className="flex flex-wrap gap-2">
                 {detail.canManage && ["draft", "rejected"].includes(a.status) && (
@@ -115,6 +119,11 @@ export function AddendaSection({ detail, actions }: { detail: ContractDetail; ac
                     <Check /> {t("markPaid")}
                   </Button>
                 )}
+                {detail.canManage && detail.canCosts && !["cancelled", "rejected"].includes(a.status) && actions?.saveCost && (
+                  <Button size="sm" variant="ghost" disabled={pending} onClick={() => setCosting(a)}>
+                    <Calculator /> {t("estimate")}
+                  </Button>
+                )}
                 {detail.canManage && !["accepted", "cancelled"].includes(a.status) && actions && (
                   <Button size="sm" variant="ghost" className="text-danger" disabled={pending} onClick={() => run(() => actions.cancel({ id: a.id }))}>
                     <X /> {t("cancel")}
@@ -134,8 +143,37 @@ export function AddendaSection({ detail, actions }: { detail: ContractDetail; ac
           submit={actions && ((v) => actions.paid({ addendum_id: paying.id, ...v }))}
         />
       )}
+      {costing && actions?.saveCost && <CostDialog a={costing} onClose={() => setCosting(null)} save={actions.saveCost} />}
       {editing && <AddendumDialog contractId={c.id} vatPercent={detail.vatPercent} initial={editing} onClose={() => setEditing(null)} save={actions?.save} />}
     </section>
+  );
+}
+
+/** The addendum's estimated cost: materials (compared with purchases for over-budget alerts) and the rest. */
+function CostDialog({ a, onClose, save }: { a: AddendumView; onClose: () => void; save: NonNullable<AddendaActions["saveCost"]> }) {
+  const t = useTranslations("addenda");
+  const { run, pending } = useActionRunner();
+  const [material, setMaterial] = React.useState(a.cost ? String(a.cost.material) : "");
+  const [other, setOther] = React.useState(a.cost ? String(a.cost.other) : "");
+  const num = (v: string) => (typeof toNumber(v) === "number" ? (toNumber(v) as number) : 0);
+  return (
+    <FormDialog
+      open
+      onOpenChange={(v) => !v && onClose()}
+      title={t("estimateTitle", { number: a.number })}
+      pending={pending}
+      onSubmit={() => run(() => save({ addendum_id: a.id, material_cost: num(material), other_cost: num(other) }), { onSuccess: onClose })}
+    >
+      <p className="text-[13px] text-muted-foreground">{t("estimateHint")}</p>
+      <div className="grid grid-cols-2 gap-4">
+        <Field id="ad-cost-m" label={t("estMaterials")}>
+          <NumberInput value={material} onChange={(e) => setMaterial(e.target.value)} />
+        </Field>
+        <Field id="ad-cost-o" label={t("estOther")}>
+          <NumberInput value={other} onChange={(e) => setOther(e.target.value)} />
+        </Field>
+      </div>
+    </FormDialog>
   );
 }
 

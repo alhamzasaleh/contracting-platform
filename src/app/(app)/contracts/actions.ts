@@ -210,6 +210,22 @@ export async function saveAddendum(input: unknown): Promise<ActionResult<{ statu
   return done({ status: String(status) });
 }
 
+/** An addendum's estimated cost (costs.view): the project's estimate and profit include it. */
+export async function saveAddendumCost(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "quotes.manage") || !can(session, "costs.view")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ addendum_id: id, material_cost: z.number().min(0).max(100_000_000), other_cost: z.number().min(0).max(100_000_000) }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const v = parsed.data;
+  // contract_id is set by the database from the addendum
+  const { error } = await supabase
+    .from("addendum_costs")
+    .upsert({ addendum_id: v.addendum_id, organization_id: session.organization.id, material_cost: r2(v.material_cost), other_cost: r2(v.other_cost) }, { onConflict: "addendum_id" });
+  return error ? fail(error, "addendum cost") : done();
+}
+
 /** Approved → visible on the client page for acceptance. */
 export async function sendAddendum(input: unknown): Promise<ActionResult> {
   const session = await getSession();

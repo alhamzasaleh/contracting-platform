@@ -8,7 +8,7 @@ const ago = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
 const DATA: QoyodPageData = {
   settings: {
     enabled: true, invoice_status: "Draft", inventory_id: 1, receive_account_id: 8, expense_account_id: 52, service_products: { gypsum: 11, interior: 12 },
-    salary_account_id: null, cash_account_id: null, addendum_product_id: null, key_last4: "7Q2X", key_set_at: ago(30), sync_from: null,
+    salary_account_id: null, cash_account_id: null, subcontract_account_id: null, addendum_product_id: null, key_last4: "7Q2X", key_set_at: ago(30), sync_from: null,
   },
   counts: { queued: 1, done: 3, failed: 1 },
   draftInvoices: ["INV-2026-004"],

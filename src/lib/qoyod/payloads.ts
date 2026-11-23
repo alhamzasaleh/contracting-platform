@@ -92,7 +92,13 @@ export function invoiceBody(i: InvoiceInput) {
       due_date: i.dueDate < i.issueDate ? i.issueDate : i.dueDate,
       status: i.status,
       inventory_id: i.inventoryId,
-      line_items: [{ product_id: i.productId, description: i.lineDescription, quantity: 1, unit_price: netOf(i.gross, i.vatPercent), tax_percent: i.vatPercent }],
+      // with VAT the line is sent tax-inclusive: Qoyod's total is then exactly the gross amount
+      // (a net unit price rounded to 0.01 can't always reproduce it: 0.01 net = 0.0115 gross)
+      line_items: [
+        i.vatPercent > 0
+          ? { product_id: i.productId, description: i.lineDescription, quantity: 1, unit_price: r2(i.gross), tax_percent: i.vatPercent, is_inclusive: true }
+          : { product_id: i.productId, description: i.lineDescription, quantity: 1, unit_price: r2(i.gross), tax_percent: 0 },
+      ],
     },
   };
 }
@@ -143,6 +149,12 @@ export function payrollJournalBody(j: { month: string; date: string; net: number
 }
 export const payrollTag = (month: string) => `[PAYROLL-${month}]`;
 export const billPaymentRef = (purchaseNumber: string) => `${purchaseNumber}/PAID`;
+/** Subcontractor payments and petty-cash expenses have no document number: a short, unique id. */
+const shortId = (uuid: string) => uuid.replace(/-/g, "").slice(0, 12).toUpperCase();
+export const subcontractorBillRef = (paymentId: string) => `SUB-${shortId(paymentId)}`;
+export const pettyBillRef = (entryId: string) => `PC-${shortId(entryId)}`;
+/** The vendor used for petty-cash expenses with no supplier name on the receipt. */
+export const PETTY_VENDOR = "مصروفات نثرية";
 
 /** Readable, unique references in Qoyod (C-2026-001 payment 2 → "C-2026-001/2"). */
 export const invoiceRef = (contractNumber: string, seq: number) => `${contractNumber}/${seq}`;

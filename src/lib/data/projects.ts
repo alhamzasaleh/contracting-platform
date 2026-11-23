@@ -2,7 +2,9 @@ import "server-only";
 import { notFound } from "next/navigation";
 import { aiConfigured } from "@/lib/ai/invoice";
 import { can, type SessionContext } from "@/lib/auth/session";
+import { loadProjectCosts } from "@/lib/data/purchases";
 import { currentStage, overallProgress } from "@/lib/execution";
+import { addDays } from "@/lib/schedule";
 import type { ServiceKind } from "@/lib/pricing";
 import type { StageStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -50,6 +52,16 @@ export type ProjectDetail = {
   visits: { id: string; checked_in_at: string; latitude: number | null; longitude: number | null; accuracy_m: number | null; note: string | null; by: string | null }[];
   notes: { id: string; body: string; photos: { path: string; url: string | null }[]; status: "new" | "seen" | "resolved"; reply: string | null; stage_id: string | null; created_at: string }[];
   payments: { seq: number; label: string; amount: number; due_event: string; status: string }[];
+  /** accepted additional works: their own payment, and the days they add */
+  addenda?: { number: string; title: string; total: number; payment_status: "pending" | "requested" | "paid"; extra_days: number }[];
+  /** planned start, delivery (incl. accepted addenda days) and the warranty end once handed over */
+  dates?: { start: string; delivery: string; extraDays: number; warrantyEnd: string | null };
+  /** estimated vs actual cost (costs.view) — details on /purchases/costs */
+  cost?: { estimated: number | null; actual: number } | null;
+  /** open maintenance requests on this project */
+  openMaintenance?: number;
+  /** may open the schedule (schedule.view) */
+  canSchedule?: boolean;
   canManage: boolean;
   /** may record purchases for this project (purchases.manage) */
   canPurchase: boolean;
@@ -72,6 +84,20 @@ export async function loadProject(session: SessionContext, number: string): Prom
     supabase.from("contract_payments").select("seq, label, amount, due_event, status").eq("contract_id", c.id).order("seq"),
     supabase.from("profiles").select("id, full_name"),
   ]);
+  const [{ data: addenda }, { count: openMaintenance }, costs] = await Promise.all([
+    supabase.from("addenda").select("number, title, total, payment_status, extra_days").eq("contract_id", c.id).eq("status", "accepted").order("created_at"),
+    supabase.from("maintenance_requests").select("id", { count: "exact", head: true }).eq("contract_id", c.id).in("status", ["open", "in_progress", "resolved"]),
+    can(session, "costs.view") ? loadProjectCosts(session) : Promise.resolve(null),
+  ]);
+  const extraDays = (addenda ?? []).reduce((s, a) => s + a.extra_days, 0);
+  const handover = (stages ?? []).find((s) => s.is_final && s.status === "confirmed")?.confirmed_at ?? null;
+  let warrantyEnd: string | null = null;
+  if (handover) {
+    const d = new Date(new Date(handover).toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }) + "T00:00:00Z");
+    d.setUTCMonth(d.getUTCMonth() + c.warranty_months);
+    warrantyEnd = d.toISOString().slice(0, 10);
+  }
+  const own = costs?.find((x) => x.id === c.id);
   // short-lived signed URLs for every photo on the page (private bucket)
   const paths = [...new Set([...(updates ?? []).flatMap((u) => u.photos), ...(notes ?? []).flatMap((n) => n.photos)])];
   const { data: signed } = paths.length ? await supabase.storage.from("project-photos").createSignedUrls(paths, 600) : { data: [] };
@@ -90,6 +116,12 @@ export async function loadProject(session: SessionContext, number: string): Prom
     visits: (visits ?? []).map((v) => ({ ...v, latitude: v.latitude == null ? null : Number(v.latitude), longitude: v.longitude == null ? null : Number(v.longitude), accuracy_m: v.accuracy_m == null ? null : Number(v.accuracy_m), by: v.created_by ? (who.get(v.created_by) ?? null) : null })),
     notes: (notes ?? []).map((n) => ({ ...n, photos: n.photos.map(photo) })),
     payments: (payments ?? []).map((p) => ({ ...p, amount: Number(p.amount) })),
+    addenda: (addenda ?? []).map((a) => ({ ...a, total: Number(a.total) })),
+    // delivery = the last working day: start + duration (+ addenda days) − 1, as on the schedule
+    dates: { start: c.start_date, delivery: addDays(c.start_date, c.duration_days + extraDays - 1), extraDays, warrantyEnd },
+    cost: own ? { estimated: own.estimated, actual: own.actual } : null,
+    openMaintenance: openMaintenance ?? 0,
+    canSchedule: can(session, "schedule.view"),
     canManage: can(session, "projects.manage"),
     canPurchase: can(session, "purchases.manage") && can(session, "quotes.view"),
     canViewContract: can(session, "quotes.view"),

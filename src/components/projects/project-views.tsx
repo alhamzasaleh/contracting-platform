@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { Camera, Check, CheckCircle2, ExternalLink, FileBadge, FileText, HardHat, MapPin, MessageSquare, Phone, Send, ShoppingCart, Sparkles, X } from "lucide-react";
+import { CalendarDays, Camera, Check, CheckCircle2, ExternalLink, FileBadge, FileText, HardHat, MapPin, MessageSquare, Phone, Send, ShoppingCart, Sparkles, Wallet, Wrench, X } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -193,6 +193,25 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
           </div>
           <Progress value={progress} />
         </div>
+        {data.dates && (
+          <dl className="grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-3">
+            <div>
+              <dt className="text-muted-foreground">{t("startDate")}</dt>
+              <dd className="font-bold">{fmt.date(data.dates.start)}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">{t("deliveryDate")}</dt>
+              <dd className="font-bold">
+                {fmt.date(data.dates.delivery)}
+                {data.dates.extraDays > 0 && <span className="ms-1 font-normal text-muted-foreground">({t("plusAddenda", { n: data.dates.extraDays })})</span>}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">{t("warrantyEnd")}</dt>
+              <dd className="font-bold">{data.dates.warrantyEnd ? fmt.date(data.dates.warrantyEnd) : t("warrantyAfterHandover", { n: data.contract.warranty_months })}</dd>
+            </div>
+          </dl>
+        )}
         {data.canManage && (
           <div className="flex flex-wrap items-center gap-3">
             <Button size="lg" loading={locating || pending} onClick={checkIn}>
@@ -262,15 +281,62 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
             <section className="grid gap-2 rounded-3xl border border-border bg-surface p-5">
               <p className="text-[15px] font-bold">{t("payments")}</p>
               {data.payments.map((p) => (
-                <p key={p.seq} className="flex items-center justify-between gap-2 text-[13px]">
+                <p key={p.seq} className="flex flex-wrap items-center justify-between gap-2 text-[13px]">
                   <span>
                     {p.seq}. {p.label}
                   </span>
-                  <Badge tone={p.status === "paid" ? "success" : p.status === "requested" ? "warning" : "neutral"}>{t(`pay_${p.status}` as "pay_pending")}</Badge>
+                  <span className="flex items-center gap-2">
+                    <span className="font-latin tabular-nums">{fmt.money(p.amount)}</span>
+                    <Badge tone={p.status === "paid" ? "success" : p.status === "requested" ? "warning" : "neutral"}>{t(`pay_${p.status}` as "pay_pending")}</Badge>
+                  </span>
+                </p>
+              ))}
+              {(data.addenda ?? []).map((a) => (
+                <p key={a.number} className="flex flex-wrap items-center justify-between gap-2 text-[13px]">
+                  <span>
+                    <DocNo>{a.number}</DocNo> · {a.title}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="font-latin tabular-nums">{fmt.money(a.total)}</span>
+                    <Badge tone={a.payment_status === "paid" ? "success" : a.payment_status === "requested" ? "warning" : "neutral"}>{t(`pay_${a.payment_status}` as "pay_pending")}</Badge>
+                  </span>
                 </p>
               ))}
             </section>
           )}
+
+          {/* cost (costs.view) */}
+          {data.cost && (
+            <Link href={`${base}/purchases/costs`} className="grid gap-1 rounded-3xl border border-border bg-surface p-5 text-[13px] hover:border-primary/40">
+              <span className="flex items-center gap-2 text-[15px] font-bold">
+                <Wallet className="size-4" /> {t("costTitle")}
+              </span>
+              <span className="flex justify-between gap-2">
+                <span className="text-muted-foreground">{t("costEstimated")}</span>
+                <span className="font-latin font-bold tabular-nums">{data.cost.estimated == null ? "—" : fmt.money(data.cost.estimated)}</span>
+              </span>
+              <span className="flex justify-between gap-2">
+                <span className="text-muted-foreground">{t("costActual")}</span>
+                <span className="font-latin font-bold tabular-nums">{fmt.money(data.cost.actual)}</span>
+              </span>
+            </Link>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            {data.canSchedule && (
+              <Button asChild variant="secondary" size="sm">
+                <Link href={`${base}/schedule?contract=${data.contract.number}`}>
+                  <CalendarDays /> {t("openSchedule")}
+                </Link>
+              </Button>
+            )}
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`${base}/maintenance?contract=${data.contract.number}`}>
+                <Wrench /> {t("openMaintenance")}
+                {(data.openMaintenance ?? 0) > 0 && <Badge tone="warning">{data.openMaintenance}</Badge>}
+              </Link>
+            </Button>
+          </div>
           {data.canViewContract && (
             <Link href={`${base}/contracts/${data.contract.number}`} className="text-[13px] text-primary underline">
               {t("openContract")}

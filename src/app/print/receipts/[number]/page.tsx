@@ -8,7 +8,7 @@ import { orgLogoUrl } from "@/lib/org";
 /** Print-ready receipt voucher (Share → Print → Save as PDF). */
 export default async function PrintReceiptPage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
-  const session = await requirePermission("quotes.view");
+  const session = await requirePermission("finance.view");
   const o = session.organization;
   const [doc, logoUrl] = await Promise.all([loadReceipt(session, decodeURIComponent(number)), orgLogoUrl(o)]);
   return (

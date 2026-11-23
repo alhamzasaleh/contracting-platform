@@ -1,6 +1,6 @@
 import "server-only";
 import { notFound } from "next/navigation";
-import type { SessionContext } from "@/lib/auth/session";
+import { can, type SessionContext } from "@/lib/auth/session";
 import type { SurveyRoom, SurveyTotals } from "@/lib/survey";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,6 +33,13 @@ export type ClientDetail = {
   client: { id: string; number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null; location_url: string | null; notes: string | null };
   surveys: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; rooms: number }[];
   quotes: { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; version: number; total: number | null; created_at: string }[];
+  /** contracts (quotes.view) — accepted ones are projects; openMaintenance = open requests */
+  contracts?: { number: string; service: "gypsum" | "interior" | "exterior"; status: string; total: number; openMaintenance: number }[];
+  /** what he owes (finance.view): accepted contracts + accepted additional works vs receipt vouchers */
+  balance?: { billed: number; received: number; outstanding: number } | null;
+  /** his invoices (finance.view) */
+  invoices?: { number: string; total: number; issue_date: string }[];
+  canViewProjects?: boolean;
 };
 
 export async function loadClientDetail(session: SessionContext, number: string): Promise<ClientDetail> {
@@ -50,6 +57,21 @@ export async function loadClientDetail(session: SessionContext, number: string):
     supabase.from("survey_rooms").select("survey_id").eq("organization_id", orgId),
     supabase.from("quotes").select("id, number, service, status, current_version, created_at").eq("client_id", client.id).order("created_at", { ascending: false }),
   ]);
+  const finance = can(session, "finance.view");
+  const { data: contracts } = can(session, "quotes.view")
+    ? await supabase.from("contracts").select("id, number, service, status, total").eq("client_id", client.id).neq("status", "cancelled").order("created_at", { ascending: false })
+    : { data: [] as { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; total: number }[] };
+  const cids = (contracts ?? []).map((c) => c.id);
+  const accepted = (contracts ?? []).filter((c) => c.status === "accepted").map((c) => c.id);
+  const [{ data: repairs }, { data: addenda }, { data: receipts }, { data: invoices }] = await Promise.all([
+    cids.length && can(session, "projects.view") ? supabase.from("maintenance_requests").select("contract_id").in("contract_id", cids).in("status", ["open", "in_progress", "resolved"]) : Promise.resolve({ data: [] as { contract_id: string }[] }),
+    finance && accepted.length ? supabase.from("addenda").select("contract_id, total").in("contract_id", accepted).eq("status", "accepted") : Promise.resolve({ data: [] as { contract_id: string; total: number }[] }),
+    finance && cids.length ? supabase.from("client_receipts").select("amount").in("contract_id", cids) : Promise.resolve({ data: [] as { amount: number }[] }),
+    finance && cids.length ? supabase.from("invoices").select("number, total, issue_date").in("contract_id", cids).order("issue_date", { ascending: false }).limit(100) : Promise.resolve({ data: [] as { number: string; total: number; issue_date: string }[] }),
+  ]);
+  const billed = (contracts ?? []).filter((c) => c.status === "accepted").reduce((s, c) => s + n(c.total), 0) + (addenda ?? []).reduce((s, a) => s + n(a.total), 0);
+  const received = (receipts ?? []).reduce((s, r) => s + n(r.amount), 0);
+  const r2 = (x: number) => Math.round(x * 100) / 100;
   const ids = (quotes ?? []).map((q) => q.id);
   const { data: versions } = ids.length
     ? await supabase.from("quote_versions").select("quote_id, version, total").in("quote_id", ids)
@@ -69,6 +91,10 @@ export async function loadClientDetail(session: SessionContext, number: string):
       })(),
       created_at: q.created_at,
     })),
+    contracts: (contracts ?? []).map((c) => ({ number: c.number, service: c.service, status: c.status, total: n(c.total), openMaintenance: (repairs ?? []).filter((m) => m.contract_id === c.id).length })),
+    balance: finance && accepted.length ? { billed: r2(billed), received: r2(received), outstanding: r2(Math.max(0, billed - received)) } : null,
+    invoices: (invoices ?? []).map((i) => ({ number: i.number, total: n(i.total), issue_date: i.issue_date })),
+    canViewProjects: can(session, "projects.view"),
   };
 }
 

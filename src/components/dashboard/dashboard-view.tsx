@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useFormatter } from "@/components/formatter-provider";
 import {
+  ApprovalsCard,
   OwnerFinanceSections,
   type FinanceActions,
 } from "@/components/finance/owner-dashboard";
@@ -25,6 +26,8 @@ export type DashboardData = {
   /** owner finance (finance.view); without it the home shows the getting-started view */
   finance?: OwnerFinance | null;
   financeActions?: FinanceActions;
+  /** approvals.decide without finance.view: the pending approvals card on its own */
+  approvals?: OwnerFinance["approvals"] | null;
   /** hr.view: documents expiring within 60 days (count, expired) */
   expiring?: { total: number; expired: number } | null;
 };
@@ -210,6 +213,9 @@ export function DashboardView({ data }: { data: DashboardData }) {
             </div>
 
             {/* Approvals — ink panel */}
+            {data.approvals ? (
+              <ApprovalsCard approvals={data.approvals} canDecide decide={data.financeActions?.decide} base={base} />
+            ) : (
             <motion.section
               variants={item}
               className="flex flex-col gap-4 rounded-2xl bg-ink p-5 text-ink-foreground sm:p-6"
@@ -235,6 +241,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
                 </p>
               </div>
             </motion.section>
+            )}
           </div>
         </>
       )}

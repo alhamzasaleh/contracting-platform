@@ -632,6 +632,8 @@ export type SubcontractorRow = OrgRow & Upd & {
 };
 export type SubAgreementRow = OrgRow & Upd & {
   subcontractor_id: string;
+  /** an accepted addendum grew the project: review this agreement (cleared by any staff edit) */
+  review_addendum_id?: string | null;
   contract_id: string;
   scope: string;
   basis: "lump" | "per_m2";
@@ -705,12 +707,16 @@ export type ClientMessageRow = {
 };
 export type QoyodSettingsRow = {
   organization_id: string; enabled: boolean; invoice_status: "Draft" | "Approved"; inventory_id: number | null; receive_account_id: number | null; expense_account_id: number | null;
-  salary_account_id: number | null; cash_account_id: number | null;
+  salary_account_id: number | null; cash_account_id: number | null; subcontract_account_id: number | null;
   service_products: Record<string, number>; addendum_product_id: number | null; sync_from: string | null; key_last4: string | null; key_set_at: string | null; updated_at: string; updated_by: string | null;
+};
+export type AddendumCostRow = {
+  addendum_id: string; organization_id: string; contract_id: string; material_cost: number; other_cost: number;
+  created_at: string; created_by: string | null; updated_at: string;
 };
 export type QoyodJobKind = "customer" | "vendor" | "invoice" | "invoice_payment" | "bill" | "bill_payment" | "payroll";
 export type QoyodJobRow = {
-  id: string; organization_id: string; kind: QoyodJobKind; entity_type: "client" | "supplier" | "contract_payment" | "addendum" | "purchase" | "payroll_run"; entity_id: string; ref: string;
+  id: string; organization_id: string; kind: QoyodJobKind; entity_type: "client" | "supplier" | "subcontractor" | "contract_payment" | "addendum" | "purchase" | "payroll_run" | "subcontractor_payment" | "petty_cash"; entity_id: string; ref: string;
   amount: number | null; status: "queued" | "running" | "done" | "failed"; attempts: number; next_attempt_at: string; last_error: string | null; qoyod_id: number | null; done_at: string | null; created_at: string; updated_at: string;
 };
 
@@ -791,6 +797,7 @@ export type Database = {
       maintenance_requests: Table<MaintenanceRow>;
       client_messages: Table<ClientMessageRow>;
       qoyod_sync_jobs: Table<QoyodJobRow>;
+      addendum_costs: Table<AddendumCostRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };

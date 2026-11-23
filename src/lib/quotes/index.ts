@@ -4,7 +4,7 @@
  * (never trusts numbers sent by the browser) and stores this snapshot.
  */
 import type { CatalogueData } from "@/lib/engine";
-import { STEPS, type PricingOutcome, type Quantities, type Selection, type ServiceKind } from "@/lib/pricing";
+import { stepIncluded, STEPS, type PricingOutcome, type Quantities, type Selection, type ServiceKind } from "@/lib/pricing";
 
 export type ClientView = {
   service: ServiceKind;
@@ -36,6 +36,8 @@ export type PurchaseItem = {
   unit: string;
   leftover: number | null;
   cost: number;
+  /** catalogue product (quotes saved since Nov 2026) — links the stock item for calibration */
+  productId?: string | null;
 };
 
 export type QuoteSnapshot = {
@@ -65,8 +67,8 @@ export function buildSnapshot(
   const excluded: string[] = [];
   for (const s of visible) {
     const c = sel.steps[s.key];
-    const on = s.toggle ? c.on : s.coats ? s.coats.some((k) => (c.coats[k.key] ?? 0) > 0) : true;
-    if (on) included.push({ step: s.key, brand: s.brandOnly || s.roles.length ? c.brand : null, coats: c.coats });
+    // parts the client supplies (excluded) aren't priced, so they're never promised as included
+    if (stepIncluded(s, c, sel.excluded)) included.push({ step: s.key, brand: s.brandOnly || s.roles.length ? c.brand : null, coats: c.coats });
     else excluded.push(s.key);
   }
   const brandOf = new Map(opts.catalogue.products.map((x) => [x.id, x.brand]));
@@ -83,6 +85,7 @@ export function buildSnapshot(
       unit: l.unit,
       leftover: l.purchase.kind === "packs" ? r2(l.purchase.leftover) : null,
       cost: r2(l.cost),
+      productId: l.productId ?? null,
     }));
   return {
     clientView: {

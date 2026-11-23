@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { aiConfigured } from "@/lib/ai/invoice";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { Line } from "@/lib/engine";
-import { stockBalances } from "@/lib/purchases";
+import { linesFromPurchaseList, stockBalances, type ListLine } from "@/lib/purchases";
+import type { PurchaseItem } from "@/lib/quotes";
 import type { PurchaseStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -15,7 +16,7 @@ export type PurchaseListItem = {
   project: ProjectRef | null; total: number; created_at: string;
 };
 export type PurchaseLineView = { seq: number; kind: "material" | "expense"; item_id: string | null; description: string; colour: string | null; quantity: number; unit: string; unit_price: number; amount: number };
-export type ItemRef = { id: string; name: string; unit: string; is_general: boolean };
+export type ItemRef = { id: string; name: string; unit: string; is_general: boolean; product_id?: string | null };
 export type PurchaseDetail = PurchaseListItem & {
   supplier_id: string | null; supplier_vat: string | null; subtotal: number; vat: number; notes: string | null; ai_extracted: boolean; ai_flags: Record<string, unknown>;
   lines: PurchaseLineView[]; attachment_path: string | null; attachmentUrl: string | null; attachmentIsPdf: boolean;
@@ -32,6 +33,10 @@ export type PurchaseForm = {
   projects: ProjectRef[];
   aiEnabled: boolean;
   vatRegistered: boolean;
+  /** catalogue products a stock item can be linked to (calibration) — catalogue.view */
+  products?: { id: string; label: string }[];
+  /** the project's accepted quote purchase list, ready as lines (costs.view) */
+  quoteList?: { contract_id: string; lines: ListLine[] } | null;
 };
 
 async function projectsMap(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string, canSee: boolean) {
@@ -84,16 +89,45 @@ async function detail(session: SessionContext, number: string): Promise<Purchase
 
 export const loadPurchase = detail;
 
-export async function loadPurchaseForm(session: SessionContext, number?: string): Promise<PurchaseForm> {
+/** Catalogue products as "brand — name" for the stock-item picker (catalogue.view; empty otherwise). */
+export async function loadProductOptions(session: SessionContext): Promise<{ id: string; label: string }[]> {
+  if (!can(session, "catalogue.view")) return [];
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const [purchase, { data: suppliers }, { data: items }, projects] = await Promise.all([
+  const [{ data: products }, { data: brands }] = await Promise.all([
+    supabase.from("products").select("id, name, brand_id").eq("organization_id", orgId).eq("is_active", true).order("name").limit(2000),
+    supabase.from("brands").select("id, name").eq("organization_id", orgId),
+  ]);
+  const brand = new Map((brands ?? []).map((b) => [b.id, b.name]));
+  return (products ?? [])
+    .map((p) => ({ id: p.id, label: p.brand_id && brand.get(p.brand_id) ? `${brand.get(p.brand_id)} — ${p.name}` : p.name }))
+    .sort((a, b) => a.label.localeCompare(b.label, "ar"));
+}
+
+export async function loadPurchaseForm(session: SessionContext, number?: string, projectNumber?: string): Promise<PurchaseForm> {
+  const supabase = await createClient();
+  const orgId = session.organization.id;
+  const [purchase, { data: suppliers }, { data: items }, projects, products] = await Promise.all([
     number ? detail(session, number) : Promise.resolve(null),
     supabase.from("suppliers").select("id, name, vat_number").eq("organization_id", orgId).eq("is_active", true).order("name"),
-    supabase.from("inventory_items").select("id, name, unit, is_general").eq("organization_id", orgId).order("name"),
+    supabase.from("inventory_items").select("id, name, unit, is_general, product_id").eq("organization_id", orgId).order("name"),
     projectsMap(supabase, orgId, can(session, "quotes.view")),
+    loadProductOptions(session),
   ]);
+  // G2: the accepted quote version's purchase list → suggested lines (costs.view: it carries quoted costs)
+  let quoteList: PurchaseForm["quoteList"] = null;
+  if (projectNumber && can(session, "costs.view")) {
+    const { data: c } = await supabase.from("contracts").select("id, quote_id, quote_version, status").eq("organization_id", orgId).eq("number", projectNumber).maybeSingle();
+    if (c?.status === "accepted") {
+      const { data: v } = await supabase.from("quote_versions").select("id").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle();
+      const { data: costs } = v ? await supabase.from("quote_version_costs").select("purchase_list").eq("quote_version_id", v.id).maybeSingle() : { data: null };
+      const list = (costs?.purchase_list ?? []) as unknown as PurchaseItem[];
+      if (list.length) quoteList = { contract_id: c.id, lines: linesFromPurchaseList(list, (items ?? []).map((i) => ({ ...i, product_id: i.product_id ?? null }))) };
+    }
+  }
   return {
+    quoteList,
+    products,
     purchase,
     suppliers: suppliers ?? [],
     items: items ?? [],
@@ -108,13 +142,15 @@ export type InventoryData = {
   projects: ProjectRef[];
   balances: { item_id: string; contract_id: string | null; quantity: number; value: number }[];
   canManage: boolean;
+  /** catalogue products a stock item can be linked to (calibration) */
+  products?: { id: string; label: string }[];
 };
 
 export async function loadInventory(session: SessionContext): Promise<InventoryData> {
   const supabase = await createClient();
   const orgId = session.organization.id;
   const [{ data: items }, { data: moves }, projects] = await Promise.all([
-    supabase.from("inventory_items").select("id, name, unit, is_general").eq("organization_id", orgId).order("name"),
+    supabase.from("inventory_items").select("id, name, unit, is_general, product_id").eq("organization_id", orgId).order("name"),
     supabase.from("inventory_movements").select("item_id, contract_id, quantity, unit_cost").eq("organization_id", orgId).limit(20000),
     projectsMap(supabase, orgId, can(session, "quotes.view")),
   ]);
@@ -123,6 +159,7 @@ export async function loadInventory(session: SessionContext): Promise<InventoryD
     projects: [...projects.values()],
     balances: stockBalances((moves ?? []).map((m) => ({ ...m, quantity: n(m.quantity), unit_cost: n(m.unit_cost) }))),
     canManage: can(session, "purchases.manage"),
+    products: can(session, "purchases.manage") ? await loadProductOptions(session) : [],
   };
 }
 
@@ -134,6 +171,8 @@ export type ProjectCost = ProjectRef & {
   actual: number;
   /** in-house labour: scheduled work days (up to today) × the team's loaded cost per day — totals only, costs.view + hr.view (null without them) */
   labour?: number | null;
+  /** maintenance not covered by the warranty (its cost is ours) */
+  maintenance?: number;
 };
 
 /** §3.10 estimated vs actual per project: quote material cost vs recorded purchases + transfers. */
@@ -149,6 +188,7 @@ export async function loadProjectCosts(session: SessionContext): Promise<Project
     supabase.from("subcontractor_agreements").select("id, contract_id").eq("organization_id", orgId),
     supabase.from("petty_cash_entries").select("contract_id, amount").eq("organization_id", orgId).eq("kind", "expense").not("contract_id", "is", null).limit(20000),
   ]);
+  const { data: repairs } = await supabase.from("maintenance_requests").select("contract_id, cost").eq("organization_id", orgId).eq("covered", false).gt("cost", 0).limit(20000);
   // in-house labour from the schedule (database function: totals only, but built from salaries → hr.view too)
   const { data: labourRows } = can(session, "costs.view") && can(session, "hr.view") ? await supabase.rpc("project_labour_costs", { p_org: orgId }) : { data: null };
   const labourOf = new Map((labourRows ?? []).map((l) => [l.contract_id, n(l.labour)]));
@@ -170,7 +210,11 @@ export async function loadProjectCosts(session: SessionContext): Promise<Project
     const ids = contracts.map((c) => vid.get(`${c.quote_id}|${c.quote_version}`)).filter(Boolean) as string[];
     const { data: costs } = ids.length ? await supabase.from("quote_version_costs").select("quote_version_id, lines").in("quote_version_id", ids) : { data: [] };
     const byVersion = new Map((costs ?? []).map((c) => [c.quote_version_id, (c.lines as unknown as Line[]).filter((l) => l.group === "material").reduce((s, l) => s + l.cost, 0)]));
-    estimates = new Map(contracts.map((c) => [c.id, byVersion.get(vid.get(`${c.quote_id}|${c.quote_version}`) ?? "") ?? 0]).filter(([, v]) => (v as number) > 0) as [string, number][]);
+    // + accepted additional works' estimated materials (addendum_costs, costs.view)
+    const { data: adCosts } = await supabase.from("addendum_costs").select("contract_id, material_cost, addenda!inner(status)").eq("organization_id", orgId).eq("addenda.status", "accepted");
+    const extra = new Map<string, number>();
+    for (const a of (adCosts ?? []) as { contract_id: string; material_cost: number }[]) extra.set(a.contract_id, (extra.get(a.contract_id) ?? 0) + n(a.material_cost));
+    estimates = new Map(contracts.map((c) => [c.id, (byVersion.get(vid.get(`${c.quote_id}|${c.quote_version}`) ?? "") ?? 0) + (extra.get(c.id) ?? 0)]).filter(([, v]) => (v as number) > 0) as [string, number][]);
   }
 
   return (contracts ?? []).map((c) => {
@@ -181,12 +225,13 @@ export async function loadProjectCosts(session: SessionContext): Promise<Project
     const pending = (purchases ?? []).filter((p) => p.contract_id === c.id && p.status === "pending_approval").reduce((s, p) => s + n(p.total), 0);
     const r = (x: number) => Math.round(x * 100) / 100;
     const labour = labourRows ? labourOf.get(c.id) ?? 0 : null;
+    const maintenance = (repairs ?? []).filter((m) => m.contract_id === c.id).reduce((s, m) => s + n(m.cost), 0);
     return {
       id: c.id, number: c.number, client: names.get(c.client_id) ?? "—", status: c.status,
       estimated: estimates.get(c.id) ?? null, materials: r(materials), expenses: r(expenses), subcontractors: r(subs), petty: r(pettySum),
       materialsActual: r(materials + expenses + pettySum),
-      actual: r(materials + expenses + pettySum + subs + (labour ?? 0)), pending: r(pending),
-      labour: labour == null ? null : r(labour),
+      actual: r(materials + expenses + pettySum + subs + maintenance + (labour ?? 0)), pending: r(pending),
+      labour: labour == null ? null : r(labour), maintenance: r(maintenance),
     };
   });
 }

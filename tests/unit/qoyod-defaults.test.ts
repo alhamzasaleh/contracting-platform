@@ -15,12 +15,12 @@ describe("qoyod automatic setup", () => {
       ],
       products: [],
     });
-    expect(d).toEqual({ inventoryId: 3, receiveAccountId: 8, salesAccountId: 17, expenseAccountId: 52, salaryAccountId: 53, cashAccountId: 7 });
+    expect(d).toEqual({ inventoryId: 3, receiveAccountId: 8, salesAccountId: 17, expenseAccountId: 52, salaryAccountId: 53, cashAccountId: 7, subcontractAccountId: null });
   });
 
   it("falls back to the first suitable account, and to nothing when none exists", () => {
     const d = pickDefaults({ inventories: [], accounts: [{ id: 7, code: "110101", name: "الصندوق", receive: true, type: "Asset" }], products: [] });
-    expect(d).toEqual({ inventoryId: null, receiveAccountId: 7, salesAccountId: null, expenseAccountId: null, salaryAccountId: null, cashAccountId: 7 });
+    expect(d).toEqual({ inventoryId: null, receiveAccountId: 7, salesAccountId: null, expenseAccountId: null, salaryAccountId: null, cashAccountId: 7, subcontractAccountId: null });
   });
 
   it("every service has its own stable SKU", () => {

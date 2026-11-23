@@ -22,7 +22,7 @@ export const SAMPLE_SUBS: SubcontractorsData = {
       ],
       payments: [{ id: "p1", paid_on: "2026-11-22", amount: 1800, method: "transfer", reference: null }],
     },
-    { id: "g2", subcontractor_id: "s2", contract_id: "k2", scope: "دهان الواجهات بالرش", basis: "lump", rate: 9000, quantity_m2: null, schedule: "progress", status: "active", auto_progress: true, work: [{ id: "w3", work_date: "2026-11-10", quantity_m2: null, percent: 50, amount: 4500, note: "تلقائي من تقدم المشروع: 50%", auto: true }], payments: [] },
+    { id: "g2", subcontractor_id: "s2", contract_id: "k2", scope: "دهان الواجهات بالرش", basis: "lump", rate: 9000, quantity_m2: null, schedule: "progress", status: "active", auto_progress: true, review: "AD-2026-001", work: [{ id: "w3", work_date: "2026-11-10", quantity_m2: null, percent: 50, amount: 4500, note: "تلقائي من تقدم المشروع: 50%", auto: true }], payments: [] },
   ],
 };
 

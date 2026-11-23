@@ -53,8 +53,16 @@ export async function loadInvoices(session: SessionContext): Promise<InvoicesPag
   return { invoices: items, qoyodEnabled, vatRegistered: !!session.organization.vat_number, canFinance: can(session, "finance.view") };
 }
 
-export async function loadInvoice(session: SessionContext, number: string): Promise<InvoiceListItem & { qoyodEnabled: boolean }> {
+export type InvoicePageItem = InvoiceListItem & { qoyodEnabled: boolean; receipts: { number: string; amount: number; paid_on: string }[] };
+
+export async function loadInvoice(session: SessionContext, number: string): Promise<InvoicePageItem> {
   const { items, qoyodEnabled } = await build(session, { number });
   if (!items[0]) notFound();
-  return { ...items[0], qoyodEnabled };
+  // the receipt vouchers for the payment this invoice bills
+  const supabase = await createClient();
+  const { data: inv } = await supabase.from("invoices").select("payment_id, addendum_id").eq("id", items[0].id).maybeSingle();
+  const { data: receipts } = inv
+    ? await (inv.payment_id ? supabase.from("client_receipts").select("number, amount, paid_on").eq("payment_id", inv.payment_id) : supabase.from("client_receipts").select("number, amount, paid_on").eq("addendum_id", inv.addendum_id!)).order("created_at")
+    : { data: [] };
+  return { ...items[0], qoyodEnabled, receipts: (receipts ?? []).map((r) => ({ number: r.number, amount: n(r.amount), paid_on: r.paid_on })) };
 }

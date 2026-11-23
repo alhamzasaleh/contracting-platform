@@ -170,6 +170,12 @@ function CashDialog({ f, onClose, save }: { f: OwnerFinance; onClose: () => void
 }
 
 function Approvals({ f, decide, base }: { f: OwnerFinance; decide?: FinanceActions["decide"]; base: string }) {
+  return <ApprovalsCard approvals={f.approvals} canDecide={f.canDecide} decide={decide} base={base} />;
+}
+
+/** Pending approvals, approve/reject in one tap (also on the home of approvers without finance.view). */
+export function ApprovalsCard({ approvals, canDecide, decide, base }: { approvals: OwnerFinance["approvals"]; canDecide: boolean; decide?: FinanceActions["decide"]; base: string }) {
+  const f = { approvals, canDecide };
   const t = useTranslations("finance");
   const { fmt } = useFormatter();
   const { run, pending } = useActionRunner();

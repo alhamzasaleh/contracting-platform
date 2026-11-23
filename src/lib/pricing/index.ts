@@ -98,7 +98,8 @@ export type StepChoice = { lineId: string | null; brand: string | null; coats: R
 export type Labour =
   | { source: "rates" }
   | { source: "external"; externalId: string | null }
-  | { source: "inhouse"; crew: string[] };
+  /** teamId: the Schedule team picked with one tap (its members = the crew) → booked in the schedule */
+  | { source: "inhouse"; crew: string[]; teamId?: string | null };
 
 export type Selection = {
   kind: ServiceKind;
@@ -163,6 +164,16 @@ export type PricingContext = {
   teams?: { id: string; name: string; members: string[] }[];
   vatPercent: number;
 };
+
+/**
+ * Whether a step is part of the job as chosen: switched on / has coats, and at least one of its
+ * parts isn't supplied by the client (sel.excluded) — what the client's quote lists as included.
+ */
+export function stepIncluded(step: StepDef, choice: StepChoice | undefined, excluded: readonly string[]): boolean {
+  const c = choice ?? { lineId: null, brand: null, coats: {}, on: true };
+  const on = step.toggle ? c.on : step.coats ? step.coats.some((k) => (c.coats[k.key] ?? 0) > 0) : true;
+  return on && step.roles.some((r) => !excluded.includes(r));
+}
 
 const productsFor = (c: CatalogueData, role: string) => c.products.filter((p) => p.role === role);
 const priced = (p: CatalogueProduct) => p.packs.some((k) => k.price != null && k.price > 0);
@@ -237,7 +248,8 @@ export type PricingOutcome = {
   price: PriceSummary;
   steps: StepResult[];
   /** Included roles with no usable product (shown as red lines). */
-  problems: { step: string; role: string; reason: "no_product" | "incomplete" | "no_price"; product?: string }[];
+  /** Included roles with no usable product (shown as red lines), and labour that couldn't be priced as chosen ("labour"). */
+  problems: { step: string; role: string; reason: "no_product" | "incomplete" | "no_price" | "labour"; product?: string }[];
   labourNote: string | null;
 };
 
@@ -355,6 +367,8 @@ export function priceSelection(sel: Selection, q: Quantities, ctx: PricingContex
   // Labour: our own team, an external contractor, or the template rates.
   const applied = applyLabour(sel, result, ctx, c.rates);
   const note = o.projectType === "supply" ? null : applied.note;
+  // labour priced with template rates instead of what was chosen can't be issued (it would be a guess)
+  if (note) problems.push({ step: "labour", role: "labour", reason: "labour" });
   // Supply only: no labour.
   const withLabour = o.projectType === "supply" ? { ...applied.result, lines: applied.result.lines.filter((l) => l.group !== "labour") } : applied.result;
 
