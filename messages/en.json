@@ -52,7 +52,8 @@
     "toggleTheme": "Toggle theme",
     "switchLanguage": "العربية",
     "team": "Employees",
-    "maintenance": "Maintenance"
+    "maintenance": "Maintenance",
+    "assistant": "Assistant"
   },
   "user": {
     "profile": "Profile",
@@ -2178,5 +2179,28 @@
     "st_resolved": "Done — awaiting your confirmation",
     "st_closed": "Closed",
     "st_rejected": "Not covered by warranty"
+  },
+  "assistant": {
+    "title": "Assistant",
+    "subtitle": "Ask about your company's numbers by text or voice.",
+    "intro": "I answer from your company's data only: collections, profit, spending, late payments and cash flow. I never change anything.",
+    "s1": "How much did I make this month?",
+    "s2": "Who is late paying?",
+    "s3": "Any cash shortfall in the coming weeks?",
+    "s4": "Which project is losing money?",
+    "placeholder": "Type your question…",
+    "listening": "Listening… speak now",
+    "speak": "Ask by voice",
+    "stop": "Stop",
+    "send": "Send",
+    "thinking": "Checking your numbers…",
+    "disclaimer": "Answers are estimates from your recorded data — check the details before deciding.",
+    "notReady": "The assistant needs the AI key (ANTHROPIC_API_KEY) in Vercel settings.",
+    "e_aiFailed": "I couldn't answer right now, please try again.",
+    "e_aiNotConfigured": "The assistant isn't enabled yet.",
+    "e_aiRefused": "I can't answer that question.",
+    "e_limited": "You've reached this hour's question limit, try again soon.",
+    "e_noAccess": "You don't have access to finance.",
+    "e_invalid": "The question is too short or too long."
   }
 }

@@ -13,6 +13,7 @@ import {
   Layers,
   Receipt,
   Settings,
+  Sparkles,
   ShoppingCart,
   Users,
   Wrench,
@@ -49,6 +50,7 @@ export const NAV: NavGroup[] = [
       { key: "purchases", href: "/purchases", icon: ShoppingCart, permission: "purchases.view" },
       { key: "invoices", href: "/invoices", icon: Receipt, permission: "finance.view", phase: 10 },
       { key: "reports", href: "/reports", icon: BarChart3, permission: "finance.view" },
+      { key: "assistant", href: "/assistant", icon: Sparkles, permission: "finance.view" },
     ],
   },
   {

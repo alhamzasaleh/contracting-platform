@@ -327,3 +327,14 @@ test.describe("warranty & maintenance (design preview)", () => {
     await expect(page.getByRole("button", { name: "تم الإصلاح — أؤكد" })).toBeVisible();
   });
 });
+
+test.describe("assistant (design preview)", () => {
+  test("shows the conversation, figures, links and the question box", async ({ page }) => {
+    await page.goto("/dev/preview/assistant");
+    await expect(page.getByText("كم ربحت هالشهر؟")).toBeVisible();
+    await expect(page.getByText("الربح المتوقع", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "تقرير الأرباح" })).toHaveAttribute("href", "/dev/preview/reports");
+    await page.getByLabel("اكتب سؤالك…").fill("مين متأخر؟");
+    await expect(page.getByRole("button", { name: "إرسال" })).toBeEnabled();
+  });
+});
