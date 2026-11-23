@@ -529,3 +529,26 @@ test.describe("no runtime errors (design preview)", () => {
     });
   }
 });
+
+test.describe("purchases from the quote's list (design preview)", () => {
+  test("adds the list to the lines already there, leaving out what was bought before", async ({ page }) => {
+    await page.goto("/dev/preview/purchases/new");
+    const rows = page.locator('input[id^="pl-d-"]');
+    await expect(rows).toHaveCount(1);
+    await page.getByRole("button", { name: "من قائمة مشتريات العرض" }).click();
+    // the blank row gives way; boards: 150 quoted − 60 already bought
+    await expect(rows).toHaveCount(3);
+    await expect(page.locator("#pl-q-0")).toHaveValue("90");
+    await expect(page.getByTestId("quote-list-bought")).toBeVisible();
+    await page.locator("#pl-d-0").fill("مقروء من الفاتورة");
+    await page.getByRole("button", { name: "من قائمة مشتريات العرض" }).click();
+    await expect(rows).toHaveCount(6);
+    await expect(page.locator("#pl-d-0")).toHaveValue("مقروء من الفاتورة");
+  });
+
+  test("a stock item can be linked to a catalogue product", async ({ page }) => {
+    await page.goto("/dev/preview/purchases/inventory");
+    await page.getByRole("button", { name: /ربط بمنتج|تعديل/ }).first().click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+  });
+});

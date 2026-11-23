@@ -51,3 +51,26 @@ export function linkExpiry(startDate: string, durationDays: number, warrantyMont
   const min = new Date(now.getTime() + 90 * 86_400_000);
   return end > min ? end : min;
 }
+
+/** Planned delivery: start + duration + accepted additional works' days (contract page, project page, alerts). */
+export function deliveryDate(start: string, days: number, extraDays: number): string {
+  const d = new Date(`${start}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days + extraDays);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Expected delivery after accepted addenda (each adds its days). */
+export function deliveryWithAddenda(start: string, days: number, addenda: { status: string; extra_days: number }[]) {
+  const extra = addenda.filter((a) => a.status === "accepted").reduce((s, a) => s + a.extra_days, 0);
+  return { date: deliveryDate(start, days, extra), extra };
+}
+
+/**
+ * The client-page link on the contract page: before acceptance it carries the quote and
+ * contract; after acceptance the client follows the project, payments and warranty. Once
+ * the warranty has ended (warranty end < today, Riyadh) the page closes — no reissue.
+ */
+export function portalLinkState(status: string, warrantyEnd: string | null, today: string): { canIssue: boolean; message: "waMessage" | "waMessageProject"; warrantyEnded: boolean } {
+  const warrantyEnded = !!warrantyEnd && warrantyEnd < today;
+  return { canIssue: status !== "cancelled" && !warrantyEnded, message: status === "accepted" ? "waMessageProject" : "waMessage", warrantyEnded };
+}

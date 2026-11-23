@@ -311,12 +311,15 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
               <span className="flex items-center gap-2 text-[15px] font-bold">
                 <Wallet className="size-4" /> {t("costTitle")}
               </span>
-              <span className="flex justify-between gap-2">
-                <span className="text-muted-foreground">{t("costEstimated")}</span>
-                <span className="font-latin font-bold tabular-nums">{data.cost.estimated == null ? "—" : fmt.money(data.cost.estimated)}</span>
+              {/* the estimate is materials only: compare like with like */}
+              <span className="flex flex-wrap justify-between gap-2">
+                <span className="text-muted-foreground">{t("costMaterials")}</span>
+                <span className="font-latin font-bold tabular-nums">
+                  {data.cost.estimated == null ? "—" : fmt.money(data.cost.estimated)} / {fmt.money(data.cost.materials)}
+                </span>
               </span>
-              <span className="flex justify-between gap-2">
-                <span className="text-muted-foreground">{t("costActual")}</span>
+              <span className="flex flex-wrap justify-between gap-2">
+                <span className="text-muted-foreground">{t("costActualTotal")}</span>
                 <span className="font-latin font-bold tabular-nums">{fmt.money(data.cost.actual)}</span>
               </span>
             </Link>
@@ -325,7 +328,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
           <div className="flex flex-wrap gap-2">
             {data.canSchedule && (
               <Button asChild variant="secondary" size="sm">
-                <Link href={`${base}/schedule?contract=${data.contract.number}`}>
+                <Link href={`${base}/schedule?contract=${data.contract.number}${data.bookTeam ? `&team=${data.bookTeam}` : ""}`}>
                   <CalendarDays /> {t("openSchedule")}
                 </Link>
               </Button>

@@ -6,7 +6,8 @@
 --       the over-budget / profit alerts; accepting one flags the project's
 --       subcontractor agreements for review (the addendum has no area to add).
 --   #14 invoices and receipt vouchers are finance documents: finance.view.
---   #17 maintenance not covered by the warranty is part of a project's actual cost.
+--   #17 maintenance covered by the warranty (we pay for it) is part of a project's actual
+--       cost; the profit alert also watches handed-over projects during the warranty.
 --   G4  subcontractor payments and petty-cash expenses reach Qoyod (simple bill +
 --       its payment), like supplier purchases; subcontracting expense account.
 --   Qoyod account choices added after the first release (salary, cash) were not
@@ -108,16 +109,38 @@ grant all on public.addendum_costs to service_role;
 alter table public.subcontractor_agreements
   add column review_addendum_id uuid references public.addenda (id) on delete set null;
 
+-- New notification kind: an agreement to review (purchasing / finance staff).
+alter table public.notifications drop constraint notifications_kind_check;
+alter table public.notifications add constraint notifications_kind_check check (kind in ('approval', 'client_note', 'stage_confirmed', 'contract_accepted', 'addendum_accepted',
+  'payment_received', 'payment_late', 'doc_expiry', 'approval_reminder', 'maintenance_request',
+  'project_delay', 'project_over_budget', 'project_losing', 'missed_visit', 'agreement_review'));
+alter table public.notification_preferences drop constraint notification_preferences_kind_check;
+alter table public.notification_preferences add constraint notification_preferences_kind_check check (kind in ('approval', 'client_note', 'stage_confirmed', 'contract_accepted', 'addendum_accepted',
+  'payment_received', 'payment_late', 'doc_expiry', 'approval_reminder', 'maintenance_request',
+  'project_delay', 'project_over_budget', 'project_losing', 'missed_visit', 'agreement_review'));
+
 create or replace function private.flag_agreements_on_addendum()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_count int;
+  v_number text;
 begin
   if new.status = 'accepted' and old.status is distinct from 'accepted' then
     update public.subcontractor_agreements set review_addendum_id = new.id
     where contract_id = new.contract_id and status = 'active';
+    get diagnostics v_count = row_count;
+    if v_count > 0 then
+      select number into v_number from public.contracts where id = new.contract_id;
+      -- purchasing and finance staff who can see the project; one notification each (same dedupe key)
+      perform private.notify(new.organization_id, 'purchases.manage', 'agreement_review',
+        jsonb_build_object('number', v_number, 'addendum', new.number, 'count', v_count), '/purchases/subcontractors', 'agreement_review:' || new.id, new.contract_id);
+      perform private.notify(new.organization_id, 'finance.manage', 'agreement_review',
+        jsonb_build_object('number', v_number, 'addendum', new.number, 'count', v_count), '/purchases/subcontractors', 'agreement_review:' || new.id, new.contract_id);
+    end if;
   end if;
   return null;
 end;
@@ -164,7 +187,8 @@ create policy client_receipts_select on public.client_receipts for select to aut
   using ((select private.has_permission(organization_id, 'finance.view')));
 
 -- ---------------------------------------------------------------------------
--- #17 Actual cost: + maintenance not covered by the warranty
+-- #17 Actual cost: + maintenance covered by the warranty (the company pays; repairs
+--     charged to the client are not our cost)
 -- ---------------------------------------------------------------------------
 drop function private.project_actuals(uuid);
 create or replace function private.project_actuals(p_contract uuid)
@@ -185,12 +209,13 @@ as $$
     coalesce((select sum(w.amount) from public.subcontractor_work w
               join public.subcontractor_agreements g on g.id = w.agreement_id where g.contract_id = p_contract), 0),
     private.project_labour(p_contract),
-    coalesce((select sum(r.cost) from public.maintenance_requests r where r.contract_id = p_contract and not r.covered), 0)
+    coalesce((select sum(r.cost) from public.maintenance_requests r where r.contract_id = p_contract and r.covered), 0)
 $$;
 revoke all on function private.project_actuals(uuid) from public;
 
--- Daily reminders: estimates include accepted addenda (#12), actual includes uncovered
--- maintenance (#17). Otherwise the batch 1 definition.
+-- Daily reminders: estimates include accepted addenda (#12), actual includes warranty
+-- maintenance (#17); handed-over projects still inside the warranty are checked for
+-- project_losing only (same dedupe key: one alert per state). Otherwise the batch 1 definition.
 create or replace function public.run_daily_reminders()
 returns int
 language plpgsql
@@ -265,18 +290,21 @@ begin
     v_count := v_count + 1;
   end loop;
 
-  -- Projects under way: accepted, not handed over.
+  -- Projects under way (accepted, not handed over) + handed over, still in warranty (profit only).
   for r in
-    select c.id, c.organization_id, c.number, c.total, c.start_date, c.duration_days, c.quote_id, c.quote_version, c.accepted_at,
-           cl.name as client,
-           c.start_date + c.duration_days + coalesce((select sum(a.extra_days) from public.addenda a where a.contract_id = c.id and a.status = 'accepted'), 0)::int as due
-    from public.contracts c
-    join public.clients cl on cl.id = c.client_id
-    where c.status = 'accepted'
-      and not exists (select 1 from public.project_stages s where s.contract_id = c.id and s.is_final and s.status = 'confirmed')
+    select x.* from (
+      select c.id, c.organization_id, c.number, c.total, c.start_date, c.duration_days, c.quote_id, c.quote_version, c.accepted_at,
+             cl.name as client,
+             c.start_date + c.duration_days + coalesce((select sum(a.extra_days) from public.addenda a where a.contract_id = c.id and a.status = 'accepted'), 0)::int as due,
+             exists (select 1 from public.project_stages s where s.contract_id = c.id and s.is_final and s.status = 'confirmed') as handed
+      from public.contracts c
+      join public.clients cl on cl.id = c.client_id
+      where c.status = 'accepted'
+    ) x
+    where not x.handed or private.warranty_end(x.id) >= v_today
   loop
     -- delay
-    if v_today - r.due in (1, 7, 14, 30, 60) then
+    if not r.handed and v_today - r.due in (1, 7, 14, 30, 60) then
       perform private.notify(r.organization_id, 'projects.view', 'project_delay',
         jsonb_build_object('number', r.number, 'client', r.client, 'days', v_today - r.due, 'due', r.due),
         '/projects/' || r.number, 'delay:' || r.id || ':' || (v_today - r.due), r.id);
@@ -284,7 +312,7 @@ begin
     end if;
 
     -- missed visits (work started)
-    if r.start_date <= v_today then
+    if not r.handed and r.start_date <= v_today then
       select max((v.checked_in_at at time zone 'Asia/Riyadh')::date) into v_last from public.site_visits v where v.contract_id = r.id;
       v_last := greatest(coalesce(v_last, r.start_date), r.start_date);
       v_gap := v_today - v_last;
@@ -310,7 +338,7 @@ begin
     v_est_all := v_est_all + v_add_all;
     select * into v_act from private.project_actuals(r.id);
 
-    if v_est_mat > 0 and v_act.materials > v_est_mat then
+    if not r.handed and v_est_mat > 0 and v_act.materials > v_est_mat then
       v_ratio := v_act.materials / v_est_mat;
       v_bucket := case when v_ratio >= 1.5 then 150 when v_ratio >= 1.25 then 125 when v_ratio >= 1.1 then 110 else 100 end;
       perform private.notify(r.organization_id, 'costs.view', 'project_over_budget',
@@ -350,6 +378,14 @@ alter table public.qoyod_settings
 grant insert (salary_account_id, cash_account_id, subcontract_account_id) on public.qoyod_settings to authenticated;
 grant update (salary_account_id, cash_account_id, subcontract_account_id) on public.qoyod_settings to authenticated;
 
+-- the worker's last automatic setup run (optional accounts missing → retried at most daily); service role only
+alter table public.qoyod_settings add column auto_setup_at timestamptz;
+
+-- petty-cash top-ups / returns: bank ↔ cash journal entries
+alter table public.qoyod_sync_jobs drop constraint qoyod_sync_jobs_kind_check;
+alter table public.qoyod_sync_jobs add constraint qoyod_sync_jobs_kind_check
+  check (kind in ('customer', 'vendor', 'invoice', 'invoice_payment', 'bill', 'bill_payment', 'payroll', 'transfer'));
+
 alter table public.qoyod_sync_jobs drop constraint qoyod_sync_jobs_entity_type_check;
 alter table public.qoyod_sync_jobs add constraint qoyod_sync_jobs_entity_type_check
   check (entity_type in ('client', 'supplier', 'subcontractor', 'contract_payment', 'addendum', 'purchase', 'payroll_run', 'subcontractor_payment', 'petty_cash'));
@@ -371,7 +407,8 @@ revoke all on function private.qoyod_on_subcontractor_payment() from public;
 create trigger subcontractor_payments_qoyod after insert on public.subcontractor_payments
   for each row execute function private.qoyod_on_subcontractor_payment();
 
--- A petty-cash expense = a simple bill paid from the cash account (top-ups/returns are transfers, not expenses).
+-- A petty-cash expense = a simple bill paid from the cash account; a top-up / return = a
+-- journal entry bank → cash / cash → bank (kind 'transfer', waits for "Approved" like payroll).
 create or replace function private.qoyod_on_petty_cash()
 returns trigger
 language plpgsql
@@ -382,6 +419,8 @@ begin
   if new.kind = 'expense' then
     perform private.qoyod_enqueue(new.organization_id, 'bill', 'petty_cash', new.id, 'pc:' || new.id);
     perform private.qoyod_enqueue(new.organization_id, 'bill_payment', 'petty_cash', new.id, 'pcp:' || new.id, new.amount);
+  else
+    perform private.qoyod_enqueue(new.organization_id, 'transfer', 'petty_cash', new.id, 'pct:' || new.id, new.amount);
   end if;
   return null;
 end;
@@ -440,6 +479,8 @@ begin
   from public.petty_cash_entries e where e.organization_id = p_org and e.kind = 'expense' and e.entry_date >= p_from;
   perform private.qoyod_enqueue(e.organization_id, 'bill_payment', 'petty_cash', e.id, 'pcp:' || e.id, e.amount)
   from public.petty_cash_entries e where e.organization_id = p_org and e.kind = 'expense' and e.entry_date >= p_from;
+  perform private.qoyod_enqueue(e.organization_id, 'transfer', 'petty_cash', e.id, 'pct:' || e.id, e.amount)
+  from public.petty_cash_entries e where e.organization_id = p_org and e.kind in ('topup', 'return') and e.entry_date >= p_from;
 
   select count(*) into v_after from public.qoyod_sync_jobs where organization_id = p_org;
   return v_after - v_before;
@@ -447,3 +488,47 @@ end;
 $$;
 revoke all on function public.qoyod_backfill(uuid, date) from public, anon;
 grant execute on function public.qoyod_backfill(uuid, date) to authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- Provisions (end-of-service, annual leave) are accruals, not cash: the cash-flow
+-- forecast leaves them out. Editable on the cost items screen.
+-- ---------------------------------------------------------------------------
+alter table public.employee_cost_items add column is_provision boolean not null default false;
+update public.employee_cost_items set is_provision = true where code in ('eos_accrual', 'annual_leave');
+
+create or replace function public.seed_employee_cost_items(p_org uuid)
+returns int
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count int;
+begin
+  if not private.has_permission(p_org, 'hr.manage') then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+
+  insert into public.employee_cost_items (organization_id, code, name_ar, applies_to, basis, amortize_months, sort_order, is_provision)
+  values
+    (p_org, 'gosi_saudi', 'التأمينات الاجتماعية (حصة المنشأة) — سعودي', 'saudi', 'percent', null, 1, false),
+    (p_org, 'gosi_non_saudi', 'التأمينات الاجتماعية (أخطار مهنية) — غير سعودي', 'non_saudi', 'percent', null, 2, false),
+    (p_org, 'medical_insurance', 'التأمين الطبي', 'all', 'annual', null, 3, false),
+    (p_org, 'eos_accrual', 'مخصص مكافأة نهاية الخدمة', 'all', 'percent', null, 4, true),
+    (p_org, 'annual_leave', 'مخصص الإجازة السنوية', 'all', 'percent', null, 5, true),
+    (p_org, 'iqama', 'إصدار/تجديد الإقامة', 'non_saudi', 'annual', null, 6, false),
+    (p_org, 'work_permit_levy', 'رخصة العمل والمقابل المالي', 'non_saudi', 'annual', null, 7, false),
+    (p_org, 'exit_reentry', 'تأشيرات الخروج والعودة', 'non_saudi', 'annual', null, 8, false),
+    (p_org, 'leave_ticket', 'تذكرة الإجازة السنوية', 'non_saudi', 'annual', null, 9, false),
+    (p_org, 'recruitment', 'الاستقدام (تأشيرة، مكتب، تذكرة، فحص)', 'non_saudi', 'one_time', 24, 10, false),
+    (p_org, 'sponsorship_transfer', 'نقل الكفالة / نقل الخدمات', 'non_saudi', 'one_time', 24, 11, false),
+    (p_org, 'housing', 'السكن (إن لم يكن بدلاً في الراتب)', 'all', 'monthly', null, 12, false),
+    (p_org, 'transport', 'النقل (إن لم يكن بدلاً في الراتب)', 'all', 'monthly', null, 13, false)
+  on conflict (organization_id, code) do nothing;
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function public.seed_employee_cost_items(uuid) from public, anon;
+grant execute on function public.seed_employee_cost_items(uuid) to authenticated;

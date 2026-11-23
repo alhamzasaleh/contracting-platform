@@ -74,3 +74,31 @@ export function buildFacts(
 /** Links the assistant may suggest (anything else is dropped). */
 export const SAFE_LINK =
   /^\/(?:reports|schedule|team\/payroll|purchases\/costs|(?:purchases|projects|contracts|invoices|clients|quotations)(?:\/[A-Z]{1,3}-\d{4}-\d{3,6})?|maintenance(?:\?r=MR-\d{4}-\d{3,6})?)$/;
+
+/** The permission each page the assistant can link to needs (the same as the page's own guard). */
+const LINK_PERMISSION: [RegExp, string][] = [
+  [/^\/reports$/, "finance.view"],
+  [/^\/invoices(?:\/|$)/, "finance.view"],
+  [/^\/schedule$/, "schedule.view"],
+  [/^\/team\/payroll$/, "hr.view"],
+  [/^\/purchases\/costs$/, "costs.view"],
+  [/^\/purchases(?:\/|$)/, "purchases.view"],
+  [/^\/(?:projects|maintenance)(?:[/?]|$)/, "projects.view"],
+  [/^\/(?:contracts|quotations)(?:\/|$)/, "quotes.view"],
+  [/^\/clients(?:\/|$)/, "clients.view"],
+];
+const DOC_NO = /[A-Z]{1,3}-\d{4}-\d{3,6}/g;
+
+/**
+ * Links the assistant suggested, kept only when they are on the allowed list, the asker may
+ * open the page, and any document number in them appears in the facts he was given.
+ */
+export function assistantLinks<L extends { href: string }>(links: L[], permissions: readonly string[], facts: unknown): L[] {
+  const known = new Set(JSON.stringify(facts ?? {}).match(DOC_NO) ?? []);
+  return links.filter((l) => {
+    if (!SAFE_LINK.test(l.href)) return false;
+    const need = LINK_PERMISSION.find(([re]) => re.test(l.href))?.[1];
+    if (!need || !permissions.includes(need)) return false;
+    return (l.href.match(DOC_NO) ?? []).every((n) => known.has(n));
+  });
+}

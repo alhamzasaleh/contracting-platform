@@ -42,6 +42,6 @@ export async function askFinanceAssistant(input: unknown): Promise<ActionResult<
     purchases: monthTotals((purchases ?? []).map((p) => ({ date: p.invoice_date ?? p.recorded_at, amount: Number(p.total) }))),
     maintenance: monthTotals((maint ?? []).map((m) => ({ date: m.created_at, amount: Number(m.cost) }))),
   });
-  const r = await askAssistant(parsed.data.question, parsed.data.history, facts, (await getLocale()) === "en" ? "en" : "ar");
+  const r = await askAssistant(parsed.data.question, parsed.data.history, facts, (await getLocale()) === "en" ? "en" : "ar", session.permissions);
   return r.ok ? { ok: true, data: r.answer } : { ok: false, error: r.error };
 }

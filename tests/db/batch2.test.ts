@@ -126,6 +126,12 @@ describe("#12 additional works: estimated cost and subcontractor agreements", ()
     const ad = await makeAddendum(c, 1500);
     const flagged = await as({ userId: owner }, (q) => q<{ review_addendum_id: string | null }>("select review_addendum_id from public.subcontractor_agreements where id = $1", [g]));
     expect(flagged.rows[0].review_addendum_id).toBe(ad);
+    // purchasing / finance staff are told to review it (once each), with a link to the subcontractors page
+    const told = await asAdmin((q) => q<{ user_id: string; link: string; params: { number: string; addendum: string; count: number } }>("select user_id, link, params from public.notifications where kind = 'agreement_review' and dedupe_key = $1 order by user_id", ["agreement_review:" + ad]));
+    expect(told.rows.map((r) => r.user_id).sort()).toEqual([owner, sup, fin].sort());
+    expect(told.rows[0].link).toBe("/purchases/subcontractors");
+    expect(told.rows[0].params).toMatchObject({ number: c.number, count: 1 });
+    expect(told.rows.some((r) => r.user_id === viewer || r.user_id === restricted)).toBe(false);
     await as({ userId: owner }, (q) => q("update public.subcontractor_agreements set quantity_m2 = 120 where id = $1", [g]));
     const cleared = await as({ userId: owner }, (q) => q<{ review_addendum_id: string | null }>("select review_addendum_id from public.subcontractor_agreements where id = $1", [g]));
     expect(cleared.rows[0].review_addendum_id).toBeNull();
@@ -146,12 +152,35 @@ describe("#14 invoices and receipt vouchers are finance documents", () => {
   });
 });
 
-describe("#17 uncovered maintenance is a project cost", () => {
-  it("project_actuals counts the cost of maintenance not covered by the warranty", async () => {
+describe("#17 warranty maintenance is a project cost", () => {
+  it("project_actuals counts maintenance covered by the warranty (we pay); charged-to-client repairs are not our cost", async () => {
     const c = await makeContract(4000);
     await asAdmin((q) => q("insert into public.maintenance_requests (organization_id, contract_id, body, source, covered, cost) values ($1,$2,'تشقق','staff',false,250),($1,$2,'بقعة','staff',true,80)", [org, c.id]));
     const a = await asAdmin((q) => q<{ maintenance: string }>("select maintenance from private.project_actuals($1)", [c.id]));
-    expect(Number(a.rows[0].maintenance)).toBe(250);
+    expect(Number(a.rows[0].maintenance)).toBe(80);
+  });
+
+  it("warranty maintenance on a handed-over project raises project_losing once (within the warranty only)", async () => {
+    const c = await makeContract(1000, { materials: 200 });
+    await asAdmin(async (q) => {
+      await q("update public.project_stages set status = 'confirmed', confirmed_at = now() where contract_id = $1 and is_final", [c.id]);
+      await q("insert into public.maintenance_requests (organization_id, contract_id, body, source, covered, cost) values ($1,$2,'تسرب','staff',true,1500)", [org, c.id]);
+    });
+    await as("service_role", (q) => q("select public.run_daily_reminders()"));
+    await as("service_role", (q) => q("select public.run_daily_reminders()"));
+    const rows = () => asAdmin((q) => q<{ kind: string }>("select kind from public.notifications where dedupe_key like $1 and user_id = $2", [`%${c.id}%`, owner])).then((r) => r.rows.map((x) => x.kind));
+    expect((await rows()).filter((k) => k === "project_losing")).toHaveLength(1);
+    // handed over: no delay / visit alerts for it
+    expect(await rows()).not.toContain("project_delay");
+    // after the warranty: nothing new
+    const d = await makeContract(1000, { materials: 200, start: "2024-01-01", warranty: 1 });
+    await asAdmin(async (q) => {
+      await q("update public.project_stages set status = 'confirmed', confirmed_at = '2024-02-01' where contract_id = $1 and is_final", [d.id]);
+      await q("insert into public.maintenance_requests (organization_id, contract_id, body, source, covered, cost) values ($1,$2,'تسرب','staff',true,1500)", [org, d.id]);
+    });
+    await as("service_role", (q) => q("select public.run_daily_reminders()"));
+    const old = await asAdmin((q) => q("select 1 from public.notifications where kind = 'project_losing' and dedupe_key like $1", [`%${d.id}%`]));
+    expect(old.rowCount).toBe(0);
   });
 });
 
@@ -168,8 +197,9 @@ describe("G4 subcontractor payments and petty cash reach Qoyod", () => {
     const early = await as({ userId: owner }, (q) => q<{ id: string }>("insert into public.subcontractor_payments (organization_id, agreement_id, amount, method) values ($1,$2,400,'cash') returning id", [org, g]));
     await as({ userId: owner }, (q) => q("insert into public.qoyod_settings (organization_id, enabled) values ($1, true)", [org]));
     const pay = await as({ userId: owner }, (q) => q<{ id: string }>("insert into public.subcontractor_payments (organization_id, agreement_id, amount, method) values ($1,$2,1500,'transfer') returning id", [org, g]));
-    await as({ userId: owner }, (q) => q("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,'topup',1000,'تعبئة')", [org, account]));
+    const top = await as({ userId: owner }, (q) => q<{ id: string }>("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,'topup',1000,'تعبئة') returning id", [org, account]));
     const pc = await as({ userId: sup }, (q) => q<{ id: string }>("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description, supplier_name, contract_id) values ($1,$2,'expense',85,'شريط','محل السلامة',$3) returning id", [org, account, c.id]));
+    const ret = await as({ userId: owner }, (q) => q<{ id: string }>("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,'return',200,'استرجاع') returning id", [org, account]));
     const jobs = () => asAdmin((q) => q<{ kind: string; entity_type: string; ref: string; amount: string | null }>("select kind, entity_type, ref, amount from public.qoyod_sync_jobs where organization_id = $1 and entity_type in ('subcontractor_payment','petty_cash') order by ref", [org])).then((r) => r.rows);
     const sp = pay.rows[0].id;
     const pe = pc.rows[0].id;
@@ -177,6 +207,9 @@ describe("G4 subcontractor payments and petty cash reach Qoyod", () => {
       [
         { kind: "bill", entity_type: "petty_cash", ref: `pc:${pe}`, amount: null },
         { kind: "bill_payment", entity_type: "petty_cash", ref: `pcp:${pe}`, amount: "85.00" },
+        // top-ups and returns: bank ↔ cash journal entries
+        { kind: "transfer", entity_type: "petty_cash", ref: `pct:${top.rows[0].id}`, amount: "1000.00" },
+        { kind: "transfer", entity_type: "petty_cash", ref: `pct:${ret.rows[0].id}`, amount: "200.00" },
         { kind: "bill", entity_type: "subcontractor_payment", ref: `sb:${sp}`, amount: null },
         { kind: "bill_payment", entity_type: "subcontractor_payment", ref: `sp:${sp}`, amount: "1500.00" },
       ].sort((a, b) => a.ref.localeCompare(b.ref)),
@@ -185,12 +218,23 @@ describe("G4 subcontractor payments and petty cash reach Qoyod", () => {
     await as({ userId: owner }, (q) => q("select public.qoyod_backfill($1, current_date - 1)", [org]));
     const after = await jobs();
     expect(after.filter((j) => j.ref.endsWith(early.rows[0].id)).map((j) => j.kind).sort()).toEqual(["bill", "bill_payment"]);
-    expect(after.length).toBe(6);
+    expect(after.length).toBe(8);
   });
 
   it("the owner can save every Qoyod account choice (salary, cash, subcontracting)", async () => {
     await as({ userId: owner }, (q) => q("update public.qoyod_settings set salary_account_id = 53, cash_account_id = 7, subcontract_account_id = 55 where organization_id = $1", [org]));
     const s = await as({ userId: owner }, (q) => q("select salary_account_id, cash_account_id, subcontract_account_id from public.qoyod_settings where organization_id = $1", [org]));
     expect(s.rows[0]).toEqual({ salary_account_id: 53, cash_account_id: 7, subcontract_account_id: 55 });
+  });
+});
+
+describe("#2 provisions are flagged (not cash in the forecast)", () => {
+  it("seeded end-of-service and annual-leave items are provisions; hr.manage can change the flag", async () => {
+    await as({ userId: owner }, (q) => q("select public.seed_employee_cost_items($1)", [org]));
+    const rows = await as({ userId: owner }, (q) => q<{ code: string }>("select code from public.employee_cost_items where organization_id = $1 and is_provision order by code", [org]));
+    expect(rows.rows.map((r) => r.code)).toEqual(["annual_leave", "eos_accrual"]);
+    await as({ userId: owner }, (q) => q("update public.employee_cost_items set is_provision = true where organization_id = $1 and code = 'housing'", [org]));
+    const h = await as({ userId: owner }, (q) => q<{ is_provision: boolean }>("select is_provision from public.employee_cost_items where organization_id = $1 and code = 'housing'", [org]));
+    expect(h.rows[0].is_provision).toBe(true);
   });
 });

@@ -368,9 +368,15 @@ export function QuoteView({
           )}
           {internal && internal.purchaseList.length > 0 && (
             <section className="grid gap-2 rounded-2xl border border-border bg-surface p-4">
-              <p className="flex items-center justify-between text-[14px] font-bold">
+              <p className="flex items-center justify-between gap-2 text-[14px] font-bold">
                 {t("purchaseList")}
-                <Copy className="size-4 text-muted-foreground" />
+                {detail.contract?.status === "accepted" && detail.canPurchase ? (
+                  <Link href={`${base}/purchases/new?project=${detail.contract.number}`} className="text-[13px] font-medium text-primary hover:underline">
+                    {t("createPurchase")}
+                  </Link>
+                ) : (
+                  <Copy className="size-4 text-muted-foreground" />
+                )}
               </p>
               <ul className="grid gap-1.5 text-[13px]">
                 {internal.purchaseList.map((p) => (

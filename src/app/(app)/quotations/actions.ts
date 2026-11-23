@@ -8,7 +8,7 @@ import { loadPricingSettings } from "@/lib/data/catalogue";
 import { loadPricingContext } from "@/lib/data/pricing";
 import { priceSelection, type Selection } from "@/lib/pricing";
 import { selectionSchema } from "@/lib/pricing/schema";
-import { buildSnapshot, readiness } from "@/lib/quotes";
+import { buildSnapshot, issueBlockers, readiness } from "@/lib/quotes";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { surveyGaps, surveyQuantities, type SurveyRoom, type SurveyTotals } from "@/lib/survey";
@@ -160,10 +160,11 @@ export async function issueQuote(input: unknown): Promise<ActionResult> {
   // Re-check readiness on every frozen version offered
   const { data: rows } = await supabase.from("quote_versions").select("version, selection, quantities").eq("quote_id", quote.id).in("version", versions);
   if ((rows ?? []).length !== versions.length) return { ok: false, error: "invalid" };
-  const { ctx } = await loadPricingContext(session);
+  const { ctx, canSeeCrewCost } = await loadPricingContext(session);
   for (const version of rows ?? []) {
-    const outcome = priceSelection(version.selection as unknown as Selection, version.quantities as never, ctx);
-    if (outcome.problems.length) return { ok: false, error: "notReady" };
+    const sel = version.selection as unknown as Selection;
+    const outcome = priceSelection(sel, version.quantities as never, ctx);
+    if (issueBlockers(outcome.problems, sel, canSeeCrewCost).length) return { ok: false, error: "notReady" };
   }
   const days = Number(ctx.catalogue.rates["commercial.quoteValidityDays"] ?? 7);
   const validUntil = new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);

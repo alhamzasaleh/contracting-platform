@@ -14,6 +14,8 @@ import type { ActionResult } from "@/lib/actions";
 import type { AddendumView, ContractDetail } from "@/lib/data/contracts";
 import type { AddendumStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
+import { deliveryWithAddenda } from "@/lib/contracts";
+export { deliveryWithAddenda };
 
 const TONE: Record<AddendumStatus, "neutral" | "primary" | "warning" | "success" | "danger"> = {
   draft: "neutral",
@@ -38,13 +40,6 @@ export type AddendaActions = {
 
 const riyadhToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
 
-/** Expected delivery after accepted addenda (each adds its days). */
-export function deliveryWithAddenda(start: string, days: number, addenda: Pick<AddendumView, "status" | "extra_days">[]) {
-  const extra = addenda.filter((a) => a.status === "accepted").reduce((s, a) => s + a.extra_days, 0);
-  const d = new Date(`${start}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days + extra);
-  return { date: d.toISOString().slice(0, 10), extra };
-}
 
 /** §3.8 additional works on a contract: draft → owner approval → client page → accepted. */
 export function AddendaSection({ detail, actions }: { detail: ContractDetail; actions?: AddendaActions }) {

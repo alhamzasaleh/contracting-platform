@@ -40,6 +40,15 @@ export function earliestStart(busy: Span[], from: Day, days: number): Day {
   return d;
 }
 
+/** Teams that can take a job: the priced team when known and active, else active teams doing the service (else all active). */
+function teamPool(teams: TeamInfo[], service: ServiceKind, preferTeam?: string | null): TeamInfo[] {
+  const active = teams.filter((t) => t.is_active);
+  const preferred = preferTeam ? active.find((t) => t.id === preferTeam) : undefined;
+  if (preferred) return [preferred];
+  const able = active.filter((t) => t.services.includes(service));
+  return able.length ? able : active;
+}
+
 /**
  * Earliest start for a new job (§3.9): among active teams that do the
  * service (or every active team when none is set up for it), the team that
@@ -52,10 +61,10 @@ export function suggestStart(
   from: Day,
   days: number,
   exclude?: { contract_id?: string },
+  /** the team priced on the quote (G1): when it is an active team, only it is considered */
+  preferTeam?: string | null,
 ): { date: Day; team: TeamInfo } | null {
-  const active = teams.filter((t) => t.is_active);
-  const able = active.filter((t) => t.services.includes(service));
-  const pool = able.length ? able : active;
+  const pool = teamPool(teams, service, preferTeam);
   let best: { date: Day; team: TeamInfo; load: number } | null = null;
   for (const team of pool) {
     const own = entries.filter((e) => e.team_id === team.id && (!exclude?.contract_id || e.contract_id !== exclude.contract_id));
@@ -66,10 +75,8 @@ export function suggestStart(
 }
 
 /** Is at least one suitable team free for the whole span? (contract start warning) */
-export function anyTeamFree(teams: TeamInfo[], entries: Entry[], service: ServiceKind, span: Span, exclude?: { contract_id?: string }): boolean {
-  const active = teams.filter((t) => t.is_active);
-  const able = active.filter((t) => t.services.includes(service));
-  const pool = able.length ? able : active;
+export function anyTeamFree(teams: TeamInfo[], entries: Entry[], service: ServiceKind, span: Span, exclude?: { contract_id?: string }, preferTeam?: string | null): boolean {
+  const pool = teamPool(teams, service, preferTeam);
   if (!pool.length) return true; // no teams set up yet → nothing to warn about
   return pool.some((t) => !entries.some((e) => e.team_id === t.id && (!exclude?.contract_id || e.contract_id !== exclude.contract_id) && overlaps(e, span)));
 }

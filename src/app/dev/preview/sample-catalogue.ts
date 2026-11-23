@@ -47,11 +47,12 @@ export const SAMPLE_RECIPE: RecipeLine[] = [
 ];
 
 export const SAMPLE_COST_ITEMS: (CostItemRow & { name_ar: string })[] = [
-  { id: "c1", code: "gosi_saudi", name_ar: "التأمينات الاجتماعية (حصة المنشأة) — سعودي", applies_to: "saudi", basis: "percent", value: 0, amortize_months: null, is_active: true, last_reviewed_at: null },
-  { id: "c2", code: "gosi_non_saudi", name_ar: "التأمينات الاجتماعية (أخطار مهنية) — غير سعودي", applies_to: "non_saudi", basis: "percent", value: 2, amortize_months: null, is_active: true, last_reviewed_at: "2026-11-20" },
-  { id: "c3", code: "medical_insurance", name_ar: "التأمين الطبي", applies_to: "all", basis: "annual", value: 1400, amortize_months: null, is_active: true, last_reviewed_at: "2026-11-20" },
-  { id: "c4", code: "work_permit_levy", name_ar: "رخصة العمل والمقابل المالي", applies_to: "non_saudi", basis: "annual", value: 0, amortize_months: null, is_active: true, last_reviewed_at: null },
-  { id: "c5", code: "recruitment", name_ar: "الاستقدام (تأشيرة، مكتب، تذكرة، فحص)", applies_to: "non_saudi", basis: "one_time", value: 0, amortize_months: 24, is_active: true, last_reviewed_at: null },
+  { id: "c1", code: "gosi_saudi", name_ar: "التأمينات الاجتماعية (حصة المنشأة) — سعودي", applies_to: "saudi", basis: "percent", value: 0, amortize_months: null, is_active: true, is_provision: false, last_reviewed_at: null },
+  { id: "c2", code: "gosi_non_saudi", name_ar: "التأمينات الاجتماعية (أخطار مهنية) — غير سعودي", applies_to: "non_saudi", basis: "percent", value: 2, amortize_months: null, is_active: true, is_provision: false, last_reviewed_at: "2026-11-20" },
+  { id: "c3", code: "medical_insurance", name_ar: "التأمين الطبي", applies_to: "all", basis: "annual", value: 1400, amortize_months: null, is_active: true, is_provision: false, last_reviewed_at: "2026-11-20" },
+  { id: "c4", code: "work_permit_levy", name_ar: "رخصة العمل والمقابل المالي", applies_to: "non_saudi", basis: "annual", value: 0, amortize_months: null, is_active: true, is_provision: false, last_reviewed_at: null },
+  { id: "c6", code: "eos_accrual", name_ar: "مخصص مكافأة نهاية الخدمة", applies_to: "all", basis: "percent", value: 4.17, amortize_months: null, is_active: true, is_provision: true, last_reviewed_at: "2026-11-20" },
+  { id: "c5", code: "recruitment", name_ar: "الاستقدام (تأشيرة، مكتب، تذكرة، فحص)", applies_to: "non_saudi", basis: "one_time", value: 0, amortize_months: 24, is_active: true, is_provision: false, last_reviewed_at: null },
 ];
 
 export const SAMPLE_EMPLOYEES: Employee[] = [

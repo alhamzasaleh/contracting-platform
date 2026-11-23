@@ -104,6 +104,15 @@ export function paydays(today: Day, payday: number, until: Day): Day[] {
 }
 
 /**
+ * Statutory cost items that leave the bank every month (GOSI %, monthly fees). Provisions
+ * (end-of-service, annual leave — accruals, not cash) and annual / one-off items are not
+ * monthly cash, so the forecast leaves them out.
+ */
+export function cashStatutoryItems<T extends { basis: string; is_provision?: boolean | null }>(items: T[]): T[] {
+  return items.filter((i) => (i.basis === "percent" || i.basis === "monthly") && !i.is_provision);
+}
+
+/**
  * Salary outflows on each payday (§3.16/§3.20): a month's payroll run net when the run exists
  * (nothing once it is paid — the money already left), otherwise the gross monthly salaries;
  * plus the statutory items paid every month (GOSI and other monthly items).

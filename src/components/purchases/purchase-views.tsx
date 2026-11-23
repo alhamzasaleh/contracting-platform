@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { AlertTriangle, ArrowLeftRight, Camera, Check, FileText, Package, Paperclip, Plus, ShoppingCart, Sparkles, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Camera, Check, FileText, Package, Paperclip, Pencil, Plus, ShoppingCart, Sparkles, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
 import type { InventoryData, ItemRef, ProjectCost, PurchaseDetail, PurchaseForm, PurchaseListItem } from "@/lib/data/purchases";
-import { costStatus, lineAmount, purchaseTotals, type InvoiceDraft, type InvoiceFlag } from "@/lib/purchases";
+import { costStatus, lineAmount, mergeRows, purchaseTotals, type InvoiceDraft, type InvoiceFlag } from "@/lib/purchases";
 import type { PurchaseStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn, ltr } from "@/lib/utils";
@@ -124,6 +124,8 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
   const [invoiceNo, setInvoiceNo] = React.useState(p?.invoice_number ?? "");
   const [invoiceDate, setInvoiceDate] = React.useState(p?.invoice_date ?? "");
   const [project, setProject] = React.useState(p?.project?.id ?? initialProject ?? "");
+  // G2: the picked project's quote purchase list (any accepted project, also when picked here)
+  const quoteList = project ? (form.quoteLists?.[project] ?? null) : null;
   const [vat, setVat] = React.useState(p ? String(p.vat) : "");
   const [notes, setNotes] = React.useState(p?.notes ?? "");
   const [rows, setRows] = React.useState<Row[]>(
@@ -210,6 +212,7 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
               quantity: num(r.quantity),
               unit: r.unit,
               unit_price: num(r.unit_price),
+              product_id: r.kind === "material" && r.product ? r.product : null,
             })),
           })),
       { onSuccess: (r) => r.ok && r.data && router.push(`${base}/purchases/${r.data.number}`) },
@@ -316,17 +319,25 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
         <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[15px] font-bold">{t("step3")}</p>
-            {form.quoteList && project === form.quoteList.contract_id && (
+            {quoteList && (
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
+                disabled={!quoteList.some((l) => l.remaining > 0)}
                 onClick={() =>
-                  setRows(
-                    form.quoteList!.lines.map((l) => ({
-                      key: ++rowKey, kind: "material", item: l.item, newName: l.description, newUnit: l.unit, general: l.general,
-                      description: l.description, colour: l.colour, quantity: String(l.quantity), unit: l.unit, unit_price: String(l.unit_price), product: l.product_id ?? "",
-                    })),
+                  // added to the lines already there (e.g. read from the invoice); what was bought before is left out
+                  setRows((current) =>
+                    mergeRows(
+                      current,
+                      quoteList
+                        .filter((l) => l.remaining > 0)
+                        .map((l) => ({
+                          key: ++rowKey, kind: "material" as const, item: l.item, newName: l.description, newUnit: l.unit, general: l.general,
+                          description: l.description, colour: l.colour, quantity: String(l.remaining), unit: l.unit, unit_price: String(l.unit_price), product: l.product_id ?? "",
+                        })),
+                      (r) => !r.description.trim() && !num(r.unit_price) && (r.item === "new" || !r.item),
+                    ),
                   )
                 }
               >
@@ -334,15 +345,28 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
               </Button>
             )}
           </div>
-          {form.quoteList && project === form.quoteList.contract_id && <p className="text-[12px] text-muted-foreground">{t("fromQuoteListHint")}</p>}
+          {quoteList && (
+            <div className="grid gap-1 text-[12px] text-muted-foreground">
+              <p>{t("fromQuoteListHint")}</p>
+              {quoteList.some((l) => l.bought > 0) && (
+                <ul className="grid gap-0.5" data-testid="quote-list-bought">
+                  {quoteList
+                    .filter((l) => l.bought > 0)
+                    .map((l, i) => (
+                      <li key={i}>{t("alreadyBought", { item: l.description, bought: fmt.number(l.bought), total: fmt.number(l.quantity) })}</li>
+                    ))}
+                </ul>
+              )}
+            </div>
+          )}
           <ul className="grid gap-2">
-            {rows.map((r) => (
+            {rows.map((r, ri) => (
               <li key={r.key} className={cn("grid gap-3 rounded-2xl bg-surface-sunken/50 p-3", r.unclear && "ring-2 ring-warning")}>
                 <div className="grid gap-3 sm:grid-cols-[1fr_220px_auto]">
-                  <Field id={`pl-d-${r.key}`} label={t("description")}>
+                  <Field id={`pl-d-${ri}`} label={t("description")}>
                     <Input value={r.description} onChange={(e) => setRow(r.key, { description: e.target.value })} />
                   </Field>
-                  <Field id={`pl-i-${r.key}`} label={t("stockItem")}>
+                  <Field id={`pl-i-${ri}`} label={t("stockItem")}>
                     <NativeSelect
                       value={r.kind === "expense" ? "__expense" : r.item}
                       onChange={(e) => {
@@ -368,7 +392,7 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                   </Button>
                 </div>
                 {r.kind === "material" && r.item === "new" && (form.products?.length ?? 0) > 0 && (
-                  <Field id={`pl-pr-${r.key}`} label={t("catalogueProduct")} hint={t("catalogueProductHint")} optional={t("optional")}>
+                  <Field id={`pl-pr-${ri}`} label={t("catalogueProduct")} hint={t("catalogueProductHint")} optional={t("optional")}>
                     <NativeSelect value={r.product ?? ""} onChange={(e) => setRow(r.key, { product: e.target.value })}>
                       <option value="">—</option>
                       {form.products!.map((x) => (
@@ -389,16 +413,16 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                   </label>
                 )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <Field id={`pl-q-${r.key}`} label={t("quantity")}>
+                  <Field id={`pl-q-${ri}`} label={t("quantity")}>
                     <NumberInput value={r.quantity} onChange={(e) => setRow(r.key, { quantity: e.target.value })} />
                   </Field>
-                  <Field id={`pl-u-${r.key}`} label={t("unit")}>
+                  <Field id={`pl-u-${ri}`} label={t("unit")}>
                     <Input value={r.unit} onChange={(e) => setRow(r.key, { unit: e.target.value })} dir="ltr" className="font-latin rtl:text-right" />
                   </Field>
-                  <Field id={`pl-p-${r.key}`} label={t("unitPrice")}>
+                  <Field id={`pl-p-${ri}`} label={t("unitPrice")}>
                     <NumberInput value={r.unit_price} onChange={(e) => setRow(r.key, { unit_price: e.target.value })} />
                   </Field>
-                  <Field id={`pl-c-${r.key}`} label={t("colour")} optional={t("optional")}>
+                  <Field id={`pl-c-${ri}`} label={t("colour")} optional={t("optional")}>
                     <Input value={r.colour} onChange={(e) => setRow(r.key, { colour: e.target.value })} />
                   </Field>
                 </div>
@@ -625,7 +649,9 @@ export function InventoryView({
   const { fmt } = useFormatter();
   const [moving, setMoving] = React.useState<{ item: ItemRef; from: string | null } | null>(null);
   const [newItem, setNewItem] = React.useState(false);
+  const [editItem, setEditItem] = React.useState<ItemRef | null>(null);
   const project = new Map(data.projects.map((p) => [p.id, p]));
+  const productLabel = new Map((data.products ?? []).map((p) => [p.id, p.label]));
   const rows = data.items
     .map((it) => {
       const b = data.balances.filter((x) => x.item_id === it.id);
@@ -653,9 +679,15 @@ export function InventoryView({
           {rows.map(({ it, stock, onProjects }) => (
             <li key={it.id} className="grid gap-2 rounded-2xl border border-border bg-surface p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="flex items-center gap-2 font-bold">
+                <p className="flex flex-wrap items-center gap-2 font-bold">
                   {it.name}
                   <Badge tone={it.is_general ? "neutral" : "info"}>{it.is_general ? t("generalItem") : t("specificItem")}</Badge>
+                  {it.product_id && productLabel.has(it.product_id) && <Badge tone="success">{t("linkedProduct")}</Badge>}
+                  {data.canManage && (
+                    <Button size="sm" variant="ghost" onClick={() => setEditItem(it)}>
+                      <Pencil /> {it.product_id ? t("editItem") : t("linkItem")}
+                    </Button>
+                  )}
                 </p>
                 {stock && (
                   <p className="text-[13px]">
@@ -694,6 +726,7 @@ export function InventoryView({
       )}
       {moving && <MoveDialog data={data} item={moving.item} from={moving.from} onClose={() => setMoving(null)} move={actions?.move} />}
       {newItem && <ItemDialog onClose={() => setNewItem(false)} save={actions?.saveItem} products={data.products ?? []} />}
+      {editItem && <ItemDialog item={editItem} onClose={() => setEditItem(null)} save={actions?.saveItem} products={data.products ?? []} />}
     </div>
   );
 }
@@ -737,21 +770,22 @@ function MoveDialog({ data, item, from, onClose, move }: { data: InventoryData; 
   );
 }
 
-function ItemDialog({ onClose, save, products }: { onClose: () => void; save?: (i: Record<string, unknown>) => Promise<ActionResult<{ id: string }>>; products: { id: string; label: string }[] }) {
+/** New stock item, or an existing one (rename / link to a catalogue product; unit and kind stay as they are). */
+function ItemDialog({ item, onClose, save, products }: { item?: ItemRef; onClose: () => void; save?: (i: Record<string, unknown>) => Promise<ActionResult<{ id: string }>>; products: { id: string; label: string }[] }) {
   const t = useTranslations("purchases");
   const { run, pending, fieldText } = useActionRunner();
-  const [product, setProduct] = React.useState("");
-  const [name, setName] = React.useState("");
-  const [unit, setUnit] = React.useState("pcs");
-  const [general, setGeneral] = React.useState(true);
+  const [product, setProduct] = React.useState(item?.product_id ?? "");
+  const [name, setName] = React.useState(item?.name ?? "");
+  const [unit, setUnit] = React.useState(item?.unit ?? "pcs");
+  const [general, setGeneral] = React.useState(item?.is_general ?? true);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   return (
     <FormDialog
       open
       onOpenChange={(v) => !v && onClose()}
-      title={t("newItemButton")}
+      title={item ? t("editItemTitle", { item: item.name }) : t("newItemButton")}
       pending={pending}
-      onSubmit={() => run(save && (() => save({ name, unit, is_general: general, product_id: product || null })), { onFieldErrors: setErrors, onSuccess: onClose })}
+      onSubmit={() => run(save && (() => save({ ...(item ? { id: item.id } : {}), name, unit, is_general: general, product_id: product || null })), { onFieldErrors: setErrors, onSuccess: onClose })}
     >
       {products.length > 0 && (
         <Field id="it-p" label={t("catalogueProduct")} hint={t("catalogueProductHint")} optional={t("optional")}>
@@ -776,15 +810,17 @@ function ItemDialog({ onClose, save, products }: { onClose: () => void; save?: (
         <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
       </Field>
       <Field id="it-u" label={t("unit")}>
-        <Input value={unit} onChange={(e) => setUnit(e.target.value)} dir="ltr" className="font-latin rtl:text-right" />
+        <Input value={unit} onChange={(e) => setUnit(e.target.value)} disabled={!!item} dir="ltr" className="font-latin rtl:text-right" />
       </Field>
-      <label className="flex items-center justify-between gap-3 text-[14px]">
-        <span>
-          {general ? t("generalItem") : t("specificItem")}
-          <span className="block text-[12px] text-muted-foreground">{t("generalHint")}</span>
-        </span>
-        <Switch checked={general} onCheckedChange={setGeneral} aria-label={t("generalItem")} />
-      </label>
+      {!item && (
+        <label className="flex items-center justify-between gap-3 text-[14px]">
+          <span>
+            {general ? t("generalItem") : t("specificItem")}
+            <span className="block text-[12px] text-muted-foreground">{t("generalHint")}</span>
+          </span>
+          <Switch checked={general} onCheckedChange={setGeneral} aria-label={t("generalItem")} />
+        </label>
+      )}
     </FormDialog>
   );
 }

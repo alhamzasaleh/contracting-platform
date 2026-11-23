@@ -2,7 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import { SAFE_LINK, type AssistantFacts } from "@/lib/assistant/context";
+import { assistantLinks, type AssistantFacts } from "@/lib/assistant/context";
 import { aiConfigured } from "./invoice";
 
 /**
@@ -31,6 +31,8 @@ export async function askAssistant(
   history: ChatTurn[],
   facts: AssistantFacts,
   locale: "ar" | "en",
+  /** the asker's permissions: links to pages he can't open are dropped */
+  permissions: readonly string[],
 ): Promise<{ ok: true; answer: AssistantAnswer } | { ok: false; error: "aiNotConfigured" | "aiFailed" | "aiRefused" }> {
   if (!aiConfigured()) return { ok: false, error: "aiNotConfigured" };
   const client = new Anthropic({ maxRetries: 2, timeout: 60_000 });
@@ -58,7 +60,7 @@ export async function askAssistant(
       answer: {
         answer: out.answer.slice(0, 2000),
         figures: out.figures.slice(0, 6).map((f) => ({ label: f.label.slice(0, 80), value: f.value.slice(0, 60) })),
-        links: out.links.filter((l) => SAFE_LINK.test(l.href)).slice(0, 4).map((l) => ({ label: l.label.slice(0, 60), href: l.href })),
+        links: assistantLinks(out.links, permissions, facts).slice(0, 4).map((l) => ({ label: l.label.slice(0, 60), href: l.href })),
       },
     };
   } catch (error) {

@@ -82,6 +82,7 @@ const costItemSchema = z
     value: num({ min: 0, max: 10_000_000 }),
     amortize_months: optionalNum({ min: 1, max: 120 }),
     is_active: z.boolean(),
+    is_provision: z.boolean(),
     mark_reviewed: z.boolean(),
   })
   .strict();

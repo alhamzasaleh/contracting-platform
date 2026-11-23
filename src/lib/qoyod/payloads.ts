@@ -12,7 +12,7 @@ export const TAX = { vat15: "1", zero: "2", exempt: "3" } as const;
  * Jobs that can't be posted on a draft document in Qoyod (a draft invoice/bill can't be paid;
  * a journal entry posts at once): they wait until sending is "Approved".
  */
-const NEEDS_APPROVED = new Set(["invoice_payment", "bill_payment", "payroll"]);
+const NEEDS_APPROVED = new Set(["invoice_payment", "bill_payment", "payroll", "transfer"]);
 export function waitsForApproved(kind: string, invoiceStatus: string | null | undefined): boolean {
   return NEEDS_APPROVED.has(kind) && invoiceStatus !== "Approved";
 }
@@ -148,6 +148,59 @@ export function payrollJournalBody(j: { month: string; date: string; net: number
   };
 }
 export const payrollTag = (month: string) => `[PAYROLL-${month}]`;
+
+/**
+ * Petty cash (§3.11): a top-up moves money from the bank to the cash account (cash debit ←
+ * bank credit), a return moves it back. Journal entries have no reference: the entry's tag in
+ * the description is how a retry finds it again.
+ */
+export function pettyTransferBody(j: { entryId: string; kind: "topup" | "return"; date: string; amount: number; holder: string; bankAccountId: number; cashAccountId: number }) {
+  const amount = r2(j.amount);
+  const [debit, credit] = j.kind === "topup" ? [j.cashAccountId, j.bankAccountId] : [j.bankAccountId, j.cashAccountId];
+  const what = j.kind === "topup" ? "تعبئة عهدة" : "استرجاع عهدة";
+  return {
+    journal_entry: {
+      description: `${pettyTag(j.entryId)} — ${what}: ${j.holder}`.slice(0, 250),
+      date: j.date,
+      debit_amounts: [{ account_id: debit, amount, comment: what }],
+      credit_amounts: [{ account_id: credit, amount, comment: what }],
+    },
+  };
+}
+export const pettyTag = (entryId: string) => `[PETTY-${entryId}]`;
+
+/** A subcontractor bill's account: subcontracting expense when chosen, else the general expense account. */
+export function subcontractExpenseAccount(s: { subcontract_account_id: number | null; expense_account_id: number | null }): number | null {
+  return s.subcontract_account_id ?? s.expense_account_id ?? null;
+}
+
+/**
+ * VAT on a payment to a subcontractor: only when the company is VAT-registered (its VAT %
+ * is > 0) and the subcontractor has a VAT number — the amount paid is then VAT-inclusive.
+ */
+export function subcontractorBillAmounts(amount: number, companyVatPercent: number, subcontractorVat: string | null | undefined) {
+  const total = r2(amount);
+  if (!(companyVatPercent > 0) || !subcontractorVat?.trim()) return { subtotal: total, vat: 0, total };
+  const subtotal = netOf(total, companyVatPercent);
+  return { subtotal, vat: r2(total - subtotal), total };
+}
+
+type SetupState = {
+  inventory_id: number | null; receive_account_id: number | null; expense_account_id: number | null; addendum_product_id: number | null;
+  salary_account_id: number | null; cash_account_id: number | null; subcontract_account_id: number | null;
+  service_products: Record<string, number> | null; auto_setup_at: string | null;
+};
+/**
+ * Whether the worker should run the automatic Qoyod setup again: always when something every
+ * invoice/bill needs is missing; when only optional accounts (salary, cash, subcontracting —
+ * which have fallbacks or are picked on exact names only) are empty, at most once a day.
+ */
+export function autoSetupDue(s: SetupState, now: Date = new Date()): boolean {
+  const p = s.service_products ?? {};
+  if (!s.inventory_id || !s.receive_account_id || !s.expense_account_id || !s.addendum_product_id || !p.gypsum || !p.interior || !p.exterior) return true;
+  if (s.salary_account_id && s.cash_account_id && s.subcontract_account_id) return false;
+  return !s.auto_setup_at || now.getTime() - new Date(s.auto_setup_at).getTime() >= 24 * 3_600_000;
+}
 export const billPaymentRef = (purchaseNumber: string) => `${purchaseNumber}/PAID`;
 /** Subcontractor payments and petty-cash expenses have no document number: a short, unique id. */
 const shortId = (uuid: string) => uuid.replace(/-/g, "").slice(0, 12).toUpperCase();

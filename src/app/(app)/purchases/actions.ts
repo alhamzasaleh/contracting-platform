@@ -8,7 +8,7 @@ import { runBackground } from "@/lib/background";
 import { fieldErrors, type ActionResult } from "@/lib/actions";
 import { readInvoice, type InvoiceMedia } from "@/lib/ai/invoice";
 import { can, getSession } from "@/lib/auth/session";
-import { invoiceFlags, lineAmount, purchaseTotals, type InvoiceDraft, type InvoiceFlag } from "@/lib/purchases";
+import { invoiceFlags, itemsToLink, lineAmount, purchaseTotals, type InvoiceDraft, type InvoiceFlag } from "@/lib/purchases";
 import { rateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
@@ -92,6 +92,8 @@ const lineSchema = z
     quantity: z.number().positive().max(1_000_000),
     unit: z.string().trim().min(1).max(20),
     unit_price: z.number().min(0).max(10_000_000),
+    /** the catalogue product of a suggested line (quote purchase list) — links an unlinked stock item */
+    product_id: id.nullable().optional(),
   })
   .strict()
   .refine((l) => l.kind === "expense" || l.item_id || l.new_item, { message: "itemRequired", path: ["item_id"] });
@@ -133,7 +135,10 @@ export async function savePurchase(input: unknown): Promise<ActionResult<{ numbe
       if (existing) {
         itemId = existing.id;
         // link an existing unlinked item to the chosen catalogue product (calibration)
-        if (l.new_item.product_id && !existing.product_id) await ctx.supabase.from("inventory_items").update({ product_id: l.new_item.product_id }).eq("id", existing.id);
+        if (l.new_item.product_id && !existing.product_id) {
+          const { error } = await ctx.supabase.from("inventory_items").update({ product_id: l.new_item.product_id }).eq("id", existing.id).is("product_id", null);
+          if (error) return fail(error, "link item");
+        }
       }
       else {
         const { data: created, error } = await ctx.supabase.from("inventory_items").insert({ organization_id: ctx.orgId, ...l.new_item }).select("id").single();
@@ -142,6 +147,15 @@ export async function savePurchase(input: unknown): Promise<ActionResult<{ numbe
       }
     }
     lines.push({ kind: l.kind, item_id: itemId, description: l.description, colour: l.colour, quantity: l.quantity, unit: l.unit, unit_price: l.unit_price, amount: lineAmount(l.quantity, l.unit_price) });
+  }
+  // suggested lines that matched an existing, unlinked stock item carry its catalogue product: link it
+  const picked = [...new Set(d.lines.filter((l) => l.kind === "material" && l.item_id && l.product_id).map((l) => l.item_id as string))];
+  if (picked.length) {
+    const { data: current } = await ctx.supabase.from("inventory_items").select("id, product_id").eq("organization_id", ctx.orgId).in("id", picked);
+    for (const link of itemsToLink(d.lines, current ?? [])) {
+      const { error } = await ctx.supabase.from("inventory_items").update({ product_id: link.product_id }).eq("id", link.id).eq("organization_id", ctx.orgId).is("product_id", null);
+      if (error) return fail(error, "link item");
+    }
   }
   const totals = purchaseTotals(lines, d.vat);
   const row = {

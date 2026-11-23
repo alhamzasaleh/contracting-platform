@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { aiConfigured } from "@/lib/ai/invoice";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { Line } from "@/lib/engine";
-import { linesFromPurchaseList, stockBalances, type ListLine } from "@/lib/purchases";
+import { linesFromPurchaseList, markBought, stockBalances, type ListLine } from "@/lib/purchases";
 import type { PurchaseItem } from "@/lib/quotes";
 import type { PurchaseStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -35,9 +35,13 @@ export type PurchaseForm = {
   vatRegistered: boolean;
   /** catalogue products a stock item can be linked to (calibration) — catalogue.view */
   products?: { id: string; label: string }[];
-  /** the project's accepted quote purchase list, ready as lines (costs.view) */
-  quoteList?: { contract_id: string; lines: ListLine[] } | null;
+  /**
+   * Each accepted project's quote purchase list, ready as lines (costs.view), keyed by contract id,
+   * with what was already bought for that project (recorded or waiting purchases).
+   */
+  quoteLists?: Record<string, QuoteListLine[]>;
 };
+export type QuoteListLine = ListLine & { bought: number; remaining: number };
 
 async function projectsMap(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string, canSee: boolean) {
   if (!canSee) return new Map<string, ProjectRef>();
@@ -114,19 +118,40 @@ export async function loadPurchaseForm(session: SessionContext, number?: string,
     projectsMap(supabase, orgId, can(session, "quotes.view")),
     loadProductOptions(session),
   ]);
-  // G2: the accepted quote version's purchase list → suggested lines (costs.view: it carries quoted costs)
-  let quoteList: PurchaseForm["quoteList"] = null;
-  if (projectNumber && can(session, "costs.view")) {
-    const { data: c } = await supabase.from("contracts").select("id, quote_id, quote_version, status").eq("organization_id", orgId).eq("number", projectNumber).maybeSingle();
-    if (c?.status === "accepted") {
-      const { data: v } = await supabase.from("quote_versions").select("id").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle();
-      const { data: costs } = v ? await supabase.from("quote_version_costs").select("purchase_list").eq("quote_version_id", v.id).maybeSingle() : { data: null };
-      const list = (costs?.purchase_list ?? []) as unknown as PurchaseItem[];
-      if (list.length) quoteList = { contract_id: c.id, lines: linesFromPurchaseList(list, (items ?? []).map((i) => ({ ...i, product_id: i.product_id ?? null }))) };
+  // G2: every accepted project's quote purchase list → suggested lines (costs.view: it carries quoted costs),
+  // so picking the project inside the form offers it too; the project from the link comes first
+  const quoteLists: Record<string, QuoteListLine[]> = {};
+  if (can(session, "costs.view") && can(session, "quotes.view")) {
+    const { data: accepted } = await supabase.from("contracts").select("id, number, quote_id, quote_version").eq("organization_id", orgId).eq("status", "accepted").order("created_at", { ascending: false }).limit(200);
+    const cons = accepted ?? [];
+    if (projectNumber && !cons.some((c) => c.number === projectNumber)) {
+      const { data: one } = await supabase.from("contracts").select("id, number, quote_id, quote_version").eq("organization_id", orgId).eq("status", "accepted").eq("number", projectNumber).maybeSingle();
+      if (one) cons.push(one);
+    }
+    const { data: versions } = cons.length ? await supabase.from("quote_versions").select("id, quote_id, version").in("quote_id", [...new Set(cons.map((c) => c.quote_id))]) : { data: [] };
+    const vid = new Map((versions ?? []).map((v) => [`${v.quote_id}|${v.version}`, v.id]));
+    const ids = cons.map((c) => vid.get(`${c.quote_id}|${c.quote_version}`)).filter(Boolean) as string[];
+    const [{ data: costs }, { data: boughtRows }] = await Promise.all([
+      ids.length ? supabase.from("quote_version_costs").select("quote_version_id, purchase_list").in("quote_version_id", ids) : Promise.resolve({ data: [] as { quote_version_id: string; purchase_list: unknown }[] }),
+      cons.length
+        ? supabase.from("purchase_lines").select("item_id, unit, quantity, purchases!inner(contract_id, status)").eq("organization_id", orgId).eq("kind", "material").in("purchases.contract_id", cons.map((c) => c.id)).in("purchases.status", ["recorded", "pending_approval"]).limit(20000)
+        : Promise.resolve({ data: [] }),
+    ]);
+    const listOf = new Map((costs ?? []).map((c) => [c.quote_version_id, (c.purchase_list ?? []) as unknown as PurchaseItem[]]));
+    const itemRefs = (items ?? []).map((i) => ({ ...i, product_id: i.product_id ?? null }));
+    const productOf = new Map(itemRefs.map((i) => [i.id, i.product_id]));
+    type Bought = { item_id: string | null; unit: string; quantity: number; purchases: { contract_id: string | null } | { contract_id: string | null }[] };
+    for (const c of cons) {
+      const list = listOf.get(vid.get(`${c.quote_id}|${c.quote_version}`) ?? "") ?? [];
+      if (!list.length) continue;
+      const bought = ((boughtRows ?? []) as unknown as Bought[])
+        .filter((b) => (Array.isArray(b.purchases) ? b.purchases[0]?.contract_id : b.purchases?.contract_id) === c.id)
+        .map((b) => ({ item_id: b.item_id, product_id: b.item_id ? (productOf.get(b.item_id) ?? null) : null, unit: b.unit, quantity: n(b.quantity) }));
+      quoteLists[c.id] = markBought(linesFromPurchaseList(list, itemRefs), bought);
     }
   }
   return {
-    quoteList,
+    quoteLists,
     products,
     purchase,
     suppliers: suppliers ?? [],
@@ -171,7 +196,7 @@ export type ProjectCost = ProjectRef & {
   actual: number;
   /** in-house labour: scheduled work days (up to today) × the team's loaded cost per day — totals only, costs.view + hr.view (null without them) */
   labour?: number | null;
-  /** maintenance not covered by the warranty (its cost is ours) */
+  /** maintenance covered by the warranty (the company pays; repairs charged to the client are not our cost) */
   maintenance?: number;
 };
 
@@ -188,7 +213,7 @@ export async function loadProjectCosts(session: SessionContext): Promise<Project
     supabase.from("subcontractor_agreements").select("id, contract_id").eq("organization_id", orgId),
     supabase.from("petty_cash_entries").select("contract_id, amount").eq("organization_id", orgId).eq("kind", "expense").not("contract_id", "is", null).limit(20000),
   ]);
-  const { data: repairs } = await supabase.from("maintenance_requests").select("contract_id, cost").eq("organization_id", orgId).eq("covered", false).gt("cost", 0).limit(20000);
+  const { data: repairs } = await supabase.from("maintenance_requests").select("contract_id, cost").eq("organization_id", orgId).eq("covered", true).gt("cost", 0).limit(20000);
   // in-house labour from the schedule (database function: totals only, but built from salaries → hr.view too)
   const { data: labourRows } = can(session, "costs.view") && can(session, "hr.view") ? await supabase.rpc("project_labour_costs", { p_org: orgId }) : { data: null };
   const labourOf = new Map((labourRows ?? []).map((l) => [l.contract_id, n(l.labour)]));

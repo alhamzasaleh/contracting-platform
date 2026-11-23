@@ -4,7 +4,8 @@ import { aiConfigured } from "@/lib/ai/invoice";
 import { can, type SessionContext } from "@/lib/auth/session";
 import { loadProjectCosts } from "@/lib/data/purchases";
 import { currentStage, overallProgress } from "@/lib/execution";
-import { addDays } from "@/lib/schedule";
+import { deliveryDate } from "@/lib/contracts";
+import { loadBookingTeam, loadWarrantyEnd } from "@/lib/data/contracts";
 import type { ServiceKind } from "@/lib/pricing";
 import type { StageStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -56,8 +57,10 @@ export type ProjectDetail = {
   addenda?: { number: string; title: string; total: number; payment_status: "pending" | "requested" | "paid"; extra_days: number }[];
   /** planned start, delivery (incl. accepted addenda days) and the warranty end once handed over */
   dates?: { start: string; delivery: string; extraDays: number; warrantyEnd: string | null };
-  /** estimated vs actual cost (costs.view) — details on /purchases/costs */
-  cost?: { estimated: number | null; actual: number } | null;
+  /** estimated materials vs actual materials, and the full actual cost (costs.view) — details on /purchases/costs */
+  cost?: { estimated: number | null; materials: number; actual: number } | null;
+  /** the team priced on the quote (G1) — pre-selected when opening the schedule */
+  bookTeam?: string | null;
   /** open maintenance requests on this project */
   openMaintenance?: number;
   /** may open the schedule (schedule.view) */
@@ -73,7 +76,7 @@ export type ProjectDetail = {
 export async function loadProject(session: SessionContext, number: string): Promise<ProjectDetail> {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const { data: c } = await supabase.from("contracts").select("id, number, service, start_date, duration_days, warranty_months, accepted_at, client_id, status").eq("organization_id", orgId).eq("number", number).maybeSingle();
+  const { data: c } = await supabase.from("contracts").select("id, number, service, start_date, duration_days, warranty_months, accepted_at, client_id, status, quote_id, quote_version").eq("organization_id", orgId).eq("number", number).maybeSingle();
   if (!c || c.status !== "accepted") notFound();
   const [{ data: client }, { data: stages }, { data: updates }, { data: visits }, { data: notes }, { data: payments }, { data: members }] = await Promise.all([
     supabase.from("clients").select("name, phone, city, district, location_url").eq("id", c.client_id).maybeSingle(),
@@ -84,19 +87,16 @@ export async function loadProject(session: SessionContext, number: string): Prom
     supabase.from("contract_payments").select("seq, label, amount, due_event, status").eq("contract_id", c.id).order("seq"),
     supabase.from("profiles").select("id, full_name"),
   ]);
-  const [{ data: addenda }, { count: openMaintenance }, costs] = await Promise.all([
+  const [{ data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam] = await Promise.all([
     supabase.from("addenda").select("number, title, total, payment_status, extra_days").eq("contract_id", c.id).eq("status", "accepted").order("created_at"),
     supabase.from("maintenance_requests").select("id", { count: "exact", head: true }).eq("contract_id", c.id).in("status", ["open", "in_progress", "resolved"]),
     can(session, "costs.view") ? loadProjectCosts(session) : Promise.resolve(null),
+    // the database's own warranty end (handover + warranty months)
+    loadWarrantyEnd(session, c.id),
+    // G1: the team priced on the quote, pre-selected when booking
+    supabase.from("quote_versions").select("selection").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle().then(({ data }) => loadBookingTeam(session, data?.selection)),
   ]);
   const extraDays = (addenda ?? []).reduce((s, a) => s + a.extra_days, 0);
-  const handover = (stages ?? []).find((s) => s.is_final && s.status === "confirmed")?.confirmed_at ?? null;
-  let warrantyEnd: string | null = null;
-  if (handover) {
-    const d = new Date(new Date(handover).toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }) + "T00:00:00Z");
-    d.setUTCMonth(d.getUTCMonth() + c.warranty_months);
-    warrantyEnd = d.toISOString().slice(0, 10);
-  }
   const own = costs?.find((x) => x.id === c.id);
   // short-lived signed URLs for every photo on the page (private bucket)
   const paths = [...new Set([...(updates ?? []).flatMap((u) => u.photos), ...(notes ?? []).flatMap((n) => n.photos)])];
@@ -117,9 +117,11 @@ export async function loadProject(session: SessionContext, number: string): Prom
     notes: (notes ?? []).map((n) => ({ ...n, photos: n.photos.map(photo) })),
     payments: (payments ?? []).map((p) => ({ ...p, amount: Number(p.amount) })),
     addenda: (addenda ?? []).map((a) => ({ ...a, total: Number(a.total) })),
-    // delivery = the last working day: start + duration (+ addenda days) − 1, as on the schedule
-    dates: { start: c.start_date, delivery: addDays(c.start_date, c.duration_days + extraDays - 1), extraDays, warrantyEnd },
-    cost: own ? { estimated: own.estimated, actual: own.actual } : null,
+    // delivery: the same date as the contract page (start + duration + accepted addenda days)
+    dates: { start: c.start_date, delivery: deliveryDate(c.start_date, c.duration_days, extraDays), extraDays, warrantyEnd },
+    // the estimate covers materials only: compare it with actual materials; the full actual apart
+    cost: own ? { estimated: own.estimated, materials: own.materialsActual, actual: own.actual } : null,
+    bookTeam,
     openMaintenance: openMaintenance ?? 0,
     canSchedule: can(session, "schedule.view"),
     canManage: can(session, "projects.manage"),

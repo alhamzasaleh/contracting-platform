@@ -8,7 +8,8 @@ import { z } from "zod";
 import { runBackground } from "@/lib/background";
 import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
-import { linkExpiry, percentSum, scheduleAmounts } from "@/lib/contracts";
+import { linkExpiry, percentSum, portalLinkState, scheduleAmounts } from "@/lib/contracts";
+import { loadWarrantyEnd } from "@/lib/data/contracts";
 import { effectiveVatPercent } from "@/lib/costing";
 import { paymentRequestError } from "@/lib/finance";
 import { termsSchema } from "@/lib/contracts/terms";
@@ -128,6 +129,11 @@ export async function sendContract(input: unknown): Promise<ActionResult<{ url: 
   const supabase = await createClient();
   const { data: c } = await supabase.from("contracts").select("id, number, status, start_date, duration_days, warranty_months").eq("id", parsed.data.id).eq("organization_id", session.organization.id).maybeSingle();
   if (!c || c.status === "cancelled") return { ok: false, error: "invalid" };
+  // the client page closes when the warranty ends: no new link after that
+  if (c.status === "accepted") {
+    const end = await loadWarrantyEnd(session, c.id);
+    if (portalLinkState(c.status, end, new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" })).warrantyEnded) return { ok: false, error: "warrantyEnded" };
+  }
 
   const token = randomBytes(32).toString("base64url");
   const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");

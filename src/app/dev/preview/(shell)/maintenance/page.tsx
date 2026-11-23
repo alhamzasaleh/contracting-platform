@@ -23,7 +23,7 @@ export default function PreviewMaintenance() {
   return (
     <div>
       <PageHeader title="الصيانة والضمان" />
-      <MaintenanceView data={DATA} focus={null} />
+      <MaintenanceView data={DATA} focus={null} base="/dev/preview" />
     </div>
   );
 }

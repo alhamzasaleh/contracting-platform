@@ -47,6 +47,8 @@ export type ContractDraft = {
   suggestedDays: number;
   defaultWarranty: number;
   materialCost: number | null;
+  /** the team priced on the quote (G1) — the earliest-start suggestion uses it when known */
+  bookTeam?: string | null;
 };
 
 /** Data for creating a contract from a quote, or editing a draft/sent one. */
@@ -91,6 +93,7 @@ export async function loadContractDraft(session: SessionContext, by: { quoteNumb
     suggestedDays: suggestedDays(area, n(rate?.value) || (q.service === "gypsum" ? 40 : q.service === "interior" ? 120 : 100)),
     defaultWarranty: Number(settings?.default_warranty_months ?? 6),
     materialCost: can(session, "costs.view") ? await materialCost(supabase, q.id, q.current_version) : null,
+    bookTeam: await loadBookingTeam(session, ver?.selection),
   };
 }
 
@@ -137,7 +140,34 @@ export type ContractDetail = {
   canCosts?: boolean;
   /** the team chosen when pricing (in-house team, or the external rate's subcontractor team) — pre-selected when booking */
   bookTeam?: string | null;
+  /** warranty end from the database (private.warranty_end) once handed over — closes the client page */
+  warrantyEnd?: string | null;
+  /** today in Riyadh (YYYY-MM-DD), so the view and the server agree */
+  today?: string;
 };
+
+/**
+ * G1: the team to book for a quote version's labour (the in-house team picked when pricing, or
+ * the external rate's subcontractor team) — shared by the contract editor, contract and project pages.
+ */
+export async function loadBookingTeam(session: SessionContext, selection: unknown): Promise<string | null> {
+  const labour = (selection as { labour?: { source: string; teamId?: string | null; externalId?: string | null } } | null | undefined)?.labour ?? null;
+  if (!labour || labour.source === "rates" || !can(session, "schedule.view")) return null;
+  const supabase = await createClient();
+  const [{ data: teams }, { data: rates }] = await Promise.all([
+    supabase.from("teams").select("id, subcontractor_id").eq("organization_id", session.organization.id).eq("is_active", true),
+    labour.source === "external" && labour.externalId ? supabase.from("labour_rates").select("id, subcontractor_id").eq("id", labour.externalId) : Promise.resolve({ data: [] as { id: string; subcontractor_id: string | null }[] }),
+  ]);
+  return bookingTeam(labour, rates ?? [], teams ?? []);
+}
+
+/** The warranty end the database computes (handover + warranty months); null before handover or without projects.view. */
+export async function loadWarrantyEnd(session: SessionContext, contractId: string): Promise<string | null> {
+  if (!can(session, "projects.view")) return null;
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("contract_warranties", { p_org: session.organization.id });
+  return (data ?? []).find((w) => w.contract_id === contractId)?.warranty_end ?? null;
+}
 
 export type AddendumView = {
   id: string; number: string; title: string; description: string; amount: number; vat: number; total: number; extra_days: number;
@@ -179,16 +209,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
     c.status === "accepted" ? supabase.rpc("requestable_payments", { p_org: orgId, p_contract: c.id }) : Promise.resolve({ data: [] as { payment_id: string }[] }),
   ]);
   const requestable = new Set((requestableRows ?? []).map((r) => r.payment_id));
-  // G1: the team picked when pricing → booked in the schedule
-  const labour = (ver?.selection as { labour?: { source: string; teamId?: string | null; externalId?: string | null } } | null)?.labour ?? null;
-  let bookTeam: string | null = null;
-  if (labour && labour.source !== "rates" && can(session, "schedule.view")) {
-    const [{ data: teams }, { data: rates }] = await Promise.all([
-      supabase.from("teams").select("id, subcontractor_id").eq("organization_id", orgId).eq("is_active", true),
-      labour.source === "external" && labour.externalId ? supabase.from("labour_rates").select("id, subcontractor_id").eq("id", labour.externalId) : Promise.resolve({ data: [] as { id: string; subcontractor_id: string | null }[] }),
-    ]);
-    bookTeam = bookingTeam(labour, rates ?? [], teams ?? []);
-  }
+  const [bookTeam, warrantyEnd] = await Promise.all([loadBookingTeam(session, ver?.selection), c.status === "accepted" ? loadWarrantyEnd(session, c.id) : Promise.resolve(null)]);
   const [{ data: invoices }, { count: openMaintenance }] = await Promise.all([
     can(session, "finance.view")
       ? supabase.from("invoices").select("number, description, total, issue_date").eq("contract_id", c.id).order("issue_date").order("number")
@@ -236,6 +257,8 @@ export async function loadContract(session: SessionContext, number: string): Pro
     })),
     canCosts: can(session, "costs.view"),
     bookTeam,
+    warrantyEnd,
+    today,
     canDecide: can(session, "approvals.decide"),
     canFinance: can(session, "finance.manage"),
     terms: parseTerms(c.terms),

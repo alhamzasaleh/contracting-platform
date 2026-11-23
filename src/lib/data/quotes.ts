@@ -167,6 +167,8 @@ export type QuoteDetail = {
   internal: { cost: number; costWithContingency: number; marginPercent: number; lines: Line[]; purchaseList: PurchaseItem[] } | null;
   approvals: { id: string; kind: string; status: string; details: Record<string, unknown>; decided_at: string | null; decision_note: string | null }[];
   canManage: boolean;
+  /** may record purchases (purchases.manage) — «create a purchase» from the list once the contract is accepted */
+  canPurchase?: boolean;
   canDecide: boolean;
   contract: { number: string; status: string } | null;
 };
@@ -202,6 +204,7 @@ export async function loadQuote(session: SessionContext, number: string): Promis
     internal,
     approvals: (approvals ?? []).map((a) => ({ ...a, details: (a.details ?? {}) as Record<string, unknown> })),
     canManage: can(session, "quotes.manage") && can(session, "costs.view"),
+    canPurchase: can(session, "purchases.manage"),
     canDecide: can(session, "approvals.decide"),
     contract: contract ?? null,
   };

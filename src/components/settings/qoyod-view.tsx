@@ -238,7 +238,7 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
         </Card>
       )}
 
-      {connected && (data.draftInvoices?.length ?? 0) > 0 && (
+      {connected && ((data.draftInvoices?.length ?? 0) > 0 || (data.draftCount ?? 0) > 0) && (
         <Card className="border-warning/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -247,8 +247,9 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
             <CardDescription>{t("draftListHint")}</CardDescription>
           </CardHeader>
           <CardContent>
+            {!data.draftInvoices?.length && <p className="text-[13px]">{t("draftCount", { n: data.draftCount ?? 0 })}</p>}
             <ul className="flex flex-wrap gap-2">
-              {data.draftInvoices!.map((n) => (
+              {(data.draftInvoices ?? []).map((n) => (
                 <li key={n}>
                   {data.canViewInvoices ? (
                     <Link href={`${base}/invoices/${n}`} className="inline-flex min-h-9 items-center rounded-full border border-border px-3 py-1 text-[13px] hover:border-primary hover:text-primary">

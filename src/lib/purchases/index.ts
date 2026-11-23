@@ -115,3 +115,54 @@ export function linesFromPurchaseList(list: ListItem[], items: { id: string; nam
   }
   return out;
 }
+
+/**
+ * G2: what is already bought for the project (recorded or waiting purchases) against each
+ * suggested line — by its stock item, else by its catalogue product (and unit). One purchase
+ * line is counted once even when several suggested lines share the product (e.g. two pack sizes).
+ */
+export function markBought(
+  lines: ListLine[],
+  bought: { item_id: string | null; product_id: string | null; unit: string; quantity: number }[],
+): (ListLine & { bought: number; remaining: number })[] {
+  const pool = bought.map((b) => ({ ...b, left: b.quantity }));
+  return lines.map((l) => {
+    let need = l.quantity;
+    let got = 0;
+    const take = (match: (b: (typeof pool)[number]) => boolean) => {
+      for (const b of pool) {
+        if (need <= 0) break;
+        if (b.left <= 0 || !match(b)) continue;
+        const q = Math.min(b.left, need);
+        b.left -= q;
+        need -= q;
+        got += q;
+      }
+    };
+    if (l.item !== "new") take((b) => b.item_id === l.item);
+    if (l.product_id) take((b) => b.product_id === l.product_id && b.unit === l.unit);
+    return { ...l, bought: r2(got), remaining: r2(Math.max(0, l.quantity - got)) };
+  });
+}
+
+/** Add suggested lines to the form without wiping what is there (AI-read lines); blank rows give way. */
+export function mergeRows<T>(existing: T[], incoming: T[], isBlank: (r: T) => boolean): T[] {
+  return [...existing.filter((r) => !isBlank(r)), ...incoming];
+}
+
+/**
+ * G3: purchase lines on an existing stock item that isn't linked to a catalogue product yet,
+ * but whose suggested line carries one (from the quote's purchase list) → link it (calibration).
+ */
+export function itemsToLink(
+  lines: { kind: "material" | "expense"; item_id: string | null; product_id?: string | null }[],
+  items: { id: string; product_id: string | null }[],
+): { id: string; product_id: string }[] {
+  const out = new Map<string, string>();
+  for (const l of lines) {
+    if (l.kind !== "material" || !l.item_id || !l.product_id || out.has(l.item_id)) continue;
+    const it = items.find((i) => i.id === l.item_id);
+    if (it && !it.product_id) out.set(it.id, l.product_id);
+  }
+  return [...out].map(([id, product_id]) => ({ id, product_id }));
+}

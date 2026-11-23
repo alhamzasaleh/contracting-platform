@@ -80,6 +80,8 @@ export function NotificationBell({ data, base, preview }: { data: Data; base: st
         return t(Number(p.profit) < 0 ? "project_losing" : "project_low", { number, client: s("client"), profit: fmt.money(Number(p.profit ?? 0)) });
       case "missed_visit":
         return t("missed_visit", { number, client: s("client"), days: fmt.number(Number(p.days ?? 0)) });
+      case "agreement_review":
+        return t("agreement_review", { number, addendum: ltr(s("addendum")), count: fmt.number(Number(p.count ?? 0)) });
       case "doc_expiry":
         return Number(p.days) <= 0
           ? t("doc_expired", { doc: t(`doc_${s("doc")}`), name: s("name") })

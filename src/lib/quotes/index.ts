@@ -127,3 +127,14 @@ export function readiness(o: PricingOutcome, snap: QuoteSnapshot, minMargin: num
   if (snap.clientView.discount > 0) approvals.push("quote_discount");
   return { blocking, approvals };
 }
+
+/**
+ * What still blocks issuing when the issuer re-prices a frozen version with his own context.
+ * In-house crew costs come from salaries (hr.view): an issuer who can't see them would always
+ * get a "labour" problem, so for him the frozen version's own count stands (the database's
+ * issue_quote refuses any version saved with problems).
+ */
+export function issueBlockers<P extends { reason: string }>(problems: P[], sel: Pick<Selection, "labour">, canSeeCrewCost: boolean): P[] {
+  if (canSeeCrewCost || sel.labour?.source !== "inhouse") return problems;
+  return problems.filter((p) => p.reason !== "labour");
+}

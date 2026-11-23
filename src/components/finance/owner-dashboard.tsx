@@ -135,6 +135,7 @@ function CashFlow({ f, actions }: { f: OwnerFinance; actions?: FinanceActions })
       ) : (
         <p className="mt-1 text-[12px] text-subtle-foreground">{t("tapWeek")}</p>
       )}
+      <p className="mt-1 text-[12px] text-subtle-foreground">{t("forecastNote")}</p>
       {editing && <CashDialog f={f} onClose={() => setEditing(false)} save={actions?.saveCash} />}
     </motion.section>
   );

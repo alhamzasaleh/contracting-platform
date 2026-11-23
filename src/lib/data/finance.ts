@@ -4,7 +4,7 @@ import { loadProjectCosts } from "@/lib/data/purchases";
 import type { Line } from "@/lib/engine";
 import { overallProgress } from "@/lib/execution";
 import { employeeCost, type CostItem } from "@/lib/costing";
-import { addendumPaid, ageing, expectedPaymentDate, paydays, payrollFlows, projectProfit, remainingAmount, weeklyForecast, type AgeBucket, type DueEvent, type Flow, type ForecastWeek } from "@/lib/finance";
+import { addendumPaid, ageing, cashStatutoryItems, expectedPaymentDate, paydays, payrollFlows, projectProfit, remainingAmount, weeklyForecast, type AgeBucket, type DueEvent, type Flow, type ForecastWeek } from "@/lib/finance";
 import type { ServiceKind } from "@/lib/pricing";
 import { costStatus } from "@/lib/purchases";
 import { addDays } from "@/lib/schedule";
@@ -136,12 +136,12 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   if (can(session, "hr.view")) {
     const [{ data: employees }, { data: items }, { data: runs }] = await Promise.all([
       supabase.from("employees").select("is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances, status").eq("organization_id", orgId).neq("status", "final_exit"),
-      supabase.from("employee_cost_items").select("code, applies_to, basis, value, amortize_months, is_active").eq("organization_id", orgId),
+      supabase.from("employee_cost_items").select("code, applies_to, basis, value, amortize_months, is_active, is_provision").eq("organization_id", orgId),
       supabase.from("payroll_runs").select("id, month, status").eq("organization_id", orgId).gte("month", `${today.slice(0, 7)}-01`).order("month").limit(12),
     ]);
     payroll = r2((employees ?? []).reduce((s, e) => s + n(e.basic_salary) + n(e.housing_allowance) + n(e.transport_allowance) + n(e.other_allowances), 0));
-    // statutory items paid every month (GOSI %, monthly fees); annual / one-off items aren't monthly cash
-    const monthlyItems = ((items ?? []) as CostItem[]).filter((i) => i.basis === "percent" || i.basis === "monthly").map((i) => ({ ...i, value: n(i.value) }));
+    // statutory items paid every month (GOSI %, monthly fees); provisions and annual / one-off items aren't monthly cash
+    const monthlyItems: CostItem[] = cashStatutoryItems((items ?? []) as (CostItem & { is_provision: boolean })[]).map((i) => ({ ...i, value: n(i.value) }));
     const statutory = r2((employees ?? []).reduce((s, e) => s + employeeCost({ is_saudi: !!e.is_saudi, basic_salary: n(e.basic_salary), housing_allowance: n(e.housing_allowance), transport_allowance: n(e.transport_allowance), other_allowances: n(e.other_allowances) }, monthlyItems, 26).statutory.reduce((x, i) => x + i.monthly, 0), 0));
     // a month's payroll run: its net (after overtime, deductions and advances) replaces the gross
     const runIds = (runs ?? []).map((r) => r.id);

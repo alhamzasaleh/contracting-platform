@@ -82,3 +82,28 @@ export function InvoicesView({ data, base = "", today }: { data: InvoicesPageDat
     </div>
   );
 }
+
+/** Links under an invoice: its contract (only for quotes.view — else plain text) and the receipt vouchers it was paid with. */
+export function InvoiceLinks({ contract, canViewContract, receipts, base = "" }: { contract: string; canViewContract: boolean; receipts: { number: string; amount: number }[]; base?: string }) {
+  const t = useTranslations("invoice");
+  const { fmt } = useFormatter();
+  const no = <bdi dir="ltr" className="font-latin">{contract}</bdi>;
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+      {canViewContract ? (
+        <Link href={`${base}/contracts/${contract}`} className="text-primary hover:underline">
+          {t("contractLink")} {no}
+        </Link>
+      ) : (
+        <span className="text-muted-foreground" data-testid="invoice-contract-text">
+          {t("contractLink")} {no}
+        </span>
+      )}
+      {receipts.map((r) => (
+        <Link key={r.number} href={`${base}/print/receipts/${r.number}`} target="_blank" className="text-primary hover:underline">
+          {t("receiptLink")} <bdi dir="ltr" className="font-latin">{r.number}</bdi> · {fmt.money(r.amount)}
+        </Link>
+      ))}
+    </p>
+  );
+}

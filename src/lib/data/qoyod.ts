@@ -8,8 +8,10 @@ export type QoyodPageData = {
   settings: Pick<QoyodSettingsRow, "enabled" | "invoice_status" | "inventory_id" | "receive_account_id" | "expense_account_id" | "salary_account_id" | "cash_account_id" | "subcontract_account_id" | "service_products" | "addendum_product_id" | "key_last4" | "key_set_at" | "sync_from">;
   jobs: QoyodJobItem[];
   counts: { queued: number; done: number; failed: number };
-  /** invoices sent to Qoyod as drafts whose payments wait: the owner approves them in Qoyod (its API can't) */
+  /** invoices sent to Qoyod as drafts whose payments wait: the owner approves them in Qoyod (its API can't) — numbers only with finance.view */
   draftInvoices?: string[];
+  /** how many such invoices wait (shown without numbers to settings.manage users without finance.view) */
+  draftCount?: number;
   /** may open invoice pages (finance.view) — otherwise invoice numbers are plain text */
   canViewInvoices?: boolean;
   canManage: boolean;
@@ -25,9 +27,9 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
   const org = session.organization.id;
   const [{ data: s }, { data: jobs }, ...counts] = await Promise.all([
     supabase.from("qoyod_settings").select("enabled, invoice_status, inventory_id, receive_account_id, expense_account_id, salary_account_id, cash_account_id, subcontract_account_id, service_products, addendum_product_id, key_last4, key_set_at, sync_from").eq("organization_id", org).maybeSingle(),
-    supabase.from("qoyod_sync_jobs").select("id, kind, status, attempts, last_error, qoyod_id, amount, created_at, done_at, entity_type, entity_id").eq("organization_id", org).in("kind", ["invoice", "invoice_payment", "bill", "bill_payment", "payroll"]).order("created_at", { ascending: false }).limit(50),
+    supabase.from("qoyod_sync_jobs").select("id, kind, status, attempts, last_error, qoyod_id, amount, created_at, done_at, entity_type, entity_id").eq("organization_id", org).in("kind", ["invoice", "invoice_payment", "bill", "bill_payment", "payroll", "transfer"]).order("created_at", { ascending: false }).limit(50),
     ...(["queued", "done", "failed"] as const).map((st) =>
-      supabase.from("qoyod_sync_jobs").select("id", { count: "exact", head: true }).eq("organization_id", org).in("kind", ["invoice", "invoice_payment", "bill", "bill_payment", "payroll"]).in("status", st === "queued" ? ["queued", "running"] : [st]),
+      supabase.from("qoyod_sync_jobs").select("id", { count: "exact", head: true }).eq("organization_id", org).in("kind", ["invoice", "invoice_payment", "bill", "bill_payment", "payroll", "transfer"]).in("status", st === "queued" ? ["queued", "running"] : [st]),
     ),
   ]);
   const rows = jobs ?? [];
@@ -35,9 +37,11 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
   const { data: waiting } = await supabase.from("qoyod_sync_jobs").select("entity_type, entity_id").eq("organization_id", org).eq("kind", "invoice_payment").in("status", ["queued", "running"]).eq("last_error", "waiting:invoice_draft").limit(200);
   const waitPay = [...new Set((waiting ?? []).filter((w) => w.entity_type === "contract_payment").map((w) => w.entity_id))];
   const waitAd = [...new Set((waiting ?? []).filter((w) => w.entity_type === "addendum").map((w) => w.entity_id))];
+  // invoice numbers are finance documents (RLS: finance.view); without it only the count is shown
+  const seeInvoices = can(session, "finance.view");
   const [wp, wa] = await Promise.all([
-    waitPay.length ? supabase.from("invoices").select("number").in("payment_id", waitPay) : Promise.resolve({ data: [] as { number: string }[] }),
-    waitAd.length ? supabase.from("invoices").select("number").in("addendum_id", waitAd) : Promise.resolve({ data: [] as { number: string }[] }),
+    seeInvoices && waitPay.length ? supabase.from("invoices").select("number").in("payment_id", waitPay) : Promise.resolve({ data: [] as { number: string }[] }),
+    seeInvoices && waitAd.length ? supabase.from("invoices").select("number").in("addendum_id", waitAd) : Promise.resolve({ data: [] as { number: string }[] }),
   ]);
   const draftInvoices = [...new Set([...(wp.data ?? []), ...(wa.data ?? [])].map((i) => i.number))].sort();
   const ids = (t: string) => [...new Set(rows.filter((j) => j.entity_type === t).map((j) => j.entity_id))];
@@ -70,6 +74,7 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
     jobs: rows.map((j) => ({ id: j.id, kind: j.kind, status: j.status, attempts: j.attempts, last_error: j.last_error, qoyod_id: j.qoyod_id, created_at: j.created_at, done_at: j.done_at, amount: j.amount == null ? null : Number(j.amount), label: label.get(j.entity_id) ?? "—" })),
     counts: { queued: counts[0].count ?? 0, done: counts[1].count ?? 0, failed: counts[2].count ?? 0 },
     draftInvoices,
+    draftCount: waitPay.length + waitAd.length,
     canManage: can(session, "settings.manage"),
     canViewInvoices: can(session, "finance.view"),
     canRetry: can(session, "settings.manage") || can(session, "finance.manage"),

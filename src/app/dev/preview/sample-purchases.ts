@@ -38,12 +38,11 @@ export const SAMPLE_PURCHASE_FORM: PurchaseForm = {
     { id: "pr1", label: "Knauf — لوح جبس عادي 12.5 مم" },
     { id: "pr2", label: "Jotun — Fenomastic دهان جدران" },
   ],
-  quoteList: {
-    contract_id: "k0",
-    lines: [
-      { description: "لوح جبس عادي — Knauf (2.88)", colour: "", quantity: 150, unit: "pack", unit_price: 22, item: "new", product_id: "pr1", general: true },
-      { description: "دهان جدران — Jotun (18)", colour: "بيج", quantity: 4, unit: "pack", unit_price: 180, item: "new", product_id: "pr2", general: false },
-      { description: "فتحات صيانة", colour: "", quantity: 4, unit: "pcs", unit_price: 75, item: "new", product_id: null, general: true },
+  quoteLists: {
+    k0: [
+      { description: "لوح جبس عادي — Knauf (2.88)", colour: "", quantity: 150, unit: "pack", unit_price: 22, item: "new", product_id: "pr1", general: true, bought: 60, remaining: 90 },
+      { description: "دهان جدران — Jotun (18)", colour: "بيج", quantity: 4, unit: "pack", unit_price: 180, item: "new", product_id: "pr2", general: false, bought: 0, remaining: 4 },
+      { description: "فتحات صيانة", colour: "", quantity: 4, unit: "pcs", unit_price: 75, item: "new", product_id: null, general: true, bought: 0, remaining: 4 },
     ],
   },
 };

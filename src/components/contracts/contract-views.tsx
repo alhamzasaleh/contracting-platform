@@ -15,7 +15,7 @@ import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { ActionResult } from "@/lib/actions";
-import { capPercent, firstPaymentWarning, percentSum, scheduleAmounts, type DueEvent } from "@/lib/contracts";
+import { capPercent, firstPaymentWarning, percentSum, portalLinkState, scheduleAmounts, type DueEvent } from "@/lib/contracts";
 import type { ContractDetail, ContractDraft, ContractListItem } from "@/lib/data/contracts";
 import type { ContractStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
@@ -98,10 +98,11 @@ export function ContractEditor({
     if (!busy || !busy.teams.length || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return null;
     const exclude = draft.contract ? { contract_id: draft.contract.id } : undefined;
     return {
-      free: anyTeamFree(busy.teams, busy.entries, draft.quote.service, spanOf(start, days), exclude),
-      suggestion: suggestStart(busy.teams, busy.entries, draft.quote.service, today, days, exclude),
+      // the team priced on the quote, when known (G1)
+      free: anyTeamFree(busy.teams, busy.entries, draft.quote.service, spanOf(start, days), exclude, draft.bookTeam),
+      suggestion: suggestStart(busy.teams, busy.entries, draft.quote.service, today, days, exclude, draft.bookTeam),
     };
-  }, [busy, start, days, today, draft.contract, draft.quote.service]);
+  }, [busy, start, days, today, draft.contract, draft.quote.service, draft.bookTeam]);
   const setRow = (i: number, patch: Partial<Row>) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const remaining = Math.max(0, Math.round((100 - sum) * 100) / 100);
   // typing a percentage can never push the total above 100 %
@@ -283,7 +284,10 @@ export function ContractView({
   const first = detail.payments[0];
   const warn = detail.materialCost != null && first ? firstPaymentWarning(first.amount, detail.materialCost) : null;
   const phone = client.phone;
-  const message = url ? t("waMessage", { name: client.name, org: org.name, url }) : "";
+  const [today] = React.useState(() => detail.today ?? new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }));
+  // before acceptance the link carries the quote/contract; after it the client follows the project
+  const linkState = portalLinkState(c.status, detail.warrantyEnd ?? null, today);
+  const message = url ? t(linkState.message, { name: client.name, org: org.name, url }) : "";
 
   return (
     <div className="grid gap-6">
@@ -420,8 +424,13 @@ export function ContractView({
             </div>
           )}
           <div className="flex flex-wrap gap-2">
-            {/* reissue any time (also after acceptance, e.g. a lost or expired link) — the database keeps it valid until the warranty ends */}
-            {(
+            {/* reissue any time (also after acceptance, e.g. a lost or expired link) — the database keeps it valid until the warranty ends; not once it has ended */}
+            {linkState.warrantyEnded && detail.warrantyEnd && (
+              <p className="text-[13px] text-muted-foreground" data-testid="link-warranty-ended">
+                {t("linkWarrantyEnded", { date: fmt.date(detail.warrantyEnd) })}
+              </p>
+            )}
+            {linkState.canIssue && (
               <Button
                 size="sm"
                 loading={pending}

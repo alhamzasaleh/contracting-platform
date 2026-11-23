@@ -13,7 +13,7 @@ import type { ActionResult } from "@/lib/actions";
 import type { EmployeeCostItemRow } from "@/lib/supabase/database.types";
 import { SwitchField } from "@/components/catalogue/services-view";
 
-export type CostItemRow = Pick<EmployeeCostItemRow, "id" | "code" | "name_ar" | "applies_to" | "basis" | "value" | "amortize_months" | "is_active" | "last_reviewed_at">;
+export type CostItemRow = Pick<EmployeeCostItemRow, "id" | "code" | "name_ar" | "applies_to" | "basis" | "value" | "amortize_months" | "is_active" | "is_provision" | "last_reviewed_at">;
 
 export function CostItemsView({
   items,
@@ -77,6 +77,7 @@ export function CostItemsView({
                     <Badge tone={i.applies_to === "all" ? "primary" : "neutral"}>{applies[i.applies_to]}</Badge>
                     <span>{basisLabel[i.basis]}</span>
                     {i.basis === "one_time" && i.amortize_months && <span className="num">· {fmt.number(i.amortize_months)} {t("months")}</span>}
+                    {i.is_provision && <Badge tone="neutral">{t("provision")}</Badge>}
                   </p>
                 </div>
                 <div className="text-end">
@@ -113,6 +114,7 @@ export function CostItemsView({
                     value: str(fd, "value"),
                     amortize_months: editing.basis === "one_time" ? str(fd, "amortize_months") : "",
                     is_active: bool(fd, "is_active"),
+                    is_provision: bool(fd, "is_provision"),
                     mark_reviewed: true,
                   })),
               { onFieldErrors: setErrors, onSuccess: () => setEditing(null) },
@@ -130,6 +132,13 @@ export function CostItemsView({
           <label className="flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3">
             <span className="text-[14px]">{t("statusActive")}</span>
             <SwitchField name="is_active" defaultChecked={editing.is_active} />
+          </label>
+          <label className="flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3">
+            <span className="min-w-0">
+              <span className="block text-[14px]">{t("provision")}</span>
+              <span className="block text-[12px] text-muted-foreground">{t("provisionHint")}</span>
+            </span>
+            <SwitchField name="is_provision" defaultChecked={editing.is_provision} />
           </label>
           <p className="text-[13px] text-muted-foreground">{t("costsHint")}</p>
         </FormDialog>

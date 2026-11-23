@@ -3,7 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.types";
 import { qoyod, QoyodError } from "./client";
 import { qoyodAutoSetup } from "./setup";
-import { approveSimpleBillBody, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, simpleBillBody, simpleBillPaymentBody, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
+import { effectiveVatPercent } from "@/lib/costing";
+import { approveSimpleBillBody, autoSetupDue, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyTag, pettyTransferBody, simpleBillBody, simpleBillPaymentBody, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Ctx = { admin: Admin; key: string; s: QoyodSettingsRow };
@@ -68,10 +69,16 @@ export async function runQoyodSync(limit = 20): Promise<{ done: number; failed: 
   return result;
 }
 
-/** Something we create ourselves is missing (e.g. a service product) → prepare it in Qoyod now, once. */
+/**
+ * Something we create ourselves is missing (e.g. a service product) → prepare it in Qoyod now.
+ * Only optional accounts empty (salary, cash, subcontracting) → retried at most once a day.
+ */
 async function fillMissing(admin: Admin, key: string, s: QoyodSettingsRow): Promise<QoyodSettingsRow> {
   const products = s.service_products ?? {};
-  if (s.inventory_id && s.receive_account_id && s.expense_account_id && s.salary_account_id && s.subcontract_account_id && products.gypsum && products.interior && products.exterior && s.addendum_product_id) return s;
+  if (!autoSetupDue(s)) return s;
+  const attempt = new Date().toISOString();
+  await admin.from("qoyod_settings").update({ auto_setup_at: attempt }).eq("organization_id", s.organization_id);
+  s = { ...s, auto_setup_at: attempt };
   try {
     const { data: org } = await admin.from("organizations").select("vat_number").eq("id", s.organization_id).single();
     const auto = await qoyodAutoSetup(key, !!org?.vat_number);
@@ -166,9 +173,19 @@ async function subcontractorVendorId(ctx: Ctx, subcontractorId: string): Promise
 
 /**
  * What a "bill" job sends: a supplier purchase, a payment to a subcontractor (subcontracting
- * expense) or a petty-cash expense (expense account). The last two have no VAT recorded.
+ * expense; VAT-inclusive when both sides are VAT-registered) or a petty-cash expense (expense
+ * account; petty-cash entries record no VAT, so none is claimed).
  */
 type BillSource = { reference: string; contactId: number; issueDate: string; expenseAccountId: number; description: string; subtotal: number; vat: number; total: number };
+
+/** The company's VAT % — 0 without a VAT number (§3.3). */
+async function companyVatPercent(ctx: Ctx): Promise<number> {
+  const [{ data: org }, { data: ps }] = await Promise.all([
+    ctx.admin.from("organizations").select("vat_number").eq("id", ctx.s.organization_id).maybeSingle(),
+    ctx.admin.from("pricing_settings").select("vat_percent").eq("organization_id", ctx.s.organization_id).maybeSingle(),
+  ]);
+  return effectiveVatPercent(org?.vat_number, Number(ps?.vat_percent ?? 15));
+}
 
 async function billSource(ctx: Ctx, job: QoyodJobRow): Promise<BillSource> {
   const { admin, s } = ctx;
@@ -178,12 +195,18 @@ async function billSource(ctx: Ctx, job: QoyodJobRow): Promise<BillSource> {
     const { data: g } = await admin.from("subcontractor_agreements").select("subcontractor_id, contract_id, scope").eq("id", pay.agreement_id).single();
     const agr = need(g, "agreement");
     const { data: c } = await admin.from("contracts").select("number").eq("id", agr.contract_id).maybeSingle();
-    const expenseAccountId = need(s.subcontract_account_id, "subcontract_account");
+    // the subcontracting account when chosen, else the general expense account
+    const expenseAccountId = need(subcontractExpenseAccount(s), "expense_account");
     const contactId = await subcontractorVendorId(ctx, agr.subcontractor_id);
-    const amount = Number(pay.amount);
+    const [{ data: sub }, vatPercent] = await Promise.all([
+      admin.from("subcontractors").select("vat_number").eq("id", agr.subcontractor_id).maybeSingle(),
+      companyVatPercent(ctx),
+    ]);
+    // VAT-registered company + subcontractor with a VAT number: the amount paid includes VAT
+    const amounts = subcontractorBillAmounts(Number(pay.amount), vatPercent, sub?.vat_number);
     return {
       reference: subcontractorBillRef(pay.id), contactId, issueDate: pay.paid_on, expenseAccountId,
-      description: [c?.number, agr.scope, pay.reference].filter(Boolean).join(" — ").slice(0, 250), subtotal: amount, vat: 0, total: amount,
+      description: [c?.number, agr.scope, pay.reference].filter(Boolean).join(" — ").slice(0, 250), ...amounts,
     };
   }
   if (job.entity_type === "petty_cash") {
@@ -340,6 +363,24 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number> {
       const hit = existing?.journal_entries?.find((x) => x.description?.startsWith(tag));
       if (hit) return hit.id;
       const body = payrollJournalBody({ month, date: r.paid_on ?? today(), net: Number(job.amount ?? 0), employees: count ?? 0, salaryAccountId, bankAccountId });
+      const created = await qoyod<{ id?: number; journal_entry?: { id?: number } }>(ctx.key, "POST", "/journal_entries", body);
+      const id = Number(created.id ?? created.journal_entry?.id);
+      if (!id) throw new QoyodError(500, "no id returned");
+      return id;
+    }
+    case "transfer": {
+      // petty cash top-up (bank → cash) or return (cash → bank)
+      const bankAccountId = need(s.receive_account_id, "receive_account");
+      const cashAccountId = need(s.cash_account_id, "cash_account");
+      const { data: e } = await ctx.admin.from("petty_cash_entries").select("id, kind, entry_date, amount, account_id").eq("id", job.entity_id).single();
+      const entry = need(e, "petty_cash");
+      if (entry.kind === "expense") throw new Blocked("unsupported");
+      const { data: acc } = await ctx.admin.from("petty_cash_accounts").select("name").eq("id", entry.account_id).maybeSingle();
+      const tag = pettyTag(entry.id);
+      const existing = await qoyod<{ journal_entries?: { id: number; description?: string }[] }>(ctx.key, "GET", `/journal_entries?q[description_cont]=${encodeURIComponent(tag)}`).catch(() => null);
+      const hit = existing?.journal_entries?.find((x) => x.description?.startsWith(tag));
+      if (hit) return hit.id;
+      const body = pettyTransferBody({ entryId: entry.id, kind: entry.kind, date: entry.entry_date, amount: Number(job.amount ?? entry.amount), holder: acc?.name ?? "", bankAccountId, cashAccountId });
       const created = await qoyod<{ id?: number; journal_entry?: { id?: number } }>(ctx.key, "POST", "/journal_entries", body);
       const id = Number(created.id ?? created.journal_entry?.id);
       if (!id) throw new QoyodError(500, "no id returned");

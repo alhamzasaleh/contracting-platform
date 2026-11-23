@@ -35,11 +35,12 @@ export function MaintenanceView({ data, focus, contract = null, actions, base = 
   const warranties = contract ? data.warranties.filter((w) => w.number === contract) : data.warranties;
   const list = scoped.filter((r) => filter === "all" || active(r.status) || r.number === focus);
   const year = new Date().getFullYear().toString();
-  const cost = data.requests.filter((r) => r.created_at.startsWith(year)).reduce((s, r) => s + r.cost, 0);
+  // the numbers follow the ?contract= filter too
+  const cost = scoped.filter((r) => r.created_at.startsWith(year)).reduce((s, r) => s + r.cost, 0);
   const kpis = [
-    { label: t("kOpen"), value: data.requests.filter((r) => r.status === "open").length },
-    { label: t("kProgress"), value: data.requests.filter((r) => r.status === "in_progress").length },
-    { label: t("kAwaiting"), value: data.requests.filter((r) => r.status === "resolved").length },
+    { label: t("kOpen"), value: scoped.filter((r) => r.status === "open").length },
+    { label: t("kProgress"), value: scoped.filter((r) => r.status === "in_progress").length },
+    { label: t("kAwaiting"), value: scoped.filter((r) => r.status === "resolved").length },
   ];
 
   return (
@@ -92,7 +93,8 @@ export function MaintenanceView({ data, focus, contract = null, actions, base = 
               {warranties.map((w) => (
                 <li key={w.number} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
                   <span>
-                    <Link href={`${base}/contracts/${w.number}`} className="hover:underline">
+                    {/* the project page (projects.view, like this page) — the contract page needs quotes.view */}
+                    <Link href={`${base}/projects/${w.number}`} className="hover:underline">
                       <bdi dir="ltr" className="font-latin">{w.number}</bdi>
                     </Link>{" "}
                     · {w.client}
