@@ -72,7 +72,7 @@ export function useActionRunner() {
     });
   }
 
-  return { run, pending, fieldText };
+  return { run, pending, fieldText, errorText };
 }
 
 export function FormDialog({

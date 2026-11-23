@@ -151,3 +151,27 @@ test.describe("schedule (design preview)", () => {
     await expect(page.getByText(/أقرب بدء متاح/)).toBeVisible();
   });
 });
+
+test.describe("purchases & stock (design preview)", () => {
+  test("new purchase offers the camera, lines and totals", async ({ page }) => {
+    await page.goto("/dev/preview/purchases/new");
+    await expect(page.getByRole("button", { name: "صوّر الفاتورة" })).toBeVisible();
+    await page.getByLabel("الكمية").first().fill("10");
+    await page.getByLabel("سعر الوحدة").first().fill("22");
+    await page.getByRole("button", { name: "15%" }).click();
+    await expect(page.getByText("253.00").first()).toBeVisible();
+  });
+
+  test("purchase above the limit shows the approval and AI flags", async ({ page }) => {
+    await page.goto("/dev/preview/purchases/detail");
+    await expect(page.getByText(/فوق حد الموافقة/)).toBeVisible();
+    await expect(page.getByText(/الضريبة ليست 15%/)).toBeVisible();
+  });
+
+  test("stock and estimated vs actual", async ({ page }) => {
+    await page.goto("/dev/preview/purchases/inventory");
+    await expect(page.getByText("خاصة بالمشروع")).toBeVisible();
+    await page.goto("/dev/preview/purchases/costs");
+    await expect(page.getByText(/تجاوز 9%/)).toBeVisible();
+  });
+});

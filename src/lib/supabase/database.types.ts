@@ -506,6 +506,49 @@ export type ScheduleEntryRow = OrgRow & Upd & {
   notes: string | null;
 };
 
+export type InventoryItemRow = OrgRow & Upd & { name: string; unit: string; product_id: string | null; is_general: boolean };
+export type PurchaseStatus = "draft" | "pending_approval" | "recorded" | "rejected" | "cancelled";
+export type PurchaseRow = OrgRow & Upd & {
+  number: string;
+  supplier_id: string | null;
+  supplier_name: string | null;
+  supplier_vat: string | null;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  contract_id: string | null;
+  status: PurchaseStatus;
+  subtotal: number;
+  vat: number;
+  total: number;
+  attachment_path: string | null;
+  ai_extracted: boolean;
+  ai_flags: Json;
+  notes: string | null;
+  recorded_at: string | null;
+};
+export type PurchaseLineRow = OrgRow & {
+  purchase_id: string;
+  seq: number;
+  kind: "material" | "expense";
+  item_id: string | null;
+  description: string;
+  colour: string | null;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  amount: number;
+};
+export type InventoryMovementRow = OrgRow & {
+  item_id: string;
+  contract_id: string | null;
+  kind: "purchase" | "issue" | "return" | "transfer" | "adjust";
+  quantity: number;
+  unit_cost: number;
+  purchase_line_id: string | null;
+  transfer_group: string | null;
+  note: string | null;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -552,6 +595,10 @@ export type Database = {
       teams: Table<TeamRow>;
       team_members: Table<TeamMemberRow>;
       schedule_entries: Table<ScheduleEntryRow>;
+      inventory_items: Table<InventoryItemRow>;
+      purchases: Table<PurchaseRow>;
+      purchase_lines: Table<PurchaseLineRow>;
+      inventory_movements: Table<InventoryMovementRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
@@ -566,6 +613,8 @@ export type Database = {
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
+      submit_purchase: { Args: { p_id: string }; Returns: string };
+      move_stock: { Args: { p_item: string; p_quantity: number; p_from: string | null; p_to: string | null; p_note?: string | null }; Returns: string };
       schedule_roster: { Args: { p_org: string }; Returns: { id: string; full_name: string; job_title: string | null }[] };
       portal_view: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_accept: { Args: { p_number: string; p_token: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };

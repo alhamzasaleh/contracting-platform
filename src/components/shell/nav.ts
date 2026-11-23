@@ -42,7 +42,7 @@ export const NAV: NavGroup[] = [
   {
     key: "finance",
     items: [
-      { key: "purchases", href: "/purchases", icon: ShoppingCart, permission: "purchases.view", phase: 6 },
+      { key: "purchases", href: "/purchases", icon: ShoppingCart, permission: "purchases.view" },
       { key: "invoices", href: "/invoices", icon: Receipt, permission: "finance.view", phase: 10 },
       { key: "reports", href: "/reports", icon: BarChart3, permission: "reports.view", phase: 9 },
     ],
