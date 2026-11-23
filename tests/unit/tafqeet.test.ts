@@ -34,3 +34,11 @@ describe("receipt totals", () => {
     expect(receiptTotals(all, "RV-2026-009", 15000)).toBeNull();
   });
 });
+
+import { payrollCsv } from "@/lib/hr";
+describe("payroll CSV", () => {
+  it("neutralises spreadsheet formulas in names", () => {
+    const csv = payrollCsv([{ full_name: "=HYPERLINK(\"x\")", iban: null, net: 1 }], "2026-11");
+    expect(csv).toContain(`"'=HYPERLINK(""x"")"`);
+  });
+});

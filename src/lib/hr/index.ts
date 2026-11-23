@@ -32,7 +32,8 @@ export const netPay = (l: PayLine) => Math.round((l.basic + l.housing + l.transp
 
 /** Bank transfer file (CSV, UTF-8 with BOM so Excel shows Arabic). */
 export function payrollCsv(rows: { full_name: string; iban: string | null; net: number }[], month: string): string {
-  const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  // quote every cell, and neutralise spreadsheet formulas (= + - @) in text
+  const esc = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replace(/"/g, '""')}"`;
   const lines = [["الاسم", "الآيبان", "صافي الراتب", "الشهر"].map(esc).join(",")];
   for (const r of rows) lines.push([esc(r.full_name), esc(r.iban ?? ""), r.net.toFixed(2), esc(month)].join(","));
   return "﻿" + lines.join("\r\n") + "\r\n";

@@ -233,5 +233,12 @@ export async function qoyodInvoicePdf(orgId: string, invoiceId: number): Promise
   if (!key) return null;
   const r = await qoyod<{ pdf_file?: string }>(key as string, "GET", `/invoices/${invoiceId}/pdf`).catch(() => null);
   const url = r?.pdf_file;
-  return url && /^https:\/\/[a-z0-9.-]*qoyod\.com\//.test(url) ? url : null;
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    // only Qoyod's own hosts (qoyod.com or a subdomain of it), over https
+    return u.protocol === "https:" && (u.hostname === "qoyod.com" || u.hostname.endsWith(".qoyod.com")) ? u.toString() : null;
+  } catch {
+    return null;
+  }
 }

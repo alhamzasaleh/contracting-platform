@@ -88,6 +88,9 @@ export async function addNotePortal(fd: FormData): Promise<ActionResult> {
   const { data: ex } = await admin.rpc("portal_execution", { p_number: number, p_token: token });
   const e = ex as unknown as { org_id: string; contract_id: string } | null;
   if (!e) return { ok: false, error: "linkInvalid" };
+  // notes are for accepted contracts only — check before storing any photo
+  const { data: c } = await admin.from("contracts").select("status").eq("id", e.contract_id).maybeSingle();
+  if (c?.status !== "accepted") return { ok: false, error: "linkInvalid" };
 
   const paths: string[] = [];
   for (const f of files) {

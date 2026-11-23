@@ -2213,5 +2213,13 @@
     "sending": "Sending {n} saved update(s)…",
     "synced": "Sent {n} update(s) saved on your device",
     "dropped": "Couldn't send the “{label}” update (the stage changed) — please enter it again"
+  },
+  "errorPage": {
+    "title": "Something went wrong opening this page",
+    "body": "Please try again. If it keeps happening, tell us what you were doing.",
+    "retry": "Try again",
+    "home": "Home",
+    "notFound": "Page not found",
+    "notFoundBody": "The link may be old or mistyped."
   }
 }
