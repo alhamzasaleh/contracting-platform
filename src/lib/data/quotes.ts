@@ -79,10 +79,10 @@ export async function loadQuoteEditor(session: SessionContext, args: { surveyNum
     const { data } = await supabase.from("quotes").select("id, number, service, survey_id, current_version").eq("organization_id", orgId).eq("number", args.quoteNumber).maybeSingle();
     if (!data || !data.survey_id) notFound();
     quote = data;
-    const { data: v } = await supabase.from("quote_versions").select("selection, discount, pricing_method, notes").eq("quote_id", data.id).eq("version", data.current_version).maybeSingle();
+    const { data: v } = await supabase.from("quote_versions").select("selection, discount, client_view, pricing_method, notes").eq("quote_id", data.id).eq("version", data.current_version).maybeSingle();
     if (v) {
       initial = v.selection as unknown as Selection;
-      discount = n(v.discount);
+      discount = n((v.client_view as { discountPercent?: number } | null)?.discountPercent ?? 0);
       method = v.pricing_method;
       notes = v.notes;
     }

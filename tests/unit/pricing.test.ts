@@ -149,3 +149,21 @@ describe("coats buttons", () => {
     expect(new Set(slots.map((k) => k.max))).toEqual(new Set([3]));
   });
 });
+
+describe("risk reserve and rounding", () => {
+  it("the risk reserve is chosen per client and raises the cost before the margin", () => {
+    const c = ctx();
+    const sel = defaultSelection("exterior", c.catalogue);
+    const a = priceSelection(sel, Q({ facade: 300 }), c);
+    const b = priceSelection({ ...sel, contingencyPercent: 10 }, Q({ facade: 300 }), c);
+    expect(b.price.costWithContingency).toBeCloseTo(a.price.cost * 1.1, 6);
+  });
+
+  it("achieved margin is above the target only because price per m² is rounded up", () => {
+    const c = ctx();
+    const sel = { ...defaultSelection("exterior", c.catalogue), marginPercent: 25 };
+    const fine = { ...c, catalogue: { ...c.catalogue, rates: { ...c.catalogue.rates, "commercial.roundingStep": 0.01 } } };
+    expect(priceSelection(sel, Q({ facade: 300 }), fine).price.marginPercent).toBeCloseTo(25, 1);
+    expect(priceSelection(sel, Q({ facade: 300 }), c).price.marginPercent).toBeGreaterThan(25);
+  });
+});

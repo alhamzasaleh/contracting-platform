@@ -106,6 +106,8 @@ export type Selection = {
   excluded: string[];
   labour: Labour;
   marginPercent: number | null;
+  /** Risk reserve on cost (null = the template / A.6 default, 5 %). */
+  contingencyPercent?: number | null;
 };
 
 export type Quantities = {
@@ -203,6 +205,7 @@ export function defaultSelection(kind: ServiceKind, c: CatalogueData, template?:
     excluded: template?.excluded ?? [],
     labour: template?.labour ?? { source: "rates" },
     marginPercent: template?.marginPercent ?? null,
+    contingencyPercent: template?.contingencyPercent ?? null,
   };
 }
 
@@ -346,7 +349,7 @@ export function priceSelection(sel: Selection, q: Quantities, ctx: PricingContex
   const { result: withLabour, note } = applyLabour(sel, result, ctx, c.rates);
 
   const price = priceProject([withLabour], {
-    contingencyPercent: cfg.commercial.contingencyPercent,
+    contingencyPercent: sel.contingencyPercent ?? cfg.commercial.contingencyPercent,
     marginPercent: Math.min(95, sel.marginPercent ?? cfg.commercial.targetMarginPercent),
     roundingStep: cfg.commercial.roundingStep,
     method: "unit",

@@ -16,7 +16,7 @@ export const SAMPLE_PRICING_CTX: PricingContext = {
 export const SAMPLE_QUANTITIES = surveyQuantities("interior", "rooms", SAMPLE_SURVEY.rooms, SAMPLE_SURVEY.survey.totals);
 const sel = defaultSelection("interior", SAMPLE_PRICING_CTX.catalogue);
 const outcome = priceSelection(sel, SAMPLE_QUANTITIES, SAMPLE_PRICING_CTX);
-const snap = buildSnapshot(sel, SAMPLE_QUANTITIES, outcome, { discount: 500, method: "unit", estimated: false, vatPercent: 0, catalogue: SAMPLE_PRICING_CTX.catalogue });
+const snap = buildSnapshot(sel, SAMPLE_QUANTITIES, outcome, { discountPercent: 5, method: "unit", estimated: false, vatPercent: 0, catalogue: SAMPLE_PRICING_CTX.catalogue });
 
 export const SAMPLE_QUOTE: QuoteDetail = {
   quote: { id: "q2", number: "Q-2026-008", service: "interior", status: "pending_approval", version: 2, valid_until: null, created_at: "2026-11-21T11:00:00Z" },
@@ -28,7 +28,7 @@ export const SAMPLE_QUOTE: QuoteDetail = {
     { version: 1, total: snap.clientView.total + 900, created_at: "2026-11-21T11:00:00Z" },
   ],
   internal: { cost: snap.cost, costWithContingency: snap.costWithContingency, marginPercent: snap.marginPercent, lines: snap.lines, purchaseList: snap.purchaseList },
-  approvals: [{ id: "a1", kind: "quote_discount", status: "pending", details: { version: 2, discount: 500 }, decided_at: null, decision_note: null }],
+  approvals: [{ id: "a1", kind: "quote_discount", status: "pending", details: { version: 2, discount: snap.clientView.discount, discountPercent: 5 }, decided_at: null, decision_note: null }],
   canManage: true,
   canDecide: true,
 };

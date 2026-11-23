@@ -937,7 +937,10 @@
     "reset": "Back to template",
     "saveTemplate": "Save these choices as the {service} template",
     "included": "Included in the price",
-    "notIncluded": "Not included"
+    "notIncluded": "Not included",
+    "contingency": "Risk reserve",
+    "contingencyHint": "Added to cost before the margin",
+    "roundingNote": "You asked for {target}% and got {achieved}% because the price per m² is rounded up to the nearest {step} SAR. You can lower the rounding in Template numbers → Commercial → Price rounding."
   },
   "clients": {
     "title": "Clients",
@@ -1080,7 +1083,7 @@
     "printOrPdf": "Print or save as PDF",
     "approvalNeeded": "Needs your approval before issuing",
     "approvalMargin": "Margin {margin}% is below the minimum {min}%",
-    "approvalDiscount": "Discount {amount}",
+    "approvalDiscount": "Discount {percent}% ({amount})",
     "approve": "Approve",
     "reject": "Reject",
     "rejected": "Rejected",
@@ -1092,7 +1095,8 @@
     "margin": "Achieved margin",
     "purchaseList": "Purchase list",
     "versions": "Versions",
-    "pricedLines": "Calculation details (quantities and formulas)"
+    "pricedLines": "Calculation details (quantities and formulas)",
+    "discountPercent": "Client discount (%)"
   },
   "doc": {
     "title": "Quotation",
@@ -1122,6 +1126,7 @@
     "termUnit": "Billed on the actual approved measured areas after execution.",
     "termEstimated": "Areas are estimated and settled on actual measurement.",
     "termWarranty": "{n}-month warranty from handover.",
-    "termValidity": "This quote is valid until {date}."
+    "termValidity": "This quote is valid until {date}.",
+    "discountPct": "Discount ({n}%)"
   }
 }

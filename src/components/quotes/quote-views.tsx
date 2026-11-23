@@ -153,15 +153,15 @@ export function QuoteEditorView({
           <section className="grid gap-3 rounded-2xl border-2 border-primary/30 bg-surface p-4">
             <p className="text-[14px] font-bold">{quote ? t("newVersionOf", { number: quote.number }) : t("newQuote")}</p>
             <div className="grid grid-cols-2 gap-3">
-              <Field id="q-discount" label={t("discount")} hint={t("discountHint")}>
+              <Field id="q-discount" label={t("discountPercent")} hint={t("discountHint")}>
                 <NumberInput
                   id="q-discount"
                   defaultValue={discount || ""}
                   onChange={(e) => {
                     const v = toNumber(e.target.value);
-                    setDiscount(typeof v === "number" && v >= 0 ? v : 0);
+                    setDiscount(typeof v === "number" ? Math.min(100, Math.max(0, v)) : 0);
                   }}
-                  suffix={t("sar")}
+                  suffix="%"
                 />
               </Field>
               <Field id="q-method" label={t("method")}>
@@ -193,7 +193,7 @@ export function QuoteEditorView({
                         quote_id: quote?.id ?? null,
                         survey_id: survey.id,
                         selection: sel,
-                        discount,
+                        discount_percent: discount,
                         method,
                         notes: notes.trim() || null,
                       })),
@@ -284,7 +284,7 @@ export function QuoteView({
               <p className="text-[14px]">
                 {a.kind === "quote_margin"
                   ? t("approvalMargin", { margin: fmt.number(Number(a.details.margin ?? 0), 1), min: fmt.number(Number(a.details.minMargin ?? 0), 0) })
-                  : t("approvalDiscount", { amount: fmt.money(Number(a.details.discount ?? 0)) })}
+                  : t("approvalDiscount", { percent: fmt.number(Number(a.details.discountPercent ?? 0), 1), amount: fmt.money(Number(a.details.discount ?? 0)) })}
                 {a.status === "rejected" && <Badge tone="danger" className="ms-2">{t("rejected")}</Badge>}
               </p>
               {a.status === "pending" && detail.canDecide && (

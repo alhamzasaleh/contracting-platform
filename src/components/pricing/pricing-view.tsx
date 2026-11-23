@@ -700,7 +700,20 @@ export function PricingView({
               suffix="%"
             />
           </Field>
-          <div className="flex gap-2">
+          <Field id="contingency" label={t("contingency")} hint={t("contingencyHint")}>
+            <NumberInput
+              id="contingency"
+              key={`c-${kind}`}
+              defaultValue={sel.contingencyPercent ?? ""}
+              placeholder={String(c.rates["commercial.contingencyPercent"] ?? 5)}
+              onChange={(e) => {
+                const n = toNumber(e.target.value);
+                setSel((s) => ({ ...s, contingencyPercent: typeof n === "number" ? Math.min(50, Math.max(0, n)) : null }));
+              }}
+              suffix="%"
+            />
+          </Field>
+          <div className="col-span-2 flex gap-2">
             {isModified && (
               <Button
                 variant="ghost"
@@ -790,6 +803,15 @@ export function PricingView({
           )}
         </div>
 
+        {(() => {
+          const target = sel.marginPercent ?? c.rates["commercial.targetMarginPercent"] ?? 28;
+          const step = c.rates["commercial.roundingStep"] ?? 1;
+          return price.marginPercent - target > 0.1 ? (
+            <p className="rounded-2xl bg-info-soft px-5 py-3 text-[13px] text-info">
+              {t("roundingNote", { target: fmt.number(target, 1), achieved: fmt.number(price.marginPercent, 1), step: fmt.number(step, 2) })}
+            </p>
+          ) : null;
+        })()}
         {outcome.problems.length > 0 && (
           <p className="flex items-center gap-2 rounded-2xl bg-danger-soft px-5 py-3 text-[13px] text-danger">
             <AlertTriangle className="size-4 shrink-0" />{" "}

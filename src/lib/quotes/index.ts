@@ -13,6 +13,8 @@ export type ClientView = {
   workTypes: { workType: string; area: number; pricePerM2: number; total: number }[];
   subtotal: number;
   discount: number;
+  /** Discount as a percentage of the subtotal (owner: discounts are given as %). */
+  discountPercent?: number;
   net: number;
   vatPercent: number;
   vat: number;
@@ -51,10 +53,11 @@ export function buildSnapshot(
   sel: Selection,
   q: Quantities,
   o: PricingOutcome,
-  opts: { discount: number; method: "unit" | "lump"; estimated: boolean; vatPercent: number; catalogue: CatalogueData },
+  opts: { discountPercent: number; method: "unit" | "lump"; estimated: boolean; vatPercent: number; catalogue: CatalogueData },
 ): QuoteSnapshot {
   const p = o.price;
-  const discount = Math.min(Math.max(0, opts.discount), p.subtotal);
+  const discountPercent = Math.min(100, Math.max(0, opts.discountPercent));
+  const discount = r2((p.subtotal * discountPercent) / 100);
   const net = r2(p.subtotal - discount);
   const vat = r2((net * opts.vatPercent) / 100);
   const visible = STEPS[sel.kind].filter((s) => !s.when || s.when(sel.options));
@@ -88,7 +91,8 @@ export function buildSnapshot(
       estimated: opts.estimated,
       workTypes: p.byWorkType.map((w) => ({ workType: w.workType, area: r2(w.area), pricePerM2: w.pricePerM2, total: r2(w.total) })),
       subtotal: r2(p.subtotal),
-      discount: r2(discount),
+      discount,
+      discountPercent,
       net,
       vatPercent: opts.vatPercent,
       vat,

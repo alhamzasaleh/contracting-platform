@@ -937,7 +937,10 @@
     "reset": "رجّع القالب",
     "saveTemplate": "احفظ هذي الاختيارات كقالب {service}",
     "included": "مشمول في السعر",
-    "notIncluded": "غير مشمول"
+    "notIncluded": "غير مشمول",
+    "contingency": "احتياطي المخاطر",
+    "contingencyHint": "نسبة تنضاف على التكلفة قبل الهامش",
+    "roundingNote": "طلبت هامش {target}% وطلع {achieved}% لأن سعر المتر يتقرّب للأعلى إلى أقرب {step} ر.س. تقدر تقلّل التقريب من «أرقام القالب» ← تجاري ← تقريب سعر المتر."
   },
   "clients": {
     "title": "العملاء",
@@ -1080,7 +1083,7 @@
     "printOrPdf": "طباعة أو حفظ PDF",
     "approvalNeeded": "يحتاج موافقتك قبل الإصدار",
     "approvalMargin": "الهامش {margin}% أقل من الحد الأدنى {min}%",
-    "approvalDiscount": "خصم {amount}",
+    "approvalDiscount": "خصم {percent}% ({amount})",
     "approve": "موافقة",
     "reject": "رفض",
     "rejected": "مرفوض",
@@ -1092,7 +1095,8 @@
     "margin": "الهامش الفعلي",
     "purchaseList": "قائمة المشتريات",
     "versions": "النسخ",
-    "pricedLines": "تفاصيل الحساب (الكميات والمعادلات)"
+    "pricedLines": "تفاصيل الحساب (الكميات والمعادلات)",
+    "discountPercent": "خصم للعميل (نسبة)"
   },
   "doc": {
     "title": "عرض سعر",
@@ -1122,6 +1126,7 @@
     "termUnit": "المحاسبة على الأمتار الفعلية المعتمدة بعد التنفيذ.",
     "termEstimated": "المساحات تقديرية وتُسوّى على القياس الفعلي.",
     "termWarranty": "ضمان {n} أشهر من تاريخ التسليم.",
-    "termValidity": "العرض صالح حتى {date}."
+    "termValidity": "العرض صالح حتى {date}.",
+    "discountPct": "الخصم ({n}%)"
   }
 }

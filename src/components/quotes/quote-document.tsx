@@ -121,7 +121,7 @@ export function QuoteDocument({
         </div>
         {view.discount > 0 && (
           <div className="flex justify-between text-primary">
-            <dt>{t("discount")}</dt>
+            <dt>{view.discountPercent ? t("discountPct", { n: view.discountPercent }) : t("discount")}</dt>
             <dd className="font-latin tabular-nums">− {fmt.money(view.discount)}</dd>
           </div>
         )}
@@ -138,10 +138,11 @@ export function QuoteDocument({
         {view.vatPercent === 0 && <p className="text-[11px] text-neutral-500">{t("noVat")}</p>}
       </dl>
 
-      <section className="grid gap-4 sm:grid-cols-2">
+      {/* Only what the price includes — what isn't included is not mentioned to the client (owner). */}
+      <section>
         <div>
           <p className="mb-1.5 font-bold text-primary">{t("includes")}</p>
-          <ul className="grid gap-1 text-[13px] leading-6">
+          <ul className="grid gap-x-6 gap-y-1 text-[13px] leading-6 sm:grid-cols-2">
             {view.included.map((i) => {
               const def = stepDef(i.step);
               const coats = (def?.coats ?? []).filter((k) => (i.coats[k.key] ?? 0) > 0).map((k) => `${tp(`slot_${k.key}`)} ${tp("coats", { n: i.coats[k.key] })}`);
@@ -159,15 +160,6 @@ export function QuoteDocument({
               <li key={size}>• {t("featureHatch", { size: size.replace("x", "×"), n: c })}</li>
             ))}
             <li>• {t("labour")}</li>
-          </ul>
-        </div>
-        <div>
-          <p className="mb-1.5 font-bold text-neutral-600">{t("excludes")}</p>
-          <ul className="grid gap-1 text-[13px] leading-6 text-neutral-600">
-            {view.excluded.length === 0 && <li>—</li>}
-            {view.excluded.map((k) => (
-              <li key={k}>• {tp(`step_${k}`)}</li>
-            ))}
           </ul>
         </div>
       </section>

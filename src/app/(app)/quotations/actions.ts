@@ -42,7 +42,7 @@ const saveSchema = z
     quote_id: id.nullable(),
     survey_id: id,
     selection: selectionSchema,
-    discount: z.number().min(0).max(100_000_000),
+    discount_percent: z.number().min(0).max(100),
     method: z.enum(["unit", "lump"]),
     notes: z.string().trim().max(4000).nullable(),
   })
@@ -67,7 +67,7 @@ export async function saveQuoteVersion(input: unknown): Promise<ActionResult<{ n
   const [{ ctx }, settings] = await Promise.all([loadPricingContext(session), loadPricingSettings(session)]);
   const sel = v.selection as Selection;
   const outcome = priceSelection(sel, src.q, ctx);
-  const snap = buildSnapshot(sel, src.q, outcome, { discount: v.discount, method: v.method, estimated: src.estimated, vatPercent: ctx.vatPercent, catalogue: ctx.catalogue });
+  const snap = buildSnapshot(sel, src.q, outcome, { discountPercent: v.discount_percent, method: v.method, estimated: src.estimated, vatPercent: ctx.vatPercent, catalogue: ctx.catalogue });
   const check = readiness(outcome, snap, n(settings?.min_margin_percent ?? 20), src.gaps);
 
   // The quote (new, or an existing one getting a new version)
@@ -112,7 +112,7 @@ export async function saveQuoteVersion(input: unknown): Promise<ActionResult<{ n
   for (const kind of check.approvals) {
     const { error } = await supabase.from("approvals").insert({
       organization_id: orgId, kind, entity: "quote", entity_id: quoteId,
-      details: { version: version.version, number, margin: snap.marginPercent, minMargin: n(settings?.min_margin_percent ?? 20), discount: cv.discount } as Json,
+      details: { version: version.version, number, margin: snap.marginPercent, minMargin: n(settings?.min_margin_percent ?? 20), discount: cv.discount, discountPercent: cv.discountPercent } as Json,
     });
     if (error) return fail(error, "approval");
   }
