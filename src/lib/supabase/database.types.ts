@@ -353,6 +353,89 @@ export type ConsumptionRateRow = OrgRow & Upd & {
 
 export type PricingTemplateRow = OrgRow & Upd & { service: "gypsum" | "interior" | "exterior"; data: Json };
 
+
+export type ClientRow = OrgRow & Upd & {
+  number: string;
+  name: string;
+  phone: string | null;
+  city: string | null;
+  district: string | null;
+  location_url: string | null;
+  notes: string | null;
+  is_active: boolean;
+};
+export type SurveyRow = OrgRow & Upd & {
+  number: string;
+  client_id: string;
+  title: string | null;
+  mode: "total" | "rooms";
+  visit_date: string | null;
+  totals: Json;
+  notes: string | null;
+};
+export type SurveyRoomRow = OrgRow & Upd & {
+  survey_id: string;
+  name: string;
+  unit_label: string | null;
+  length_m: number;
+  width_m: number;
+  height_m: number;
+  openings_m2: number;
+  gypsum_ceiling: boolean;
+  ceiling_board: "normal" | "moisture" | "fire";
+  paint_walls: boolean;
+  paint_ceiling: boolean;
+  wall_zone: "normal" | "wet" | "decorative";
+  sort_order: number;
+};
+export type QuoteStatus = "draft" | "pending_approval" | "issued" | "accepted" | "rejected" | "expired";
+export type QuoteRow = OrgRow & Upd & {
+  number: string;
+  client_id: string;
+  survey_id: string | null;
+  service: "gypsum" | "interior" | "exterior";
+  title: string | null;
+  status: QuoteStatus;
+  current_version: number;
+  valid_until: string | null;
+};
+export type QuoteVersionRow = OrgRow & {
+  quote_id: string;
+  version: number;
+  selection: Json;
+  quantities: Json;
+  client_view: Json;
+  pricing_method: "unit" | "lump";
+  estimated: boolean;
+  discount: number;
+  subtotal: number;
+  vat_percent: number;
+  vat: number;
+  total: number;
+  notes: string | null;
+};
+export type QuoteVersionCostRow = {
+  quote_version_id: string;
+  organization_id: string;
+  cost: number;
+  cost_with_contingency: number;
+  margin_percent: number;
+  lines: Json;
+  purchase_list: Json;
+  created_at: string;
+  created_by: string | null;
+};
+export type ApprovalRow = OrgRow & Upd & {
+  kind: "quote_margin" | "quote_discount" | "purchase_limit" | "addendum";
+  entity: "quote" | "purchase" | "addendum";
+  entity_id: string;
+  details: Json;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+};
+
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -393,6 +476,13 @@ export type Database = {
       system_components: Table<SystemComponentRow>;
       consumption_rates: Table<ConsumptionRateRow>;
       pricing_templates: Table<PricingTemplateRow>;
+      clients: Table<ClientRow>;
+      surveys: Table<SurveyRow>;
+      survey_rooms: Table<SurveyRoomRow>;
+      quotes: Table<QuoteRow>;
+      quote_versions: Table<QuoteVersionRow>;
+      quote_version_costs: Table<QuoteVersionCostRow>;
+      approvals: Table<ApprovalRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };

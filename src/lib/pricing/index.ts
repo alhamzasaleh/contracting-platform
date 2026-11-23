@@ -125,6 +125,8 @@ export type Quantities = {
   colours: number;
   ceilingColours: number;
   crackM: number;
+  /** Measured gypsum rooms (real dimensions) — used instead of total ceiling areas when present. */
+  gypsumRooms?: { id: string; name: string; L: number; W: number; boardType: "normal" | "moisture" | "fire" }[];
   // exterior
   facade: number;
   extColours: number;
@@ -320,7 +322,7 @@ export function priceSelection(sel: Selection, q: Quantities, ctx: PricingContex
   } else {
     result = computeGypsum(
       {
-        quickAreas: { normal: q.ceilNormal, moisture: q.ceilMoisture, fire: q.ceilFire },
+        ...(q.gypsumRooms?.length ? { rooms: q.gypsumRooms } : { quickAreas: { normal: q.ceilNormal, moisture: q.ceilMoisture, fire: q.ceilFire } }),
         partitions: q.partitions > 0 ? [{ id: "p", area: q.partitions, boardType: "normal", layersPerFace: 1, insulation: !!sel.steps.insulation?.on }] : [],
         troughM: q.troughM, shadowM: q.shadowM, hatches: q.hatches, scope,
       },
