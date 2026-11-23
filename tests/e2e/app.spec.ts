@@ -72,7 +72,7 @@ test.describe("settings (design preview)", () => {
 test.describe("pricing calculator (design preview)", () => {
   test("prices interior paint by steps and explains a line", async ({ page }) => {
     await page.goto("/dev/preview/catalogue/calculator");
-    await page.getByRole("radio", { name: "دهان داخلي" }).click();
+    await page.getByRole("radio", { name: "دهانات داخلية" }).click();
     await expect(page.getByText("نطاق", { exact: false }).or(page.getByText("مشمول في السعر")).first()).toBeVisible();
     await page.getByRole("button", { name: /^معجون —/ }).click();
     await expect(page.getByText("المساحة × الأوجه").first()).toBeVisible();

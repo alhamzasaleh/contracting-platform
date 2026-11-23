@@ -95,6 +95,9 @@ describe("client page (portal)", () => {
     expect(ok.rows[0].v.contract.number).toBe(`C-${year}-001`);
     expect(ok.rows[0].v.payments).toHaveLength(2);
     expect(ok.rows[0].v.quote.client_view.total).toBe(10000);
+    // the contract names both parties
+    expect((ok.rows[0].v as unknown as { client: object }).client).toHaveProperty("id_number");
+    expect((ok.rows[0].v as unknown as { org: object }).org).toHaveProperty("signatory_name");
     const bad = await as("service_role", (q) => q("select public.portal_view($1,$2) as v", [`C-${year}-001`, TOKEN + "y"]));
     expect(bad.rows[0].v).toBeNull();
     const other = await as("service_role", (q) => q("select public.portal_view($1,$2) as v", [`C-${year}-999`, TOKEN]));

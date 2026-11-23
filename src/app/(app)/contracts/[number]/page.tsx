@@ -17,7 +17,7 @@ export default async function ContractPage({ params }: { params: Promise<{ numbe
       <PageHeader title={t("title")} />
       <ContractView
         detail={detail}
-        org={{ name: o.name, legal_name: o.legal_name, cr_number: o.cr_number, vat_number: o.vat_number, phone: o.phone, city: o.city, logoUrl }}
+        org={{ name: o.name, legal_name: o.legal_name, cr_number: o.cr_number, vat_number: o.vat_number, phone: o.phone, city: o.city, address: o.address, signatory_name: o.signatory_name, signatory_title: o.signatory_title, logoUrl }}
         actions={{ send: sendContract, revoke: revokeLinks, cancel: cancelContract }}
       />
     </div>

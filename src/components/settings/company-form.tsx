@@ -18,6 +18,8 @@ export type CompanyValues = {
   email: string | null;
   city: string | null;
   address: string | null;
+  signatory_name: string | null;
+  signatory_title: string | null;
 };
 
 export function CompanyForm({
@@ -47,7 +49,7 @@ export function CompanyForm({
       return;
     }
     const input = Object.fromEntries(
-      ["name", "legal_name", "cr_number", "vat_number", "phone", "email", "city", "address"].map((k) => [k, String(fd.get(k) ?? "")]),
+      ["name", "legal_name", "cr_number", "vat_number", "phone", "email", "city", "address", "signatory_name", "signatory_title"].map((k) => [k, String(fd.get(k) ?? "")]),
     ) as CompanyInput;
     startTransition(async () => {
       const r = await onSave(input);
@@ -63,7 +65,7 @@ export function CompanyForm({
   };
 
   const field = (name: keyof CompanyValues, opts: { ltr?: boolean; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; optional?: boolean; autoComplete?: string; hint?: string } = {}) => (
-    <Field id={`company-${name}`} label={t(`settings.${name === "legal_name" ? "legalName" : name === "cr_number" ? "crNumber" : name === "vat_number" ? "vatNumber" : name}`)} error={msg(errors[name])} hint={opts.hint} optional={opts.optional ? t("common.optional") : undefined}>
+    <Field id={`company-${name}`} label={t(`settings.${name === "legal_name" ? "legalName" : name === "cr_number" ? "crNumber" : name === "vat_number" ? "vatNumber" : name === "signatory_name" ? "signatoryName" : name === "signatory_title" ? "signatoryTitle" : name}`)} error={msg(errors[name])} hint={opts.hint} optional={opts.optional ? t("common.optional") : undefined}>
       <Input
         name={name}
         defaultValue={values[name] ?? ""}
@@ -94,6 +96,8 @@ export function CompanyForm({
           <Field id="company-address" label={t("settings.address")} optional={t("common.optional")} className="sm:col-span-2" error={msg(errors.address)}>
             <Textarea name="address" defaultValue={values.address ?? ""} disabled={!canEdit} rows={2} />
           </Field>
+          {field("signatory_name", { optional: true, hint: t("settings.signatoryHint") })}
+          {field("signatory_title", { optional: true })}
         </CardContent>
         {canEdit && (
           <CardFooter>

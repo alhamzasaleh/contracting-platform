@@ -201,10 +201,10 @@ export function PortalView({
         )}
 
         <ContractTerms
-          orgName={org.legal_name ?? org.name}
-          clientName={data.client.name}
+          org={org}
+          client={data.client}
           data={{
-            number: c.number, service: c.service, project_type: c.project_type, start_date: c.start_date, duration_days: c.duration_days,
+            number: c.number, date: c.created_at ?? data.quote.date, quoteNumber: data.quote.number, view: data.quote.client_view ?? null, service: c.service, project_type: c.project_type, start_date: c.start_date, duration_days: c.duration_days,
             warranty_months: c.warranty_months, total: c.total, notes: c.notes, method: data.quote.client_view?.method ?? "unit",
             payments: data.payments, accepted: c.accepted_at ? { at: c.accepted_at, name: c.accepted_name ?? "" } : null,
           }}

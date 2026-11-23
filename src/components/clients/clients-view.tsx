@@ -55,6 +55,7 @@ function ClientDialog({
                 phone: str(fd, "phone"),
                 city: str(fd, "city") || null,
                 district: str(fd, "district") || null,
+                id_number: str(fd, "id_number"),
                 location_url: str(fd, "location_url"),
                 notes: str(fd, "notes") || null,
               })),
@@ -83,6 +84,9 @@ function ClientDialog({
           <Input name="district" defaultValue={client?.district ?? ""} />
         </Field>
       </div>
+      <Field id="cl-id" label={t("idNumber")} hint={t("idHint")} optional={tc("optional")} error={errors.id_number ? t("idInvalid") : undefined}>
+        <Input name="id_number" defaultValue={client?.id_number ?? ""} inputMode="numeric" dir="ltr" maxLength={10} className="font-latin rtl:text-right" />
+      </Field>
       <Field id="cl-loc" label={t("location")} hint={t("locationHint")} optional={tc("optional")} error={errors.location_url ? t("urlInvalid") : undefined}>
         <Input name="location_url" defaultValue={client?.location_url ?? ""} dir="ltr" inputMode="url" placeholder="https://maps.app.goo.gl/…" className="font-latin rtl:text-right" />
       </Field>

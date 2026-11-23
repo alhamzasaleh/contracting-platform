@@ -96,7 +96,7 @@ export type ContractDetail = {
     start_date: string; duration_days: number; warranty_months: number; total: number; notes: string | null; created_at: string;
     accepted_at: string | null; accepted_name: string | null; accepted_ip: string | null; accepted_user_agent: string | null; signed: boolean;
   };
-  client: { number: string; name: string; phone: string | null; city: string | null };
+  client: { number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null };
   quote: { number: string; version: number; date: string; valid_until: string | null; view: ClientView; notes: string | null };
   payments: { seq: number; label: string; percent: number; amount: number; due_event: DueEvent; status: string }[];
   link: { active: boolean; expires_at: string | null; last_opened_at: string | null; open_count: number };
@@ -110,7 +110,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
   const { data: c } = await supabase.from("contracts").select("*").eq("organization_id", orgId).eq("number", number).maybeSingle();
   if (!c) notFound();
   const [{ data: client }, { data: q }, { data: ver }, { data: payments }, { data: links }] = await Promise.all([
-    supabase.from("clients").select("number, name, phone, city").eq("id", c.client_id).maybeSingle(),
+    supabase.from("clients").select("number, name, phone, city, district, id_number").eq("id", c.client_id).maybeSingle(),
     supabase.from("quotes").select("number, valid_until").eq("id", c.quote_id).maybeSingle(),
     supabase.from("quote_versions").select("version, created_at, client_view, notes").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle(),
     supabase.from("contract_payments").select("seq, label, percent, amount, due_event, status").eq("contract_id", c.id).order("seq"),
@@ -124,7 +124,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
       accepted_at: c.accepted_at, accepted_name: c.accepted_name, accepted_ip: c.accepted_ip, accepted_user_agent: c.accepted_user_agent,
       signed: !!c.accepted_signature,
     },
-    client: client ?? { number: "", name: "—", phone: null, city: null },
+    client: client ?? { number: "", name: "—", phone: null, city: null, district: null, id_number: null },
     quote: { number: q?.number ?? "", version: c.quote_version, date: ver?.created_at ?? c.created_at, valid_until: q?.valid_until ?? null, view: ver?.client_view as unknown as ClientView, notes: ver?.notes ?? null },
     payments: (payments ?? []).map((p) => ({ ...p, percent: n(p.percent), amount: n(p.amount) })),
     link: { active: !!active, expires_at: active?.expires_at ?? null, last_opened_at: active?.last_opened_at ?? null, open_count: active?.open_count ?? 0 },

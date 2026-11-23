@@ -45,6 +45,8 @@ const clientSchema = z
     }, z.string().regex(/^\d{8,15}$/, "phoneInvalid").nullable()),
     city: optionalText(80),
     district: optionalText(80),
+    // national ID / iqama / CR — needed to name the second party in the contract
+    id_number: z.preprocess((v) => { const d = digits(v); return typeof d === "string" && d !== "" ? d : null; }, z.string().regex(/^\d{10}$/, "idInvalid").nullable()),
     location_url: z.preprocess((v) => (v === "" ? null : v), z.url({ protocol: /^https$/, error: "urlInvalid" }).max(500).nullable()),
     notes: optionalText(2000),
   })

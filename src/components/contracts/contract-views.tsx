@@ -19,7 +19,7 @@ import type { ContractDetail, ContractDraft, ContractListItem } from "@/lib/data
 import type { ContractStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn } from "@/lib/utils";
-import { ContractTerms } from "./contract-terms";
+import { ContractTerms, type ContractOrg } from "./contract-terms";
 
 const TONE: Record<ContractStatus, "neutral" | "primary" | "success" | "danger"> = { draft: "neutral", sent: "primary", accepted: "success", cancelled: "danger" };
 const EVENTS: DueEvent[] = ["signing", "material_supply", "board_closing", "primer_done", "handover", "custom"];
@@ -212,7 +212,7 @@ export function ContractView({
   base = "",
 }: {
   detail: ContractDetail;
-  org: DocOrg;
+  org: DocOrg & ContractOrg;
   actions?: {
     send: (i: Record<string, unknown>) => Promise<ActionResult<{ url: string }>>;
     revoke: (i: Record<string, unknown>) => Promise<ActionResult>;
@@ -357,10 +357,10 @@ export function ContractView({
       )}
 
       <ContractTerms
-        orgName={org.legal_name ?? org.name}
-        clientName={client.name}
+        org={org}
+        client={client}
         data={{
-          number: c.number, service: c.service, project_type: c.project_type, start_date: c.start_date, duration_days: c.duration_days,
+          number: c.number, date: c.created_at, quoteNumber: detail.quote.number, view: detail.quote.view ?? null, service: c.service, project_type: c.project_type, start_date: c.start_date, duration_days: c.duration_days,
           warranty_months: c.warranty_months, total: c.total, notes: c.notes, method: detail.quote.view?.method ?? "unit",
           payments: detail.payments, accepted: c.accepted_at ? { at: c.accepted_at, name: c.accepted_name ?? "" } : null,
         }}

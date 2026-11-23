@@ -41,18 +41,12 @@ export function QuoteDocument({
 }) {
   const t = useTranslations("doc");
   const tp = useTranslations("pricing");
-  const te = useTranslations("engine");
   const { fmt } = useFormatter();
-  const steps = STEPS[view.service];
-  const stepDef = (k: string) => steps.find((s) => s.key === k);
   const phone = client.phone
     ? client.phone.startsWith("966")
       ? `0${client.phone.slice(3)}`
       : client.phone
     : null;
-  const hatches = Object.entries(view.features.hatches ?? {}).filter(
-    ([, c]) => c > 0,
-  );
 
   return (
     <article className="min-w-0 quote-doc mx-auto grid max-w-[820px] gap-6 rounded-3xl border border-border bg-white p-6 text-[14px] text-neutral-900 sm:p-10 print:max-w-none print:rounded-none print:border-0 print:p-0">
@@ -142,7 +136,7 @@ export function QuoteDocument({
             {view.workTypes.map((w) => (
               <tr key={w.workType} className="border-b border-neutral-200">
                 <td className="px-3 py-2.5 font-sans font-bold">
-                  {te(`wt_${w.workType}`)}
+                  {workItemLabel(t, view.service, w.workType)}
                 </td>
                 <td className="px-3 py-2.5 text-end">
                   {fmt.number(w.area, 2)} m²
@@ -195,51 +189,7 @@ export function QuoteDocument({
       <section>
         <div>
           <p className="mb-1.5 font-bold text-primary">{t("includes")}</p>
-          <ul className="grid gap-x-6 gap-y-1 text-[13px] leading-6 sm:grid-cols-2">
-            {view.included.map((i) => {
-              const def = stepDef(i.step);
-              const coats = (def?.coats ?? [])
-                .filter((k) => (i.coats[k.key] ?? 0) > 0)
-                .map(
-                  (k) =>
-                    `${tp(`slot_${k.key}`)} ${tp("coats", { n: i.coats[k.key] })}`,
-                );
-              return (
-                <li key={i.step}>
-                  • {tp(`step_${i.step}`)}
-                  {i.brand && ` — ${i.brand}`}
-                  {coats.length > 0 && (
-                    <span className="text-neutral-500">
-                      {" "}
-                      ({coats.join("، ")})
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-            {view.features.troughM > 0 && (
-              <li>
-                •{" "}
-                {t("featureTrough", {
-                  m: fmt.number(view.features.troughM, 1),
-                })}
-              </li>
-            )}
-            {view.features.shadowM > 0 && (
-              <li>
-                •{" "}
-                {t("featureShadow", {
-                  m: fmt.number(view.features.shadowM, 1),
-                })}
-              </li>
-            )}
-            {hatches.map(([size, c]) => (
-              <li key={size}>
-                • {t("featureHatch", { size: size.replace("x", "×"), n: c })}
-              </li>
-            ))}
-            {view.options.projectType !== "supply" && <li>• {t("labour")}</li>}
-          </ul>
+          <IncludedList view={view} />
         </div>
       </section>
 
@@ -260,5 +210,44 @@ export function QuoteDocument({
         {notes && <p className="whitespace-pre-line">• {notes}</p>}
       </section>
     </article>
+  );
+}
+
+/** Professional item name per service, e.g. "دهانات الواجهات الخارجية". */
+export function workItemLabel(t: ReturnType<typeof useTranslations<"doc">>, service: string, workType: string): string {
+  const key = `item_${service}_${workType}`;
+  return t.has(key as "title") ? t(key as "title") : workType;
+}
+
+/** What the price includes: each chosen step with brand and coats, features, labour. */
+export function IncludedList({ view }: { view: ClientView }) {
+  const t = useTranslations("doc");
+  const tp = useTranslations("pricing");
+  const { fmt } = useFormatter();
+  const steps = STEPS[view.service];
+  const stepDef = (k: string) => steps.find((s) => s.key === k);
+  const hatches = Object.entries(view.features.hatches ?? {}).filter(([, c]) => c > 0);
+  return (
+    <ul className="grid gap-x-6 gap-y-1 text-[13px] leading-6 sm:grid-cols-2">
+      {view.included.map((i) => {
+        const def = stepDef(i.step);
+        const coats = (def?.coats ?? [])
+          .filter((k) => (i.coats[k.key] ?? 0) > 0)
+          .map((k) => `${tp(`slot_${k.key}`)} ${tp("coats", { n: i.coats[k.key] })}`);
+        return (
+          <li key={i.step}>
+            • {tp(`step_${i.step}`)}
+            {i.brand && ` — ${i.brand}`}
+            {coats.length > 0 && <span className="text-neutral-500"> ({coats.join("، ")})</span>}
+          </li>
+        );
+      })}
+      {view.features.troughM > 0 && <li>• {t("featureTrough", { m: fmt.number(view.features.troughM, 1) })}</li>}
+      {view.features.shadowM > 0 && <li>• {t("featureShadow", { m: fmt.number(view.features.shadowM, 1) })}</li>}
+      {hatches.map(([size, c]) => (
+        <li key={size}>• {t("featureHatch", { size: size.replace("x", "×"), n: c })}</li>
+      ))}
+      {view.options.projectType !== "supply" && <li>• {t("labour")}</li>}
+    </ul>
   );
 }

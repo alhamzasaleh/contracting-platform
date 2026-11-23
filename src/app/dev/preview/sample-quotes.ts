@@ -39,4 +39,4 @@ export const SAMPLE_QUOTES: QuoteListItem[] = [
   { id: "q1", number: "Q-2026-007", client: "أبو محمد العتيبي", clientNumber: "CL-2026-003", service: "gypsum", status: "issued", version: 2, total: 31840, created_at: "2026-11-21T10:00:00Z" },
 ];
 
-export const SAMPLE_ORG = { name: "مؤسسة صالح للتشطيبات", legal_name: null, cr_number: "1010123456", vat_number: null, phone: "0551234567", city: "الرياض", logoUrl: null };
+export const SAMPLE_ORG = { name: "مؤسسة صالح للتشطيبات", legal_name: null, cr_number: "1010123456", vat_number: null, phone: "0551234567", city: "الرياض", address: "حي العليا، طريق الملك فهد", signatory_name: "صالح العتيبي", signatory_title: "المالك", logoUrl: null };

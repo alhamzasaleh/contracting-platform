@@ -13,6 +13,8 @@ export const SAMPLE_ORG = {
   email: "info@example.com",
   city: "الرياض",
   address: "حي العليا، طريق الملك فهد",
+  signatory_name: "صالح العتيبي",
+  signatory_title: "المالك",
   brand: { primary: "#1E4D4A", accent: "#4F6F66", source: "default" as const },
 };
 

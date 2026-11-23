@@ -30,7 +30,7 @@ export async function loadClients(session: SessionContext): Promise<ClientListIt
 }
 
 export type ClientDetail = {
-  client: { id: string; number: string; name: string; phone: string | null; city: string | null; district: string | null; location_url: string | null; notes: string | null };
+  client: { id: string; number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null; location_url: string | null; notes: string | null };
   surveys: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; rooms: number }[];
   quotes: { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; version: number; total: number | null; created_at: string }[];
 };
@@ -40,7 +40,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
   const orgId = session.organization.id;
   const { data: client } = await supabase
     .from("clients")
-    .select("id, number, name, phone, city, district, location_url, notes")
+    .select("id, number, name, phone, city, district, id_number, location_url, notes")
     .eq("organization_id", orgId)
     .eq("number", number)
     .maybeSingle();

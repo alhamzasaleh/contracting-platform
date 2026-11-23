@@ -18,6 +18,8 @@ export default async function CompanySettingsPage() {
         email: o.email,
         city: o.city,
         address: o.address,
+        signatory_name: o.signatory_name,
+        signatory_title: o.signatory_title,
       }}
     />
   );

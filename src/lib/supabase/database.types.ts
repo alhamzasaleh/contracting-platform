@@ -19,6 +19,8 @@ export type OrganizationRow = Timestamps & {
   email: string | null;
   city: string | null;
   address: string | null;
+  signatory_name: string | null;
+  signatory_title: string | null;
   logo_path: string | null;
   brand: Brand;
   default_locale: "ar" | "en";
@@ -360,6 +362,7 @@ export type ClientRow = OrgRow & Upd & {
   phone: string | null;
   city: string | null;
   district: string | null;
+  id_number: string | null;
   location_url: string | null;
   notes: string | null;
   is_active: boolean;

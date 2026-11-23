@@ -17,6 +17,8 @@ export const companySchema = z
     email: optional(z.string().trim().max(254).pipe(z.email("emailInvalid"))),
     city: optional(z.string().trim().max(80)),
     address: optional(z.string().trim().max(300)),
+    signatory_name: optional(z.string().trim().min(2).max(120)),
+    signatory_title: optional(z.string().trim().min(2).max(80)),
   })
   .strict();
 

@@ -10,11 +10,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * revocation (public.portal_view, service role only).
  */
 export type PortalData = {
-  org: { name: string; legal_name: string | null; cr_number: string | null; vat_number: string | null; phone: string | null; city: string | null; logo_path: string | null; brand: Brand };
-  client: { name: string; phone: string | null; city: string | null };
+  org: { name: string; legal_name: string | null; cr_number: string | null; vat_number: string | null; phone: string | null; city: string | null; address: string | null; signatory_name: string | null; signatory_title: string | null; logo_path: string | null; brand: Brand };
+  client: { name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null };
   contract: {
     number: string; status: "draft" | "sent" | "accepted" | "cancelled"; service: "gypsum" | "interior" | "exterior"; project_type: "full" | "labour" | "supply";
-    start_date: string; duration_days: number; warranty_months: number; total: number; notes: string | null; accepted_at: string | null; accepted_name: string | null;
+    start_date: string; duration_days: number; warranty_months: number; total: number; notes: string | null; accepted_at: string | null; accepted_name: string | null; created_at: string;
   };
   quote: { number: string; version: number; date: string; valid_until: string | null; client_view: ClientView; notes: string | null };
   payments: { seq: number; label: string; percent: number; amount: number; due_event: string; status: string }[];
