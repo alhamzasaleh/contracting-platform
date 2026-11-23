@@ -280,3 +280,16 @@ test.describe("notifications (design preview)", () => {
     await expect(wa).toBeDisabled();
   });
 });
+
+test.describe("qoyod (design preview)", () => {
+  test("settings show the connection, the choices and the sync log", async ({ page }) => {
+    await page.goto("/dev/preview/settings/qoyod");
+    await expect(page.getByText("مفتاح قيود محفوظ")).toBeVisible();
+    await expect(page.getByLabel("منتج «الدهانات الخارجية» في قيود")).toHaveValue("");
+    await page.getByLabel("منتج «الدهانات الخارجية» في قيود").selectOption("13");
+    await expect(page.getByText("اختر منتج الدهانات الخارجية")).toBeVisible();
+    await expect(page.getByRole("button", { name: "إعادة المتعذّر" })).toBeVisible();
+    await page.getByRole("radio", { name: "معتمدة مباشرة" }).click();
+    await expect(page.getByText(/تُعتمد فوراً/)).toBeVisible();
+  });
+});

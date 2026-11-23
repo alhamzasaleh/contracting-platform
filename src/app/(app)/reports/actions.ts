@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
-import { flushWhatsApp } from "@/lib/notifications/flush";
+import { runBackground } from "@/lib/background";
 import { decideApproval } from "@/app/(app)/quotations/actions";
 import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
@@ -48,7 +48,7 @@ export async function recordPayment(input: unknown): Promise<ActionResult> {
     return error ? fail(error, "addendum payment") : done();
   }
   const { error } = await supabase.rpc("record_client_payment", { p_payment: v.payment_id, p_paid_on: v.paid_on, p_amount: v.amount, p_method: v.method, p_reference: v.reference });
-  after(() => flushWhatsApp());
+  after(runBackground);
   return error ? fail(error, "record payment") : done();
 }
 
@@ -88,5 +88,6 @@ export async function decideFromDashboard(input: unknown): Promise<ActionResult>
     return r;
   }
   const { error } = await supabase.from("approvals").update({ status: parsed.data.decision }).eq("id", parsed.data.approval_id).eq("status", "pending");
+  if (!error) after(runBackground);
   return error ? fail(error, "decide") : done();
 }

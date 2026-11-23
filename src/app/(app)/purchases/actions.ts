@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
-import { flushWhatsApp } from "@/lib/notifications/flush";
+import { runBackground } from "@/lib/background";
 import { fieldErrors, type ActionResult } from "@/lib/actions";
 import { readInvoice, type InvoiceMedia } from "@/lib/ai/invoice";
 import { can, getSession } from "@/lib/auth/session";
@@ -158,7 +158,7 @@ export async function savePurchase(input: unknown): Promise<ActionResult<{ numbe
   if (!d.submit) return done({ number: saved.number, status: "draft" });
   const { data: status, error: subErr } = await ctx.supabase.rpc("submit_purchase", { p_id: saved.id });
   if (subErr) return fail(subErr, "submit");
-  after(() => flushWhatsApp());
+  after(runBackground);
   return done({ number: saved.number, status: String(status) });
 }
 

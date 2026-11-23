@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
-import { flushWhatsApp } from "@/lib/notifications/flush";
+import { runBackground } from "@/lib/background";
 import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
 import { linkExpiry, percentSum, scheduleAmounts } from "@/lib/contracts";
@@ -198,7 +198,7 @@ export async function saveAddendum(input: unknown): Promise<ActionResult<{ statu
   if (!submit) return done({ status: "draft" });
   const { data: status, error: e2 } = await supabase.rpc("submit_addendum", { p_id: saved.id });
   if (e2) return fail(e2, "submit addendum");
-  after(() => flushWhatsApp());
+  after(runBackground);
   return done({ status: String(status) });
 }
 

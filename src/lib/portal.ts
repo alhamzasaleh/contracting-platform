@@ -22,6 +22,8 @@ export type PortalData = {
   expires_at: string;
   execution?: PortalExecution | null;
   addenda?: PortalAddendum[];
+  /** Payments ("p<seq>") and addenda (AD- number) that have an official invoice from Qoyod. */
+  invoices?: string[];
 };
 
 export type PortalAddendum = {
@@ -87,5 +89,10 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
     const { data: ad } = await admin.rpc("portal_addenda", { p_number: number, p_token: token });
     addenda = ((ad as unknown as PortalAddendum[] | null) ?? []).map((a) => ({ ...a, amount: Number(a.amount), vat: Number(a.vat), total: Number(a.total) }));
   }
-  return { data: { ...d, execution, addenda, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
+  let invoices: string[] = [];
+  if (d.contract.status === "accepted") {
+    const { data: inv } = await admin.rpc("portal_invoices", { p_number: number, p_token: token });
+    invoices = ((inv as { items?: { key: string }[] } | null)?.items ?? []).map((x) => x.key);
+  }
+  return { data: { ...d, execution, addenda, invoices, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
 }

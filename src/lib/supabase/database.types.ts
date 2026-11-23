@@ -658,6 +658,16 @@ export type NotificationRow = { id: string; organization_id: string; user_id: st
 export type NotificationPrefRow = { organization_id: string; user_id: string; kind: NotificationKind; in_app: boolean; whatsapp: boolean; updated_at: string };
 export type NotificationDeliveryRow = { id: string; notification_id: string; organization_id: string; channel: "whatsapp"; phone: string; status: "queued" | "sent" | "failed"; attempts: number; last_error: string | null; sent_at: string | null; created_at: string };
 
+export type QoyodSettingsRow = {
+  organization_id: string; enabled: boolean; invoice_status: "Draft" | "Approved"; inventory_id: number | null; receive_account_id: number | null; expense_account_id: number | null;
+  service_products: Record<string, number>; addendum_product_id: number | null; sync_from: string | null; key_last4: string | null; key_set_at: string | null; updated_at: string; updated_by: string | null;
+};
+export type QoyodJobKind = "customer" | "vendor" | "invoice" | "invoice_payment" | "bill";
+export type QoyodJobRow = {
+  id: string; organization_id: string; kind: QoyodJobKind; entity_type: "client" | "supplier" | "contract_payment" | "addendum" | "purchase"; entity_id: string; ref: string;
+  amount: number | null; status: "queued" | "running" | "done" | "failed"; attempts: number; next_attempt_at: string; last_error: string | null; qoyod_id: number | null; done_at: string | null; created_at: string; updated_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -726,6 +736,8 @@ export type Database = {
       notifications: Table<NotificationRow>;
       notification_preferences: Table<NotificationPrefRow>;
       notification_deliveries: Table<NotificationDeliveryRow>;
+      qoyod_settings: Table<QoyodSettingsRow>;
+      qoyod_sync_jobs: Table<QoyodJobRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
@@ -741,6 +753,12 @@ export type Database = {
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
       run_daily_reminders: { Args: Record<string, never>; Returns: number };
+      qoyod_set_key: { Args: { p_org: string; p_key: string }; Returns: undefined };
+      qoyod_api_key: { Args: { p_org: string }; Returns: string | null };
+      qoyod_backfill: { Args: { p_org: string; p_from: string }; Returns: number };
+      qoyod_claim_jobs: { Args: { p_limit: number }; Returns: QoyodJobRow[] };
+      qoyod_retry: { Args: { p_org: string; p_job?: string | null }; Returns: number };
+      portal_invoices: { Args: { p_number: string; p_token: string }; Returns: Json };
       create_payroll_run: { Args: { p_org: string; p_month: string }; Returns: string };
       approve_payroll_run: { Args: { p_run: string }; Returns: undefined };
       mark_payroll_paid: { Args: { p_run: string; p_paid_on: string }; Returns: undefined };

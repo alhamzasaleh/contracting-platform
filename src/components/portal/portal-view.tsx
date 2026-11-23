@@ -220,6 +220,26 @@ export function PortalView({
           )
         )}
 
+        {!!data.invoices?.length && (
+          <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="invoices-title">
+            <h2 id="invoices-title" className="text-[18px] font-bold">{t("invoicesTitle")}</h2>
+            <p className="mt-1 text-[13px] text-muted-foreground">{t("invoicesHint")}</p>
+            <ul className="mt-4 grid gap-2">
+              {data.invoices.map((key) => {
+                const pay = key.startsWith("p") ? data.payments.find((p) => `p${p.seq}` === key) : null;
+                return (
+                  <li key={key}>
+                    <a href={`/p/${encodeURIComponent(number)}/${token}/invoice/${encodeURIComponent(key)}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-3 rounded-2xl border border-border px-4 py-3 text-[14px] hover:border-border-strong">
+                      <span>{pay ? pay.label : <DocNo>{key}</DocNo>}</span>
+                      <span className="font-semibold text-primary">{t("invoiceOpen")}</span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
         <ContractTerms
           org={org}
           client={data.client}

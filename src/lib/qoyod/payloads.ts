@@ -1,0 +1,107 @@
+/**
+ * Qoyod (https://apidoc.qoyod.com, API v2) request bodies — pure functions so
+ * they can be unit-tested. Field names follow the official docs exactly.
+ */
+
+export const QOYOD_BASE = "https://api.qoyod.com/2.0";
+
+/** Qoyod's default taxes: 1 = 15 % VAT, 2 = 0 % VAT, 3 = exempt. */
+export const TAX = { vat15: "1", zero: "2", exempt: "3" } as const;
+
+const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/** 9665XXXXXXXX → 05XXXXXXXX (the format Qoyod shows); anything else unchanged. */
+export function localPhone(phone: string | null | undefined): string | undefined {
+  if (!phone) return undefined;
+  return phone.startsWith("966") ? `0${phone.slice(3)}` : phone;
+}
+
+/** Amount before VAT from a VAT-inclusive amount. */
+export function netOf(gross: number, vatPercent: number): number {
+  return vatPercent > 0 ? r2(gross / (1 + vatPercent / 100)) : r2(gross);
+}
+
+export function customerBody(c: { name: string; phone: string | null; city: string | null; number: string }) {
+  return {
+    contact: {
+      name: c.name,
+      organization: "",
+      phone_number: localPhone(c.phone),
+      status: "Active",
+      billing_address: c.city ? { billing_city: c.city, billing_country: "Saudi Arabia" } : undefined,
+    },
+  };
+}
+
+export function vendorBody(v: { name: string; phone: string | null; vat_number: string | null }) {
+  return { contact: { name: v.name, phone_number: localPhone(v.phone), tax_number: v.vat_number ?? undefined, status: "Active" } };
+}
+
+export type InvoiceInput = {
+  contactId: number;
+  reference: string;
+  description: string;
+  issueDate: string;
+  dueDate: string;
+  status: "Draft" | "Approved";
+  inventoryId: number;
+  productId: number;
+  lineDescription: string;
+  /** VAT-inclusive amount the client owes for this line. */
+  gross: number;
+  vatPercent: number;
+};
+
+export function invoiceBody(i: InvoiceInput) {
+  return {
+    invoice: {
+      contact_id: i.contactId,
+      reference: i.reference,
+      description: i.description,
+      issue_date: i.issueDate,
+      due_date: i.dueDate < i.issueDate ? i.issueDate : i.dueDate,
+      status: i.status,
+      inventory_id: i.inventoryId,
+      line_items: [{ product_id: i.productId, description: i.lineDescription, quantity: 1, unit_price: netOf(i.gross, i.vatPercent), tax_percent: i.vatPercent }],
+    },
+  };
+}
+
+export function invoicePaymentBody(p: { reference: string; invoiceId: number; accountId: number; date: string; amount: number }) {
+  return { invoice_payment: { reference: p.reference, invoice_id: p.invoiceId, account_id: p.accountId, date: p.date, amount: r2(p.amount) } };
+}
+
+export function simpleBillBody(b: {
+  contactId: number; reference: string; issueDate: string; status: "Draft" | "Approved"; inventoryId: number; expenseAccountId: number;
+  description: string; subtotal: number; vat: number; total: number;
+}) {
+  // with VAT on the supplier invoice: net amount + 15 %; without: the whole amount, no VAT
+  const withVat = b.vat > 0;
+  return {
+    simple_bill: {
+      contact_id: b.contactId,
+      status: b.status,
+      issue_date: b.issueDate,
+      reference: b.reference,
+      inventory_id: b.inventoryId,
+      simple_bill_items_attributes: [
+        { expense_category_id: b.expenseAccountId, description: b.description, total_amount: r2(withVat ? b.subtotal : b.total), tax_id: withVat ? TAX.vat15 : TAX.zero },
+      ],
+    },
+  };
+}
+
+/** Readable, unique references in Qoyod (C-2026-001 payment 2 → "C-2026-001/2"). */
+export const invoiceRef = (contractNumber: string, seq: number) => `${contractNumber}/${seq}`;
+export const paymentRef = (invoiceReference: string, paidSoFar: number) => `${invoiceReference}/PAY-${r2(paidSoFar).toFixed(2)}`;
+
+/** Pull a short, log-safe message out of a Qoyod error body. */
+export function errorText(status: number, body: unknown): string {
+  let msg = "";
+  if (body && typeof body === "object") {
+    const b = body as Record<string, unknown>;
+    const e = b.errors ?? b.error ?? b.message;
+    msg = typeof e === "string" ? e : e ? JSON.stringify(e) : "";
+  } else if (typeof body === "string") msg = body;
+  return `HTTP ${status}${msg ? `: ${msg}` : ""}`.slice(0, 300);
+}
