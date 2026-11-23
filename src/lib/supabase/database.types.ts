@@ -486,6 +486,26 @@ type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Relationships: [];
 };
 
+export type TeamRow = OrgRow & Upd & {
+  name: string;
+  kind: "inhouse" | "external";
+  services: ("gypsum" | "interior" | "exterior")[];
+  color: string;
+  contact_phone: string | null;
+  is_active: boolean;
+  notes: string | null;
+};
+export type TeamMemberRow = OrgRow & { team_id: string; employee_id: string };
+export type ScheduleEntryRow = OrgRow & Upd & {
+  team_id: string;
+  contract_id: string | null;
+  kind: "work" | "leave" | "other";
+  title: string | null;
+  start_date: string;
+  end_date: string;
+  notes: string | null;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -529,6 +549,9 @@ export type Database = {
       contracts: Table<ContractRow>;
       contract_payments: Table<ContractPaymentRow>;
       client_portal_links: Table<PortalLinkRow>;
+      teams: Table<TeamRow>;
+      team_members: Table<TeamMemberRow>;
+      schedule_entries: Table<ScheduleEntryRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
@@ -543,6 +566,7 @@ export type Database = {
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
+      schedule_roster: { Args: { p_org: string }; Returns: { id: string; full_name: string; job_title: string | null }[] };
       portal_view: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_accept: { Args: { p_number: string; p_token: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };
       seed_pricing_engine: { Args: { p_org: string }; Returns: { products: number; rates: number } };

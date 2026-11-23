@@ -22,6 +22,9 @@ export function createFormatter(locale: Locale, numerals: Numerals) {
     percent: (ratio: number, digits = 1) =>
       nf(`p${digits}`, { style: "percent", maximumFractionDigits: digits }).format(ratio),
     date: (d: Date | string) => df("d", { day: "numeric", month: "short", year: "numeric" }).format(new Date(d)),
+    dayMonth: (d: Date | string) => df("dm", { day: "numeric", month: "short" }).format(new Date(d)),
+    monthYear: (d: Date | string) => df("my", { month: "long", year: "numeric" }).format(new Date(d)),
+    weekday: (d: Date | string) => df("wd", { weekday: "short" }).format(new Date(d)),
     dateTime: (d: Date | string) =>
       df("dt", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }).format(
         new Date(d),

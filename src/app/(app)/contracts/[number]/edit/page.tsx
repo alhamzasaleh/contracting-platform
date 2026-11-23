@@ -3,6 +3,7 @@ import { ContractEditor } from "@/components/contracts/contract-views";
 import { PageHeader } from "@/components/shell/app-shell";
 import { requirePermission } from "@/lib/auth/session";
 import { loadContractDraft } from "@/lib/data/contracts";
+import { loadBusy } from "@/lib/data/schedule";
 import { saveContract } from "../../actions";
 
 export default async function EditContractPage({ params }: { params: Promise<{ number: string }> }) {
@@ -13,7 +14,7 @@ export default async function EditContractPage({ params }: { params: Promise<{ n
   return (
     <div>
       <PageHeader title={t("editTitle", { number: draft.contract!.number })} />
-      <ContractEditor draft={draft} onSave={saveContract} />
+      <ContractEditor draft={draft} onSave={saveContract} busy={await loadBusy(session)} />
     </div>
   );
 }

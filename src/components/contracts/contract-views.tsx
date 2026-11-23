@@ -1,5 +1,5 @@
 "use client";
-import { AlertTriangle, Check, Copy, FileSignature, Link2, MessageCircle, Pencil, Plus, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, CalendarClock, CalendarDays, Check, Copy, FileSignature, Link2, MessageCircle, Pencil, Plus, Trash2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -18,6 +18,7 @@ import { capPercent, firstPaymentWarning, percentSum, scheduleAmounts, type DueE
 import type { ContractDetail, ContractDraft, ContractListItem } from "@/lib/data/contracts";
 import type { ContractStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
+import { anyTeamFree, spanOf, suggestStart, type Entry, type TeamInfo } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
 import { ContractTerms, type ContractOrg } from "./contract-terms";
 
@@ -55,9 +56,21 @@ export function ContractsView({ contracts, base = "" }: { contracts: ContractLis
 type Row = { label: string; percent: number | null; due_event: DueEvent; text?: string };
 
 /** Create a contract from an issued quote, or edit a draft/sent one. */
-export function ContractEditor({ draft, onSave, base = "" }: { draft: ContractDraft; onSave?: (i: Record<string, unknown>) => Promise<ActionResult<{ number: string }>>; base?: string }) {
+export function ContractEditor({
+  draft,
+  onSave,
+  base = "",
+  busy,
+}: {
+  draft: ContractDraft;
+  onSave?: (i: Record<string, unknown>) => Promise<ActionResult<{ number: string }>>;
+  base?: string;
+  /** teams and bookings, for the earliest-start suggestion (§3.9); null without schedule access */
+  busy?: { teams: TeamInfo[]; entries: Entry[] } | null;
+}) {
   const t = useTranslations("contract");
   const tp = useTranslations("pricing");
+  const ts = useTranslations("schedule");
   const { fmt } = useFormatter();
   const router = useRouter();
   const { run, pending } = useActionRunner();
@@ -73,6 +86,15 @@ export function ContractEditor({ draft, onSave, base = "" }: { draft: ContractDr
   const sum = percentSum(percents);
   const amounts = scheduleAmounts(draft.quote.total, percents);
   const warn = draft.materialCost != null && rows.length ? firstPaymentWarning(amounts[0] ?? 0, draft.materialCost) : null;
+  const [today] = React.useState(() => new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10));
+  const plan = React.useMemo(() => {
+    if (!busy || !busy.teams.length || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return null;
+    const exclude = draft.contract ? { contract_id: draft.contract.id } : undefined;
+    return {
+      free: anyTeamFree(busy.teams, busy.entries, draft.quote.service, spanOf(start, days), exclude),
+      suggestion: suggestStart(busy.teams, busy.entries, draft.quote.service, today, days, exclude),
+    };
+  }, [busy, start, days, today, draft.contract, draft.quote.service]);
   const setRow = (i: number, patch: Partial<Row>) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const remaining = Math.max(0, Math.round((100 - sum) * 100) / 100);
   // typing a percentage can never push the total above 100 %
@@ -111,6 +133,21 @@ export function ContractEditor({ draft, onSave, base = "" }: { draft: ContractDr
               <NumberInput defaultValue={warranty} onChange={(e) => setWarranty(Math.max(0, Math.round(Number(toNumber(e.target.value)) || 0)))} suffix={t("monthsUnit")} />
             </Field>
           </div>
+          {plan && !plan.free && (
+            <p className="flex gap-2 rounded-2xl bg-warning-soft px-4 py-3 text-[13px]">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              {ts("allBusy", { service: tp(`kind_${draft.quote.service}`) })}
+            </p>
+          )}
+          {plan?.suggestion && plan.suggestion.date !== start && (
+            <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+              <CalendarClock className="size-4 shrink-0 text-primary" />
+              {ts("earliestHint", { date: fmt.date(plan.suggestion.date), team: plan.suggestion.team.name })}
+              <Button type="button" size="sm" variant="soft" onClick={() => setStart(plan.suggestion!.date)}>
+                {ts("applyDate")}
+              </Button>
+            </p>
+          )}
         </section>
 
         <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
@@ -220,6 +257,7 @@ export function ContractView({
   };
   base?: string;
 }) {
+  const ts = useTranslations("schedule");
   const t = useTranslations("contract");
   const tq = useTranslations("quotes");
   const { fmt } = useFormatter();
@@ -253,6 +291,13 @@ export function ContractView({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {c.status !== "cancelled" && (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`${base}/schedule?contract=${c.number}`}>
+                <CalendarDays /> {ts("bookTeam")}
+              </Link>
+            </Button>
+          )}
           {editable && (
             <Button asChild variant="secondary" size="sm">
               <Link href={`${base}/contracts/${c.number}/edit`}>

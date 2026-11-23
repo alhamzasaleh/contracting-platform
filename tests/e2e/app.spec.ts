@@ -126,3 +126,28 @@ test.describe("contracts and client page (design preview)", () => {
     await expect(page.getByText("الرابط غير صالح")).toBeVisible();
   });
 });
+
+test.describe("schedule (design preview)", () => {
+  test("timeline shows projects, teams, clashes and the earliest free date", async ({ page }) => {
+    await page.goto("/dev/preview/schedule");
+    await expect(page.getByText(/مشروع واحد بدون فريق/)).toBeVisible();
+    const width = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(width).toBeLessThanOrEqual(1);
+    await page.getByRole("button", { name: /أبو محمد العتيبي · C-2026-004/ }).click();
+    await expect(page.getByText(/مشغول في هذه الفترة/)).toBeVisible();
+    await page.getByRole("button", { name: /أقرب موعد متاح/ }).click();
+    await expect(page.getByText(/مشغول في هذه الفترة/)).toHaveCount(0);
+  });
+
+  test("teams tab lists teams with their works", async ({ page }) => {
+    await page.goto("/dev/preview/schedule");
+    await page.getByRole("radio", { name: "الفرق" }).click();
+    await expect(page.getByText("فريق الجبس")).toBeVisible();
+    await expect(page.getByText("مقاول خارجي")).toBeVisible();
+  });
+
+  test("contract editor suggests the earliest start", async ({ page }) => {
+    await page.goto("/dev/preview/contracts/new");
+    await expect(page.getByText(/أقرب بدء متاح/)).toBeVisible();
+  });
+});
