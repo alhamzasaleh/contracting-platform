@@ -85,6 +85,13 @@ describe("tenant isolation", () => {
     expect(new Set(rows.rows.map((r) => r.organization_id))).toEqual(new Set([orgA]));
   });
 
+  it("owner can save every company-settings field (incl. the contract signatory)", async () => {
+    const r = await as({ userId: ownerA }, (q) =>
+      q("update public.organizations set name = name, legal_name = legal_name, cr_number = cr_number, vat_number = vat_number, phone = phone, email = email, city = city, address = address, signatory_name = 'صالح', signatory_title = 'المالك' where id = $1", [orgA]),
+    );
+    expect(r.rowCount).toBe(1);
+  });
+
   it("cannot update another organization (silently affects 0 rows)", async () => {
     const r = await as({ userId: ownerA }, (q) =>
       q("update public.organizations set name = 'Hacked' where id = $1", [orgB]),
