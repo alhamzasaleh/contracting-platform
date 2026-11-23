@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Bell,
   Building2,
   CalendarDays,
   ClipboardList,
@@ -62,6 +63,7 @@ export const SETTINGS_NAV = [
   { key: "branding", href: "/settings/branding", icon: Layers, permission: undefined },
   { key: "members", href: "/settings/members", icon: Users, permission: undefined },
   { key: "preferences", href: "/settings/preferences", icon: Settings, permission: undefined },
+  { key: "notifications", href: "/settings/notifications", icon: Bell, permission: undefined },
   { key: "audit", href: "/settings/audit", icon: ClipboardList, permission: "audit.view" as Permission },
 ] as const;
 

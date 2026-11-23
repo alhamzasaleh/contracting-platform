@@ -24,6 +24,17 @@ export const SAMPLE_SHELL: ShellData = {
   org: { name: SAMPLE_ORG.name, logoUrl: SAMPLE_LOGO },
   role: "owner",
   permissions: [...PERMISSIONS],
+  notifications: {
+    canDecide: true,
+    unread: 3,
+    items: [
+      { id: "n1", kind: "approval", params: { approval_id: "a1", kind: "quote_discount", number: `Q-${new Date().getFullYear()}-014` }, link: "/", read: false, created_at: new Date(Date.now() - 12 * 60_000).toISOString() },
+      { id: "n2", kind: "client_note", params: { number: `C-${new Date().getFullYear()}-007`, body: "نبغى نغير لون غرفة النوم الرئيسية للون أفتح" }, link: "/projects/C-2026-007", read: false, created_at: new Date(Date.now() - 95 * 60_000).toISOString() },
+      { id: "n3", kind: "payment_late", params: { number: `C-${new Date().getFullYear()}-003`, label: "بعد توريد المواد", amount: 18400, days: 14 }, link: "/reports", read: false, created_at: new Date(Date.now() - 5 * 3600_000).toISOString() },
+      { id: "n4", kind: "stage_confirmed", params: { number: `C-${new Date().getFullYear()}-005`, stage: "إغلاق الألواح", final: false }, link: "/projects/C-2026-005", read: true, created_at: new Date(Date.now() - 26 * 3600_000).toISOString() },
+      { id: "n5", kind: "doc_expiry", params: { name: "رفيق أحمد", doc: "id", days: 30 }, link: "/team/payroll", read: true, created_at: new Date(Date.now() - 50 * 3600_000).toISOString() },
+    ],
+  },
   basePath: "/dev/preview",
 };
 

@@ -252,3 +252,31 @@ test.describe("payroll (design preview)", () => {
     await expect(page.getByText("مسودة").first()).toBeVisible();
   });
 });
+
+test.describe("notifications (design preview)", () => {
+  test("bell lists notifications, approves inline and marks all read", async ({ page }) => {
+    await page.goto("/dev/preview");
+    const bell = page.getByRole("button", { name: /التنبيهات \(3 غير مقروء\)/ });
+    await expect(async () => {
+      await bell.click();
+      await expect(page.getByRole("menu")).toBeVisible({ timeout: 1000 });
+    }).toPass();
+    await expect(page.getByText(/ملاحظة من العميل على/)).toBeVisible();
+    await expect(page.getByRole("menu").getByRole("button", { name: "موافقة" })).toBeVisible();
+    await page.getByRole("button", { name: "تعليم الكل كمقروء" }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("button", { name: "التنبيهات", exact: true })).toBeVisible();
+  });
+
+  test("preferences: WhatsApp follows in-app", async ({ page }) => {
+    await page.goto("/dev/preview/settings/notifications");
+    await expect(page.getByText(/إرسال الواتساب يشتغل بعد ربط/)).toBeVisible();
+    const inApp = page.getByRole("switch", { name: "ملاحظات العملاء — داخل التطبيق" });
+    const wa = page.getByRole("switch", { name: "ملاحظات العملاء — واتساب" });
+    await wa.click();
+    await expect(wa).toBeChecked();
+    await inApp.click();
+    await expect(wa).not.toBeChecked();
+    await expect(wa).toBeDisabled();
+  });
+});

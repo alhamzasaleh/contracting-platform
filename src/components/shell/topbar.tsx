@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useFormatter } from "@/components/formatter-provider";
+import { NotificationBell } from "@/components/notifications/bell";
 import { CommandMenu } from "./command-menu";
 import { BrandLogo } from "@/components/brand-logo";
 import { SidebarBrand, SidebarNav } from "./sidebar";
@@ -85,6 +86,7 @@ export function Topbar({ data }: { data: ShellData }) {
         </button>
 
         <div className="flex items-center gap-1 sm:ms-auto">
+          {data.notifications && <NotificationBell data={data.notifications} base={base} preview={preview} />}
           <Tooltip content={t("nav.switchLanguage")}>
             <Button variant="ghost" size="icon" onClick={switchLocale} loading={pending} aria-label={t("nav.switchLanguage")}>
               {!pending && <Languages />}

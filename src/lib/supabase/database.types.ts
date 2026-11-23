@@ -653,6 +653,11 @@ export type PayrollLineRow = OrgRow & Upd & {
   note: string | null;
 };
 
+export type NotificationKind = "approval" | "client_note" | "stage_confirmed" | "contract_accepted" | "addendum_accepted" | "payment_received" | "payment_late" | "doc_expiry" | "approval_reminder";
+export type NotificationRow = { id: string; organization_id: string; user_id: string; kind: NotificationKind; params: Json; link: string | null; dedupe_key: string | null; read_at: string | null; created_at: string };
+export type NotificationPrefRow = { organization_id: string; user_id: string; kind: NotificationKind; in_app: boolean; whatsapp: boolean; updated_at: string };
+export type NotificationDeliveryRow = { id: string; notification_id: string; organization_id: string; channel: "whatsapp"; phone: string; status: "queued" | "sent" | "failed"; attempts: number; last_error: string | null; sent_at: string | null; created_at: string };
+
 export type Database = {
   public: {
     Tables: {
@@ -718,6 +723,9 @@ export type Database = {
       employee_advances: Table<EmployeeAdvanceRow>;
       payroll_runs: Table<PayrollRunRow>;
       payroll_lines: Table<PayrollLineRow>;
+      notifications: Table<NotificationRow>;
+      notification_preferences: Table<NotificationPrefRow>;
+      notification_deliveries: Table<NotificationDeliveryRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
@@ -732,6 +740,7 @@ export type Database = {
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
+      run_daily_reminders: { Args: Record<string, never>; Returns: number };
       create_payroll_run: { Args: { p_org: string; p_month: string }; Returns: string };
       approve_payroll_run: { Args: { p_run: string }; Returns: undefined };
       mark_payroll_paid: { Args: { p_run: string; p_paid_on: string }; Returns: undefined };

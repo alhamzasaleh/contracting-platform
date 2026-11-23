@@ -2,10 +2,12 @@
 
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/actions";
 import { NUMBER_RE, TOKEN_RE } from "@/lib/portal";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { flushWhatsApp } from "@/lib/notifications/flush";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const acceptSchema = z
@@ -34,6 +36,7 @@ export async function acceptPortal(input: unknown): Promise<ActionResult> {
     console.error("[portal] accept failed", { code: error.code });
     return { ok: false, error: "error" };
   }
+  if (data) after(() => flushWhatsApp());
   return data ? { ok: true } : { ok: false, error: "linkInvalid" };
 }
 
@@ -62,6 +65,7 @@ export async function confirmStagePortal(input: unknown): Promise<ActionResult> 
     console.error("[portal] confirm failed", { code: error.code });
     return { ok: false, error: error.message?.includes("signature") ? "signatureRequired" : "error" };
   }
+  if (data) after(() => flushWhatsApp());
   return data ? { ok: true } : { ok: false, error: "linkInvalid" };
 }
 
@@ -103,6 +107,7 @@ export async function addNotePortal(fd: FormData): Promise<ActionResult> {
     console.error("[portal] add note failed", { code: error?.code });
     return { ok: false, error: "error" };
   }
+  after(() => flushWhatsApp());
   return { ok: true };
 }
 
@@ -132,5 +137,6 @@ export async function acceptAddendumPortal(input: unknown): Promise<ActionResult
     console.error("[portal] addendum accept failed", { code: error.code });
     return { ok: false, error: "error" };
   }
+  if (data) after(() => flushWhatsApp());
   return data ? { ok: true } : { ok: false, error: "linkInvalid" };
 }

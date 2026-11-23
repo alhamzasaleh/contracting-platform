@@ -1,4 +1,5 @@
 import type { Permission, Role } from "@/lib/auth/permissions";
+import type { NotificationItem } from "@/lib/notifications";
 
 /** Everything the app shell needs; built from the session (or sample data in preview). */
 export type ShellData = {
@@ -6,6 +7,8 @@ export type ShellData = {
   org: { name: string; logoUrl: string | null };
   role: Role;
   permissions: Permission[];
+  /** In-app notifications (bell). */
+  notifications?: { items: NotificationItem[]; unread: number; canDecide: boolean };
   /** Base path for links: "" in the app, "/dev/preview" in the design preview. */
   basePath?: string;
 };
