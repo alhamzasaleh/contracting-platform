@@ -16,7 +16,9 @@ import { CATEGORIES_BY_FAMILY, CATEGORY_SPEC, rolesFor } from "@/lib/catalogue/p
 import { brandCoverage, lineMissing, type LineBrand, type LinePack, type ProductLine } from "@/lib/catalogue/product-lines";
 import { familyOf, type ProductCategory, type ProductFamily, type PurchaseUnit } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
+import type { DatasheetResult } from "@/lib/catalogue/datasheet";
 import { cn } from "@/lib/utils";
+import { DatasheetImport, type DatasheetPrefill } from "./datasheet-import";
 import { SwitchField } from "./services-view";
 
 export type ProductLinesActions = {
@@ -27,6 +29,7 @@ export type ProductLinesActions = {
   addPack: (i: Record<string, unknown>) => Promise<ActionResult>;
   deletePack: (i: Record<string, unknown>) => Promise<ActionResult>;
   addPrice: (i: Record<string, unknown>) => Promise<ActionResult>;
+  readDatasheet?: (fd: FormData) => Promise<ActionResult<DatasheetResult>>;
 };
 
 type BrandOption = { id: string; name: string; families: ProductFamily[] };
@@ -45,7 +48,10 @@ export function ProductLinesView({
   canManage,
   canSeeCosts,
   actions,
+  datasheetSample,
 }: {
+  /** design preview only */
+  datasheetSample?: DatasheetResult;
   lines: ProductLine[];
   unlinked?: LineBrand[];
   brands: BrandOption[];
@@ -67,6 +73,7 @@ export function ProductLinesView({
   const [priceFor, setPriceFor] = React.useState<{ line: ProductLine; brand: LineBrand; pack: LinePack } | null>(null);
   const [coverageFor, setCoverageFor] = React.useState<{ line: ProductLine; brand: LineBrand } | null>(null);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [prefill, setPrefill] = React.useState<DatasheetPrefill | null>(null);
 
   const qn = (x: number) => fmt.number(x, Number.isInteger(x) ? 0 : Number.isInteger(x * 10) ? 1 : 2);
   const unitLabel = (u: PurchaseUnit) => t(`unit_${u}`);
@@ -135,10 +142,12 @@ export function ProductLinesView({
     const close = () => {
       setLineDialog(null);
       setNewCat(null);
+      setPrefill(null);
       setErrors({});
     };
+    const pf = l ? null : prefill;
     // Coverage is asked the way it's printed on the pack: "18 L covers 120 m²" → stored per litre.
-    const refSize = l?.brands.flatMap((b) => b.packs.map((k) => k.size))[0] ?? (CATEGORY_SPEC[cat].unit === "kg" ? 20 : 18);
+    const refSize = l?.brands.flatMap((b) => b.packs.map((k) => k.size))[0] ?? pf?.packSize ?? (CATEGORY_SPEC[cat].unit === "kg" ? 20 : 18);
     return (
       <FormDialog
         open
@@ -199,7 +208,7 @@ export function ProductLinesView({
           </Field>
         )}
         <Field id="ln-name" label={t("productName")} error={fieldText(errors.name)}>
-          <Input name="name" defaultValue={l?.name ?? t(`cat_${cat}`)} />
+          <Input name="name" defaultValue={l?.name ?? (pf?.name || t(`cat_${cat}`))} />
         </Field>
 
         <div className="grid gap-4 rounded-2xl bg-surface-sunken/70 p-4">
@@ -211,7 +220,7 @@ export function ProductLinesView({
                   <NumberInput name="ref_size" defaultValue={refSize} suffix={unit} />
                 </Field>
                 <Field id="ln-area" label={t("coversQ")} error={fieldText(errors.ref_area)}>
-                  <NumberInput name="ref_area" defaultValue={l?.coverage_per_unit ? Math.round(l.coverage_per_unit * refSize * 100) / 100 : ""} suffix="m²" />
+                  <NumberInput name="ref_area" defaultValue={l?.coverage_per_unit ? Math.round(l.coverage_per_unit * refSize * 100) / 100 : pf?.coveragePerUnit ? Math.round(pf.coveragePerUnit * refSize * 100) / 100 : ""} suffix="m²" />
                 </Field>
               </div>
               <label className="flex items-center justify-between gap-3 rounded-xl bg-surface px-4 py-3">
@@ -441,6 +450,18 @@ export function ProductLinesView({
           <Search className="pointer-events-none absolute inset-y-0 start-3.5 my-auto size-4 text-subtle-foreground" />
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("search")} className="ps-10" aria-label={t("search")} />
         </div>
+        {canManage && (
+          <DatasheetImport
+            read={actions?.readDatasheet}
+            sample={datasheetSample}
+            onUse={(p) => {
+              setFamily(familyOf(p.category));
+              setNewCat(p.category);
+              setPrefill(p);
+              setLineDialog("new");
+            }}
+          />
+        )}
         {canManage && (
           <Button onClick={() => setLineDialog("new")}>
             <Plus /> {t("newLine")}

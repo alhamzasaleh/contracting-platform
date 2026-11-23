@@ -9,6 +9,9 @@ import { createClient } from "@/lib/supabase/server";
 import { familyOf, PRODUCT_CATEGORIES, PURCHASE_UNITS, type ProductRow } from "@/lib/supabase/database.types";
 import { CATEGORY_SPEC, DEFAULT_ROLE, rolesFor, firstPackSize, missingFields, normaliseProductFields } from "@/lib/catalogue/product-kinds";
 import { num, optionalNum, optionalText } from "@/lib/validation/numbers";
+import { readDatasheet } from "@/lib/ai/datasheet";
+import { cleanDatasheet } from "@/lib/catalogue/datasheet";
+import { rateLimit } from "@/lib/rate-limit";
 
 /** Server actions for the pricing-engine catalogue (Appendix A). */
 
@@ -454,4 +457,55 @@ export async function saveSystemSpec(input: unknown): Promise<ActionResult> {
     .eq("id", parsed.data.id)
     .eq("organization_id", ctx.orgId);
   return dbError(error) ?? done();
+}
+
+// --- Datasheet import (Appendix A.1, AI) ------------------------------------------------
+
+/**
+ * A product's technical datasheet (PDF or photo, ≤ 5 MB) → a draft (coverage, packs,
+ * coats, drying time). Nothing is saved: the owner reviews it and creates the product.
+ * The file is read once and never stored or logged; 30 per hour per user.
+ */
+export async function readDatasheetAi(fd: FormData): Promise<ActionResult<ReturnType<typeof cleanDatasheet>>> {
+  const session = await getSession();
+  if (!can(session, "catalogue.manage")) return { ok: false, error: "noAccess" };
+  const file = fd.get("file");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "fileMissing" };
+  if (file.size > 5 * 1024 * 1024) return { ok: false, error: "fileTooLarge" };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const at = (sig: number[], o = 0) => sig.every((x, i) => bytes[o + i] === x);
+  const type = at([0x25, 0x50, 0x44, 0x46]) ? "application/pdf"
+    : at([0xff, 0xd8, 0xff]) ? "image/jpeg"
+    : at([0x89, 0x50, 0x4e, 0x47]) ? "image/png"
+    : at([0x52, 0x49, 0x46, 0x46]) && at([0x57, 0x45, 0x42, 0x50], 8) ? "image/webp"
+    : null;
+  if (!type) return { ok: false, error: "fileType" };
+  const limit = await rateLimit(`ai:datasheet:${session.userId}`, 30, 3600);
+  if (limit !== "ok") return { ok: false, error: limit === "limited" ? "rateLimited" : "aiFailed" };
+  const r = await readDatasheet(bytes, type);
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, data: cleanDatasheet(r.draft) };
+}
+
+const calibrationSchema = z.object({ group_id: z.uuid(), coverage_per_unit: z.number().positive().max(1000) }).strict();
+
+/**
+ * A.8: the owner approves a suggested coverage for a product line (learned from
+ * handed-over projects). Only the owner's click changes it — never automatic.
+ * The change is recorded in the audit log like any other edit.
+ */
+export async function applyCalibration(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize("catalogue.manage", "costs.view");
+  if (!isCtx(ctx)) return ctx;
+  const parsed = calibrationSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { error } = await ctx.supabase
+    .from("equivalence_groups")
+    .update({ coverage_per_unit: Math.round(parsed.data.coverage_per_unit * 10000) / 10000 })
+    .eq("id", parsed.data.group_id)
+    .eq("organization_id", ctx.orgId);
+  const bad = dbError(error);
+  if (bad) return bad;
+  revalidatePath("/catalogue", "layout");
+  return { ok: true };
 }

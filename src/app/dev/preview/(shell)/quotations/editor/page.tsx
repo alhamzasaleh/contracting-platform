@@ -19,6 +19,10 @@ export default function P() {
       templates={{}}
       canSeeCrewCost
       base="/dev/preview"
+      history={{
+        won: 7, lost: 3, winRate: 70, wonMargin: 26.5, lostMargin: 32, suggestedMargin: 26.5, durationFactor: 1.18,
+        pricePerM2: [{ workType: "walls", median: 31, count: 7 }, { workType: "ceilings", median: 28, count: 6 }],
+      }}
     />
   );
 }

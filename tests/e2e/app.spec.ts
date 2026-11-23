@@ -439,3 +439,34 @@ test.describe("multi-option quotes (design preview)", () => {
     await expect(page.getByRole("button", { name: "أوافق على خيار «الجزيرة»" })).toBeEnabled();
   });
 });
+
+test.describe("AI helpers (design preview)", () => {
+  test("survey: notes → draft rooms to review, rows with missing sizes stay unticked", async ({ page }) => {
+    await page.goto("/dev/preview/clients/survey");
+    await page.getByRole("button", { name: "مسودة من صوت أو صور" }).first().click();
+    await page.getByLabel("ملاحظات الرفع المساحي").fill("المجلس ٦ في ٥");
+    await page.getByRole("button", { name: "جهّز المسودة" }).click();
+    await expect(page.getByText("عرض المطبخ غير مذكور")).toBeVisible();
+    await expect(page.getByRole("button", { name: "إضافة 2 غرف" })).toBeEnabled();
+  });
+
+  test("materials: a datasheet becomes a pre-filled new product", async ({ page }) => {
+    await page.goto("/dev/preview/catalogue/products");
+    await page.getByRole("button", { name: "قراءة نشرة فنية" }).click();
+    await page.locator('input[type="file"]').setInputFiles({ name: "tds.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4") });
+    await expect(page.getByText("10–12 م²/لتر للوجه")).toBeVisible();
+    await page.getByRole("button", { name: "إنشاء المنتج بهذي البيانات" }).click();
+    await expect(page.locator('input[name="name"]')).toHaveValue("Jotun Fenomastic My Home Smooth");
+    await expect(page.locator('input[name="ref_area"]')).toHaveValue(/180/);
+  });
+
+  test("pricing shows suggestions from past quotes; calibration asks before changing", async ({ page }) => {
+    await page.goto("/dev/preview/quotations/editor");
+    await expect(page.getByText("من مشاريعك السابقة")).toBeVisible();
+    await page.getByRole("button", { name: /استخدم الهامش المقترح/ }).click();
+    await expect(page.locator("#margin")).toHaveValue("26.5");
+    await page.goto("/dev/preview/catalogue/calibration");
+    await expect(page.getByRole("button", { name: "اعتماد التغيير" })).toHaveCount(1);
+    await expect(page.getByText(/راجع معدل الاستهلاك/)).toBeVisible();
+  });
+});

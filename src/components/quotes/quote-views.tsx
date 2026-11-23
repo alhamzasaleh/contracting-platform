@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { LinesTable } from "@/components/pricing/results";
 import { QuoteDocument, type DocOrg } from "./quote-document";
 import { QuoteOptionsPanel } from "./quote-options";
+import type { PastStats } from "@/lib/pricing/history";
 
 const STATUS_TONE: Record<QuoteStatus, "neutral" | "warning" | "primary" | "success" | "danger"> = {
   draft: "neutral",
@@ -78,7 +79,10 @@ export function QuoteEditorView({
   canSeeCrewCost,
   onSave,
   base = "",
+  history,
 }: {
+  /** what past quotes of this service suggest (costs.view) */
+  history?: PastStats | null;
   kind: ServiceKind;
   quantities: Quantities;
   gaps: string[];
@@ -151,6 +155,7 @@ export function QuoteEditorView({
         quantities,
         initial,
         quantitiesPanel: panel,
+        history: history ?? null,
         renderActions: (sel, outcome) => (
           <section className="grid gap-3 rounded-2xl border-2 border-primary/30 bg-surface p-4">
             <p className="text-[14px] font-bold">{quote ? t("newVersionOf", { number: quote.number }) : t("newQuote")}</p>

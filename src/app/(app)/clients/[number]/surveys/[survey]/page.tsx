@@ -3,7 +3,7 @@ import { SurveyView } from "@/components/clients/survey-view";
 import { PageHeader } from "@/components/shell/app-shell";
 import { can, requirePermission } from "@/lib/auth/session";
 import { loadSurvey } from "@/lib/data/clients";
-import { deleteRoom, saveRoom, saveSurvey } from "../../../actions";
+import { deleteRoom, draftSurveyAi, saveRoom, saveSurvey } from "../../../actions";
 
 export default async function SurveyPage({ params }: { params: Promise<{ number: string; survey: string }> }) {
   const { number, survey } = await params;
@@ -17,7 +17,7 @@ export default async function SurveyPage({ params }: { params: Promise<{ number:
         detail={detail}
         canManage={can(session, "clients.manage")}
         canQuote={can(session, "quotes.manage") && can(session, "costs.view")}
-        actions={{ saveSurvey, saveRoom, deleteRoom }}
+        actions={{ saveSurvey, saveRoom, deleteRoom, draftAi: draftSurveyAi }}
       />
     </div>
   );

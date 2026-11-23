@@ -14,6 +14,7 @@ export default async function CatalogueLayout({ children }: { children: React.Re
       ? [
           { href: "/catalogue/calculator", label: t("tabCalculator") },
           { href: "/catalogue/rates", label: t("tabRates") },
+          { href: "/catalogue/calibration", label: t("tabCalibration") },
           { href: "/catalogue/labour", label: t("tabLabour") },
           { href: "/catalogue/settings", label: t("tabSettings") },
         ]

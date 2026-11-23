@@ -7,6 +7,9 @@ import { can, getSession } from "@/lib/auth/session";
 import type { Permission } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { num, optionalDate, optionalText } from "@/lib/validation/numbers";
+import { draftSurvey, type SurveyPhoto } from "@/lib/ai/survey";
+import { rateLimit } from "@/lib/rate-limit";
+import { cleanDraft } from "@/lib/survey/ai-draft";
 
 type Ctx = { orgId: string; supabase: Awaited<ReturnType<typeof createClient>> };
 async function authorize(perm: Permission): Promise<Ctx | ActionResult> {
@@ -151,4 +154,49 @@ export async function deleteRoom(input: unknown): Promise<ActionResult> {
   if (!parsed.success) return { ok: false, error: "invalid" };
   const { error } = await ctx.supabase.from("survey_rooms").delete().eq("id", parsed.data.id).eq("organization_id", ctx.orgId);
   return dbError(error) ?? done();
+}
+
+// --- AI survey draft (§3.2 / §8.1) ----------------------------------------------------
+
+const MAX_PHOTO = 4 * 1024 * 1024;
+function sniffPhoto(b: Uint8Array): SurveyPhoto["mediaType"] | null {
+  const at = (sig: number[], o = 0) => sig.every((x, i) => b[o + i] === x);
+  if (at([0xff, 0xd8, 0xff])) return "image/jpeg";
+  if (at([0x89, 0x50, 0x4e, 0x47])) return "image/png";
+  if (at([0x52, 0x49, 0x46, 0x46]) && at([0x57, 0x45, 0x42, 0x50], 8)) return "image/webp";
+  return null;
+}
+
+/**
+ * Voice notes (already transcribed by the browser) and/or up to 4 photos →
+ * a measurements draft. Nothing is saved: the supervisor reviews and adds rooms.
+ * Rate-limited (30 per hour per user); the notes and photos are never stored or logged.
+ */
+export async function draftSurveyAi(fd: FormData): Promise<ActionResult<ReturnType<typeof cleanDraft>>> {
+  const session = await getSession();
+  if (!can(session, "clients.manage")) return { ok: false, error: "noAccess" };
+  const surveyId = id.safeParse(fd.get("survey_id"));
+  const text = fd.get("text");
+  if (!surveyId.success || (text !== null && typeof text !== "string") || (typeof text === "string" && text.length > 6000)) return { ok: false, error: "invalid" };
+  const files = fd.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length > 4) return { ok: false, error: "tooManyPhotos" };
+  if (!(text ?? "").toString().trim() && !files.length) return { ok: false, error: "invalid" };
+  const photos: SurveyPhoto[] = [];
+  for (const f of files) {
+    if (f.size > MAX_PHOTO) return { ok: false, error: "fileTooLarge" };
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    const mediaType = sniffPhoto(bytes);
+    if (!mediaType) return { ok: false, error: "fileType" };
+    photos.push({ bytes, mediaType });
+  }
+  const supabase = await createClient();
+  // the survey must be one this user can see (RLS); its rooms give the usual height
+  const { data: survey } = await supabase.from("surveys").select("id").eq("id", surveyId.data).eq("organization_id", session.organization.id).maybeSingle();
+  if (!survey) return { ok: false, error: "invalid" };
+  const limit = await rateLimit(`ai:survey:${session.userId}`, 30, 3600);
+  if (limit !== "ok") return { ok: false, error: limit === "limited" ? "rateLimited" : "aiFailed" };
+  const r = await draftSurvey((text ?? "").toString(), photos);
+  if (!r.ok) return { ok: false, error: r.error };
+  const { data: last } = await supabase.from("survey_rooms").select("height_m").eq("survey_id", survey.id).order("sort_order", { ascending: false }).limit(1).maybeSingle();
+  return { ok: true, data: cleanDraft(r.draft, last ? Number(last.height_m) : 3) };
 }

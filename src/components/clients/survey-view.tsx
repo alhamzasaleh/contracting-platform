@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
 import { FormDialog, NumberInput, str, useActionRunner } from "@/components/forms/form-kit";
+import { SurveyAiDraft } from "./survey-ai-draft";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -14,6 +15,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import type { SurveyDetail } from "@/lib/data/clients";
+import type { SurveyDraftResult } from "@/lib/survey/ai-draft";
 import { PRESETS, type Quantities, type ServiceKind } from "@/lib/pricing";
 import { roomCeiling, roomWalls, surveyGaps, surveyQuantities, type BoardType, type SurveyMode, type SurveyRoom, type SurveyTotals, type WallZone } from "@/lib/survey";
 import { toNumber } from "@/lib/validation/numbers";
@@ -46,12 +48,15 @@ export function SurveyView({
   canQuote,
   actions,
   base = "",
+  aiSample,
 }: {
+  /** design preview only: what the AI draft dialog shows */
+  aiSample?: SurveyDraftResult;
   base?: string;
   detail: SurveyDetail;
   canManage: boolean;
   canQuote: boolean;
-  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act };
+  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>> };
 }) {
   const t = useTranslations("survey");
   const tc = useTranslations("common");
@@ -66,6 +71,26 @@ export function SurveyView({
   const [dirty, setDirty] = React.useState(false);
   const [room, setRoom] = React.useState<Partial<SurveyRoom> | null>(null);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  // re-mounts the totals inputs when the AI draft fills them
+  const [totalsKey, setTotalsKey] = React.useState(0);
+  const aiDraft = canManage && (
+    <SurveyAiDraft
+      surveyId={survey.id}
+      draft={actions?.draftAi}
+      addRoom={actions?.saveRoom}
+      preview={!actions}
+      sample={aiSample}
+      onTotals={
+        mode === "total"
+          ? (x) => {
+              setTotals((s) => ({ ...s, ...x }));
+              setDirty(true);
+              setTotalsKey((k) => k + 1);
+            }
+          : undefined
+      }
+    />
+  );
 
   const setTotal = (k: keyof SurveyTotals) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const n = toNumber(e.target.value);
@@ -227,9 +252,12 @@ export function SurveyView({
               <Ruler className="size-5 text-muted-foreground" /> {t("rooms")}
             </h3>
             {canManage && (
-              <Button size="sm" onClick={() => setRoom({ height_m: rooms.at(-1)?.height_m ?? 3, paint_walls: true, paint_ceiling: true })}>
-                <Plus /> {t("addRoom")}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {aiDraft}
+                <Button size="sm" onClick={() => setRoom({ height_m: rooms.at(-1)?.height_m ?? 3, paint_walls: true, paint_ceiling: true })}>
+                  <Plus /> {t("addRoom")}
+                </Button>
+              </div>
             )}
           </div>
           {rooms.length === 0 && <p className="rounded-2xl border border-dashed border-border p-6 text-center text-muted-foreground">{t("noRooms")}</p>}
@@ -271,8 +299,11 @@ export function SurveyView({
         </section>
       )}
 
-      <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5">
-        <h3 className="text-[17px] font-bold">{mode === "rooms" ? t("extrasTitle") : t("totalsTitle")}</h3>
+      <section key={totalsKey} className="grid gap-4 rounded-3xl border border-border bg-surface p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-[17px] font-bold">{mode === "rooms" ? t("extrasTitle") : t("totalsTitle")}</h3>
+          {mode === "total" && aiDraft}
+        </div>
         <div className="grid gap-5 lg:grid-cols-3">
           <div className="grid content-start gap-3">
             <p className="flex items-center gap-2 text-[14px] font-bold"><Hammer className="size-4" /> {t("svc_gypsum")}</p>

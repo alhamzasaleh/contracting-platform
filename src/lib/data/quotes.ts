@@ -8,6 +8,7 @@ import type { QuoteStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { surveyGaps, surveyQuantities, type SurveyRoom, type SurveyTotals } from "@/lib/survey";
 import type { Line } from "@/lib/engine";
+import { pastStats, type PastStats } from "@/lib/pricing/history";
 
 const n = (v: unknown) => Number(v ?? 0);
 
@@ -90,8 +91,69 @@ export async function loadQuoteEditor(session: SessionContext, args: { surveyNum
   const kind = (quote?.service ?? args.service)!;
   const src = await surveySource(supabase, orgId, quote ? { id: quote.survey_id! } : { number: args.surveyNumber }, kind);
   if (!src) notFound();
-  const { ctx, templates, canSeeCrewCost } = await loadPricingContext(session);
-  return { quote, kind, initial, discount, method, notes, ...src, ctx, templates, canSeeCrewCost };
+  const [{ ctx, templates, canSeeCrewCost }, history] = await Promise.all([loadPricingContext(session), loadPastStats(session, kind, quote?.id ?? null)]);
+  return { quote, kind, initial, discount, method, notes, ...src, ctx, templates, canSeeCrewCost, history };
+}
+
+/**
+ * The company's past quotes for this service (costs.view): won = the client accepted
+ * the contract; lost = rejected/expired, or issued more than 30 days ago with no contract.
+ */
+export async function loadPastStats(session: SessionContext, kind: ServiceKind, exclude: string | null): Promise<PastStats | null> {
+  if (!can(session, "costs.view")) return null;
+  const supabase = await createClient();
+  const orgId = session.organization.id;
+  const { data: qs } = await supabase
+    .from("quotes")
+    .select("id, status, current_version, valid_until, updated_at")
+    .eq("organization_id", orgId)
+    .eq("service", kind)
+    .in("status", ["issued", "accepted", "rejected", "expired"])
+    .order("created_at", { ascending: false })
+    .limit(200);
+  const list = (qs ?? []).filter((q) => q.id !== exclude);
+  if (!list.length) return pastStats([], 0);
+  const ids = list.map((q) => q.id);
+  const [{ data: contracts }, { data: versions }, { data: settings }] = await Promise.all([
+    supabase.from("contracts").select("id, quote_id, quote_version, status, start_date, duration_days").in("quote_id", ids).neq("status", "cancelled"),
+    supabase.from("quote_versions").select("id, quote_id, version, client_view").in("quote_id", ids),
+    supabase.from("pricing_settings").select("min_margin_percent").eq("organization_id", orgId).maybeSingle(),
+  ]);
+  const accepted = (contracts ?? []).filter((c) => c.status === "accepted");
+  const { data: finals } = accepted.length
+    ? await supabase.from("project_stages").select("contract_id, confirmed_at").eq("is_final", true).eq("status", "confirmed").in("contract_id", accepted.map((c) => c.id))
+    : { data: [] as { contract_id: string; confirmed_at: string | null }[] };
+  const monthAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+  const picked = list
+    .map((q) => {
+      const c = (contracts ?? []).find((x) => x.quote_id === q.id);
+      const won = c?.status === "accepted" || q.status === "accepted";
+      const lost = !c && (q.status === "rejected" || q.status === "expired" || (q.status === "issued" && (q.valid_until ?? q.updated_at.slice(0, 10)) < monthAgo));
+      if (!won && !lost) return null;
+      const version = won && c ? c.quote_version : q.current_version;
+      const v = (versions ?? []).find((x) => x.quote_id === q.id && x.version === version);
+      if (!v) return null;
+      const fin = c ? (finals ?? []).find((f) => f.contract_id === c.id)?.confirmed_at : null;
+      const actualDays = c && fin ? Math.max(1, Math.round((Date.parse(fin) - Date.parse(c.start_date)) / 86_400_000)) : null;
+      return { q, v, outcome: (won ? "won" : "lost") as "won" | "lost", plannedDays: c?.duration_days ?? null, actualDays };
+    })
+    .filter((x): x is NonNullable<typeof x> => !!x);
+  const { data: costs } = picked.length
+    ? await supabase.from("quote_version_costs").select("quote_version_id, margin_percent").in("quote_version_id", picked.map((p) => p.v.id))
+    : { data: [] as { quote_version_id: string; margin_percent: number }[] };
+  const margin = new Map((costs ?? []).map((c) => [c.quote_version_id, n(c.margin_percent)]));
+  return pastStats(
+    picked
+      .filter((p) => margin.has(p.v.id))
+      .map((p) => ({
+        outcome: p.outcome,
+        margin: margin.get(p.v.id)!,
+        workTypes: ((p.v.client_view as unknown as ClientView | null)?.workTypes ?? []).map((w) => ({ workType: w.workType, pricePerM2: n(w.pricePerM2) })),
+        plannedDays: p.plannedDays,
+        actualDays: p.actualDays,
+      })),
+    n(settings?.min_margin_percent ?? 20),
+  );
 }
 
 export type QuoteDetail = {

@@ -1,7 +1,7 @@
 import { ProductLinesView } from "@/components/catalogue/product-lines-view";
 import { can, getSession } from "@/lib/auth/session";
 import { loadProductLines } from "@/lib/data/engine";
-import { addBrandToLine, addProductPack, addProductPrice, deleteProductPack, saveLine, seedPricingEngine, updateBrandRow } from "../engine-actions";
+import { addBrandToLine, addProductPack, addProductPrice, deleteProductPack, readDatasheetAi, saveLine, seedPricingEngine, updateBrandRow } from "../engine-actions";
 
 export default async function ProductsPage() {
   const session = await getSession();
@@ -22,6 +22,7 @@ export default async function ProductsPage() {
         addPack: addProductPack,
         deletePack: deleteProductPack,
         addPrice: addProductPrice,
+        readDatasheet: readDatasheetAi,
       }}
     />
   );

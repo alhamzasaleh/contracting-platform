@@ -2,6 +2,7 @@
 import {
   AlertTriangle,
   Hammer,
+  History,
   Lock,
   PaintBucket,
   PaintRoller,
@@ -18,6 +19,8 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
+import type { PastStats } from "@/lib/pricing/history";
+import { workItemLabel } from "@/components/quotes/quote-document";
 import {
   defaultSelection,
   EMPTY_QUANTITIES,
@@ -115,6 +118,8 @@ export function PricingView({
     initial?: Selection | null;
     quantitiesPanel: React.ReactNode;
     renderActions: (sel: Selection, outcome: PricingOutcome) => React.ReactNode;
+    /** suggestions from the company's past quotes for this service */
+    history?: PastStats | null;
   };
   ctx: PricingContext;
   templates: Partial<Record<ServiceKind, Partial<Selection>>>;
@@ -154,6 +159,8 @@ export function PricingView({
   });
   const sel = sels[kind];
   const tpl = base[kind];
+  // re-mounts the margin input when a suggestion is applied
+  const [marginKey, setMarginKey] = React.useState(0);
   const q = qs[kind];
 
   const setSel = (f: (s: Selection) => Selection) =>
@@ -689,11 +696,22 @@ export function PricingView({
 
         {labourPanel()}
 
+        {quote?.history && (quote.history.won > 0 || quote.history.lost > 0) && (
+          <PastSuggestions
+            h={quote.history}
+            service={kind}
+            onApply={(m) => {
+              setSel((s) => ({ ...s, marginPercent: m }));
+              setMarginKey((k) => k + 1);
+            }}
+          />
+        )}
+
         <section className="grid grid-cols-2 items-end gap-3">
           <Field id="margin" label={te("margin")}>
             <NumberInput
               id="margin"
-              key={`m-${kind}`}
+              key={`m-${kind}-${marginKey}`}
               defaultValue={sel.marginPercent ?? ""}
               placeholder={String(
                 c.rates["commercial.targetMarginPercent"] ?? 28,
@@ -897,5 +915,47 @@ function ScopeSummary({
         </p>
       </div>
     </div>
+  );
+}
+
+/** §8.2: what the company's own past quotes for this service suggest. */
+function PastSuggestions({ h, service, onApply }: { h: PastStats; service: ServiceKind; onApply: (margin: number) => void }) {
+  const t = useTranslations("pricing");
+  const td = useTranslations("doc");
+  const { fmt } = useFormatter();
+  return (
+    <section className="grid gap-2 rounded-2xl border border-border bg-surface p-4 text-[13px]">
+      <p className="flex items-center gap-2 text-[14px] font-bold">
+        <History className="size-4 text-primary" /> {t("pastTitle")}
+      </p>
+      <p className="text-muted-foreground">
+        {t("pastCounts", { won: h.won, lost: h.lost })}
+        {h.winRate != null && ` · ${t("pastWinRate", { rate: fmt.number(h.winRate, 0) })}`}
+      </p>
+      {h.wonMargin != null && (
+        <p>
+          {t("pastWonMargin", { m: fmt.number(h.wonMargin, 1) })}
+          {h.lostMargin != null && ` · ${t("pastLostMargin", { m: fmt.number(h.lostMargin, 1) })}`}
+        </p>
+      )}
+      {h.pricePerM2.length > 0 && (
+        <ul className="grid gap-0.5">
+          {h.pricePerM2.map((p) => (
+            <li key={p.workType} className="flex justify-between gap-2">
+              <span>{workItemLabel(td, service, p.workType)}</span>
+              <span className="font-latin tabular-nums">{t("pastPrice", { price: fmt.money(p.median), n: p.count })}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {h.durationFactor != null && h.durationFactor > 1.05 && <p className="text-warning-foreground">{t("pastSlower", { pct: fmt.number((h.durationFactor - 1) * 100, 0) })}</p>}
+      {h.suggestedMargin != null ? (
+        <Button size="sm" variant="secondary" className="justify-self-start" onClick={() => onApply(h.suggestedMargin!)}>
+          {t("pastApply", { m: fmt.number(h.suggestedMargin, 1) })}
+        </Button>
+      ) : (
+        <p className="text-muted-foreground">{t("pastFew")}</p>
+      )}
+    </section>
   );
 }
