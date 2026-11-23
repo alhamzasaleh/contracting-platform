@@ -1,6 +1,7 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
 import { ReceiptsList } from "@/components/finance/receipts-list";
+import { WarrantySection } from "./warranty-section";
 import { Camera, Check, CheckCircle2, Eraser, MessageSquare, PenLine, Send, ShieldCheck, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -94,6 +95,8 @@ export function PortalView({
   onConfirmStage,
   onAddNote,
   onAcceptAddendum,
+  onAddMaintenance,
+  onConfirmMaintenance,
 }: {
   data: PortalData;
   logoUrl: string | null;
@@ -103,6 +106,8 @@ export function PortalView({
   onConfirmStage?: (i: Record<string, unknown>) => Promise<ActionResult>;
   onAddNote?: (fd: FormData) => Promise<ActionResult>;
   onAcceptAddendum?: (i: Record<string, unknown>) => Promise<ActionResult>;
+  onAddMaintenance?: (fd: FormData) => Promise<ActionResult>;
+  onConfirmMaintenance?: (i: Record<string, unknown>) => Promise<ActionResult>;
 }) {
   const t = useTranslations("portal");
   const tp = useTranslations("pricing");
@@ -220,6 +225,8 @@ export function PortalView({
             </section>
           )
         )}
+
+        {data.warranty && <WarrantySection w={data.warranty} number={number} token={token} onAdd={onAddMaintenance} onConfirm={onConfirmMaintenance} />}
 
         <ReceiptsList items={data.receipts ?? []} hrefFor={(rv) => `/p/${encodeURIComponent(number)}/${token}/receipt/${encodeURIComponent(rv)}`} newTab />
 

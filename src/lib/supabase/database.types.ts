@@ -653,7 +653,7 @@ export type PayrollLineRow = OrgRow & Upd & {
   note: string | null;
 };
 
-export type NotificationKind = "approval" | "client_note" | "stage_confirmed" | "contract_accepted" | "addendum_accepted" | "payment_received" | "payment_late" | "doc_expiry" | "approval_reminder";
+export type NotificationKind = "approval" | "client_note" | "stage_confirmed" | "contract_accepted" | "addendum_accepted" | "payment_received" | "payment_late" | "doc_expiry" | "approval_reminder" | "maintenance_request";
 export type NotificationRow = { id: string; organization_id: string; user_id: string; kind: NotificationKind; params: Json; link: string | null; dedupe_key: string | null; read_at: string | null; created_at: string };
 export type NotificationPrefRow = { organization_id: string; user_id: string; kind: NotificationKind; in_app: boolean; whatsapp: boolean; updated_at: string };
 export type NotificationDeliveryRow = { id: string; notification_id: string; organization_id: string; channel: "whatsapp"; phone: string; status: "queued" | "sent" | "failed"; attempts: number; last_error: string | null; sent_at: string | null; created_at: string };
@@ -661,6 +661,16 @@ export type NotificationDeliveryRow = { id: string; notification_id: string; org
 export type ClientReceiptRow = {
   id: string; organization_id: string; number: string; contract_id: string; payment_id: string | null; addendum_id: string | null; label: string; amount: number;
   paid_on: string; method: "transfer" | "cash" | "cheque" | "card" | null; reference: string | null; created_at: string; created_by: string | null;
+};
+export type MaintenanceStatus = "open" | "in_progress" | "resolved" | "closed" | "rejected";
+export type MaintenanceRow = {
+  id: string; organization_id: string; number: string; contract_id: string; body: string; photos: string[]; source: "client" | "staff"; status: MaintenanceStatus;
+  assigned_to: string | null; covered: boolean; cost: number; reply: string | null; internal_note: string | null; resolved_at: string | null; closed_at: string | null;
+  client_confirmed_at: string | null; created_at: string; created_by: string | null; updated_at: string;
+};
+export type ClientMessageRow = {
+  id: string; organization_id: string; contract_id: string; phone: string; kind: "receipt" | "maintenance_done"; params: Json; status: "queued" | "sent" | "failed";
+  attempts: number; last_error: string | null; sent_at: string | null; created_at: string;
 };
 export type QoyodSettingsRow = {
   organization_id: string; enabled: boolean; invoice_status: "Draft" | "Approved"; inventory_id: number | null; receive_account_id: number | null; expense_account_id: number | null;
@@ -742,6 +752,8 @@ export type Database = {
       notification_deliveries: Table<NotificationDeliveryRow>;
       qoyod_settings: Table<QoyodSettingsRow>;
       client_receipts: Table<ClientReceiptRow>;
+      maintenance_requests: Table<MaintenanceRow>;
+      client_messages: Table<ClientMessageRow>;
       qoyod_sync_jobs: Table<QoyodJobRow>;
     };
     Views: {
@@ -763,6 +775,10 @@ export type Database = {
       qoyod_backfill: { Args: { p_org: string; p_from: string }; Returns: number };
       qoyod_claim_jobs: { Args: { p_limit: number }; Returns: QoyodJobRow[] };
       qoyod_retry: { Args: { p_org: string; p_job?: string | null }; Returns: number };
+      portal_warranty: { Args: { p_number: string; p_token: string }; Returns: Json };
+      portal_add_maintenance: { Args: { p_number: string; p_token: string; p_body: string; p_photos: string[] }; Returns: string | null };
+      portal_confirm_maintenance: { Args: { p_number: string; p_token: string; p_request: string }; Returns: boolean };
+      contract_warranties: { Args: { p_org: string }; Returns: { contract_id: string; number: string; client_name: string; handover_at: string | null; warranty_end: string | null }[] };
       portal_receipts: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_invoices: { Args: { p_number: string; p_token: string }; Returns: Json };
       create_payroll_run: { Args: { p_org: string; p_month: string }; Returns: string };

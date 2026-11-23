@@ -305,3 +305,25 @@ test.describe("receipt voucher (design preview)", () => {
     await expect(page.getByRole("heading", { name: "سندات القبض" })).toBeVisible();
   });
 });
+
+test.describe("warranty & maintenance (design preview)", () => {
+  test("staff follow requests and see warranties", async ({ page }) => {
+    await page.goto("/dev/preview/maintenance");
+    await expect(page.getByText("ظهر شق بسيط في سقف المجلس")).toBeVisible();
+    await expect(page.getByText("MR-2026-001")).toHaveCount(0);
+    await page.getByRole("radio", { name: "الكل" }).click();
+    await expect(page.getByText("باب الصيانة في الممر ما يقفل.")).toBeVisible();
+    await page.getByRole("button", { name: "متابعة" }).first().click();
+    await expect(page.getByLabel("رد للعميل")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "الضمانات" })).toBeVisible();
+  });
+
+  test("client page shows the warranty, the request form and confirm button", async ({ page }) => {
+    await page.goto("/dev/preview/portal/work");
+    await expect(page.getByRole("heading", { name: "الضمان والصيانة" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "إرسال طلب صيانة" })).toBeDisabled();
+    await page.getByPlaceholder("اكتب الملاحظة (المكان والمشكلة)").fill("تسريب بسيط");
+    await expect(page.getByRole("button", { name: "إرسال طلب صيانة" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "تم الإصلاح — أؤكد" })).toBeVisible();
+  });
+});

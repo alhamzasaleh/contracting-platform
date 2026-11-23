@@ -5,7 +5,7 @@
 import type { NotificationKind } from "@/lib/supabase/database.types";
 
 export const NOTIFICATION_KINDS: NotificationKind[] = [
-  "approval", "approval_reminder", "client_note", "stage_confirmed", "contract_accepted", "addendum_accepted", "payment_received", "payment_late", "doc_expiry",
+  "approval", "approval_reminder", "client_note", "stage_confirmed", "contract_accepted", "addendum_accepted", "payment_received", "payment_late", "doc_expiry", "maintenance_request",
 ];
 
 export type NotificationItem = { id: string; kind: NotificationKind; params: Record<string, unknown>; link: string | null; read: boolean; created_at: string };
@@ -33,7 +33,18 @@ export function whatsappText(kind: NotificationKind, p: Record<string, unknown>)
       return `استلمنا ${money(p.amount)} — ${s("label")} (${s("number")})`;
     case "payment_late":
       return `دفعة متأخرة ${s("days")} يوم: ${s("label")} (${s("number")}) — المتبقي ${money(p.amount)}`;
+    case "maintenance_request":
+      return `طلب صيانة جديد ${s("number")} على ${s("contract")}: ${s("body")}`;
     case "doc_expiry":
       return Number(p.days) <= 0 ? `انتهت ${DOC[s("doc")] ?? ""} للموظف ${s("name")}` : `${DOC[s("doc")] ?? ""} للموظف ${s("name")} تنتهي بعد ${s("days")} يوم`;
   }
+}
+
+/** Messages to clients (receipt issued, maintenance done) — plain Arabic, no links (the client opens their own page). */
+export function clientMessageText(kind: "receipt" | "maintenance_done", p: Record<string, unknown>): string {
+  const s = (k: string) => (p[k] == null ? "" : String(p[k]));
+  if (kind === "receipt") {
+    return `مرحباً ${s("name")}، استلمنا ${money(p.amount)} — ${s("label")} (عقد ${s("contract")}). سند القبض رقم ${s("number")} متاح في صفحة مشروعك. شكراً لك.`;
+  }
+  return `مرحباً ${s("name")}، تم إنجاز طلب الصيانة ${s("number")}${s("reply") ? `: ${s("reply")}` : ""}. فضلاً أكّد الاستلام من صفحة مشروعك.`;
 }

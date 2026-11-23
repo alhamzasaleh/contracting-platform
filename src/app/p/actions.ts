@@ -140,3 +140,55 @@ export async function acceptAddendumPortal(input: unknown): Promise<ActionResult
   if (data) after(runBackground);
   return data ? { ok: true } : { ok: false, error: "linkInvalid" };
 }
+
+/** The client opens a maintenance request during the warranty (text + up to 6 photos, JPEG from the browser). */
+export async function addMaintenancePortal(fd: FormData): Promise<ActionResult> {
+  const number = String(fd.get("number") ?? "");
+  const token = String(fd.get("token") ?? "");
+  const body = String(fd.get("body") ?? "").trim();
+  const files = fd.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  if (!NUMBER_RE.test(number) || !TOKEN_RE.test(token) || body.length < 1 || body.length > 2000 || files.length > 6) return { ok: false, error: "invalid" };
+  const ip = await clientIp();
+  if ((await rateLimit(`portal:maint:${ip}`, 6, 600)) !== "ok") return { ok: false, error: "rateLimited" };
+
+  const admin = createAdminClient();
+  const { data: w } = await admin.rpc("portal_warranty", { p_number: number, p_token: token });
+  const x = w as unknown as { org_id: string; contract_id: string; active: boolean } | null;
+  if (!x) return { ok: false, error: "linkInvalid" };
+  if (!x.active) return { ok: false, error: "warrantyEnded" };
+
+  const paths: string[] = [];
+  for (const f of files) {
+    if (f.size > MAX_PHOTO) return { ok: false, error: "fileTooLarge" };
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    if (!(bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)) return { ok: false, error: "fileType" };
+    const path = `${x.org_id}/${x.contract_id}/client/${randomUUID()}.jpg`;
+    const { error } = await admin.storage.from("project-photos").upload(path, bytes, { contentType: "image/jpeg", upsert: false });
+    if (error) {
+      console.error("[portal] maintenance photo upload failed");
+      return { ok: false, error: "error" };
+    }
+    paths.push(path);
+  }
+  const { data, error } = await admin.rpc("portal_add_maintenance", { p_number: number, p_token: token, p_body: body, p_photos: paths });
+  if (error || !data) {
+    console.error("[portal] maintenance request failed", { code: error?.code });
+    return { ok: false, error: "error" };
+  }
+  after(runBackground);
+  return { ok: true, message: data };
+}
+
+/** The client confirms a maintenance request was fixed. */
+export async function confirmMaintenancePortal(input: unknown): Promise<ActionResult> {
+  const parsed = z.object({ number: z.string().regex(NUMBER_RE), token: z.string().regex(TOKEN_RE), request_id: z.uuid() }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const ip = await clientIp();
+  if ((await rateLimit(`portal:maintok:${ip}`, 20, 600)) !== "ok") return { ok: false, error: "rateLimited" };
+  const { data, error } = await createAdminClient().rpc("portal_confirm_maintenance", { p_number: parsed.data.number, p_token: parsed.data.token, p_request: parsed.data.request_id });
+  if (error) {
+    console.error("[portal] maintenance confirm failed", { code: error.code });
+    return { ok: false, error: "error" };
+  }
+  return data ? { ok: true } : { ok: false, error: "linkInvalid" };
+}

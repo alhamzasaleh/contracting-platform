@@ -1,5 +1,5 @@
 import "server-only";
-import { whatsappText } from "@/lib/notifications";
+import { clientMessageText, whatsappText } from "@/lib/notifications";
 import { sendWhatsApp, whatsappConfigured } from "@/lib/notifications/whatsapp";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { NotificationKind } from "@/lib/supabase/database.types";
@@ -21,6 +21,15 @@ export async function flushWhatsApp(limit = 20): Promise<void> {
         .from("notification_deliveries")
         .update(r.ok ? { status: "sent", sent_at: new Date().toISOString(), attempts: d.attempts + 1 } : { status: d.attempts + 1 >= 5 ? "failed" : "queued", attempts: d.attempts + 1, last_error: r.error })
         .eq("id", d.id);
+    }
+    // messages to clients (receipt issued, maintenance done)
+    const { data: out } = await admin.from("client_messages").select("id, phone, attempts, kind, params").eq("status", "queued").lt("attempts", 5).order("created_at").limit(limit);
+    for (const m of out ?? []) {
+      const r = await sendWhatsApp(m.phone, clientMessageText(m.kind, (m.params ?? {}) as Record<string, unknown>));
+      await admin
+        .from("client_messages")
+        .update(r.ok ? { status: "sent", sent_at: new Date().toISOString(), attempts: m.attempts + 1 } : { status: m.attempts + 1 >= 5 ? "failed" : "queued", attempts: m.attempts + 1, last_error: r.error })
+        .eq("id", m.id);
     }
   } catch {
     console.error("[whatsapp] flush failed");

@@ -70,6 +70,8 @@ export function NotificationBell({ data, base, preview }: { data: Data; base: st
         return t("payment_received", { amount: fmt.money(Number(p.amount ?? 0)), label: s("label"), number });
       case "payment_late":
         return t("payment_late", { days: fmt.number(Number(p.days ?? 0)), amount: fmt.money(Number(p.amount ?? 0)), label: s("label"), number });
+      case "maintenance_request":
+        return t("maintenance_request", { number: ltr(s("number")), contract: ltr(s("contract")), body: s("body") });
       case "doc_expiry":
         return Number(p.days) <= 0
           ? t("doc_expired", { doc: t(`doc_${s("doc")}`), name: s("name") })

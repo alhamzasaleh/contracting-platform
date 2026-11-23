@@ -45,6 +45,10 @@ export const SAMPLE_PROJECT: ProjectDetail = {
 export const SAMPLE_PORTAL_WORK: PortalData = {
   ...SAMPLE_PORTAL,
   contract: { ...SAMPLE_PORTAL.contract, status: "accepted", accepted_at: "2026-11-19T10:00:00Z", accepted_name: "أبو محمد" },
+  warranty: {
+    handover_at: "2026-11-20T10:00:00Z", warranty_end: "2027-05-20", active: true,
+    requests: [{ id: "mr1", number: "MR-2026-001", body: "شق بسيط فوق باب المجلس.", photos: [], status: "resolved", reply: "تمت المعالجة وإعادة الدهان.", created_at: "2026-11-21T09:00:00Z", resolved_at: "2026-11-22T15:00:00Z", client_confirmed_at: null }],
+  },
   receipts: [{ number: "RV-2026-007", label: "عند توقيع العقد", amount: 18400, paid_on: "2026-11-20", method: "transfer", reference: null, created_at: "2026-11-20T09:00:00Z" }],
   execution: {
     stages: SAMPLE_PROJECT.stages.map((s) => ({

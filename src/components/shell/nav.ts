@@ -15,6 +15,7 @@ import {
   Settings,
   ShoppingCart,
   Users,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/lib/auth/permissions";
@@ -38,6 +39,7 @@ export const NAV: NavGroup[] = [
       { key: "quotations", href: "/quotations", icon: FileText, permission: "quotes.view" },
       { key: "contracts", href: "/contracts", icon: FileSignature, permission: "quotes.view" },
       { key: "projects", href: "/projects", icon: HardHat, permission: "projects.view" },
+      { key: "maintenance", href: "/maintenance", icon: Wrench, permission: "projects.view" },
       { key: "schedule", href: "/schedule", icon: CalendarDays, permission: "schedule.view" },
     ],
   },

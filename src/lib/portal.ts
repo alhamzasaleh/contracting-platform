@@ -26,7 +26,15 @@ export type PortalData = {
   /** Payments ("p<seq>") and addenda (AD- number) that have an official invoice from Qoyod. */
   invoices?: string[];
   receipts?: ReceiptItem[];
+  warranty?: PortalWarranty | null;
 };
+
+export type PortalMaintenance = {
+  id: string; number: string; body: string; photos: string[]; status: "open" | "in_progress" | "resolved" | "closed" | "rejected";
+  reply: string | null; created_at: string; resolved_at: string | null; client_confirmed_at: string | null;
+};
+/** Warranty after the final handover, and the client's maintenance requests (photos as 10-minute signed URLs). */
+export type PortalWarranty = { handover_at: string | null; warranty_end: string | null; active: boolean; requests: PortalMaintenance[] };
 
 export type PortalAddendum = {
   id: string; number: string; title: string; description: string; amount: number; vat_percent: number; vat: number; total: number; extra_days: number;
@@ -101,5 +109,20 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
     const { data: rv } = await admin.rpc("portal_receipts", { p_number: number, p_token: token });
     receipts = ((rv as ReceiptItem[] | null) ?? []).map((r) => ({ ...r, amount: Number(r.amount) }));
   }
-  return { data: { ...d, execution, addenda, invoices, receipts, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
+  let warranty: PortalWarranty | null = null;
+  if (d.contract.status === "accepted") {
+    const { data: w } = await admin.rpc("portal_warranty", { p_number: number, p_token: token });
+    const x = w as unknown as (PortalWarranty & { org_id: string; contract_id: string }) | null;
+    if (x?.handover_at) {
+      const prefix = `${x.org_id}/${x.contract_id}/`;
+      const paths = [...new Set(x.requests.flatMap((r) => r.photos))].filter((p) => p.startsWith(prefix));
+      const { data: signed } = paths.length ? await admin.storage.from("project-photos").createSignedUrls(paths, 600) : { data: [] };
+      const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
+      warranty = {
+        handover_at: x.handover_at, warranty_end: x.warranty_end, active: x.active,
+        requests: x.requests.map((r) => ({ ...r, photos: r.photos.map((p) => url.get(p)).filter((u): u is string => !!u) })),
+      };
+    }
+  }
+  return { data: { ...d, execution, addenda, invoices, receipts, warranty, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
 }
