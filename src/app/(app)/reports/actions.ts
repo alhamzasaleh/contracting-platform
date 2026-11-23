@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
 import { runBackground } from "@/lib/background";
+import { recordAddendumPayment, requestPayment as requestContractPayment } from "@/app/(app)/contracts/actions";
 import { decideApproval } from "@/app/(app)/quotations/actions";
 import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
@@ -38,18 +39,19 @@ export async function recordPayment(input: unknown): Promise<ActionResult> {
   if (!parsed.success) return { ok: false, error: "invalid" };
   const v = parsed.data;
   const supabase = await createClient();
+  // an addendum's own payment: the same database rules (cumulative, partial stays requested, receipt)
   if (v.payment_id.startsWith("ad:")) {
-    const { error } = await supabase
-      .from("addenda")
-      .update({ payment_status: "paid", paid_at: v.paid_on, paid_amount: v.amount })
-      .eq("id", v.payment_id.slice(3))
-      .eq("organization_id", session.organization.id)
-      .eq("status", "accepted");
-    return error ? fail(error, "addendum payment") : done();
+    return recordAddendumPayment({ addendum_id: v.payment_id.slice(3), paid_on: v.paid_on, amount: v.amount, method: v.method, reference: v.reference });
   }
   const { error } = await supabase.rpc("record_client_payment", { p_payment: v.payment_id, p_paid_on: v.paid_on, p_amount: v.amount, p_method: v.method, p_reference: v.reference });
+  if (error) return fail(error, "record payment");
   after(runBackground);
-  return error ? fail(error, "record payment") : done();
+  return done();
+}
+
+/** Ask the client for a material-supply / custom payment (the database checks the rules). */
+export async function requestPayment(input: unknown): Promise<ActionResult> {
+  return requestContractPayment(input);
 }
 
 export async function setExpectedDate(input: unknown): Promise<ActionResult> {

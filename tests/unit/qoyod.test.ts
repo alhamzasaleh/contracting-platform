@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { customerBody, errorText, invoiceBody, invoicePaymentBody, invoiceRef, localPhone, netOf, paymentRef, simpleBillBody } from "@/lib/qoyod/payloads";
+import { customerBody, errorText, waitsForApproved, invoiceBody, invoicePaymentBody, invoiceRef, localPhone, netOf, paymentRef, simpleBillBody } from "@/lib/qoyod/payloads";
 
 describe("qoyod payloads", () => {
   it("phone and VAT helpers", () => {
@@ -34,5 +34,14 @@ describe("qoyod payloads", () => {
     expect(customerBody({ name: "محمد", phone: "966500000001", city: "الرياض", number: "CL-1" }).contact).toMatchObject({ name: "محمد", phone_number: "0500000001" });
     expect(errorText(422, { errors: { reference: ["has already been taken"] } })).toContain("HTTP 422");
     expect(errorText(500, "x".repeat(1000)).length).toBeLessThanOrEqual(300);
+  });
+
+  it("payments and journal entries wait until sending is Approved (a draft can't be paid)", () => {
+    for (const kind of ["invoice_payment", "bill_payment", "payroll"]) {
+      expect(waitsForApproved(kind, "Draft")).toBe(true);
+      expect(waitsForApproved(kind, "Approved")).toBe(false);
+    }
+    expect(waitsForApproved("invoice", "Draft")).toBe(false);
+    expect(waitsForApproved("bill", "Draft")).toBe(false);
   });
 });

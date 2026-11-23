@@ -126,7 +126,11 @@ export async function loadInventory(session: SessionContext): Promise<InventoryD
   };
 }
 
-export type ProjectCost = ProjectRef & { estimated: number | null; materials: number; expenses: number; subcontractors: number; petty: number; actual: number; pending: number };
+export type ProjectCost = ProjectRef & {
+  estimated: number | null; materials: number; expenses: number; subcontractors: number; petty: number; actual: number; pending: number;
+  /** in-house labour: scheduled work days (up to today) × the team's loaded cost per day — totals only, costs.view (null without it) */
+  labour?: number | null;
+};
 
 /** §3.10 estimated vs actual per project: quote material cost vs recorded purchases + transfers. */
 export async function loadProjectCosts(session: SessionContext): Promise<ProjectCost[]> {
@@ -141,6 +145,9 @@ export async function loadProjectCosts(session: SessionContext): Promise<Project
     supabase.from("subcontractor_agreements").select("id, contract_id").eq("organization_id", orgId),
     supabase.from("petty_cash_entries").select("contract_id, amount").eq("organization_id", orgId).eq("kind", "expense").not("contract_id", "is", null).limit(20000),
   ]);
+  // in-house labour from the schedule (database function: totals only, never salaries)
+  const { data: labourRows } = can(session, "costs.view") ? await supabase.rpc("project_labour_costs", { p_org: orgId }) : { data: null };
+  const labourOf = new Map((labourRows ?? []).map((l) => [l.contract_id, n(l.labour)]));
   const agreementContract = new Map((subAgreements ?? []).map((g) => [g.id, g.contract_id]));
   const names = new Map((clients ?? []).map((c) => [c.id, c.name]));
   const recordedIds = (purchases ?? []).filter((p) => p.status === "recorded").map((p) => p.id);
@@ -173,6 +180,7 @@ export async function loadProjectCosts(session: SessionContext): Promise<Project
       id: c.id, number: c.number, client: names.get(c.client_id) ?? "—", status: c.status,
       estimated: estimates.get(c.id) ?? null, materials: r(materials), expenses: r(expenses), subcontractors: r(subs), petty: r(pettySum),
       actual: r(materials + expenses + pettySum), pending: r(pending),
+      labour: labourRows ? r(labourOf.get(c.id) ?? 0) : null,
     };
   });
 }

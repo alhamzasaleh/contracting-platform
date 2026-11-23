@@ -5,7 +5,8 @@ const today = "2026-11-23";
 const payments: PaymentRow[] = [
   { id: "p1", contract_id: "k0", contract: "C-2026-003", client: "شركة البناء المتقن", seq: 1, label: "عند توقيع العقد", amount: 12000, paid: 12000, outstanding: 0, status: "paid", requested_at: "2026-11-19T10:00:00Z", expected: today, paid_at: "2026-11-19", late: false },
   { id: "p2", contract_id: "k0", contract: "C-2026-003", client: "شركة البناء المتقن", seq: 2, label: "بعد تقفيل الألواح", amount: 9000, paid: 0, outstanding: 9000, status: "requested", requested_at: "2026-11-10T10:00:00Z", expected: today, paid_at: null, late: true, client_phone: "966551234567" },
-  { id: "p3", contract_id: "k0", contract: "C-2026-003", client: "شركة البناء المتقن", seq: 3, label: "عند التسليم النهائي", amount: 9000, paid: 0, outstanding: 9000, status: "pending", requested_at: null, expected: "2026-12-05", paid_at: null, late: false },
+  { id: "p3", contract_id: "k0", contract: "C-2026-003", client: "شركة البناء المتقن", seq: 3, label: "عند التسليم النهائي", amount: 9000, paid: 0, outstanding: 9000, status: "pending", requested_at: null, expected: "2026-12-05", paid_at: null, late: false, due_event: "handover" },
+  { id: "p6", contract_id: "k2", contract: "C-2026-005", client: "فيلا الياسمين", seq: 2, label: "بعد توريد المواد", amount: 4000, paid: 0, outstanding: 4000, status: "pending", requested_at: null, expected: "2026-11-28", paid_at: null, late: false, due_event: "material_supply" },
   { id: "p4", contract_id: "k2", contract: "C-2026-005", client: "فيلا الياسمين", seq: 1, label: "عند توقيع العقد", amount: 8000, paid: 5000, outstanding: 3000, status: "requested", requested_at: "2026-11-20T10:00:00Z", expected: today, paid_at: "2026-11-21", late: false, client_phone: "966551234568" },
   { id: "p5", contract_id: "k2", contract: "C-2026-005", client: "فيلا الياسمين", seq: 2, label: "عند التسليم النهائي", amount: 12000, paid: 0, outstanding: 12000, status: "pending", requested_at: null, expected: "2026-12-26", paid_at: null, late: false },
 ];
@@ -41,6 +42,7 @@ export const SAMPLE_FINANCE: OwnerFinance = {
     { id: "ap2", kind: "quote_discount", entity: "quote", entity_id: "y", details: { number: "Q-2026-009", discountPercent: 7 }, created_at: "2026-11-22T12:00:00Z", link: null },
     { id: "ap3", kind: "addendum", entity: "addendum", entity_id: "z", details: { number: "AD-2026-002", title: "دهان سقف الملحق", total: 1400 }, created_at: "2026-11-22T13:00:00Z", link: null },
   ],
+  teamCost: { monthly: 28500, allocated: 19800, unabsorbed: 8700 },
   canManage: true,
   canDecide: true,
 };

@@ -112,12 +112,7 @@ export async function saveQuoteVersion(input: unknown): Promise<ActionResult<{ n
   });
   if (e2) return fail(e2, "costs");
 
-  // Approvals for this version (older pending ones are superseded — except those of versions offered as options)
-  const { data: qo } = await supabase.from("quotes").select("options").eq("id", quoteId).maybeSingle();
-  const keep = new Set((qo?.options ?? []).map((o) => o.version));
-  const { data: pendingOld } = await supabase.from("approvals").select("id, details").eq("entity", "quote").eq("entity_id", quoteId).eq("status", "pending");
-  const supersede = (pendingOld ?? []).filter((a) => !keep.has(Number((a.details as { version?: number } | null)?.version))).map((a) => a.id);
-  if (supersede.length) await supabase.from("approvals").update({ status: "cancelled" }).in("id", supersede);
+  // Approvals for this version (older pending ones are superseded by the database when the version is saved)
   for (const kind of check.approvals) {
     const { error } = await supabase.from("approvals").insert({
       organization_id: orgId, kind, entity: "quote", entity_id: quoteId,
@@ -141,6 +136,7 @@ export async function issueQuote(input: unknown): Promise<ActionResult> {
   const supabase = await createClient();
   const { data: quote } = await supabase.from("quotes").select("id, status, current_version, survey_id, service, options").eq("id", parsed.data.id).maybeSingle();
   if (!quote || quote.current_version === 0) return { ok: false, error: "invalid" };
+  if (quote.status === "accepted") return { ok: false, error: "quoteLocked" };
   const versions = offered(quote);
   // Only approvals for the offered version(s) count (older versions are superseded).
   const { data: open } = await supabase.from("approvals").select("status, details").eq("entity", "quote").eq("entity_id", quote.id).in("status", ["pending", "rejected"]);
@@ -155,8 +151,9 @@ export async function issueQuote(input: unknown): Promise<ActionResult> {
   }
   const days = Number(ctx.catalogue.rates["commercial.quoteValidityDays"] ?? 7);
   const validUntil = new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
-  const { error } = await supabase.from("quotes").update({ status: "issued", valid_until: validUntil }).eq("id", quote.id);
-  if (error) return fail(error, "issue");
+  // the database re-checks the approvals (open ones, and approved ones for a low margin / discount)
+  const { error } = await supabase.rpc("issue_quote", { p_quote: quote.id, p_valid_until: validUntil });
+  if (error) return /approval/.test(error.message ?? "") ? { ok: false, error: "needsApproval" } : fail(error, "issue");
   revalidatePath("/quotations", "layout");
   return { ok: true };
 }
@@ -181,7 +178,8 @@ export async function decideApproval(input: unknown): Promise<ActionResult> {
   const { data: left } = await supabase.from("approvals").select("status, details").eq("entity", "quote").eq("entity_id", a.entity_id).in("status", ["pending", "rejected"]);
   const versions = q ? offered(q) : [];
   const open = (left ?? []).filter((x) => versions.includes(Number((x.details as { version?: number } | null)?.version)));
-  if (!open.length) await supabase.from("quotes").update({ status: "draft" }).eq("id", a.entity_id);
+  // only a quote waiting for approval goes back to draft (never an issued or accepted one)
+  if (!open.length) await supabase.from("quotes").update({ status: "draft" }).eq("id", a.entity_id).eq("status", "pending_approval");
   revalidatePath("/quotations", "layout");
   return { ok: true };
 }

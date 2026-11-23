@@ -124,6 +124,8 @@ export type AddendumView = {
   id: string; number: string; title: string; description: string; amount: number; vat: number; total: number; extra_days: number;
   status: AddendumStatus; payment_status: "pending" | "requested" | "paid"; accepted_at: string | null; accepted_name: string | null;
   approval_id: string | null; created_at: string;
+  /** received so far (recorded only through record_addendum_payment) */
+  paid_amount?: number;
 };
 
 const parseTerms = (v: unknown): ContractTermsConfig => {
@@ -145,7 +147,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
   ]);
   const active = (links ?? []).find((l) => !l.revoked_at && new Date(l.expires_at) > new Date());
   const [{ data: addenda }, settings, { data: receipts }, { data: tpl }] = await Promise.all([
-    supabase.from("addenda").select("id, number, title, description, amount, vat, total, extra_days, status, payment_status, accepted_at, accepted_name, created_at").eq("contract_id", c.id).order("created_at"),
+    supabase.from("addenda").select("id, number, title, description, amount, vat, total, extra_days, status, payment_status, accepted_at, accepted_name, created_at, paid_amount").eq("contract_id", c.id).order("created_at"),
     loadPricingSettings(session),
     supabase.from("client_receipts").select("number, label, amount, paid_on").eq("contract_id", c.id).order("created_at"),
     supabase.from("contract_templates").select("terms").eq("organization_id", orgId).maybeSingle(),
@@ -173,7 +175,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
     canManage: can(session, "quotes.manage"),
     canPurchase: can(session, "purchases.manage"),
     canViewProject: can(session, "projects.view"),
-    addenda: (addenda ?? []).map((a) => ({ ...a, amount: n(a.amount), vat: n(a.vat), total: n(a.total), approval_id: (approvals ?? []).find((x) => x.entity_id === a.id)?.id ?? null })),
+    addenda: (addenda ?? []).map((a) => ({ ...a, amount: n(a.amount), vat: n(a.vat), total: n(a.total), paid_amount: n(a.paid_amount), approval_id: (approvals ?? []).find((x) => x.entity_id === a.id)?.id ?? null })),
     canDecide: can(session, "approvals.decide"),
     canFinance: can(session, "finance.manage"),
     terms: parseTerms(c.terms),

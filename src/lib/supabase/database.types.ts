@@ -615,6 +615,9 @@ export type AddendumRow = OrgRow & Upd & {
   accepted_signature: string | null;
   paid_at: string | null;
   paid_amount: number | null;
+  /** set only by record_addendum_payment */
+  paid_method: "transfer" | "cash" | "cheque" | "card" | null;
+  paid_reference: string | null;
 };
 export type SubcontractorRow = OrgRow & Upd & {
   name: string;
@@ -653,7 +656,7 @@ export type PettyEntryRow = OrgRow & {
 
 export type FinanceSettingsRow = { organization_id: string; cash_balance: number; cash_balance_on: string; payday: number; created_at: string; created_by: string | null; updated_at: string };
 
-export type EmployeeAdvanceRow = OrgRow & { employee_id: string; given_on: string; amount: number; note: string | null; deducted_in_run: string | null };
+export type EmployeeAdvanceRow = OrgRow & { employee_id: string; given_on: string; amount: number; note: string | null; deducted_in_run: string | null; /** settled by payroll runs so far (set by approve_payroll_run) */ deducted_amount: number };
 export type PayrollRunRow = OrgRow & Upd & { month: string; status: "draft" | "approved" | "paid"; approved_at: string | null; approved_by: string | null; paid_on: string | null };
 export type PayrollLineRow = OrgRow & Upd & {
   run_id: string;
@@ -822,6 +825,11 @@ export type Database = {
       approve_payroll_run: { Args: { p_run: string }; Returns: undefined };
       mark_payroll_paid: { Args: { p_run: string; p_paid_on: string }; Returns: undefined };
       record_client_payment: { Args: { p_payment: string; p_paid_on: string; p_amount: number; p_method: string; p_reference: string | null }; Returns: string };
+      record_addendum_payment: { Args: { p_addendum: string; p_paid_on: string; p_amount: number; p_method: string; p_reference: string | null }; Returns: string };
+      request_contract_payment: { Args: { p_payment: string }; Returns: undefined };
+      issue_quote: { Args: { p_quote: string; p_valid_until: string | null }; Returns: undefined };
+      project_labour_costs: { Args: { p_org: string }; Returns: { contract_id: string; labour: number }[] };
+      team_cost_month: { Args: { p_org: string }; Returns: { monthly: number; allocated: number }[] };
       submit_addendum: { Args: { p_id: string }; Returns: string };
       portal_addenda: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_accept_addendum: { Args: { p_number: string; p_token: string; p_addendum: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };

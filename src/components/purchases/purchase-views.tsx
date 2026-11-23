@@ -748,13 +748,14 @@ export function ProjectCostsView({ rows, base = "" }: { rows: ProjectCost[]; bas
               )}
               {s.level === "watch" && <Badge tone="warning">{t("watch")}</Badge>}
             </div>
-            <div className="grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-3 lg:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-3 lg:grid-cols-7">
               <Stat label={t("estimated")} value={r.estimated == null ? "—" : fmt.money(r.estimated)} />
               <Stat label={t("actual")} value={fmt.money(r.actual)} strong />
               <Stat label={t("materials")} value={fmt.money(r.materials)} />
               <Stat label={t("expenses")} value={fmt.money(r.expenses)} />
               <Stat label={t("pettyCost")} value={fmt.money(r.petty)} />
               <Stat label={t("subsCost")} value={fmt.money(r.subcontractors)} />
+              {r.labour != null && <Stat label={t("labourCost")} value={fmt.money(r.labour)} />}
             </div>
             {s.ratio != null && (
               <div className="h-2.5 overflow-hidden rounded-full bg-surface-sunken" role="meter" aria-valuenow={Math.round(s.ratio * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={t("actual")}>

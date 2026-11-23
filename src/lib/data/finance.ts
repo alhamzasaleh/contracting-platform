@@ -15,6 +15,8 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 export type PaymentRow = {
   id: string; contract_id: string; contract: string; client: string; seq: number; label: string; amount: number; paid: number; outstanding: number;
   status: "pending" | "requested" | "paid"; requested_at: string | null; expected: string; paid_at: string | null; late: boolean;
+  /** what triggers the request (material supply / custom payments are requested by staff) */
+  due_event?: DueEvent;
   /** for the ready WhatsApp reminder (owner's own WhatsApp) */
   client_phone?: string | null;
 };
@@ -37,6 +39,8 @@ export type OwnerFinance = {
   delayed: { number: string; client: string; due: string; days: number; progress: number }[];
   overBudget: { number: string; client: string; ratio: number }[];
   approvals: ApprovalRow[];
+  /** this month's loaded cost of our in-house team vs what projects absorbed (costs.view + finance.view; totals only) */
+  teamCost?: { monthly: number; allocated: number; unabsorbed: number } | null;
   canManage: boolean;
   canDecide: boolean;
 };
@@ -49,7 +53,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     supabase.from("contracts").select("id, number, client_id, service, status, start_date, duration_days, total, quote_id, quote_version, accepted_at").eq("organization_id", orgId).eq("status", "accepted"),
     supabase.from("clients").select("id, name, phone").eq("organization_id", orgId),
     supabase.from("finance_settings").select("cash_balance, cash_balance_on, payday").eq("organization_id", orgId).maybeSingle(),
-    supabase.from("addenda").select("id, contract_id, number, title, amount, vat, total, extra_days, status, payment_status, accepted_at").eq("organization_id", orgId).eq("status", "accepted"),
+    supabase.from("addenda").select("id, contract_id, number, title, amount, vat, total, extra_days, status, payment_status, accepted_at, paid_amount, paid_at").eq("organization_id", orgId).eq("status", "accepted"),
     supabase.from("approvals").select("id, kind, entity, entity_id, details, created_at").eq("organization_id", orgId).eq("status", "pending").order("created_at"),
     supabase.from("project_stages").select("contract_id, status, progress, is_final").eq("organization_id", orgId),
   ]);
@@ -74,18 +78,20 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
       id: p.id, contract_id: p.contract_id, contract: c.number, client: clientName.get(c.client_id) ?? "—", seq: p.seq, label: p.label, amount, paid,
       outstanding: r2(Math.max(0, amount - paid)), status: p.status, requested_at: p.requested_at, expected, paid_at: p.paid_at,
       late: p.status === "requested" && !!p.requested_at && p.requested_at.slice(0, 10) <= addDays(today, -7),
-      client_phone: clientPhone.get(c.client_id) ?? null,
+      client_phone: clientPhone.get(c.client_id) ?? null, due_event: p.due_event,
     };
   });
-  // addenda payments: requested on acceptance, a separate line each
+  // addenda payments: requested on acceptance, a separate line each (money recorded by record_addendum_payment)
   for (const a of addenda ?? []) {
-    if (a.payment_status === "paid") continue;
     const c = contractOf.get(a.contract_id);
     if (!c) continue;
+    const total = n(a.total);
+    const paid = n(a.paid_amount);
+    const status = a.payment_status === "paid" ? "paid" : "requested";
     rows.push({
       id: `ad:${a.id}`, contract_id: a.contract_id, contract: c.number, client: clientName.get(c.client_id) ?? "—", seq: 99, label: `${a.number} — ${a.title}`,
-      amount: n(a.total), paid: 0, outstanding: n(a.total), status: "requested", requested_at: a.accepted_at, expected: today, paid_at: null,
-      late: !!a.accepted_at && a.accepted_at.slice(0, 10) <= addDays(today, -7),
+      amount: total, paid, outstanding: r2(Math.max(0, total - paid)), status, requested_at: a.accepted_at, expected: today, paid_at: a.paid_at ?? null,
+      late: status === "requested" && !!a.accepted_at && a.accepted_at.slice(0, 10) <= addDays(today, -7),
       client_phone: clientPhone.get(c.client_id) ?? null,
     });
   }
@@ -146,7 +152,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     const addRevenue = (addenda ?? []).filter((a) => a.contract_id === c.id).reduce((s, a) => s + n(a.amount), 0);
     const revenue = r2(n(c.total) - n(view?.vat) + addRevenue);
     const cost = costOf.get(c.id);
-    const actualCost = r2((cost?.actual ?? 0) + (cost?.subcontractors ?? 0));
+    const actualCost = r2((cost?.actual ?? 0) + (cost?.subcontractors ?? 0) + (cost?.labour ?? 0));
     const pr = projectProfit(revenue, estimated.get(c.id) ?? null, actualCost);
     const own = (stages ?? []).filter((s) => s.contract_id === c.id);
     return {
@@ -168,6 +174,14 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   const overBudget = costs
     .map((c) => ({ number: c.number, client: c.client, ratio: costStatus(c.estimated, c.actual).ratio ?? 0 }))
     .filter((c) => c.ratio > 1);
+
+  // our team's fixed cost: how much of this month is charged to projects (the rest is covered by the overhead %)
+  let teamCost: OwnerFinance["teamCost"] = null;
+  if (can(session, "costs.view") && can(session, "finance.view")) {
+    const { data: tc } = await supabase.rpc("team_cost_month", { p_org: orgId });
+    const row = tc?.[0];
+    if (row && n(row.monthly) > 0) teamCost = { monthly: n(row.monthly), allocated: n(row.allocated), unabsorbed: r2(Math.max(0, n(row.monthly) - n(row.allocated))) };
+  }
 
   const monthStart = today.slice(0, 7);
   return {
@@ -194,6 +208,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
       const link = a.entity === "purchase" && num ? `/purchases/${num}` : a.entity === "quote" && num ? `/quotations/${num}` : null;
       return { id: a.id, kind: a.kind, entity: a.entity, entity_id: a.entity_id, details: d, created_at: a.created_at, link };
     }),
+    teamCost,
     canManage: can(session, "finance.manage"),
     canDecide: can(session, "approvals.decide"),
   };

@@ -4,6 +4,7 @@ import { Check, FilePlus2, Pencil, Send, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
+import { RecordPaymentDialog } from "@/components/finance/reports-view";
 import { FormDialog, NumberInput, useActionRunner } from "@/components/forms/form-kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,8 +30,11 @@ export type AddendaActions = {
   send: (i: { id: string }) => Promise<ActionResult>;
   cancel: (i: { id: string }) => Promise<ActionResult>;
   decide: (i: Record<string, unknown>) => Promise<ActionResult>;
-  paid: (i: { id: string }) => Promise<ActionResult>;
+  /** money received for the addendum's own payment (full or partial) */
+  paid: (i: Record<string, unknown>) => Promise<ActionResult>;
 };
+
+const riyadhToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
 
 /** Expected delivery after accepted addenda (each adds its days). */
 export function deliveryWithAddenda(start: string, days: number, addenda: Pick<AddendumView, "status" | "extra_days">[]) {
@@ -46,6 +50,7 @@ export function AddendaSection({ detail, actions }: { detail: ContractDetail; ac
   const { fmt } = useFormatter();
   const { run, pending } = useActionRunner();
   const [editing, setEditing] = React.useState<Partial<AddendumView> | null>(null);
+  const [paying, setPaying] = React.useState<AddendumView | null>(null);
   const c = detail.contract;
   if (c.status !== "accepted" && detail.addenda.length === 0) return null;
   const delivery = deliveryWithAddenda(c.start_date, c.duration_days, detail.addenda);
@@ -81,6 +86,7 @@ export function AddendaSection({ detail, actions }: { detail: ContractDetail; ac
               <p className="whitespace-pre-line text-[13px]">{a.description}</p>
               <p className="text-[12px] text-muted-foreground">
                 {t("extraDays", { n: a.extra_days })}
+                {a.status === "accepted" && (a.paid_amount ?? 0) > 0 && a.payment_status !== "paid" && ` · ${t("receivedSoFar", { amount: fmt.money(a.paid_amount ?? 0) })}`}
                 {a.accepted_at && ` · ${t("acceptedBy", { name: a.accepted_name ?? "", date: fmt.dateTime(a.accepted_at) })}`}
               </p>
               <div className="flex flex-wrap gap-2">
@@ -105,7 +111,7 @@ export function AddendaSection({ detail, actions }: { detail: ContractDetail; ac
                   </Button>
                 )}
                 {a.status === "accepted" && a.payment_status === "requested" && detail.canFinance && actions && (
-                  <Button size="sm" variant="soft" loading={pending} onClick={() => run(() => actions.paid({ id: a.id }))}>
+                  <Button size="sm" variant="soft" disabled={pending} onClick={() => setPaying(a)}>
                     <Check /> {t("markPaid")}
                   </Button>
                 )}
@@ -118,6 +124,15 @@ export function AddendaSection({ detail, actions }: { detail: ContractDetail; ac
             </li>
           ))}
         </ul>
+      )}
+      {paying && (
+        <RecordPaymentDialog
+          description={`${paying.number} — ${paying.title}`}
+          outstanding={Math.max(0, Math.round((paying.total - (paying.paid_amount ?? 0)) * 100) / 100)}
+          today={riyadhToday()}
+          onClose={() => setPaying(null)}
+          submit={actions && ((v) => actions.paid({ addendum_id: paying.id, ...v }))}
+        />
       )}
       {editing && <AddendumDialog contractId={c.id} vatPercent={detail.vatPercent} initial={editing} onClose={() => setEditing(null)} save={actions?.save} />}
     </section>

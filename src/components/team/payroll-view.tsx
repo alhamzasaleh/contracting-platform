@@ -151,8 +151,10 @@ export function PayrollView({ data, today, actions, base = "" }: { data: Payroll
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="font-latin tabular-nums">{fmt.money(a.amount)}</span>
-                  <Badge tone={a.deducted ? "success" : "warning"}>{a.deducted ? t("deducted") : t("open")}</Badge>
-                  {!a.deducted && data.canManage && actions && <DeleteAdvance id={a.id} del={actions.deleteAdvance} />}
+                  <Badge tone={a.deducted ? "success" : "warning"}>
+                    {a.deducted ? t("deducted") : (a.deductedAmount ?? 0) > 0 ? t("partlyDeducted", { left: fmt.money(a.amount - (a.deductedAmount ?? 0)) }) : t("open")}
+                  </Badge>
+                  {!a.deducted && !(a.deductedAmount ?? 0) && data.canManage && actions && <DeleteAdvance id={a.id} del={actions.deleteAdvance} />}
                 </span>
               </li>
             ))}

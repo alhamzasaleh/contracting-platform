@@ -24,8 +24,9 @@ beforeAll(async () => {
   await as({ userId: owner }, async (q) => {
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'viewer')", [org, viewer]);
     const client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone) values ($1,'أبو فهد','966511113333') returning id", [org])).rows[0].id;
-    const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service, status) values ($1,$2,'gypsum','issued') returning id", [org, client])).rows[0].id;
+    const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
     const v = (await q<{ id: string }>("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, vat_percent, vat, total) values ($1,$2,1,'{}','{}','{}',11500,0,0,11500) returning id", [org, quote])).rows[0].id;
+    await q("select public.issue_quote($1, null)", [quote]);
     await q(
       `insert into public.quote_version_costs (quote_version_id, organization_id, cost, cost_with_contingency, margin_percent, lines)
        values ($1,$2,3000,3150,28,'[{"group":"material","cost":1000},{"group":"labour","cost":2000}]')`,

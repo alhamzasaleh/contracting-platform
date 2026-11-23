@@ -8,6 +8,15 @@ export const QOYOD_BASE = "https://api.qoyod.com/2.0";
 /** Qoyod's default taxes: 1 = 15 % VAT, 2 = 0 % VAT, 3 = exempt. */
 export const TAX = { vat15: "1", zero: "2", exempt: "3" } as const;
 
+/**
+ * Jobs that can't be posted on a draft document in Qoyod (a draft invoice/bill can't be paid;
+ * a journal entry posts at once): they wait until sending is "Approved".
+ */
+const NEEDS_APPROVED = new Set(["invoice_payment", "bill_payment", "payroll"]);
+export function waitsForApproved(kind: string, invoiceStatus: string | null | undefined): boolean {
+  return NEEDS_APPROVED.has(kind) && invoiceStatus !== "Approved";
+}
+
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 /** 9665XXXXXXXX → 05XXXXXXXX (the format Qoyod shows); anything else unchanged. */

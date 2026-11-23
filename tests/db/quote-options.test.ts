@@ -15,10 +15,11 @@ beforeAll(async () => {
   org = await as({ userId: owner }, async (q) => (await q<{ id: string }>("select public.create_organization('Org A') as id")).rows[0].id);
   await as({ userId: owner }, async (q) => {
     client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone) values ($1,'أبو سعد','966511114444') returning id", [org])).rows[0].id;
-    quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service, status) values ($1,$2,'interior','issued') returning id", [org, client])).rows[0].id;
-    quote2 = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service, status) values ($1,$2,'interior','issued') returning id", [org, client])).rows[0].id;
+    quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'interior') returning id", [org, client])).rows[0].id;
+    quote2 = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'interior') returning id", [org, client])).rows[0].id;
     for (const [t, qid] of [[11500, quote], [9200, quote], [5000, quote2]] as const) {
       await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, vat_percent, vat, total) values ($1,$2,1,'{}','{}','{}',$3,0,0,$3)", [org, qid, t]);
+      await q("select public.issue_quote($1, null)", [qid]);
     }
   });
 });
@@ -37,6 +38,8 @@ describe("multi-option quotes", () => {
 
   it("the client picks an option while accepting; the contract and payments follow it", async () => {
     await as({ userId: owner }, async (q) => {
+      // the offer changed (options set) → issued again before the contract
+      await q("select public.issue_quote($1, null)", [quote]);
       contract = (await q<{ id: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total, status, options) values ($1,$2,1,$3,'interior',current_date,10,11500,'sent',$4::jsonb) returning id", [org, quote, client, OPTS])).rows[0].id;
       await q("insert into public.contract_payments (organization_id, contract_id, seq, label, percent, amount, due_event) values ($1,$2,1,'دفعة 1',33.33,3833.00,'signing'),($1,$2,2,'دفعة 2',66.67,7667.00,'handover')", [org, contract]);
       await q("insert into public.client_portal_links (organization_id, contract_id, token_hash, expires_at) values ($1,$2,$3, now() + interval '30 days')", [org, contract, hash(TOKEN)]);

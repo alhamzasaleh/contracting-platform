@@ -1790,7 +1790,8 @@
     "payFrom": "Paid from",
     "payRef": "Transfer reference (optional)",
     "payButton": "Record supplier payment",
-    "payHint": "Recorded once and sent to Qoyod as a payment of the purchase bill (once sending is “Approved”)."
+    "payHint": "Recorded once and sent to Qoyod as a payment of the purchase bill (once sending is “Approved”).",
+    "labourCost": "In-house labour"
   },
   "projects": {
     "title": "Projects",
@@ -1886,7 +1887,7 @@
     "approve": "Approve",
     "reject": "Reject",
     "send": "Send to client",
-    "markPaid": "Payment received",
+    "markPaid": "Record payment",
     "cancel": "Cancel",
     "submit": "Submit for approval",
     "saveDraft": "Save as draft",
@@ -1899,7 +1900,8 @@
     "noVat": "No VAT (no VAT number)",
     "extraDaysLabel": "Extra days to delivery",
     "daysUnit": "days",
-    "submitHint": "As the owner it's approved straight away; otherwise it goes to the owner."
+    "submitHint": "As the owner it's approved straight away; otherwise it goes to the owner.",
+    "receivedSoFar": "received so far {amount}"
   },
   "subs": {
     "newSub": "New subcontractor",
@@ -2091,7 +2093,11 @@
     "project": "Project",
     "estCost": "Estimated cost",
     "actCost": "Actual cost",
-    "byMonth": "By contract month"
+    "byMonth": "By contract month",
+    "requestPayment": "Request payment",
+    "teamIdleTitle": "Team cost not charged to projects (this month)",
+    "teamIdleHint": "Our team’s cost not booked on projects in the schedule — covered by the overhead % in pricing.",
+    "teamIdleOf": "{allocated} charged to projects of {monthly}"
   },
   "payroll": {
     "expiringTitle": "Documents expiring soon",
@@ -2142,7 +2148,8 @@
     "employerSignature": "Employer signature",
     "employeeSignature": "Employee signature (received)",
     "homeExpiring": "{n} documents expire within 60 days",
-    "homeExpired": "{n} already expired"
+    "homeExpired": "{n} already expired",
+    "partlyDeducted": "{left} left"
   },
   "notify": {
     "title": "Notifications",

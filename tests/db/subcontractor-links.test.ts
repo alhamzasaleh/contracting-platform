@@ -50,12 +50,13 @@ describe("booking a subcontractor's team prepares his agreement", () => {
     const { rows: [team] } = await asAdmin((q) => q<{ id: string }>("select id from public.teams where subcontractor_id = $1", [sub.id]));
     const contract = await as({ userId: owner }, async (q) => {
       const client = (await q<{ id: string }>("insert into public.clients (organization_id, name) values ($1,'عميل') returning id", [org])).rows[0].id;
-      const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service, status) values ($1,$2,'exterior','issued') returning id", [org, client])).rows[0].id;
+      const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'exterior') returning id", [org, client])).rows[0].id;
       await q(
         `insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total)
          values ($1,$2,1,$3::jsonb,'{}',$4::jsonb,18480,18480)`,
         [org, quote, JSON.stringify({ labour: { source: "external", externalId: rate.id } }), JSON.stringify({ workTypes: [{ workType: "facades", area: 660, pricePerM2: 28, total: 18480 }] })],
       );
+      await q("select public.issue_quote($1, null)", [quote]);
       return (await q<{ id: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total, status) values ($1,$2,1,$3,'exterior',current_date,7,18480,'sent') returning id", [org, quote, client])).rows[0].id;
     });
     // booked before acceptance: nothing yet

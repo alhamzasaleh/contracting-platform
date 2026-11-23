@@ -3,7 +3,7 @@ import { ReportsView } from "@/components/finance/reports-view";
 import { PageHeader } from "@/components/shell/app-shell";
 import { requirePermission } from "@/lib/auth/session";
 import { loadOwnerFinance } from "@/lib/data/finance";
-import { recordPayment, setExpectedDate } from "./actions";
+import { recordPayment, requestPayment, setExpectedDate } from "./actions";
 
 export default async function ReportsPage() {
   const session = await requirePermission("finance.view");
@@ -12,7 +12,7 @@ export default async function ReportsPage() {
   return (
     <div className="min-w-0">
       <PageHeader title={t("reportsTitle")} description={t("reportsSubtitle")} />
-      <ReportsView f={await loadOwnerFinance(session, today)} actions={{ record: recordPayment, expected: setExpectedDate }} />
+      <ReportsView f={await loadOwnerFinance(session, today)} actions={{ record: recordPayment, expected: setExpectedDate, request: requestPayment }} />
     </div>
   );
 }

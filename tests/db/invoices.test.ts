@@ -21,8 +21,9 @@ beforeAll(async () => {
   await as({ userId: owner }, async (q) => {
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'finance')", [org, finance]);
     const client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone, id_number) values ($1,'أبو محمد','966511112222','1012345678') returning id", [org])).rows[0].id;
-    const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service, status) values ($1,$2,'gypsum','issued') returning id", [org, client])).rows[0].id;
+    const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
     await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, vat_percent, vat, total) values ($1,$2,1,'{}','{}','{}',10000,15,1500,11500)", [org, quote]);
+    await q("select public.issue_quote($1, null)", [quote]);
     contract = (await q<{ id: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total, status) values ($1,$2,1,$3,'gypsum',current_date,10,11500,'sent') returning id", [org, quote, client])).rows[0].id;
     const p = await q<{ id: string }>("insert into public.contract_payments (organization_id, contract_id, seq, label, percent, amount, due_event) values ($1,$2,1,'عند التوقيع',60,6900,'signing'),($1,$2,2,'عند التسليم',40,4600,'handover') returning id", [org, contract]);
     [pay1, pay2] = p.rows.map((r) => r.id);

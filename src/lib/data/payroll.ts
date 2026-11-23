@@ -15,7 +15,7 @@ export type PayrollData = {
   lines: PayrollLineView[];
   runs: { month: string; status: string; total: number }[];
   employees: { id: string; full_name: string }[];
-  advances: { id: string; employee_id: string; name: string; given_on: string; amount: number; note: string | null; deducted: boolean }[];
+  advances: { id: string; employee_id: string; name: string; given_on: string; amount: number; note: string | null; deducted: boolean; /** deducted by approved runs so far (partial deductions carry over) */ deductedAmount?: number }[];
   expiring: ExpiringDoc[];
   canManage: boolean;
   canApprove: boolean;
@@ -28,7 +28,7 @@ export async function loadPayroll(session: SessionContext, month: string, today:
   const [{ data: runs }, { data: employees }, { data: advances }] = await Promise.all([
     supabase.from("payroll_runs").select("id, month, status, approved_at, paid_on").eq("organization_id", orgId).order("month", { ascending: false }).limit(24),
     supabase.from("employees").select("id, full_name, status, id_expiry, passport_expiry, insurance_expiry").eq("organization_id", orgId).order("full_name"),
-    supabase.from("employee_advances").select("id, employee_id, given_on, amount, note, deducted_in_run").eq("organization_id", orgId).order("given_on", { ascending: false }).limit(200),
+    supabase.from("employee_advances").select("id, employee_id, given_on, amount, note, deducted_in_run, deducted_amount").eq("organization_id", orgId).order("given_on", { ascending: false }).limit(200),
   ]);
   const run = (runs ?? []).find((r) => r.month.slice(0, 7) === month) ?? null;
   const ids = (runs ?? []).map((r) => r.id);
@@ -43,7 +43,7 @@ export async function loadPayroll(session: SessionContext, month: string, today:
       .sort((a, b) => a.full_name.localeCompare(b.full_name, "ar")),
     runs: (runs ?? []).map((r) => ({ month: r.month.slice(0, 7), status: r.status, total: (allLines ?? []).filter((l) => l.run_id === r.id).reduce((s, l) => s + n(l.net), 0) })),
     employees: (employees ?? []).filter((e) => e.status !== "final_exit").map((e) => ({ id: e.id, full_name: e.full_name })),
-    advances: (advances ?? []).map((a) => ({ id: a.id, employee_id: a.employee_id, name: names.get(a.employee_id) ?? "—", given_on: a.given_on, amount: n(a.amount), note: a.note, deducted: !!a.deducted_in_run })),
+    advances: (advances ?? []).map((a) => ({ id: a.id, employee_id: a.employee_id, name: names.get(a.employee_id) ?? "—", given_on: a.given_on, amount: n(a.amount), note: a.note, deducted: !!a.deducted_in_run, deductedAmount: n(a.deducted_amount) })),
     expiring: expiringDocuments(employees ?? [], today),
     canManage: can(session, "hr.manage"),
     canApprove: can(session, "hr.manage") && can(session, "approvals.decide"),

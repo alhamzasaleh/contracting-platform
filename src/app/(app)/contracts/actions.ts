@@ -247,15 +247,46 @@ export async function decideAddendum(input: unknown): Promise<ActionResult> {
   return error ? fail(error, "decide addendum") : done();
 }
 
-/** Finance marks the addendum's own payment as received. */
-export async function markAddendumPaid(input: unknown): Promise<ActionResult> {
+const paymentSchema = z
+  .object({
+    addendum_id: id,
+    paid_on: day,
+    amount: z.number().positive().max(100_000_000),
+    method: z.enum(["transfer", "cash", "cheque", "card"]),
+    reference: z.string().trim().max(80).nullable(),
+  })
+  .strict();
+
+/**
+ * Finance records money received for an addendum's own payment (full or partial).
+ * The database keeps it cumulative, never above the total, and issues the receipt voucher.
+ */
+export async function recordAddendumPayment(input: unknown): Promise<ActionResult> {
   const session = await getSession();
   if (!can(session, "finance.manage")) return { ok: false, error: "noAccess" };
-  const parsed = z.object({ id }).strict().safeParse(input);
+  const parsed = paymentSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const v = parsed.data;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("record_addendum_payment", { p_addendum: v.addendum_id, p_paid_on: v.paid_on, p_amount: v.amount, p_method: v.method, p_reference: v.reference });
+  if (error) return fail(error, "addendum payment");
+  after(runBackground);
+  revalidatePath("/", "layout");
+  return done();
+}
+
+/** Staff request a material-supply or custom payment (stage payments follow the client's confirmation). */
+export async function requestPayment(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "finance.manage") && !can(session, "quotes.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ payment_id: id }).strict().safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
   const supabase = await createClient();
-  const { error } = await supabase.from("addenda").update({ payment_status: "paid" }).eq("id", parsed.data.id).eq("organization_id", session.organization.id).eq("status", "accepted");
-  return error ? fail(error, "addendum paid") : done();
+  const { error } = await supabase.rpc("request_contract_payment", { p_payment: parsed.data.payment_id });
+  if (error) return fail(error, "request payment");
+  after(runBackground);
+  revalidatePath("/", "layout");
+  return done();
 }
 
 /** Edit a contract's clauses (before the client accepts; the database refuses afterwards). */

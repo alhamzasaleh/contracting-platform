@@ -1,5 +1,5 @@
 "use client";
-import { AlertTriangle, Banknote } from "lucide-react";
+import { AlertTriangle, Banknote, Send } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -21,6 +21,8 @@ import { WhatsAppButton } from "@/components/whatsapp-button";
 export type ReportActions = {
   record: (i: Record<string, unknown>) => Promise<ActionResult>;
   expected: (i: Record<string, unknown>) => Promise<ActionResult>;
+  /** ask the client for a material-supply / custom payment */
+  request?: (i: Record<string, unknown>) => Promise<ActionResult>;
 };
 
 /** §3.7 collections (due, received, outstanding per client) and §3.16 profit detail. */
@@ -40,6 +42,7 @@ function Collections({ f, actions, base }: { f: OwnerFinance; actions?: ReportAc
   const tw = useTranslations("wa");
   const { fmt } = useFormatter();
   const [paying, setPaying] = React.useState<PaymentRow | null>(null);
+  const { run, pending } = useActionRunner();
   const [show, setShow] = React.useState<"open" | "all">("open");
   const rows = f.payments.filter((p) => (show === "open" ? p.outstanding > 0 : true));
   const groups = [...new Set(rows.map((r) => r.contract))].map((contract) => ({ contract, rows: rows.filter((r) => r.contract === contract) }));
@@ -99,6 +102,11 @@ function Collections({ f, actions, base }: { f: OwnerFinance; actions?: ReportAc
                       }
                     />
                   )}
+                  {f.canManage && actions?.request && p.status === "pending" && (p.due_event === "material_supply" || p.due_event === "custom") && (
+                    <Button size="sm" variant="secondary" loading={pending} onClick={() => run(() => actions.request!({ payment_id: p.id }))}>
+                      <Send /> {t("requestPayment")}
+                    </Button>
+                  )}
                   {f.canManage && p.outstanding > 0 && (
                     <Button size="sm" onClick={() => setPaying(p)}>
                       <Banknote /> {t("recordPayment")}
@@ -130,10 +138,35 @@ function ExpectedDate({ id, value, save }: { id: string; value: string; save: Re
 }
 
 function PayDialog({ p, today, onClose, record }: { p: PaymentRow; today: string; onClose: () => void; record?: ReportActions["record"] }) {
+  return (
+    <RecordPaymentDialog
+      description={`${p.client} · ${p.label}`}
+      outstanding={p.outstanding}
+      today={today}
+      onClose={onClose}
+      submit={record && ((v) => record({ payment_id: p.id, ...v }))}
+    />
+  );
+}
+
+/** Money received (full or partial): amount, date, method and reference. Shared by collections and addenda. */
+export function RecordPaymentDialog({
+  description,
+  outstanding,
+  today,
+  onClose,
+  submit,
+}: {
+  description: string;
+  outstanding: number;
+  today: string;
+  onClose: () => void;
+  submit?: (v: { paid_on: string; amount: number; method: "transfer" | "cash" | "cheque" | "card"; reference: string | null }) => Promise<ActionResult>;
+}) {
   const t = useTranslations("finance");
   const { fmt } = useFormatter();
   const { run, pending } = useActionRunner();
-  const [amount, setAmount] = React.useState(String(p.outstanding));
+  const [amount, setAmount] = React.useState(String(outstanding));
   const [date, setDate] = React.useState(today);
   const [method, setMethod] = React.useState<"transfer" | "cash" | "cheque" | "card">("transfer");
   const [ref, setRef] = React.useState("");
@@ -143,12 +176,12 @@ function PayDialog({ p, today, onClose, record }: { p: PaymentRow; today: string
       open
       onOpenChange={(v) => !v && onClose()}
       title={t("recordPayment")}
-      description={`${p.client} · ${p.label} — ${t("left")} ${fmt.money(p.outstanding)}`}
+      description={`${description} — ${t("left")} ${fmt.money(outstanding)}`}
       pending={pending}
-      onSubmit={() => run(record && (() => record({ payment_id: p.id, paid_on: date, amount: num(amount), method, reference: ref || null })), { onSuccess: onClose })}
+      onSubmit={() => run(submit && (() => submit({ paid_on: date, amount: num(amount), method, reference: ref || null })), { onSuccess: onClose })}
     >
       <div className="grid grid-cols-2 gap-4">
-        <Field id="rp-a" label={t("amount")} hint={num(amount) < p.outstanding ? t("partialHint") : undefined}>
+        <Field id="rp-a" label={t("amount")} hint={num(amount) < outstanding ? t("partialHint") : undefined}>
           <NumberInput value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
         <Field id="rp-d" label={t("date")}>

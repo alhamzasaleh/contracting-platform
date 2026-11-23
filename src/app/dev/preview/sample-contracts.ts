@@ -31,7 +31,7 @@ export const SAMPLE_CONTRACT: ContractDetail = {
   options: null,
   receipts: [{ number: "RV-2026-007", label: "عند توقيع العقد", amount: amounts[0], paid_on: "2026-11-23" }],
   addenda: [
-    { id: "ad1", number: "AD-2026-001", title: "بيت إنارة إضافي في المجلس", description: "تنفيذ بيت إنارة بطول 12 م مع شادو، بنفس مواصفات العقد.", amount: 1800, vat: 0, total: 1800, extra_days: 3, status: "accepted", payment_status: "requested", accepted_at: "2026-11-22T10:00:00Z", accepted_name: "أبو محمد", approval_id: null, created_at: "2026-11-21T10:00:00Z" },
+    { id: "ad1", number: "AD-2026-001", title: "بيت إنارة إضافي في المجلس", description: "تنفيذ بيت إنارة بطول 12 م مع شادو، بنفس مواصفات العقد.", amount: 1800, vat: 0, total: 1800, extra_days: 3, status: "accepted", payment_status: "requested", accepted_at: "2026-11-22T10:00:00Z", accepted_name: "أبو محمد", approval_id: null, created_at: "2026-11-21T10:00:00Z", paid_amount: 800 },
     { id: "ad2", number: "AD-2026-002", title: "دهان سقف الملحق", description: "معجون وجهين ودهان وجهين لسقف الملحق الخارجي 35 م².", amount: 1400, vat: 0, total: 1400, extra_days: 2, status: "pending_approval", payment_status: "pending", accepted_at: null, accepted_name: null, approval_id: "ap9", created_at: "2026-11-22T10:00:00Z" },
   ],
 };

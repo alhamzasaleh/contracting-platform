@@ -13,7 +13,7 @@ export const SAMPLE_PAYROLL: PayrollData = {
   ],
   employees: [{ id: "e1", full_name: "أحمد محمود" }, { id: "e3", full_name: "محمد إقبال" }],
   advances: [
-    { id: "a1", employee_id: "e1", name: "أحمد محمود", given_on: "2026-11-10", amount: 500, note: "سلفة طارئة", deducted: false },
+    { id: "a1", employee_id: "e1", name: "أحمد محمود", given_on: "2026-11-10", amount: 500, note: "سلفة طارئة", deducted: false, deductedAmount: 200 },
     { id: "a0", employee_id: "e3", name: "محمد إقبال", given_on: "2026-10-05", amount: 300, note: null, deducted: true },
   ],
   expiring: [

@@ -66,6 +66,7 @@ export function OwnerFinanceSections({ f, actions, base = "" }: { f: OwnerFinanc
         <div className="grid content-start gap-4 sm:gap-5">
           <Receivables f={f} base={base} />
           <Attention f={f} base={base} />
+          <TeamCost f={f} base={base} />
         </div>
       </div>
     </>
@@ -335,6 +336,23 @@ function Receivables({ f, base }: { f: OwnerFinance; base: string }) {
         ))}
         {f.receivables.length === 0 && <li className="text-muted-foreground">{t("noReceivables")}</li>}
       </ul>
+    </motion.section>
+  );
+}
+
+/** Our team's fixed monthly cost not charged to any project this month (covered by the overhead %). Totals only. */
+function TeamCost({ f, base }: { f: OwnerFinance; base: string }) {
+  const t = useTranslations("finance");
+  const { fmt } = useFormatter();
+  if (!f.teamCost) return null;
+  return (
+    <motion.section variants={item} className="grid gap-1 rounded-2xl border border-border bg-surface p-5 text-[13px]">
+      <Link href={`${base}/schedule`} className="text-[14px] font-bold hover:text-primary">
+        {t("teamIdleTitle")}
+      </Link>
+      <p className="num text-[22px] font-extrabold tabular-nums">{fmt.money(f.teamCost.unabsorbed)}</p>
+      <p className="text-muted-foreground">{t("teamIdleOf", { allocated: fmt.money(f.teamCost.allocated), monthly: fmt.money(f.teamCost.monthly) })}</p>
+      <p className="text-[12px] text-subtle-foreground">{t("teamIdleHint")}</p>
     </motion.section>
   );
 }

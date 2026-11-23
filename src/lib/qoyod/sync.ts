@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.types";
 import { qoyod, QoyodError } from "./client";
 import { qoyodAutoSetup } from "./setup";
-import { billPaymentRef, customerBody, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, payrollJournalBody, payrollTag, simpleBillBody, simpleBillPaymentBody, vendorBody } from "./payloads";
+import { billPaymentRef, customerBody, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, payrollJournalBody, payrollTag, simpleBillBody, simpleBillPaymentBody, vendorBody, waitsForApproved } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Ctx = { admin: Admin; key: string; s: QoyodSettingsRow };
@@ -194,6 +194,8 @@ async function invoiceSource(ctx: Ctx, job: QoyodJobRow): Promise<InvoiceSource>
 
 async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number> {
   const { s } = ctx;
+  // payments on draft invoices/bills and journal entries wait until sending is "Approved"
+  if (waitsForApproved(job.kind, s.invoice_status)) throw new Deferred("waiting:approved");
   switch (job.kind) {
     case "invoice": {
       const src = await invoiceSource(ctx, job);
@@ -231,8 +233,6 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number> {
       return createOrFind(ctx, "/simple_bills", "simple_bills", pur.number, body, (r) => (r.simple_bill as { id?: number } | undefined)?.id);
     }
     case "bill_payment": {
-      // a draft bill can't be paid in Qoyod: wait until sending is "Approved"
-      if (s.invoice_status !== "Approved") throw new Deferred("waiting:approved");
       const billId = await doneId(ctx, "bill", `po:${job.entity_id}`);
       if (!billId) throw new Blocked("waiting:bill");
       const { data: p } = await ctx.admin.from("purchases").select("number, paid_on, paid_from, paid_reference, total").eq("id", job.entity_id).single();
@@ -246,8 +246,6 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number> {
       return createOrFind(ctx, "/simple_bill_payments", "simple_bill_payments", reference, body, (r) => (r.payment as { id?: number } | undefined)?.id ?? (r.simple_bill_payment as { id?: number } | undefined)?.id);
     }
     case "payroll": {
-      // a journal entry posts immediately (no draft): only once sending is "Approved"
-      if (s.invoice_status !== "Approved") throw new Deferred("waiting:approved");
       const salaryAccountId = need(s.salary_account_id, "salary_account");
       const bankAccountId = need(s.receive_account_id, "receive_account");
       const { data: run } = await ctx.admin.from("payroll_runs").select("month, paid_on").eq("id", job.entity_id).single();
