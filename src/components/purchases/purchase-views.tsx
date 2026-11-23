@@ -730,43 +730,49 @@ export function ProjectCostsView({ rows, base = "" }: { rows: ProjectCost[]; bas
   const t = useTranslations("purchases");
   const { fmt } = useFormatter();
   if (!rows.length) return <EmptyState icon={<ShoppingCart />} title={t("noProjectsTitle")} description={t("noProjectsBody")} />;
+  const labourHidden = rows.some((r) => r.labour == null);
   return (
-    <ul className="grid gap-3 [&>*]:min-w-0">
-      {rows.map((r) => {
-        const s = costStatus(r.estimated, r.actual);
-        const pct = s.ratio == null ? 0 : Math.min(100, s.ratio * 100);
-        return (
-          <li key={r.id} className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Link href={`${base}/contracts/${r.number}`} className="font-bold hover:text-primary">
-                {r.client} · <DocNo>{r.number}</DocNo>
-              </Link>
-              {s.level === "over" && (
-                <Badge tone="danger">
-                  <AlertTriangle className="size-3" /> {t("over", { n: fmt.number(((s.ratio ?? 1) - 1) * 100, 0) })}
-                </Badge>
-              )}
-              {s.level === "watch" && <Badge tone="warning">{t("watch")}</Badge>}
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-3 lg:grid-cols-7">
-              <Stat label={t("estimated")} value={r.estimated == null ? "—" : fmt.money(r.estimated)} />
-              <Stat label={t("actual")} value={fmt.money(r.actual)} strong />
-              <Stat label={t("materials")} value={fmt.money(r.materials)} />
-              <Stat label={t("expenses")} value={fmt.money(r.expenses)} />
-              <Stat label={t("pettyCost")} value={fmt.money(r.petty)} />
-              <Stat label={t("subsCost")} value={fmt.money(r.subcontractors)} />
-              {r.labour != null && <Stat label={t("labourCost")} value={fmt.money(r.labour)} />}
-            </div>
-            {s.ratio != null && (
-              <div className="h-2.5 overflow-hidden rounded-full bg-surface-sunken" role="meter" aria-valuenow={Math.round(s.ratio * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={t("actual")}>
-                <div className={cn("h-full rounded-full", s.level === "over" ? "bg-danger" : s.level === "watch" ? "bg-warning" : "bg-primary")} style={{ width: `${pct}%` }} />
+    <div className="grid gap-3">
+      <ul className="grid gap-3 [&>*]:min-w-0">
+        {rows.map((r) => {
+          // the material estimate is compared with the material side of the actual cost
+          const s = costStatus(r.estimated, r.materialsActual);
+          const pct = s.ratio == null ? 0 : Math.min(100, s.ratio * 100);
+          return (
+            <li key={r.id} className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Link href={`${base}/contracts/${r.number}`} className="font-bold hover:text-primary">
+                  {r.client} · <DocNo>{r.number}</DocNo>
+                </Link>
+                {s.level === "over" && (
+                  <Badge tone="danger">
+                    <AlertTriangle className="size-3" /> {t("over", { n: fmt.number(((s.ratio ?? 1) - 1) * 100, 0) })}
+                  </Badge>
+                )}
+                {s.level === "watch" && <Badge tone="warning">{t("watch")}</Badge>}
               </div>
-            )}
-            {r.pending > 0 && <p className="text-[12px] text-muted-foreground">{t("pendingAmount", { amount: fmt.money(r.pending) })}</p>}
-          </li>
-        );
-      })}
-    </ul>
+              <div className="grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-4 lg:grid-cols-8">
+                <Stat label={t("estimated")} value={r.estimated == null ? "—" : fmt.money(r.estimated)} />
+                <Stat label={t("actualMaterials")} value={fmt.money(r.materialsActual)} />
+                <Stat label={t("actual")} value={fmt.money(r.actual)} strong />
+                <Stat label={t("materials")} value={fmt.money(r.materials)} />
+                <Stat label={t("expenses")} value={fmt.money(r.expenses)} />
+                <Stat label={t("pettyCost")} value={fmt.money(r.petty)} />
+                <Stat label={t("subsCost")} value={fmt.money(r.subcontractors)} />
+                {r.labour != null && <Stat label={t("labourCost")} value={fmt.money(r.labour)} />}
+              </div>
+              {s.ratio != null && (
+                <div className="h-2.5 overflow-hidden rounded-full bg-surface-sunken" role="meter" aria-valuenow={Math.round(s.ratio * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={t("actualMaterials")}>
+                  <div className={cn("h-full rounded-full", s.level === "over" ? "bg-danger" : s.level === "watch" ? "bg-warning" : "bg-primary")} style={{ width: `${pct}%` }} />
+                </div>
+              )}
+              {r.pending > 0 && <p className="text-[12px] text-muted-foreground">{t("pendingAmount", { amount: fmt.money(r.pending) })}</p>}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-[11px] text-subtle-foreground">{labourHidden ? t("actualNoteHidden") : t("actualNote")}</p>
+    </div>
   );
 }
 

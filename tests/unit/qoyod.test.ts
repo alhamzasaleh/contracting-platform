@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { customerBody, errorText, waitsForApproved, invoiceBody, invoicePaymentBody, invoiceRef, localPhone, netOf, paymentRef, simpleBillBody } from "@/lib/qoyod/payloads";
+import { approveSimpleBillBody, customerBody, documentStatus, errorText, paymentStep, waitsForApproved, invoiceBody, invoicePaymentBody, invoiceRef, localPhone, netOf, paymentRef, simpleBillBody } from "@/lib/qoyod/payloads";
 
 describe("qoyod payloads", () => {
   it("phone and VAT helpers", () => {
@@ -43,5 +43,19 @@ describe("qoyod payloads", () => {
     }
     expect(waitsForApproved("invoice", "Draft")).toBe(false);
     expect(waitsForApproved("bill", "Draft")).toBe(false);
+  });
+
+  it("a document we sent as a draft is approved (bills) or waited for (invoices) before its payment", () => {
+    expect(documentStatus({ invoice: { id: 1, status: "Draft" } }, "invoice")).toBe("Draft");
+    expect(documentStatus({ simple_bill: { id: 2, status: "Approved" } }, "simple_bill")).toBe("Approved");
+    expect(documentStatus({}, "invoice")).toBeNull();
+    // Qoyod's API can update a simple bill's status but has no update for invoices
+    expect(approveSimpleBillBody()).toEqual({ simple_bill: { status: "Approved" } });
+    expect(paymentStep("bill_payment", "Draft")).toBe("approve");
+    expect(paymentStep("invoice_payment", "Draft")).toBe("wait");
+    for (const st of ["Approved", "Partially Paid", "Paid", null]) {
+      expect(paymentStep("bill_payment", st)).toBe("post");
+      expect(paymentStep("invoice_payment", st)).toBe("post");
+    }
   });
 });

@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shell/app-shell";
 import { requirePermission } from "@/lib/auth/session";
 import { loadContract } from "@/lib/data/contracts";
 import { orgLogoUrl } from "@/lib/org";
-import { cancelAddendum, cancelContract, decideAddendum, recordAddendumPayment, revokeLinks, saveAddendum, saveContractTerms, sendAddendum, sendContract } from "../actions";
+import { cancelAddendum, cancelContract, decideAddendum, recordAddendumPayment, requestPayment, revokeLinks, saveAddendum, saveContractTerms, sendAddendum, sendContract } from "../actions";
 
 export default async function ContractPage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
@@ -21,6 +21,7 @@ export default async function ContractPage({ params }: { params: Promise<{ numbe
         actions={{ send: sendContract, revoke: revokeLinks, cancel: cancelContract }}
         addendaActions={{ save: saveAddendum, send: sendAddendum, cancel: cancelAddendum, decide: decideAddendum, paid: recordAddendumPayment }}
         termsSave={saveContractTerms}
+        requestPayment={requestPayment}
       />
     </div>
   );

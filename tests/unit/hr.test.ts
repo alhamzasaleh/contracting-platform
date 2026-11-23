@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expiringDocuments, netPay, payrollCsv } from "@/lib/hr";
+import { advancesTooHigh, expiringDocuments, netPay, payrollCsv } from "@/lib/hr";
 
 describe("hr", () => {
   it("lists expiring and expired documents, soonest first", () => {
@@ -23,5 +23,11 @@ describe("hr", () => {
     const csv = payrollCsv([{ full_name: 'أحمد "أبو علي"', iban: "SA0380000000608010167519", net: 3700 }], "2026-11");
     expect(csv.startsWith("﻿")).toBe(true);
     expect(csv).toContain('"أحمد ""أبو علي""","SA0380000000608010167519",3700.00,"2026-11"');
+  });
+
+  it("recognises the database refusing advances above the open ones", () => {
+    expect(advancesTooHigh({ message: "the advances on a line exceed the employee's open advances" })).toBe(true);
+    expect(advancesTooHigh({ message: "not allowed" })).toBe(false);
+    expect(advancesTooHigh(null)).toBe(false);
   });
 });

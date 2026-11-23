@@ -17,6 +17,27 @@ export function waitsForApproved(kind: string, invoiceStatus: string | null | un
   return NEEDS_APPROVED.has(kind) && invoiceStatus !== "Approved";
 }
 
+/** A document's status from Qoyod's GET /invoices/:id or /simple_bills/:id answer. */
+export function documentStatus(r: unknown, key: "invoice" | "simple_bill"): string | null {
+  const doc = (r as Record<string, { status?: unknown } | undefined> | null)?.[key];
+  return typeof doc?.status === "string" ? doc.status : null;
+}
+
+/** PATCH /simple_bills/:id — approve a simple bill we sent as a draft. */
+export function approveSimpleBillBody() {
+  return { simple_bill: { status: "Approved" } };
+}
+
+/**
+ * Before paying a document we may have sent as a draft (sending was "Draft" then): a draft simple
+ * bill is approved through the API first; Qoyod's API has no way to approve an existing invoice,
+ * so its payment waits until the owner approves it in Qoyod ("waiting:invoice_draft").
+ */
+export function paymentStep(kind: "invoice_payment" | "bill_payment", docStatus: string | null): "post" | "approve" | "wait" {
+  if (docStatus !== "Draft") return "post";
+  return kind === "bill_payment" ? "approve" : "wait";
+}
+
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 /** 9665XXXXXXXX → 05XXXXXXXX (the format Qoyod shows); anything else unchanged. */

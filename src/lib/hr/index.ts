@@ -38,3 +38,8 @@ export function payrollCsv(rows: { full_name: string; iban: string | null; net: 
   for (const r of rows) lines.push([esc(r.full_name), esc(r.iban ?? ""), r.net.toFixed(2), esc(month)].join(","));
   return "﻿" + lines.join("\r\n") + "\r\n";
 }
+
+/** approve_payroll_run refuses a line that deducts more than the employee's open advances. */
+export function advancesTooHigh(error: { message?: string } | null): boolean {
+  return /open advances/.test(error?.message ?? "");
+}

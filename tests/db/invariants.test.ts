@@ -19,6 +19,14 @@ const AUTHENTICATED_DEFINER = [
   "schedule_roster", "seed_employee_cost_items", "seed_pricing_engine", "seed_starter_catalogue", "submit_addendum", "submit_purchase", "team_cost_month",
 ];
 
+// private SECURITY DEFINER helpers (not trigger functions) signed-in users can execute — RLS
+// policies and invoker triggers call them as the user. Each answers only about the caller's own
+// organizations (membership filter, or auth.uid()-based). Adding one here means you checked that.
+const AUTHENTICATED_PRIVATE_DEFINER = [
+  "agreement_contract", "can_access_contract", "has_permission", "is_member", "is_owner", "member_permissions",
+  "purchase_contract", "quote_has_open_approvals", "quote_status", "quote_version_total", "shares_organization",
+];
+
 describe("security invariants", () => {
   it("every public table has row level security", async () => {
     expect(await rows("select c.relname as name from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r','p') and not c.relrowsecurity")).toEqual([]);
@@ -44,6 +52,14 @@ describe("security invariants", () => {
     expect(await rows("select p.proname as name from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prosecdef and has_function_privilege('authenticated', p.oid, 'execute')")).toEqual(
       [...AUTHENTICATED_DEFINER].sort(),
     );
+  });
+
+  it("signed-in users can call only the reviewed private SECURITY DEFINER helpers", async () => {
+    expect(
+      await rows(
+        "select p.proname as name from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'private' and p.prosecdef and p.prorettype <> 'trigger'::regtype and has_function_privilege('authenticated', p.oid, 'execute')",
+      ),
+    ).toEqual([...AUTHENTICATED_PRIVATE_DEFINER].sort());
   });
 
   it("the private schema is not reachable by signed-in users", async () => {

@@ -1,5 +1,5 @@
 "use client";
-import { CheckCircle2, FileText, KeyRound, Link2, RefreshCw, RotateCcw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, KeyRound, Link2, RefreshCw, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -231,6 +231,26 @@ export function QoyodSettingsView({ data, preview, sampleOptions }: { data: Qoyo
               </Button>
             </CardFooter>
           )}
+        </Card>
+      )}
+
+      {connected && (data.draftInvoices?.length ?? 0) > 0 && (
+        <Card className="border-warning/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-warning" /> {t("draftTitle")}
+            </CardTitle>
+            <CardDescription>{t("draftHint")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="flex flex-wrap gap-2">
+              {data.draftInvoices!.map((n) => (
+                <li key={n} className="rounded-full border border-border px-3 py-1 text-[13px]">
+                  <bdi dir="ltr" className="font-latin">{n}</bdi>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
         </Card>
       )}
 

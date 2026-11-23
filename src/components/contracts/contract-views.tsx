@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { AlertTriangle, CalendarClock, CalendarDays, Check, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, ShoppingCart, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, CalendarClock, CalendarDays, Check, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, Send, ShoppingCart, Trash2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -21,6 +21,7 @@ import type { ContractStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { anyTeamFree, spanOf, suggestStart, type Entry, type TeamInfo } from "@/lib/schedule";
 import { cn, ltr } from "@/lib/utils";
+import { remainingAmount } from "@/lib/finance";
 import { ReceiptsList } from "@/components/finance/receipts-list";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { ClausesPanel } from "./clauses-panel";
@@ -254,6 +255,7 @@ export function ContractView({
   actions,
   addendaActions,
   termsSave,
+  requestPayment,
   base = "",
 }: {
   detail: ContractDetail;
@@ -265,6 +267,8 @@ export function ContractView({
   };
   addendaActions?: AddendaActions;
   termsSave?: (i: { contract_id: string; terms: ContractTermsConfig }) => Promise<ActionResult>;
+  /** ask the client for a payment no stage confirmation will request (quotes.manage or finance.manage) */
+  requestPayment?: (i: { payment_id: string }) => Promise<ActionResult>;
   base?: string;
 }) {
   const ts = useTranslations("schedule");
@@ -443,6 +447,7 @@ export function ContractView({
         </p>
       )}
 
+      {c.status === "accepted" && <PaymentRequests detail={detail} request={requestPayment} />}
       {(c.status === "accepted" || c.status === "sent") && <ClientMessages detail={detail} orgName={org.name} />}
       <AddendaSection detail={detail} actions={addendaActions} />
       <ReceiptsList items={detail.receipts ?? []} hrefFor={(n) => `/print/receipts/${encodeURIComponent(n)}`} newTab />
@@ -476,6 +481,36 @@ export function ContractView({
   );
 }
 
+/** Pending payments staff ask for (material supply, custom, or a stage that isn't on the project). */
+function PaymentRequests({ detail, request }: { detail: ContractDetail; request?: (i: { payment_id: string }) => Promise<ActionResult> }) {
+  const t = useTranslations("contract");
+  const tf = useTranslations("finance");
+  const { fmt } = useFormatter();
+  const { run, pending } = useActionRunner();
+  const items = detail.payments.filter((p) => p.requestable && p.id);
+  if (!items.length || !(detail.canManage || detail.canFinance)) return null;
+  return (
+    <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
+      <div>
+        <p className="text-[15px] font-bold">{t("requestTitle")}</p>
+        <p className="text-[12px] text-muted-foreground">{t("requestHint")}</p>
+      </div>
+      <ul className="grid gap-2">
+        {items.map((p) => (
+          <li key={p.seq} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-surface-2 px-3 py-2 text-[13px]">
+            <span className="min-w-0">
+              {p.label} · <span className="font-latin tabular-nums">{fmt.money(p.amount)}</span>
+            </span>
+            <Button size="sm" variant="secondary" loading={pending} onClick={() => run(request && (() => request({ payment_id: p.id! })))}>
+              <Send /> {tf("requestPayment")}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /** Ready messages from the owner's own WhatsApp: payment requests, receipts, addenda awaiting acceptance. */
 function ClientMessages({ detail, orgName }: { detail: ContractDetail; orgName: string }) {
   const t = useTranslations("wa");
@@ -485,15 +520,18 @@ function ClientMessages({ detail, orgName }: { detail: ContractDetail; orgName: 
   const base = { name: client.name, contract: ltr(c.number), org: orgName };
   const items: { key: string; title: string; text: string; label: string }[] = [
     { key: "general", title: t("generalTitle"), text: t("general", { name: client.name, contract: ltr(c.number), org: orgName }), label: t("btnOpen") },
+    // only what was asked for, and only what is left of it
     ...detail.payments
-      .filter((p) => p.status !== "paid")
-      .map((p) => ({ key: `p${p.seq}`, title: `${p.label} · ${fmt.money(p.amount)}`, text: t("payRequest", { ...base, label: p.label, amount: fmt.money(p.amount) }), label: t("btnRemind") })),
+      .map((p) => ({ p, left: remainingAmount(p.amount, p.paid_amount) }))
+      .filter(({ p, left }) => p.status === "requested" && left > 0)
+      .map(({ p, left }) => ({ key: `p${p.seq}`, title: `${p.label} · ${fmt.money(left)}`, text: t("payRequest", { ...base, label: p.label, amount: fmt.money(left) }), label: t("btnRemind") })),
     ...detail.addenda
       .filter((a) => a.status === "sent")
       .map((a) => ({ key: a.id, title: `${ltr(a.number)} · ${a.title}`, text: t("addendum", { ...base, number: ltr(a.number), title: a.title, amount: fmt.money(a.total) }), label: t("btnSend") })),
     ...detail.addenda
-      .filter((a) => a.status === "accepted" && a.payment_status === "requested")
-      .map((a) => ({ key: `pay-${a.id}`, title: `${ltr(a.number)} · ${fmt.money(a.total)}`, text: t("payRequest", { ...base, label: `${ltr(a.number)} — ${a.title}`, amount: fmt.money(a.total) }), label: t("btnRemind") })),
+      .map((a) => ({ a, left: remainingAmount(a.total, a.paid_amount) }))
+      .filter(({ a, left }) => a.status === "accepted" && a.payment_status === "requested" && left > 0)
+      .map(({ a, left }) => ({ key: `pay-${a.id}`, title: `${ltr(a.number)} · ${fmt.money(left)}`, text: t("payRequest", { ...base, label: `${ltr(a.number)} — ${a.title}`, amount: fmt.money(left) }), label: t("btnRemind") })),
     ...(detail.receipts ?? [])
       .slice(-3)
       .reverse()

@@ -21,7 +21,7 @@ import { WhatsAppButton } from "@/components/whatsapp-button";
 export type ReportActions = {
   record: (i: Record<string, unknown>) => Promise<ActionResult>;
   expected: (i: Record<string, unknown>) => Promise<ActionResult>;
-  /** ask the client for a material-supply / custom payment */
+  /** ask the client for a payment no stage confirmation will request (material supply, custom, stage not on the project) */
   request?: (i: Record<string, unknown>) => Promise<ActionResult>;
 };
 
@@ -102,7 +102,7 @@ function Collections({ f, actions, base }: { f: OwnerFinance; actions?: ReportAc
                       }
                     />
                   )}
-                  {f.canManage && actions?.request && p.status === "pending" && (p.due_event === "material_supply" || p.due_event === "custom") && (
+                  {f.canManage && actions?.request && p.status === "pending" && p.requestable && (
                     <Button size="sm" variant="secondary" loading={pending} onClick={() => run(() => actions.request!({ payment_id: p.id }))}>
                       <Send /> {t("requestPayment")}
                     </Button>
@@ -244,7 +244,7 @@ function ProfitTable({ f, base }: { f: OwnerFinance; base: string }) {
             </tbody>
           </table>
         </div>
-        <p className="mt-3 text-[11px] text-subtle-foreground">{t("profitNote")}</p>
+        <p className="mt-3 text-[11px] text-subtle-foreground">{t(f.labourHidden ? "profitNoteHidden" : "profitNote")}</p>
       </section>
       <section className="grid gap-2 rounded-3xl border border-border bg-surface p-5">
         <p className="font-bold">{t("byMonth")}</p>

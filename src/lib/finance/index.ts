@@ -25,6 +25,27 @@ export function expectedPaymentDate(
   return d < today ? today : d;
 }
 
+/**
+ * Staff may ask the client for a pending payment (public.request_contract_payment) unless the
+ * client's stage confirmation requests it: material supply and custom payments, and a stage
+ * payment whose stage isn't on the project. The signing payment is requested on acceptance.
+ */
+export function canRequestPayment(p: { due_event: DueEvent; status: string }, stageEvents: ReadonlySet<string>): boolean {
+  if (p.status !== "pending" || p.due_event === "signing") return false;
+  return p.due_event === "material_supply" || p.due_event === "custom" || !stageEvents.has(p.due_event);
+}
+
+/** What is left to collect on an amount (never negative, cents). */
+export function remainingAmount(amount: number, paid: number | null | undefined): number {
+  return Math.max(0, r2(amount - (paid ?? 0)));
+}
+
+/** Received on an addendum: rows marked paid before amounts were recorded count as paid in full. */
+export function addendumPaid(a: { payment_status: string; paid_amount: number | null | undefined; total: number }): number {
+  const paid = Number(a.paid_amount ?? 0);
+  return a.payment_status === "paid" ? Math.max(paid, a.total) : paid;
+}
+
 export type Flow = { date: Day; amount: number; label: string; kind: string };
 export type ForecastWeek = { start: Day; end: Day; inflow: number; outflow: number; net: number; balance: number; shortfall: boolean; items: Flow[] };
 

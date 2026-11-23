@@ -8,7 +8,7 @@ export class QoyodError extends Error {
 }
 
 /** One call to Qoyod. The key is sent only in the API-KEY header and never logged. */
-export async function qoyod<T = Record<string, unknown>>(key: string, method: "GET" | "POST" | "PUT", path: string, body?: unknown): Promise<T> {
+export async function qoyod<T = Record<string, unknown>>(key: string, method: "GET" | "POST" | "PUT" | "PATCH", path: string, body?: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${QOYOD_BASE}${path}`, {

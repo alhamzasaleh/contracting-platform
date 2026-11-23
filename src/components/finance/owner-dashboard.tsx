@@ -291,7 +291,7 @@ function Profit({ f, base }: { f: OwnerFinance; base: string }) {
               ))}
             </div>
           )}
-          <p className="mt-2 text-[11px] text-subtle-foreground">{t("profitNote")}</p>
+          <p className="mt-2 text-[11px] text-subtle-foreground">{t(f.labourHidden ? "profitNoteHidden" : "profitNote")}</p>
         </>
       )}
     </motion.section>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
+import { advancesTooHigh } from "@/lib/hr";
 import { createClient } from "@/lib/supabase/server";
 
 const id = z.uuid();
@@ -52,6 +53,7 @@ export async function approvePayroll(input: unknown): Promise<ActionResult> {
   if (!parsed.success) return { ok: false, error: "invalid" };
   const supabase = await createClient();
   const { error } = await supabase.rpc("approve_payroll_run", { p_run: parsed.data.run_id });
+  if (error && advancesTooHigh(error)) return { ok: false, error: "advancesExceedOpen" };
   return error ? fail(error, "approve") : done();
 }
 

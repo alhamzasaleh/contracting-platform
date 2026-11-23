@@ -8,6 +8,7 @@ import type { Line } from "@/lib/engine";
 import type { ServiceKind } from "@/lib/pricing";
 import type { ClientView } from "@/lib/quotes";
 import { effectiveVatPercent } from "@/lib/costing";
+import { canRequestPayment } from "@/lib/finance";
 import type { AddendumStatus, ContractStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -100,7 +101,14 @@ export type ContractDetail = {
   };
   client: { number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null };
   quote: { number: string; version: number; date: string; valid_until: string | null; view: ClientView; notes: string | null };
-  payments: { seq: number; label: string; percent: number; amount: number; due_event: DueEvent; status: string }[];
+  payments: {
+    seq: number; label: string; percent: number; amount: number; due_event: DueEvent; status: string;
+    id?: string;
+    /** received so far (record_client_payment) */
+    paid_amount?: number;
+    /** staff can ask the client for it now (canRequestPayment: no stage confirmation will) */
+    requestable?: boolean;
+  }[];
   link: { active: boolean; expires_at: string | null; last_opened_at: string | null; open_count: number };
   materialCost: number | null;
   canManage: boolean;
@@ -142,16 +150,18 @@ export async function loadContract(session: SessionContext, number: string): Pro
     supabase.from("clients").select("number, name, phone, city, district, id_number").eq("id", c.client_id).maybeSingle(),
     supabase.from("quotes").select("number, valid_until").eq("id", c.quote_id).maybeSingle(),
     supabase.from("quote_versions").select("version, created_at, client_view, notes").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle(),
-    supabase.from("contract_payments").select("seq, label, percent, amount, due_event, status").eq("contract_id", c.id).order("seq"),
+    supabase.from("contract_payments").select("id, seq, label, percent, amount, due_event, status, paid_amount").eq("contract_id", c.id).order("seq"),
     supabase.from("client_portal_links").select("expires_at, revoked_at, last_opened_at, open_count").eq("contract_id", c.id).order("created_at", { ascending: false }),
   ]);
   const active = (links ?? []).find((l) => !l.revoked_at && new Date(l.expires_at) > new Date());
-  const [{ data: addenda }, settings, { data: receipts }, { data: tpl }] = await Promise.all([
+  const [{ data: addenda }, settings, { data: receipts }, { data: tpl }, { data: stageRows }] = await Promise.all([
     supabase.from("addenda").select("id, number, title, description, amount, vat, total, extra_days, status, payment_status, accepted_at, accepted_name, created_at, paid_amount").eq("contract_id", c.id).order("created_at"),
     loadPricingSettings(session),
     supabase.from("client_receipts").select("number, label, amount, paid_on").eq("contract_id", c.id).order("created_at"),
     supabase.from("contract_templates").select("terms").eq("organization_id", orgId).maybeSingle(),
+    supabase.from("project_stages").select("payment_event").eq("contract_id", c.id),
   ]);
+  const stageEvents = new Set((stageRows ?? []).map((s) => s.payment_event).filter((e): e is NonNullable<typeof e> => !!e));
   const pendingIds = (addenda ?? []).filter((a) => a.status === "pending_approval").map((a) => a.id);
   const { data: approvals } = pendingIds.length
     ? await supabase.from("approvals").select("id, entity_id").eq("entity", "addendum").eq("status", "pending").in("entity_id", pendingIds)
@@ -169,7 +179,10 @@ export async function loadContract(session: SessionContext, number: string): Pro
     },
     client: client ?? { number: "", name: "—", phone: null, city: null, district: null, id_number: null },
     quote: { number: q?.number ?? "", version: c.quote_version, date: ver?.created_at ?? c.created_at, valid_until: q?.valid_until ?? null, view: ver?.client_view as unknown as ClientView, notes: ver?.notes ?? null },
-    payments: (payments ?? []).map((p) => ({ ...p, percent: n(p.percent), amount: n(p.amount) })),
+    payments: (payments ?? []).map((p) => ({
+      ...p, percent: n(p.percent), amount: n(p.amount), paid_amount: n(p.paid_amount),
+      requestable: c.status === "accepted" && canRequestPayment(p, stageEvents),
+    })),
     link: { active: !!active, expires_at: active?.expires_at ?? null, last_opened_at: active?.last_opened_at ?? null, open_count: active?.open_count ?? 0 },
     materialCost: can(session, "costs.view") ? await materialCost(supabase, c.quote_id, c.quote_version) : null,
     canManage: can(session, "quotes.manage"),

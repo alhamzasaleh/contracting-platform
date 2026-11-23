@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageing, expectedPaymentDate, paydays, projectProfit, weeklyForecast } from "@/lib/finance";
+import { addendumPaid, ageing, canRequestPayment, expectedPaymentDate, paydays, projectProfit, remainingAmount, weeklyForecast } from "@/lib/finance";
 
 const c = { start_date: "2026-12-01", days: 20 };
 const p = (due_event: Parameters<typeof expectedPaymentDate>[0]["due_event"], extra: Partial<Parameters<typeof expectedPaymentDate>[0]> = {}) => ({ due_event, expected_date: null, status: "pending", requested_at: null, ...extra });
@@ -50,5 +50,24 @@ describe("finance", () => {
     expect(projectProfit(10000, 7000, 7500)).toMatchObject({ expected: 3000, expectedMargin: 30, actual: 2500, actualMargin: 25, losing: false });
     expect(projectProfit(10000, 7000, 11000).losing).toBe(true);
     expect(projectProfit(10000, null, 4000).expected).toBeNull();
+  });
+
+  it("staff can ask for a pending payment unless the client's stage confirmation does it", () => {
+    const stages = new Set(["board_closing", "handover"]);
+    expect(canRequestPayment({ due_event: "material_supply", status: "pending" }, stages)).toBe(true);
+    expect(canRequestPayment({ due_event: "custom", status: "pending" }, stages)).toBe(true);
+    // a stage payment whose stage isn't on the project
+    expect(canRequestPayment({ due_event: "primer_done", status: "pending" }, stages)).toBe(true);
+    expect(canRequestPayment({ due_event: "board_closing", status: "pending" }, stages)).toBe(false);
+    expect(canRequestPayment({ due_event: "signing", status: "pending" }, stages)).toBe(false);
+    expect(canRequestPayment({ due_event: "custom", status: "requested" }, stages)).toBe(false);
+  });
+
+  it("reminders ask for what is left, and a legacy 'paid' addendum is fully paid", () => {
+    expect(remainingAmount(1000, 400)).toBe(600);
+    expect(remainingAmount(1000, null)).toBe(1000);
+    expect(remainingAmount(1000, 1000.004)).toBe(0);
+    expect(addendumPaid({ payment_status: "paid", paid_amount: null, total: 700 })).toBe(700);
+    expect(addendumPaid({ payment_status: "requested", paid_amount: 200, total: 700 })).toBe(200);
   });
 });

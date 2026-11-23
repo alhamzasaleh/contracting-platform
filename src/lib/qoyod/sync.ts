@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.types";
 import { qoyod, QoyodError } from "./client";
 import { qoyodAutoSetup } from "./setup";
-import { billPaymentRef, customerBody, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, payrollJournalBody, payrollTag, simpleBillBody, simpleBillPaymentBody, vendorBody, waitsForApproved } from "./payloads";
+import { approveSimpleBillBody, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, payrollJournalBody, payrollTag, simpleBillBody, simpleBillPaymentBody, vendorBody, waitsForApproved } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Ctx = { admin: Admin; key: string; s: QoyodSettingsRow };
@@ -212,6 +212,10 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number> {
       const invoiceJobRef = job.entity_type === "contract_payment" ? `cp:${job.entity_id}` : `ad:${job.entity_id}`;
       const invoiceId = await doneId(ctx, "invoice", invoiceJobRef);
       if (!invoiceId) throw new Blocked("waiting:invoice");
+      // an invoice sent while sending was "Draft" can't be paid, and the API can't approve it:
+      // the payment waits until the owner approves it in Qoyod (listed on /settings/qoyod)
+      const invoice = await qoyod<unknown>(ctx.key, "GET", `/invoices/${invoiceId}`);
+      if (paymentStep("invoice_payment", documentStatus(invoice, "invoice")) === "wait") throw new Deferred("waiting:invoice_draft");
       const src = await invoiceSource(ctx, job);
       const paidSoFar = Number(job.ref.split(":").pop());
       const table = job.entity_type === "contract_payment" ? "contract_payments" : "addenda";
@@ -235,6 +239,11 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number> {
     case "bill_payment": {
       const billId = await doneId(ctx, "bill", `po:${job.entity_id}`);
       if (!billId) throw new Blocked("waiting:bill");
+      // a simple bill sent while sending was "Draft" is approved first (the API allows it for bills)
+      const bill = await qoyod<unknown>(ctx.key, "GET", `/simple_bills/${billId}`);
+      if (paymentStep("bill_payment", documentStatus(bill, "simple_bill")) === "approve") {
+        await qoyod(ctx.key, "PATCH", `/simple_bills/${billId}`, approveSimpleBillBody());
+      }
       const { data: p } = await ctx.admin.from("purchases").select("number, paid_on, paid_from, paid_reference, total").eq("id", job.entity_id).single();
       const pur = need(p, "purchase");
       const accountId = pur.paid_from === "cash" ? need(s.cash_account_id ?? s.receive_account_id, "cash_account") : need(s.receive_account_id, "receive_account");

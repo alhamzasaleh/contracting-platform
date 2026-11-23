@@ -3,7 +3,7 @@ import { can, type SessionContext } from "@/lib/auth/session";
 import { loadProjectCosts } from "@/lib/data/purchases";
 import type { Line } from "@/lib/engine";
 import { overallProgress } from "@/lib/execution";
-import { ageing, expectedPaymentDate, paydays, projectProfit, weeklyForecast, type AgeBucket, type DueEvent, type Flow, type ForecastWeek } from "@/lib/finance";
+import { addendumPaid, ageing, canRequestPayment, expectedPaymentDate, paydays, projectProfit, remainingAmount, weeklyForecast, type AgeBucket, type DueEvent, type Flow, type ForecastWeek } from "@/lib/finance";
 import type { ServiceKind } from "@/lib/pricing";
 import { costStatus } from "@/lib/purchases";
 import { addDays } from "@/lib/schedule";
@@ -17,6 +17,8 @@ export type PaymentRow = {
   status: "pending" | "requested" | "paid"; requested_at: string | null; expected: string; paid_at: string | null; late: boolean;
   /** what triggers the request (material supply / custom payments are requested by staff) */
   due_event?: DueEvent;
+  /** staff can ask for it now (pending, and no stage confirmation will request it) */
+  requestable?: boolean;
   /** for the ready WhatsApp reminder (owner's own WhatsApp) */
   client_phone?: string | null;
 };
@@ -42,6 +44,8 @@ export type OwnerFinance = {
   /** this month's loaded cost of our in-house team vs what projects absorbed (costs.view + finance.view; totals only) */
   /** in-house team cost this month: full month, allocated to projects, the share of the month gone so far, and the part not carried by projects */
   teamCost?: { monthly: number; allocated: number; toDate: number; unabsorbed: number } | null;
+  /** costs are shown but in-house labour isn't (it is built from salaries: needs hr.view) */
+  labourHidden?: boolean;
   canManage: boolean;
   canDecide: boolean;
 };
@@ -56,7 +60,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     supabase.from("finance_settings").select("cash_balance, cash_balance_on, payday").eq("organization_id", orgId).maybeSingle(),
     supabase.from("addenda").select("id, contract_id, number, title, amount, vat, total, extra_days, status, payment_status, accepted_at, paid_amount, paid_at").eq("organization_id", orgId).eq("status", "accepted"),
     supabase.from("approvals").select("id, kind, entity, entity_id, details, created_at").eq("organization_id", orgId).eq("status", "pending").order("created_at"),
-    supabase.from("project_stages").select("contract_id, status, progress, is_final").eq("organization_id", orgId),
+    supabase.from("project_stages").select("contract_id, status, progress, is_final, payment_event").eq("organization_id", orgId),
   ]);
   const ids = (contracts ?? []).map((c) => c.id);
   const [{ data: payments }, { data: versions }] = await Promise.all([
@@ -68,6 +72,13 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   const extraDays = new Map<string, number>();
   for (const a of addenda ?? []) extraDays.set(a.contract_id, (extraDays.get(a.contract_id) ?? 0) + a.extra_days);
   const contractOf = new Map((contracts ?? []).map((c) => [c.id, c]));
+  const stageEvents = new Map<string, Set<string>>();
+  for (const s of stages ?? []) {
+    if (!s.payment_event) continue;
+    const set = stageEvents.get(s.contract_id) ?? new Set<string>();
+    set.add(s.payment_event);
+    stageEvents.set(s.contract_id, set);
+  }
 
   // --- payments (collections) -------------------------------------------------------
   const rows: PaymentRow[] = ((payments ?? []) as { id: string; contract_id: string; seq: number; label: string; amount: number; due_event: DueEvent; status: "pending" | "requested" | "paid"; requested_at: string | null; expected_date: string | null; paid_amount: number | null; paid_at: string | null }[]).map((p) => {
@@ -77,9 +88,10 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     const expected = expectedPaymentDate(p, { start_date: c.start_date, days: c.duration_days + (extraDays.get(c.id) ?? 0) }, today);
     return {
       id: p.id, contract_id: p.contract_id, contract: c.number, client: clientName.get(c.client_id) ?? "—", seq: p.seq, label: p.label, amount, paid,
-      outstanding: r2(Math.max(0, amount - paid)), status: p.status, requested_at: p.requested_at, expected, paid_at: p.paid_at,
+      outstanding: remainingAmount(amount, paid), status: p.status, requested_at: p.requested_at, expected, paid_at: p.paid_at,
       late: p.status === "requested" && !!p.requested_at && p.requested_at.slice(0, 10) <= addDays(today, -7),
       client_phone: clientPhone.get(c.client_id) ?? null, due_event: p.due_event,
+      requestable: canRequestPayment(p, stageEvents.get(p.contract_id) ?? new Set()),
     };
   });
   // addenda payments: requested on acceptance, a separate line each (money recorded by record_addendum_payment)
@@ -87,11 +99,12 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     const c = contractOf.get(a.contract_id);
     if (!c) continue;
     const total = n(a.total);
-    const paid = n(a.paid_amount);
+    // rows marked paid before amounts were recorded are paid in full (never a receivable again)
+    const paid = addendumPaid({ payment_status: a.payment_status, paid_amount: n(a.paid_amount), total });
     const status = a.payment_status === "paid" ? "paid" : "requested";
     rows.push({
       id: `ad:${a.id}`, contract_id: a.contract_id, contract: c.number, client: clientName.get(c.client_id) ?? "—", seq: 99, label: `${a.number} — ${a.title}`,
-      amount: total, paid, outstanding: r2(Math.max(0, total - paid)), status, requested_at: a.accepted_at, expected: today, paid_at: a.paid_at ?? null,
+      amount: total, paid, outstanding: status === "paid" ? 0 : remainingAmount(total, paid), status, requested_at: a.accepted_at, expected: today, paid_at: a.paid_at ?? null,
       late: status === "requested" && !!a.accepted_at && a.accepted_at.slice(0, 10) <= addDays(today, -7),
       client_phone: clientPhone.get(c.client_id) ?? null,
     });
@@ -153,7 +166,8 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     const addRevenue = (addenda ?? []).filter((a) => a.contract_id === c.id).reduce((s, a) => s + n(a.amount), 0);
     const revenue = r2(n(c.total) - n(view?.vat) + addRevenue);
     const cost = costOf.get(c.id);
-    const actualCost = r2((cost?.actual ?? 0) + (cost?.subcontractors ?? 0) + (cost?.labour ?? 0));
+    // the same actual as the costs page: materials, expenses, petty cash, subcontractors and (with hr.view) our team
+    const actualCost = r2(cost?.actual ?? 0);
     const pr = projectProfit(revenue, estimated.get(c.id) ?? null, actualCost);
     const own = (stages ?? []).filter((s) => s.contract_id === c.id);
     return {
@@ -173,12 +187,12 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     .filter((d) => !d.handedOver && d.days > 0)
     .map((d) => ({ number: d.number, client: d.client, due: d.due, days: d.days, progress: d.progress }));
   const overBudget = costs
-    .map((c) => ({ number: c.number, client: c.client, ratio: costStatus(c.estimated, c.actual).ratio ?? 0 }))
+    .map((c) => ({ number: c.number, client: c.client, ratio: costStatus(c.estimated, c.materialsActual).ratio ?? 0 }))
     .filter((c) => c.ratio > 1);
 
   // our team's fixed cost: how much of this month is charged to projects (the rest is covered by the overhead %)
   let teamCost: OwnerFinance["teamCost"] = null;
-  if (can(session, "costs.view") && can(session, "finance.view")) {
+  if (can(session, "costs.view") && can(session, "finance.view") && can(session, "hr.view")) {
     const { data: tc } = await supabase.rpc("team_cost_month", { p_org: orgId });
     const row = tc?.[0];
     if (row && n(row.monthly) > 0) teamCost = { monthly: n(row.monthly), allocated: n(row.allocated), toDate: n(row.to_date), unabsorbed: r2(Math.max(0, n(row.to_date) - n(row.allocated))) };
@@ -206,10 +220,16 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     approvals: (approvals ?? []).map((a) => {
       const d = (a.details ?? {}) as Record<string, unknown>;
       const num = typeof d.number === "string" ? d.number : null;
-      const link = a.entity === "purchase" && num ? `/purchases/${num}` : a.entity === "quote" && num ? `/quotations/${num}` : null;
+      const contract = typeof d.contract === "string" ? d.contract : null;
+      const link =
+        a.entity === "purchase" && num ? `/purchases/${num}`
+        : a.entity === "quote" && num ? `/quotations/${num}`
+        : a.entity === "addendum" && contract ? `/contracts/${contract}`
+        : null;
       return { id: a.id, kind: a.kind, entity: a.entity, entity_id: a.entity_id, details: d, created_at: a.created_at, link };
     }),
     teamCost,
+    labourHidden: can(session, "costs.view") && !can(session, "hr.view"),
     canManage: can(session, "finance.manage"),
     canDecide: can(session, "approvals.decide"),
   };

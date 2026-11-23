@@ -84,6 +84,8 @@ describe("#1 addendum payments", () => {
     await expectDenied(as({ userId: sup }, (q) => q("select public.record_addendum_payment($1, current_date, 100, 'cash', null)", [ad.id])), /not allowed/);
     const r1 = await as({ userId: fin }, (q) => q<{ s: string }>("select public.record_addendum_payment($1, current_date, 400, 'transfer', 'TRX-1') as s", [ad.id]));
     expect(r1.rows[0].s).toBe("partial");
+    // nothing beyond the amount due
+    await expectDenied(as({ userId: fin }, (q) => q("select public.record_addendum_payment($1, current_date, 601, 'cash', null)", [ad.id])), /more than/);
     let a = await asAdmin((q) => q<{ payment_status: string; paid_amount: string }>("select payment_status, paid_amount from public.addenda where id = $1", [ad.id]));
     expect(a.rows[0]).toEqual({ payment_status: "requested", paid_amount: "400.00" });
     const r2 = await as({ userId: fin }, (q) => q<{ s: string }>("select public.record_addendum_payment($1, current_date, 600, 'cash', null) as s", [ad.id]));
@@ -92,8 +94,8 @@ describe("#1 addendum payments", () => {
     expect(a.rows[0]).toEqual({ payment_status: "paid", paid_amount: "1000.00" });
     const rv = await asAdmin((q) => q<{ amount: string; method: string; reference: string | null }>("select amount, method, reference from public.client_receipts where addendum_id = $1 order by number", [ad.id]));
     expect(rv.rows.map((x) => [Number(x.amount), x.method, x.reference])).toEqual([[400, "transfer", "TRX-1"], [600, "cash", null]]);
-    // nothing beyond the amount due
-    await expectDenied(as({ userId: fin }, (q) => q("select public.record_addendum_payment($1, current_date, 1, 'cash', null)", [ad.id])), /more than/);
+    // once paid in full, nothing more
+    await expectDenied(as({ userId: fin }, (q) => q("select public.record_addendum_payment($1, current_date, 1, 'cash', null)", [ad.id])), /already paid/);
   });
 
   it("only accepted addenda can be paid", async () => {
@@ -101,10 +103,10 @@ describe("#1 addendum payments", () => {
     await expectDenied(as({ userId: fin }, (q) => q("select public.record_addendum_payment($1, current_date, 100, 'cash', null)", [draft])), /accepted/);
   });
 
-  it("money received on an addendum notifies finance with a link to the contract", async () => {
+  it("money received on an addendum notifies finance with a link to the collections report", async () => {
     const n = await asAdmin((q) => q<{ link: string }>("select link from public.notifications where kind = 'payment_received' and user_id = $1 and params ->> 'label' like $2", [fin, `${ad.number}%`]));
     expect(n.rows.length).toBe(2);
-    expect(n.rows[0].link).toBe(`/contracts/${c.number}`);
+    expect(n.rows[0].link).toBe("/reports");
   });
 
   it("late addendum payments are reminded like contract payments", async () => {
@@ -113,7 +115,7 @@ describe("#1 addendum payments", () => {
     await as("service_role", (q) => q("select public.run_daily_reminders()"));
     const n = await asAdmin((q) => q<{ link: string; params: { amount: number } }>("select link, params from public.notifications where kind = 'payment_late' and user_id = $1 and dedupe_key like $2", [fin, `late:${late.id}:%`]));
     expect(n.rows).toHaveLength(1);
-    expect(n.rows[0].link).toBe(`/contracts/${c.number}`);
+    expect(n.rows[0].link).toBe("/reports");
     expect(Number(n.rows[0].params.amount)).toBe(300);
   });
 });
@@ -129,7 +131,7 @@ describe("#2 payments become requested", () => {
   });
 
   it("staff request material-supply and custom payments; stage payments stay with the client's confirmation", async () => {
-    const c = await makeContract(9000, ["signing", "material_supply", "board_closing"]);
+    const c = await makeContract(9000, ["signing", "material_supply", "handover"]);
     await expectDenied(as({ userId: viewer }, (q) => q("select public.request_contract_payment($1)", [c.payments[1]])), /not allowed/);
     await as({ userId: fin }, (q) => q("select public.request_contract_payment($1)", [c.payments[1]]));
     const s = await asAdmin((q) => q<{ status: string }>("select status from public.contract_payments where id = $1", [c.payments[1]]));
@@ -311,11 +313,11 @@ describe("#6 per-project access", () => {
     expect(w.rows.map((r) => r.number)).toEqual([visible.number]);
   });
 
-  it("payment notifications carry the contract and link to it (hidden projects skip restricted members)", async () => {
+  it("payment notifications carry the contract and link to collections (hidden projects skip restricted members)", async () => {
     await as({ userId: fin }, (q) => q("select public.record_client_payment($1, current_date, 10, 'cash', null)", [hidden.payments[0]]));
     const n = await asAdmin((q) => q<{ user_id: string; link: string }>("select user_id, link from public.notifications where kind = 'payment_received' and params ->> 'number' = $1", [hidden.number]));
     expect(n.rows.length).toBeGreaterThan(0);
-    expect(n.rows.every((r) => r.link === `/contracts/${hidden.number}`)).toBe(true);
+    expect(n.rows.every((r) => r.link === "/reports")).toBe(true);
     // an explicit contract is honoured even when the link names no project
     await asAdmin((q) => q("select private.notify($1,'projects.view','project_delay','{}'::jsonb,'/reports','x6',$2)", [org, hidden.id]));
     const got = await asAdmin((q) => q<{ user_id: string }>("select user_id from public.notifications where dedupe_key = 'x6'"));
@@ -385,9 +387,12 @@ describe("#8 in-house labour actual cost", () => {
     const { rows: [wd] } = await asAdmin((q) => q<{ n: string }>("select count(*) as n from generate_series((now() at time zone 'Asia/Riyadh')::date - 4, (now() at time zone 'Asia/Riyadh')::date, interval '1 day') g where extract(isodow from g) <> 5"));
     const days = Number(wd.n);
     expect(Number(a.rows[0].labour)).toBeCloseTo(days * perDay, 2);
-    const rpc = await as({ userId: sup }, (q) => q<{ contract_id: string; labour: string }>("select * from public.project_labour_costs($1)", [org]));
+    const rpc = await as({ userId: owner }, (q) => q<{ contract_id: string; labour: string }>("select * from public.project_labour_costs($1)", [org]));
     expect(Number(rpc.rows.find((x) => x.contract_id === c.id)?.labour)).toBeCloseTo(days * perDay, 2);
     await expectDenied(as({ userId: viewer }, (q) => q("select * from public.project_labour_costs($1)", [org])), /not allowed/);
+    // a supervisor sees costs but not salaries: team labour would reveal them
+    await expectDenied(as({ userId: sup }, (q) => q("select * from public.project_labour_costs($1)", [org])), /not allowed/);
+    await as({ userId: owner }, (q) => q(`update public.memberships set permission_overrides = '{"grant":["hr.view"],"deny":[]}' where organization_id = $1 and user_id = $2`, [org, restricted]));
     const hiddenFromRestricted = await as({ userId: restricted }, (q) => q<{ contract_id: string }>("select contract_id from public.project_labour_costs($1)", [org]));
     expect(hiddenFromRestricted.rows.map((x) => x.contract_id)).not.toContain(c.id);
   });
@@ -410,5 +415,119 @@ describe("#8 in-house labour actual cost", () => {
     expect(Number(r.rows[0].allocated)).toBeCloseTo(days * perDay, 2);
     expect(Number(r.rows[0].to_date)).toBeCloseTo((monthly * workDays(monthStart, Date.parse(t))) / workDays(monthStart, monthEnd), 1);
     await expectDenied(as({ userId: sup }, (q) => q("select * from public.team_cost_month($1)", [org])), /not allowed/);
+    // finance without hr.view (salaries) doesn't see team cost either
+    await as({ userId: owner }, (q) => q(`update public.memberships set permission_overrides = '{"grant":[],"deny":["hr.view"]}' where organization_id = $1 and user_id = $2`, [org, fin]));
+    try {
+      await expectDenied(as({ userId: fin }, (q) => q("select * from public.team_cost_month($1)", [org])), /not allowed/);
+      await expectDenied(as({ userId: fin }, (q) => q("select * from public.project_labour_costs($1)", [org])), /not allowed/);
+    } finally {
+      await as({ userId: owner }, (q) => q(`update public.memberships set permission_overrides = '{"grant":[],"deny":[]}' where organization_id = $1 and user_id = $2`, [org, fin]));
+    }
+  });
+
+  it("a team booked on two projects the same day is shared between them, not charged twice", async () => {
+    const c2 = await makeContract(8000);
+    const team = (await asAdmin((q) => q<{ id: string }>("select id from public.teams where organization_id = $1 and name = 'فريقنا'", [org]))).rows[0].id;
+    // the day before yesterday, if it isn't a Friday: book the team on c2 too
+    const { rows: [d] } = await asAdmin((q) => q<{ d: string; fri: boolean }>("select to_char(x, 'YYYY-MM-DD') as d, extract(isodow from x) = 5 as fri from (select (now() at time zone 'Asia/Riyadh')::date - 2 as x) s"));
+    await asAdmin((q) => q("insert into public.schedule_entries (organization_id, team_id, contract_id, kind, start_date, end_date) values ($1,$2,$3,'work',$4,$4)", [org, team, c2.id, d.d]));
+    const perDay = employeeCost(e1, items, 25).perDay + employeeCost(e2, items, 25).perDay;
+    const a2 = await asAdmin((q) => q<{ labour: string }>("select labour from private.project_actuals($1)", [c2.id]));
+    expect(Number(a2.rows[0].labour)).toBeCloseTo(d.fri ? 0 : perDay / 2, 2);
+    // and the total charged that day across both projects is one team-day
+    const both = await asAdmin((q) => q<{ t: string }>("select private.project_labour($1, $3::date, $3::date) + private.project_labour($2, $3::date, $3::date) as t", [c.id, c2.id, d.d]));
+    expect(Number(both.rows[0].t)).toBeCloseTo(d.fri ? 0 : perDay, 2);
+    // the month's absorbed team cost doesn't change: the shared day is still one team-day
+    const before = await as({ userId: owner }, (q) => q<{ allocated: string }>("select allocated from public.team_cost_month($1)", [org]));
+    await asAdmin((q) => q("delete from public.schedule_entries where contract_id = $1", [c2.id]));
+    const after = await as({ userId: owner }, (q) => q<{ allocated: string }>("select allocated from public.team_cost_month($1)", [org]));
+    expect(Number(before.rows[0].allocated)).toBeCloseTo(Number(after.rows[0].allocated), 2);
+  });
+});
+
+describe("review findings on batch 1", () => {
+  it("an addendum marked paid before this change can't be paid again", async () => {
+    const c = await makeContract(4000);
+    const ad = await makeAddendum(c, 700);
+    // legacy row: status paid, no amount recorded
+    await asAdmin(async (q) => {
+      await q("alter table public.addenda disable trigger user");
+      await q("update public.addenda set payment_status = 'paid' where id = $1", [ad.id]);
+      await q("alter table public.addenda enable trigger user");
+    });
+    await expectDenied(as({ userId: fin }, (q) => q("select public.record_addendum_payment($1, current_date, 700, 'cash', null)", [ad.id])), /already paid/);
+  });
+
+  it("a payment whose stage doesn't exist on the project can be requested by staff", async () => {
+    const c = await makeContract(6000, ["signing", "primer_done"]);
+    const stages = await asAdmin((q) => q<{ n: number }>("select count(*)::int as n from public.project_stages where contract_id = $1 and payment_event = 'primer_done'", [c.id]));
+    expect(stages.rows[0].n).toBe(0);
+    await as({ userId: fin }, (q) => q("select public.request_contract_payment($1)", [c.payments[1]]));
+    expect((await asAdmin((q) => q<{ status: string }>("select status from public.contract_payments where id = $1", [c.payments[1]]))).rows[0].status).toBe("requested");
+  });
+
+  it("a quote with unpriced items can't be issued, and an accepted quote's version is frozen", async () => {
+    const quote = await as({ userId: owner }, async (q) => {
+      const id = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
+      await q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total, problems) values ($1,$2,1,'{}','{}','{}',100,100,2)", [org, id]);
+      return id;
+    });
+    await expectDenied(as({ userId: owner }, (q) => q("select public.issue_quote($1, null)", [quote])), /unpriced/);
+    const c = await makeContract(3000);
+    await asAdmin((q) => q("update public.quotes set status = 'accepted' where id = $1", [c.quote]));
+    await expectDenied(as({ userId: owner }, (q) => q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,2,'{}','{}','{}',1,1)", [org, c.quote])), /accepted/);
+  });
+
+  it("a version's unpriced count can't be negative", async () => {
+    const id = await as({ userId: owner }, async (q) => (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id);
+    await expectDenied(as({ userId: owner }, (q) => q("insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total, problems) values ($1,$2,1,'{}','{}','{}',1,1,-1)", [org, id])), /problems/);
+  });
+
+  it("a payment requested with an earlier request time keeps it, and its invoice is dated then", async () => {
+    const c = await makeContract(5000, ["signing", "custom"]);
+    // what the signing backfill does: requested at the acceptance, not now
+    await asAdmin((q) => q("update public.contract_payments set status = 'requested', requested_at = now() - interval '20 days' where id = $1", [c.payments[1]]));
+    const r = await asAdmin((q) => q<{ same: boolean }>("select i.issue_date = ((p.requested_at at time zone 'Asia/Riyadh')::date) and p.requested_at < now() - interval '19 days' as same from public.invoices i join public.contract_payments p on p.id = i.payment_id where p.id = $1", [c.payments[1]]));
+    expect(r.rows[0].same).toBe(true);
+  });
+
+  it("alerts link to the screen that explains them", async () => {
+    const c = await makeContract(3000);
+    await asAdmin(async (q) => {
+      // started 14 days ago, due yesterday, never visited
+      await q("update public.contracts set start_date = (now() at time zone 'Asia/Riyadh')::date - 14, duration_days = 13 where id = $1", [c.id]);
+      const qv = (await q<{ id: string }>("select v.id from public.quote_versions v where v.quote_id = $1 and v.version = 1", [c.quote])).rows[0].id;
+      await q("insert into public.quote_version_costs (quote_version_id, organization_id, cost, cost_with_contingency, margin_percent, lines, purchase_list) values ($1,$2,100,100,30,'[{\"group\":\"material\",\"cost\":100}]','[]')", [qv, org]);
+      const item = (await q<{ id: string }>("insert into public.inventory_items (organization_id, name, unit, is_general) values ($1,'دهان','pail',false) returning id", [org])).rows[0].id;
+      await q("insert into public.inventory_movements (organization_id, item_id, contract_id, kind, quantity, unit_cost) values ($1,$2,$3,'issue',10,500)", [org, item, c.id]);
+    });
+    await as("service_role", (q) => q("select public.run_daily_reminders()"));
+    const n = await asAdmin((q) => q<{ kind: string; link: string }>("select distinct kind, link from public.notifications where dedupe_key ~ ('^(delay|visit|budget|losing):' || $1) order by kind", [c.id]));
+    expect(n.rows).toEqual([
+      { kind: "missed_visit", link: `/projects/${c.number}` },
+      { kind: "project_delay", link: `/projects/${c.number}` },
+      { kind: "project_losing", link: "/purchases/costs" },
+      { kind: "project_over_budget", link: "/purchases/costs" },
+    ]);
+  });
+
+  it("private helpers open to signed-in users answer only about their own organization", async () => {
+    const outsider = await createUser("966500009099");
+    const c = await makeContract(2000);
+    const { purchase, agreement } = await as({ userId: owner }, async (q) => {
+      const purchase = (await q<{ id: string }>("insert into public.purchases (organization_id, supplier_name, contract_id, subtotal, vat, total) values ($1,'مورد',$2,0,0,0) returning id", [org, c.id])).rows[0].id;
+      const sub = (await q<{ id: string }>("insert into public.subcontractors (organization_id, name) values ($1,'مقاول خاص') returning id", [org])).rows[0].id;
+      const agreement = (await q<{ id: string }>("insert into public.subcontractor_agreements (organization_id, subcontractor_id, contract_id, scope, basis, rate, schedule) values ($1,$2,$3,'نطاق','lump',100,'weekly') returning id", [org, sub, c.id])).rows[0].id;
+      await q("insert into public.approvals (organization_id, kind, entity, entity_id, details) values ($1,'quote_margin','quote',$2,'{\"version\":1}')", [org, c.quote]);
+      return { purchase, agreement };
+    });
+    const sql = "select private.quote_status($1) as status, private.quote_version_total($1, 1) as total, private.quote_has_open_approvals($1, array[1]) as open, private.purchase_contract($2) as pc, private.agreement_contract($3) as ac, cardinality(private.member_permissions($4, $5)) as perms";
+    const mine = await as({ userId: sup }, (q) => q<{ status: string | null; total: string | null; open: boolean; pc: string | null; ac: string | null; perms: number }>(sql, [c.quote, purchase, agreement, org, owner]));
+    expect(mine.rows[0]).toMatchObject({ status: "accepted", open: true, pc: c.id, ac: c.id });
+    expect(Number(mine.rows[0].total)).toBe(2000);
+    expect(mine.rows[0].perms).toBeGreaterThan(0);
+    const theirs = await as({ userId: outsider }, (q) => q(sql, [c.quote, purchase, agreement, org, owner]));
+    expect(theirs.rows[0]).toEqual({ status: null, total: null, open: false, pc: null, ac: null, perms: 0 });
+    await expectDenied(as({ userId: outsider }, (q) => q("select private.average_cost($1, null)", [purchase])), /permission denied/);
   });
 });

@@ -571,7 +571,8 @@
     "totalsMismatch": "Totals don't add up",
     "itemExists": "An item with this name and unit already exists",
     "notAccepted": "Work starts once the client accepts the contract",
-    "signatureRequired": "The final handover needs a signature"
+    "signatureRequired": "The final handover needs a signature",
+    "advancesExceedOpen": "An employee's advance deduction in this payroll is more than their open advances. Adjust the advances on their line, then approve."
   },
   "engine": {
     "emptyTitle": "Start the pricing catalogue",
@@ -1544,7 +1545,9 @@
     "optionsWaiting": "Offered with options — the contract follows the option the client picks when accepting.",
     "optionChosen": "The client chose “{label}”",
     "openProject": "Execution",
-    "recordPurchase": "Record purchase for project"
+    "recordPurchase": "Record purchase for project",
+    "requestTitle": "Payments waiting for your request",
+    "requestHint": "No stage confirmation requests these payments. Request one to issue its invoice and add it to collections."
   },
   "portal": {
     "hello": "Hello {name}",
@@ -1772,7 +1775,7 @@
     "noProjectsTitle": "No projects yet",
     "noProjectsBody": "Contracts appear here with estimated vs actual cost.",
     "estimated": "Estimated (materials)",
-    "actual": "Actual",
+    "actual": "Actual (total)",
     "materials": "Materials",
     "expenses": "Expenses",
     "over": "{n}% over",
@@ -1791,7 +1794,10 @@
     "payRef": "Transfer reference (optional)",
     "payButton": "Record supplier payment",
     "payHint": "Recorded once and sent to Qoyod as a payment of the purchase bill (once sending is “Approved”).",
-    "labourCost": "In-house labour"
+    "labourCost": "In-house labour",
+    "actualMaterials": "Actual (materials)",
+    "actualNote": "Total actual = materials, expenses, petty cash, subcontractors earned and our team’s scheduled days. The estimate is compared with materials only.",
+    "actualNoteHidden": "Total actual = materials, expenses, petty cash and subcontractors earned. In-house labour is hidden because it is built from salaries (needs the HR permission). The estimate is compared with materials only."
   },
   "projects": {
     "title": "Projects",
@@ -2052,7 +2058,7 @@
     "revenue": "Revenue",
     "noProjects": "No projects yet.",
     "losing": "Projects losing money or far below expected: {list}",
-    "profitNote": "Actual cost = materials, expenses, petty cash and subcontractors earned so far. In-house labour is added with payroll.",
+    "profitNote": "Actual cost = materials, expenses, petty cash, subcontractors earned and our team’s scheduled days so far.",
     "receivables": "Receivables ageing",
     "collect": "Collections",
     "age_0_30": "0–30 days",
@@ -2097,7 +2103,8 @@
     "requestPayment": "Request payment",
     "teamIdleTitle": "Team cost not charged to projects (this month)",
     "teamIdleHint": "Our team’s cost not booked on projects in the schedule — covered by the overhead % in pricing.",
-    "teamIdleOf": "{allocated} charged to projects of {monthly} (cost of the month's work days so far)"
+    "teamIdleOf": "{allocated} charged to projects of {monthly} (cost of the month's work days so far)",
+    "profitNoteHidden": "Actual cost = materials, expenses, petty cash and subcontractors earned so far. In-house labour is hidden because it is built from salaries (needs the HR permission)."
   },
   "payroll": {
     "expiringTitle": "Documents expiring soon",
@@ -2253,7 +2260,7 @@
     "invoiceStatus": "Invoice status in Qoyod",
     "statusDraft": "Draft (review in Qoyod)",
     "statusApproved": "Approved immediately",
-    "draftHint": "Recommended at first: invoices arrive in Qoyod as drafts; you review and approve them there.",
+    "draftHint": "These invoices were sent to Qoyod as drafts and their payments are waiting. Qoyod's API can't approve an existing invoice, so open each one in Qoyod and approve it — the payment is then sent automatically. (Purchase bills are approved automatically before they are paid.)",
     "approvedHint": "Invoices are approved at once and reported to ZATCA — use once the settings are verified.",
     "enable": "Send to Qoyod",
     "enableHint": "When paused, nothing is sent or queued.",
@@ -2307,7 +2314,9 @@
     "waiting_approved": "Waiting for sending to be “Approved” — payments and entries aren't posted on drafts.",
     "waiting_bill": "Waiting for the purchase bill to be sent first.",
     "missing_salary_account": "Choose the salaries account.",
-    "missing_cash_account": "Choose the cash account."
+    "missing_cash_account": "Choose the cash account.",
+    "waiting_invoice_draft": "The invoice is a draft in Qoyod — approve it there and the payment is sent automatically.",
+    "draftTitle": "Invoices to approve in Qoyod"
   },
   "receipt": {
     "title": "Receipt voucher",

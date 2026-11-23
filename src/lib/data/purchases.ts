@@ -127,8 +127,12 @@ export async function loadInventory(session: SessionContext): Promise<InventoryD
 }
 
 export type ProjectCost = ProjectRef & {
-  estimated: number | null; materials: number; expenses: number; subcontractors: number; petty: number; actual: number; pending: number;
-  /** in-house labour: scheduled work days (up to today) × the team's loaded cost per day — totals only, costs.view (null without it) */
+  estimated: number | null; materials: number; expenses: number; subcontractors: number; petty: number; pending: number;
+  /** materials + expenses + petty cash — what the material estimate is compared with (overrun alerts too) */
+  materialsActual: number;
+  /** full actual cost: materialsActual + subcontractors earned + in-house labour (when shown) — the same figure as profit uses */
+  actual: number;
+  /** in-house labour: scheduled work days (up to today) × the team's loaded cost per day — totals only, costs.view + hr.view (null without them) */
   labour?: number | null;
 };
 
@@ -145,8 +149,8 @@ export async function loadProjectCosts(session: SessionContext): Promise<Project
     supabase.from("subcontractor_agreements").select("id, contract_id").eq("organization_id", orgId),
     supabase.from("petty_cash_entries").select("contract_id, amount").eq("organization_id", orgId).eq("kind", "expense").not("contract_id", "is", null).limit(20000),
   ]);
-  // in-house labour from the schedule (database function: totals only, never salaries)
-  const { data: labourRows } = can(session, "costs.view") ? await supabase.rpc("project_labour_costs", { p_org: orgId }) : { data: null };
+  // in-house labour from the schedule (database function: totals only, but built from salaries → hr.view too)
+  const { data: labourRows } = can(session, "costs.view") && can(session, "hr.view") ? await supabase.rpc("project_labour_costs", { p_org: orgId }) : { data: null };
   const labourOf = new Map((labourRows ?? []).map((l) => [l.contract_id, n(l.labour)]));
   const agreementContract = new Map((subAgreements ?? []).map((g) => [g.id, g.contract_id]));
   const names = new Map((clients ?? []).map((c) => [c.id, c.name]));
@@ -176,11 +180,13 @@ export async function loadProjectCosts(session: SessionContext): Promise<Project
     const pettySum = (petty ?? []).filter((e) => e.contract_id === c.id).reduce((s, e) => s + n(e.amount), 0);
     const pending = (purchases ?? []).filter((p) => p.contract_id === c.id && p.status === "pending_approval").reduce((s, p) => s + n(p.total), 0);
     const r = (x: number) => Math.round(x * 100) / 100;
+    const labour = labourRows ? labourOf.get(c.id) ?? 0 : null;
     return {
       id: c.id, number: c.number, client: names.get(c.client_id) ?? "—", status: c.status,
       estimated: estimates.get(c.id) ?? null, materials: r(materials), expenses: r(expenses), subcontractors: r(subs), petty: r(pettySum),
-      actual: r(materials + expenses + pettySum), pending: r(pending),
-      labour: labourRows ? r(labourOf.get(c.id) ?? 0) : null,
+      materialsActual: r(materials + expenses + pettySum),
+      actual: r(materials + expenses + pettySum + subs + (labour ?? 0)), pending: r(pending),
+      labour: labour == null ? null : r(labour),
     };
   });
 }

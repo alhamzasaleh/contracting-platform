@@ -11,6 +11,7 @@ const DATA: QoyodPageData = {
     salary_account_id: null, cash_account_id: null, addendum_product_id: null, key_last4: "7Q2X", key_set_at: ago(30), sync_from: null,
   },
   counts: { queued: 1, done: 3, failed: 1 },
+  draftInvoices: ["INV-2026-004"],
   canManage: true,
   canRetry: true,
   jobs: [

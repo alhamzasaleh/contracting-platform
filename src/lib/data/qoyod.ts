@@ -8,6 +8,8 @@ export type QoyodPageData = {
   settings: Pick<QoyodSettingsRow, "enabled" | "invoice_status" | "inventory_id" | "receive_account_id" | "expense_account_id" | "salary_account_id" | "cash_account_id" | "service_products" | "addendum_product_id" | "key_last4" | "key_set_at" | "sync_from">;
   jobs: QoyodJobItem[];
   counts: { queued: number; done: number; failed: number };
+  /** invoices sent to Qoyod as drafts whose payments wait: the owner approves them in Qoyod (its API can't) */
+  draftInvoices?: string[];
   canManage: boolean;
   canRetry: boolean;
 };
@@ -27,6 +29,15 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
     ),
   ]);
   const rows = jobs ?? [];
+  // payments waiting for a draft invoice to be approved in Qoyod (all of them, not only the latest 50)
+  const { data: waiting } = await supabase.from("qoyod_sync_jobs").select("entity_type, entity_id").eq("organization_id", org).eq("kind", "invoice_payment").in("status", ["queued", "running"]).eq("last_error", "waiting:invoice_draft").limit(200);
+  const waitPay = [...new Set((waiting ?? []).filter((w) => w.entity_type === "contract_payment").map((w) => w.entity_id))];
+  const waitAd = [...new Set((waiting ?? []).filter((w) => w.entity_type === "addendum").map((w) => w.entity_id))];
+  const [wp, wa] = await Promise.all([
+    waitPay.length ? supabase.from("invoices").select("number").in("payment_id", waitPay) : Promise.resolve({ data: [] as { number: string }[] }),
+    waitAd.length ? supabase.from("invoices").select("number").in("addendum_id", waitAd) : Promise.resolve({ data: [] as { number: string }[] }),
+  ]);
+  const draftInvoices = [...new Set([...(wp.data ?? []), ...(wa.data ?? [])].map((i) => i.number))].sort();
   const ids = (t: string) => [...new Set(rows.filter((j) => j.entity_type === t).map((j) => j.entity_id))];
   const [pays, ads, pos, runs] = await Promise.all([
     ids("contract_payment").length ? supabase.from("contract_payments").select("id, seq, label, contract_id").in("id", ids("contract_payment")) : Promise.resolve({ data: [] }),
@@ -47,6 +58,7 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
     settings: s ? { ...s, service_products: (s.service_products ?? {}) as Record<string, number> } : EMPTY,
     jobs: rows.map((j) => ({ id: j.id, kind: j.kind, status: j.status, attempts: j.attempts, last_error: j.last_error, qoyod_id: j.qoyod_id, created_at: j.created_at, done_at: j.done_at, amount: j.amount == null ? null : Number(j.amount), label: label.get(j.entity_id) ?? "—" })),
     counts: { queued: counts[0].count ?? 0, done: counts[1].count ?? 0, failed: counts[2].count ?? 0 },
+    draftInvoices,
     canManage: can(session, "settings.manage"),
     canRetry: can(session, "settings.manage") || can(session, "finance.manage"),
   };

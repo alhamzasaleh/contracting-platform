@@ -424,6 +424,8 @@ export type QuoteVersionRow = OrgRow & {
   vat: number;
   total: number;
   notes: string | null;
+  /** unpriced items when saved (issue_quote refuses a version with any) */
+  problems: number;
 };
 export type QuoteVersionCostRow = {
   quote_version_id: string;

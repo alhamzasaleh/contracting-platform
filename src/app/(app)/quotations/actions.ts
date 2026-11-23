@@ -102,6 +102,8 @@ export async function saveQuoteVersion(input: unknown): Promise<ActionResult<{ n
       selection: sel as unknown as Json, quantities: src.q as unknown as Json, client_view: cv as unknown as Json,
       pricing_method: v.method, estimated: src.estimated, discount: cv.discount, subtotal: cv.subtotal,
       vat_percent: cv.vatPercent, vat: cv.vat, total: cv.total, notes: v.notes,
+      // server-recomputed unpriced items: the database refuses to issue a version that has any
+      problems: outcome.problems.length,
     })
     .select("id, version")
     .single();
@@ -153,7 +155,11 @@ export async function issueQuote(input: unknown): Promise<ActionResult> {
   const validUntil = new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
   // the database re-checks the approvals (open ones, and approved ones for a low margin / discount)
   const { error } = await supabase.rpc("issue_quote", { p_quote: quote.id, p_valid_until: validUntil });
-  if (error) return /approval/.test(error.message ?? "") ? { ok: false, error: "needsApproval" } : fail(error, "issue");
+  if (error) {
+    if (/approval/.test(error.message ?? "")) return { ok: false, error: "needsApproval" };
+    if (/unpriced/.test(error.message ?? "")) return { ok: false, error: "notReady" };
+    return fail(error, "issue");
+  }
   revalidatePath("/quotations", "layout");
   return { ok: true };
 }
