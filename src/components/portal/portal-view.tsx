@@ -140,7 +140,7 @@ export function PortalView({
         </div>
       </header>
 
-      <main className="mx-auto -mt-8 grid max-w-[880px] gap-6 px-4 pb-16 [&>*]:min-w-0">
+      <main className="relative z-10 mx-auto -mt-8 grid max-w-[880px] gap-6 px-4 pb-16 [&>*]:min-w-0">
         {/* Timeline */}
         <section className="rounded-3xl border border-border bg-surface p-5 shadow-sm">
           <ol className="grid grid-cols-3 gap-y-4 sm:grid-cols-6">
