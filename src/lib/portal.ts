@@ -2,6 +2,7 @@ import "server-only";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import type { ClientView } from "@/lib/quotes";
 import type { ReceiptItem } from "@/lib/receipts";
+import { termsSchema, type ContractTermsConfig } from "@/lib/contracts/terms";
 import type { InvoiceParty } from "@/lib/supabase/database.types";
 import type { Brand } from "@/lib/supabase/database.types";
 import { blobToDataUrl } from "@/lib/org";
@@ -28,6 +29,7 @@ export type PortalData = {
   invoices?: string[];
   receipts?: ReceiptItem[];
   invoiceDocs?: PortalInvoice[];
+  terms?: ContractTermsConfig | null;
   warranty?: PortalWarranty | null;
 };
 
@@ -123,6 +125,9 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
     const { data: rv } = await admin.rpc("portal_receipts", { p_number: number, p_token: token });
     receipts = ((rv as ReceiptItem[] | null) ?? []).map((r) => ({ ...r, amount: Number(r.amount) }));
   }
+  const { data: rawTerms } = await admin.rpc("portal_contract_terms", { p_number: number, p_token: token });
+  const parsedTerms = termsSchema.safeParse(rawTerms ?? {});
+  const terms = parsedTerms.success ? parsedTerms.data : null;
   let invoiceDocs: PortalInvoice[] = [];
   if (d.contract.status === "accepted") {
     const { data: inv } = await admin.rpc("portal_invoice_docs", { p_number: number, p_token: token });
@@ -143,5 +148,5 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
       };
     }
   }
-  return { data: { ...d, execution, addenda, invoices, receipts, warranty, invoiceDocs, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
+  return { data: { ...d, execution, addenda, invoices, receipts, warranty, invoiceDocs, terms, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
 }

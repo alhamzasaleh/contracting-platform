@@ -224,7 +224,8 @@
     "expires": "Expires {date}",
     "vatHint": "15% VAT is applied automatically to quotes and invoices once you add the VAT number. Without it, VAT is 0%.",
     "notifications": "Notifications",
-    "qoyod": "Qoyod"
+    "qoyod": "Qoyod",
+    "contract": "Contract clauses"
   },
   "audit": {
     "insert": "Created",
@@ -2274,6 +2275,31 @@
     "qoyod_queued": "Waiting to be sent to Qoyod.",
     "qoyod_done": "Sent to Qoyod with the same number.",
     "qoyod_failed": "Couldn't send to Qoyod — check the Qoyod log in Settings.",
-    "vatNeedsQoyod": "The company is VAT-registered: official tax invoices must be issued electronically via ZATCA — connect Qoyod in Settings so they are sent automatically."
+    "vatNeedsQoyod": "The company is VAT-registered: official tax invoices must be issued electronically via ZATCA — connect Qoyod in Settings so they are sent automatically.",
+    "amount": "Amount"
+  },
+  "clauses": {
+    "hint": "Hide any clause, change its title and text, or add your own clauses after any clause. Tables (scope, specifications, payments) stay automatic from the quote.",
+    "placeholders": "Words in braces are replaced with the contract's values:",
+    "edited": "Edited",
+    "show": "Show",
+    "hide": "Hide",
+    "title": "Title",
+    "text": "Text",
+    "tableStays": "The table stays under the text automatically",
+    "reset": "Back to the original text",
+    "added": "Added clause",
+    "remove": "Remove",
+    "addTitle": "Add a clause",
+    "after": "Insert after",
+    "add": "Add clause",
+    "pageTitle": "Contract clauses",
+    "pageHint": "This template is copied into every new contract. You can still edit any contract's clauses before the client accepts.",
+    "save": "Save",
+    "saved": "Saved",
+    "contractTitle": "Edit this contract's clauses",
+    "contractHint": "Changes here apply to this contract only and lock once the client accepts.",
+    "fromTemplate": "Copy from the company template",
+    "locked": "Accepted — the clauses are locked."
   }
 }

@@ -10,6 +10,8 @@ import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
 import { linkExpiry, percentSum, scheduleAmounts } from "@/lib/contracts";
 import { effectiveVatPercent } from "@/lib/costing";
+import { termsSchema } from "@/lib/contracts/terms";
+import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { publicEnv } from "@/env";
 
@@ -86,9 +88,12 @@ export async function saveContract(input: unknown): Promise<ActionResult<{ numbe
     if (!ver) return { ok: false, error: "invalid" };
     const projectType = ((ver.selection as { options?: { projectType?: string } } | null)?.options?.projectType ?? "full") as "full" | "labour" | "supply";
     total = Number(ver.total);
+    // the company's clause settings are copied into the contract (editable until the client accepts)
+    const { data: tpl } = await supabase.from("contract_templates").select("terms").eq("organization_id", orgId).maybeSingle();
     const { data: c, error } = await supabase
       .from("contracts")
       .insert({
+        terms: (tpl?.terms ?? {}) as Json,
         organization_id: orgId, quote_id: q.id, quote_version: q.current_version, client_id: q.client_id, service: q.service,
         project_type: projectType, start_date: v.start_date, duration_days: v.duration_days, warranty_months: v.warranty_months,
         total, notes: v.notes,
@@ -249,4 +254,34 @@ export async function markAddendumPaid(input: unknown): Promise<ActionResult> {
   const supabase = await createClient();
   const { error } = await supabase.from("addenda").update({ payment_status: "paid" }).eq("id", parsed.data.id).eq("organization_id", session.organization.id).eq("status", "accepted");
   return error ? fail(error, "addendum paid") : done();
+}
+
+/** Edit a contract's clauses (before the client accepts; the database refuses afterwards). */
+export async function saveContractTerms(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "quotes.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ contract_id: z.uuid(), terms: termsSchema }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { data: c } = await supabase.from("contracts").select("id, number, status").eq("id", parsed.data.contract_id).eq("organization_id", session.organization.id).maybeSingle();
+  if (!c || (c.status !== "draft" && c.status !== "sent")) return { ok: false, error: "contractLocked" };
+  const { error } = await supabase.from("contracts").update({ terms: parsed.data.terms as Json }).eq("id", c.id);
+  if (error) return fail(error, "terms");
+  revalidatePath(`/contracts/${c.number}`);
+  return done();
+}
+
+/** The company's default clauses for new contracts (settings managers). */
+export async function saveContractTemplate(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "settings.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ terms: termsSchema }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("contract_templates")
+    .upsert({ organization_id: session.organization.id, terms: parsed.data.terms as Json, updated_by: session.userId }, { onConflict: "organization_id" });
+  if (error) return fail(error, "template");
+  revalidatePath("/settings/contract");
+  return done();
 }

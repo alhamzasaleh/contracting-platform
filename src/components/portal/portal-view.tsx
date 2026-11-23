@@ -256,6 +256,7 @@ export function PortalView({
         )}
 
         <ContractTerms
+          terms={data.terms}
           org={org}
           client={data.client}
           data={{

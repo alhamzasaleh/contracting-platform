@@ -54,7 +54,7 @@ export function InvoiceDocument({ data, logoUrl }: { data: InvoiceDoc; logoUrl?:
           <thead>
             <tr className="border-b border-sand text-doc-muted">
               <th className="py-2 text-start font-semibold">{t("item")}</th>
-              <th className="py-2 text-end font-semibold">{t("amountBeforeVat")}</th>
+              <th className="py-2 text-end font-semibold">{tax ? t("amountBeforeVat") : t("amount")}</th>
               {tax && <th className="py-2 text-end font-semibold">{t("vatCol", { p: fmt.number(data.vat_percent) })}</th>}
               <th className="py-2 text-end font-semibold">{t("lineTotal")}</th>
             </tr>

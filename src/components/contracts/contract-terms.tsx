@@ -5,6 +5,7 @@ import { useFormatter } from "@/components/formatter-provider";
 import { IncludedList, workItemLabel } from "@/components/quotes/quote-document";
 import type { ServiceKind } from "@/lib/pricing";
 import type { ClientView } from "@/lib/quotes";
+import { fillPlaceholders, type ClauseKey, type ContractTermsConfig } from "@/lib/contracts/terms";
 
 export type ContractTermsData = {
   number: string;
@@ -56,7 +57,7 @@ export function useContractWork() {
  * The contract (app, client page, print): parties, preamble, numbered clauses
  * with the scope of works, specifications, value, payments and legal terms.
  */
-export function ContractTerms({ data, org, client }: { data: ContractTermsData; org: ContractOrg; client: ContractClient }) {
+export function ContractTerms({ data, org, client, terms }: { data: ContractTermsData; org: ContractOrg; client: ContractClient; terms?: ContractTermsConfig | null }) {
   const t = useTranslations("contract");
   const td = useTranslations("doc");
   const { fmt } = useFormatter();
@@ -67,51 +68,72 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
   const v = data.view;
   const location = [client.city, client.district].filter(Boolean).join(" — ");
 
-  // numbered clauses, built in order so the numbering always matches
+  // numbered clauses, built in order so the numbering always matches; the owner's
+  // edits (hide / rename / replace text / extra clauses) come from `terms`
   const clauses: { title: string; body: React.ReactNode }[] = [];
-  const add = (title: string, body: React.ReactNode) => clauses.push({ title, body });
+  const overrides = terms?.overrides ?? {};
+  const values = {
+    client: client.name, contract: data.number, quote: data.quoteNumber, total: fmt.money(data.total), start: fmt.date(data.start_date),
+    end: fmt.date(end.toISOString()), days: String(data.duration_days), warranty: String(data.warranty_months), city: org.city ?? "",
+  };
+  const custom = (after: ClauseKey) =>
+    (terms?.custom ?? []).filter((c) => c.after === after).forEach((c) => clauses.push({ title: c.title, body: <p className="whitespace-pre-line">{fillPlaceholders(c.body, values)}</p> }));
+  const add = (key: ClauseKey, title: string, body: React.ReactNode, table?: React.ReactNode) => {
+    const o = overrides[key];
+    if (!o?.hidden) {
+      clauses.push({
+        title: o?.title?.trim() || title,
+        body: o?.body?.trim() ? (
+          <>
+            <p className="whitespace-pre-line">{fillPlaceholders(o.body, values)}</p>
+            {table}
+          </>
+        ) : (
+          <>
+            {body}
+            {table}
+          </>
+        ),
+      });
+    }
+    custom(key);
+  };
 
-  add(t("s_annex"), <p>{t("s_annexBody", { quote: ltr(data.quoteNumber) })}</p>);
+  add("annex", t("s_annex"), <p>{t("s_annexBody", { quote: ltr(data.quoteNumber) })}</p>);
   if (v) {
     add(
+      "scope",
       t("s_scope"),
-      <>
-        <p>{t(`s_scope_${pt}`)}</p>
-        <div className="-mx-1 overflow-x-auto px-1">
-          <table className="w-full border-collapse text-[13px]">
-            <thead>
-              <tr className="bg-sand/35">
-                <th className="rounded-s-lg px-3 py-2 text-start">{t("item")}</th>
-                <th className="px-3 py-2 text-end">{t("qty")}</th>
-                <th className="px-3 py-2 text-end">{t("unitPrice")}</th>
-                <th className="rounded-e-lg px-3 py-2 text-end">{t("amount")}</th>
-              </tr>
-            </thead>
-            <tbody className="font-latin tabular-nums">
-              {v.workTypes
-                .filter((w) => w.area > 0)
-                .map((w) => (
-                  <tr key={w.workType} className="border-b border-sand">
-                    <td className="px-3 py-2 font-sans font-bold">{workItemLabel(td, v.service, w.workType)}</td>
-                    <td className="px-3 py-2 text-end">{fmt.number(w.area, 2)} m²</td>
-                    <td className="px-3 py-2 text-end">{fmt.money(w.pricePerM2)}</td>
-                    <td className="px-3 py-2 text-end">{fmt.money(w.total)}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </>,
+      <p>{t(`s_scope_${pt}`)}</p>,
+      <div className="-mx-1 overflow-x-auto px-1">
+        <table className="w-full border-collapse text-[13px]">
+          <thead>
+            <tr className="bg-sand/35">
+              <th className="rounded-s-lg px-3 py-2 text-start">{t("item")}</th>
+              <th className="px-3 py-2 text-end">{t("qty")}</th>
+              <th className="px-3 py-2 text-end">{t("unitPrice")}</th>
+              <th className="rounded-e-lg px-3 py-2 text-end">{t("amount")}</th>
+            </tr>
+          </thead>
+          <tbody className="font-latin tabular-nums">
+            {v.workTypes
+              .filter((w) => w.area > 0)
+              .map((w) => (
+                <tr key={w.workType} className="border-b border-sand">
+                  <td className="px-3 py-2 font-sans font-bold">{workItemLabel(td, v.service, w.workType)}</td>
+                  <td className="px-3 py-2 text-end">{fmt.number(w.area, 2)} m²</td>
+                  <td className="px-3 py-2 text-end">{fmt.money(w.pricePerM2)}</td>
+                  <td className="px-3 py-2 text-end">{fmt.money(w.total)}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>,
     );
-    add(
-      t("s_specs"),
-      <>
-        <p>{t("s_specsBody")}</p>
-        <IncludedList view={v} />
-      </>,
-    );
+    add("specs", t("s_specs"), <p>{t("s_specsBody")}</p>, <IncludedList view={v} />);
   }
   add(
+    "value",
     t("s_value"),
     <>
       <p>{(v?.vatPercent ?? 0) > 0 ? t("s_valueVat", { total: fmt.money(data.total) }) : t("s_valueNoVat", { total: fmt.money(data.total) })}</p>
@@ -119,35 +141,37 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
     </>,
   );
   add(
+    "payments",
     t("s_payments"),
     <>
       <p>{t("s_paymentsBody")}</p>
-      <div className="-mx-1 overflow-x-auto px-1">
-        <table className="w-full border-collapse text-[13px]">
-          <thead>
-            <tr className="bg-sand/35">
-              <th className="rounded-s-lg px-3 py-2 text-start">{t("payment")}</th>
-              <th className="px-3 py-2 text-end">{t("percent")}</th>
-              <th className="rounded-e-lg px-3 py-2 text-end">{t("amount")}</th>
-            </tr>
-          </thead>
-          <tbody className="font-latin tabular-nums">
-            {data.payments.map((p) => (
-              <tr key={p.seq} className="border-b border-sand">
-                <td className="px-3 py-2 font-sans">
-                  {p.seq}. {p.label}
-                </td>
-                <td className="px-3 py-2 text-end">{fmt.number(p.percent, p.percent % 1 ? 2 : 0)}%</td>
-                <td className="px-3 py-2 text-end">{fmt.money(p.amount)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p>{t("s_paymentsLate")}</p>
+      <p className="order-last">{t("s_paymentsLate")}</p>
     </>,
+    <div className="-mx-1 overflow-x-auto px-1">
+      <table className="w-full border-collapse text-[13px]">
+        <thead>
+          <tr className="bg-sand/35">
+            <th className="rounded-s-lg px-3 py-2 text-start">{t("payment")}</th>
+            <th className="px-3 py-2 text-end">{t("percent")}</th>
+            <th className="rounded-e-lg px-3 py-2 text-end">{t("amount")}</th>
+          </tr>
+        </thead>
+        <tbody className="font-latin tabular-nums">
+          {data.payments.map((p) => (
+            <tr key={p.seq} className="border-b border-sand">
+              <td className="px-3 py-2 font-sans">
+                {p.seq}. {p.label}
+              </td>
+              <td className="px-3 py-2 text-end">{fmt.number(p.percent, p.percent % 1 ? 2 : 0)}%</td>
+              <td className="px-3 py-2 text-end">{fmt.money(p.amount)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>,
   );
   add(
+    "duration",
     t("s_duration"),
     <>
       <p>{t("s_durationBody", { days: data.duration_days, start: fmt.date(data.start_date), end: fmt.date(end.toISOString()) })}</p>
@@ -155,6 +179,7 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
     </>,
   );
   add(
+    "first",
     t("s_first"),
     <ul className="grid list-disc gap-0.5 ps-5">
       {pt !== "supply" && <li>{t("o1_execute")}</li>}
@@ -165,6 +190,7 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
     </ul>,
   );
   add(
+    "second",
     t("s_second"),
     <ul className="grid list-disc gap-0.5 ps-5">
       {pt !== "supply" && <li>{t("o2_site")}</li>}
@@ -174,15 +200,16 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
       <li>{t("o2_pay")}</li>
     </ul>,
   );
-  add(t("s_handover"), <p>{t("s_handoverBody")}</p>);
-  add(t("s_additional"), <p>{t("s_additionalBody")}</p>);
-  if (pt !== "supply") add(t("s_warranty"), <p>{t("s_warrantyBody", { n: data.warranty_months })}</p>);
-  add(t("s_termination"), <p>{t("s_terminationBody")}</p>);
-  add(t("s_force"), <p>{t("s_forceBody")}</p>);
-  add(t("s_notices"), <p>{t("s_noticesBody")}</p>);
-  add(t("s_law"), <p>{org.city ? t("s_lawBody", { city: org.city }) : t("s_lawBodyNoCity")}</p>);
-  if (data.notes) add(t("s_extra"), <p className="whitespace-pre-line">{data.notes}</p>);
-  add(t("s_signing"), <p>{t("s_signingBody")}</p>);
+  add("handover", t("s_handover"), <p>{t("s_handoverBody")}</p>);
+  add("additional", t("s_additional"), <p>{t("s_additionalBody")}</p>);
+  if (pt !== "supply") add("warranty", t("s_warranty"), <p>{t("s_warrantyBody", { n: data.warranty_months })}</p>);
+  add("termination", t("s_termination"), <p>{t("s_terminationBody")}</p>);
+  add("force", t("s_force"), <p>{t("s_forceBody")}</p>);
+  add("notices", t("s_notices"), <p>{t("s_noticesBody")}</p>);
+  add("law", t("s_law"), <p>{org.city ? t("s_lawBody", { city: org.city }) : t("s_lawBodyNoCity")}</p>);
+  if (data.notes) add("extra", t("s_extra"), <p className="whitespace-pre-line">{data.notes}</p>);
+  else custom("extra");
+  add("signing", t("s_signing"), <p>{t("s_signingBody")}</p>);
 
   const orgName = org.legal_name ?? org.name;
   return (

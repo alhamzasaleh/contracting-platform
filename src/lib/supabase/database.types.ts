@@ -446,6 +446,8 @@ export type ApprovalRow = OrgRow & Upd & {
 export type ContractStatus = "draft" | "sent" | "accepted" | "cancelled";
 export type ContractRow = OrgRow & Upd & {
   number: string;
+  /** editable clauses (ContractTermsConfig), frozen after acceptance */
+  terms?: Json;
   quote_id: string;
   quote_version: number;
   client_id: string;
@@ -762,6 +764,7 @@ export type Database = {
       qoyod_settings: Table<QoyodSettingsRow>;
       client_receipts: Table<ClientReceiptRow>;
       invoices: Table<InvoiceRow>;
+      contract_templates: Table<{ organization_id: string; terms: Json; updated_at: string; updated_by: string | null }>;
       maintenance_requests: Table<MaintenanceRow>;
       client_messages: Table<ClientMessageRow>;
       qoyod_sync_jobs: Table<QoyodJobRow>;
@@ -789,6 +792,7 @@ export type Database = {
       portal_add_maintenance: { Args: { p_number: string; p_token: string; p_body: string; p_photos: string[] }; Returns: string | null };
       portal_confirm_maintenance: { Args: { p_number: string; p_token: string; p_request: string }; Returns: boolean };
       contract_warranties: { Args: { p_org: string }; Returns: { contract_id: string; number: string; client_name: string; handover_at: string | null; warranty_end: string | null }[] };
+      portal_contract_terms: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_invoice_docs: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_receipts: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_invoices: { Args: { p_number: string; p_token: string }; Returns: Json };

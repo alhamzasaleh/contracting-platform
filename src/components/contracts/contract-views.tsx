@@ -22,6 +22,8 @@ import { toNumber } from "@/lib/validation/numbers";
 import { anyTeamFree, spanOf, suggestStart, type Entry, type TeamInfo } from "@/lib/schedule";
 import { cn, ltr } from "@/lib/utils";
 import { ReceiptsList } from "@/components/finance/receipts-list";
+import { ClausesPanel } from "./clauses-panel";
+import type { ContractTermsConfig } from "@/lib/contracts/terms";
 import { AddendaSection, type AddendaActions } from "./addenda-section";
 import { ContractTerms, type ContractOrg } from "./contract-terms";
 
@@ -250,6 +252,7 @@ export function ContractView({
   org,
   actions,
   addendaActions,
+  termsSave,
   base = "",
 }: {
   detail: ContractDetail;
@@ -260,6 +263,7 @@ export function ContractView({
     cancel: (i: Record<string, unknown>) => Promise<ActionResult>;
   };
   addendaActions?: AddendaActions;
+  termsSave?: (i: { contract_id: string; terms: ContractTermsConfig }) => Promise<ActionResult>;
   base?: string;
 }) {
   const ts = useTranslations("schedule");
@@ -408,7 +412,11 @@ export function ContractView({
 
       <AddendaSection detail={detail} actions={addendaActions} />
       <ReceiptsList items={detail.receipts ?? []} hrefFor={(n) => `/print/receipts/${encodeURIComponent(n)}`} newTab />
+      {termsSave && detail.canManage && (c.status === "draft" || c.status === "sent") && (
+        <ClausesPanel mode="contract" initial={detail.terms ?? {}} template={detail.templateTerms} save={(terms) => termsSave({ contract_id: c.id, terms })} />
+      )}
       <ContractTerms
+        terms={detail.terms}
         org={org}
         client={client}
         data={{

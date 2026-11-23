@@ -69,6 +69,7 @@ export const SETTINGS_NAV = [
   { key: "members", href: "/settings/members", icon: Users, permission: undefined },
   { key: "preferences", href: "/settings/preferences", icon: Settings, permission: undefined },
   { key: "notifications", href: "/settings/notifications", icon: Bell, permission: undefined },
+  { key: "contract", href: "/settings/contract", icon: FileSignature, permission: "settings.manage" as Permission },
   { key: "qoyod", href: "/settings/qoyod", icon: Link2, permission: "settings.manage" as Permission },
   { key: "audit", href: "/settings/audit", icon: ClipboardList, permission: "audit.view" as Permission },
 ] as const;

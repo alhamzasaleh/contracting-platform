@@ -381,3 +381,16 @@ test.describe("invoices (design preview)", () => {
     await expect(page.getByRole("heading", { name: "الفواتير", exact: true })).toBeVisible();
   });
 });
+
+test.describe("contract clauses (design preview)", () => {
+  test("hide, edit and add clauses in the company template", async ({ page }) => {
+    await page.goto("/dev/preview/settings/contract");
+    await expect(page.locator('input[value="الكهرباء والماء"]')).toBeVisible();
+    await page.getByRole("button", { name: /^\d+\.\s*القوة القاهرة/ }).click();
+    await expect(page.getByLabel("النص").first()).toBeVisible();
+    await page.getByLabel("العنوان").last().fill("التأمين");
+    await page.locator("#new-body").fill("يلتزم الطرف الأول بالتأمين على العمالة.");
+    await page.getByRole("button", { name: "إضافة البند" }).click();
+    await expect(page.locator('input[value="التأمين"]')).toBeVisible();
+  });
+});
