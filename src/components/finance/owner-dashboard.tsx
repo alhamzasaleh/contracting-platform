@@ -351,7 +351,7 @@ function TeamCost({ f, base }: { f: OwnerFinance; base: string }) {
         {t("teamIdleTitle")}
       </Link>
       <p className="num text-[22px] font-extrabold tabular-nums">{fmt.money(f.teamCost.unabsorbed)}</p>
-      <p className="text-muted-foreground">{t("teamIdleOf", { allocated: fmt.money(f.teamCost.allocated), monthly: fmt.money(f.teamCost.monthly) })}</p>
+      <p className="text-muted-foreground">{t("teamIdleOf", { allocated: fmt.money(f.teamCost.allocated), monthly: fmt.money(f.teamCost.toDate) })}</p>
       <p className="text-[12px] text-subtle-foreground">{t("teamIdleHint")}</p>
     </motion.section>
   );

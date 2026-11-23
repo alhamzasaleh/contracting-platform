@@ -365,6 +365,13 @@ describe("#8 in-house labour actual cost", () => {
     });
   });
 
+  it("counts work days only — a full week Saturday to Friday is 6 days", async () => {
+    const r = await asAdmin((q) => q<{ n: number }>("select private.work_days('2026-11-21', '2026-11-27') as n"));
+    expect(Number(r.rows[0].n)).toBe(6);
+    const fri = await asAdmin((q) => q<{ n: number }>("select private.work_days('2026-11-27', '2026-11-27') as n"));
+    expect(Number(fri.rows[0].n)).toBe(0);
+  });
+
   it("the database cost per worker-day matches employeeCost() in TypeScript", async () => {
     const r = await asAdmin((q) => q<{ a: string; b: string }>("select private.employee_day_cost($1)::text as a, private.employee_day_cost($2)::text as b", [emp1, emp2]));
     expect(Number(r.rows[0].a)).toBeCloseTo(employeeCost(e1, items, 25).perDay, 6);
@@ -374,9 +381,12 @@ describe("#8 in-house labour actual cost", () => {
   it("project labour = scheduled work days up to today × the team's daily cost (alerts use it too)", async () => {
     const perDay = employeeCost(e1, items, 25).perDay + employeeCost(e2, items, 25).perDay;
     const a = await asAdmin((q) => q<{ labour: string }>("select labour from private.project_actuals($1)", [c.id]));
-    expect(Number(a.rows[0].labour)).toBeCloseTo(5 * perDay, 2);
+    // work days only: Friday is the weekly rest day (26 working days a month)
+    const { rows: [wd] } = await asAdmin((q) => q<{ n: string }>("select count(*) as n from generate_series((now() at time zone 'Asia/Riyadh')::date - 4, (now() at time zone 'Asia/Riyadh')::date, interval '1 day') g where extract(isodow from g) <> 5"));
+    const days = Number(wd.n);
+    expect(Number(a.rows[0].labour)).toBeCloseTo(days * perDay, 2);
     const rpc = await as({ userId: sup }, (q) => q<{ contract_id: string; labour: string }>("select * from public.project_labour_costs($1)", [org]));
-    expect(Number(rpc.rows.find((x) => x.contract_id === c.id)?.labour)).toBeCloseTo(5 * perDay, 2);
+    expect(Number(rpc.rows.find((x) => x.contract_id === c.id)?.labour)).toBeCloseTo(days * perDay, 2);
     await expectDenied(as({ userId: viewer }, (q) => q("select * from public.project_labour_costs($1)", [org])), /not allowed/);
     const hiddenFromRestricted = await as({ userId: restricted }, (q) => q<{ contract_id: string }>("select contract_id from public.project_labour_costs($1)", [org]));
     expect(hiddenFromRestricted.rows.map((x) => x.contract_id)).not.toContain(c.id);
@@ -386,11 +396,19 @@ describe("#8 in-house labour actual cost", () => {
     const perDay = employeeCost(e1, items, 25).perDay + employeeCost(e2, items, 25).perDay;
     const monthly = employeeCost(e1, items, 25).monthlyTotal + employeeCost(e2, items, 25).monthlyTotal;
     const t = await today();
-    const start = Math.max(Date.parse(`${t.slice(0, 7)}-01`), Date.parse(t) - 4 * 86_400_000);
-    const days = Math.round((Date.parse(t) - start) / 86_400_000) + 1;
-    const r = await as({ userId: owner }, (q) => q<{ monthly: string; allocated: string }>("select * from public.team_cost_month($1)", [org]));
+    // work days (no Fridays) booked this month, and the share of the month gone so far
+    const workDays = (from: number, to: number) => {
+      let n = 0;
+      for (let d = from; d <= to; d += 86_400_000) if (new Date(d).getUTCDay() !== 5) n++;
+      return n;
+    };
+    const monthStart = Date.parse(`${t.slice(0, 7)}-01`);
+    const monthEnd = Date.UTC(Number(t.slice(0, 4)), Number(t.slice(5, 7)), 0);
+    const days = workDays(Math.max(monthStart, Date.parse(t) - 4 * 86_400_000), Date.parse(t));
+    const r = await as({ userId: owner }, (q) => q<{ monthly: string; allocated: string; to_date: string }>("select * from public.team_cost_month($1)", [org]));
     expect(Number(r.rows[0].monthly)).toBeCloseTo(monthly, 2);
     expect(Number(r.rows[0].allocated)).toBeCloseTo(days * perDay, 2);
+    expect(Number(r.rows[0].to_date)).toBeCloseTo((monthly * workDays(monthStart, Date.parse(t))) / workDays(monthStart, monthEnd), 1);
     await expectDenied(as({ userId: sup }, (q) => q("select * from public.team_cost_month($1)", [org])), /not allowed/);
   });
 });

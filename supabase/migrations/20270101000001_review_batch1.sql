@@ -954,7 +954,20 @@ as $$
   where m.team_id = p_team and e.status = 'active'
 $$;
 
--- In-house labour on a project between two days (inclusive): booked work days × team day cost.
+-- Working days between two dates (inclusive): Friday is the weekly rest day
+-- (cost per worker-day = monthly cost ÷ 26 working days).
+create or replace function private.work_days(p_from date, p_to date)
+returns int
+language sql
+immutable
+set search_path = ''
+as $$
+  select case when p_to < p_from then 0
+         else (select count(*)::int from generate_series(p_from, p_to, interval '1 day') g where extract(isodow from g) <> 5) end
+$$;
+revoke all on function private.work_days(date, date) from public;
+
+-- In-house labour on a project between two days (inclusive): booked work days (no Fridays) × team day cost.
 create or replace function private.project_labour(p_contract uuid, p_from date default null, p_to date default null)
 returns numeric
 language sql
@@ -963,8 +976,9 @@ security definer
 set search_path = ''
 as $$
   select coalesce(sum(
-           (least(s.end_date, coalesce(p_to, (now() at time zone 'Asia/Riyadh')::date))
-            - greatest(s.start_date, coalesce(p_from, s.start_date)) + 1) * private.team_day_cost(s.team_id)), 0)
+           private.work_days(greatest(s.start_date, coalesce(p_from, s.start_date)),
+                             least(s.end_date, coalesce(p_to, (now() at time zone 'Asia/Riyadh')::date)))
+           * private.team_day_cost(s.team_id)), 0)
   from public.schedule_entries s join public.teams t on t.id = s.team_id
   where s.contract_id = p_contract and s.kind = 'work' and t.kind = 'inhouse'
     and s.start_date <= coalesce(p_to, (now() at time zone 'Asia/Riyadh')::date)
@@ -1021,7 +1035,7 @@ grant execute on function public.project_labour_costs(uuid) to authenticated, se
 
 -- Owner finance: this month's loaded cost of in-house team members vs what projects absorbed (totals only).
 create or replace function public.team_cost_month(p_org uuid)
-returns table (monthly numeric, allocated numeric)
+returns table (monthly numeric, allocated numeric, to_date numeric)
 language plpgsql
 stable
 security definer
@@ -1041,7 +1055,14 @@ begin
                         and exists (select 1 from public.team_members m join public.teams t on t.id = m.team_id
                                     where m.employee_id = e.id and t.kind = 'inhouse' and t.is_active)), 0), 2),
       round(coalesce((select sum(private.project_labour(c.id, v_start, v_today)) from public.contracts c
-                      where c.organization_id = p_org and c.status <> 'cancelled'), 0), 2);
+                      where c.organization_id = p_org and c.status <> 'cancelled'), 0), 2),
+      -- the share of the month's cost for the work days gone so far (fair comparison early in the month)
+      round(coalesce((select sum(private.employee_month_cost(e.id)) from public.employees e
+                      where e.organization_id = p_org and e.status = 'active'
+                        and exists (select 1 from public.team_members m join public.teams t on t.id = m.team_id
+                                    where m.employee_id = e.id and t.kind = 'inhouse' and t.is_active)), 0)
+            * private.work_days(v_start, v_today)
+            / greatest(private.work_days(v_start, (v_start + interval '1 month - 1 day')::date), 1), 2);
 end;
 $$;
 revoke all on function public.team_cost_month(uuid) from public, anon;

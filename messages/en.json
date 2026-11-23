@@ -2097,7 +2097,7 @@
     "requestPayment": "Request payment",
     "teamIdleTitle": "Team cost not charged to projects (this month)",
     "teamIdleHint": "Our team’s cost not booked on projects in the schedule — covered by the overhead % in pricing.",
-    "teamIdleOf": "{allocated} charged to projects of {monthly}"
+    "teamIdleOf": "{allocated} charged to projects of {monthly} (cost of the month's work days so far)"
   },
   "payroll": {
     "expiringTitle": "Documents expiring soon",

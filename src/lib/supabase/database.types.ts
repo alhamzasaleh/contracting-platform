@@ -829,7 +829,7 @@ export type Database = {
       request_contract_payment: { Args: { p_payment: string }; Returns: undefined };
       issue_quote: { Args: { p_quote: string; p_valid_until: string | null }; Returns: undefined };
       project_labour_costs: { Args: { p_org: string }; Returns: { contract_id: string; labour: number }[] };
-      team_cost_month: { Args: { p_org: string }; Returns: { monthly: number; allocated: number }[] };
+      team_cost_month: { Args: { p_org: string }; Returns: { monthly: number; allocated: number; to_date: number }[] };
       submit_addendum: { Args: { p_id: string }; Returns: string };
       portal_addenda: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_accept_addendum: { Args: { p_number: string; p_token: string; p_addendum: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };

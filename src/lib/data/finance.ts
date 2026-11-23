@@ -40,7 +40,8 @@ export type OwnerFinance = {
   overBudget: { number: string; client: string; ratio: number }[];
   approvals: ApprovalRow[];
   /** this month's loaded cost of our in-house team vs what projects absorbed (costs.view + finance.view; totals only) */
-  teamCost?: { monthly: number; allocated: number; unabsorbed: number } | null;
+  /** in-house team cost this month: full month, allocated to projects, the share of the month gone so far, and the part not carried by projects */
+  teamCost?: { monthly: number; allocated: number; toDate: number; unabsorbed: number } | null;
   canManage: boolean;
   canDecide: boolean;
 };
@@ -180,7 +181,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   if (can(session, "costs.view") && can(session, "finance.view")) {
     const { data: tc } = await supabase.rpc("team_cost_month", { p_org: orgId });
     const row = tc?.[0];
-    if (row && n(row.monthly) > 0) teamCost = { monthly: n(row.monthly), allocated: n(row.allocated), unabsorbed: r2(Math.max(0, n(row.monthly) - n(row.allocated))) };
+    if (row && n(row.monthly) > 0) teamCost = { monthly: n(row.monthly), allocated: n(row.allocated), toDate: n(row.to_date), unabsorbed: r2(Math.max(0, n(row.to_date) - n(row.allocated))) };
   }
 
   const monthStart = today.slice(0, 7);

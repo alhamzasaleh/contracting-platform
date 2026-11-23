@@ -42,7 +42,7 @@ export const SAMPLE_FINANCE: OwnerFinance = {
     { id: "ap2", kind: "quote_discount", entity: "quote", entity_id: "y", details: { number: "Q-2026-009", discountPercent: 7 }, created_at: "2026-11-22T12:00:00Z", link: null },
     { id: "ap3", kind: "addendum", entity: "addendum", entity_id: "z", details: { number: "AD-2026-002", title: "دهان سقف الملحق", total: 1400 }, created_at: "2026-11-22T13:00:00Z", link: null },
   ],
-  teamCost: { monthly: 28500, allocated: 19800, unabsorbed: 8700 },
+  teamCost: { monthly: 28500, allocated: 16200, toDate: 21900, unabsorbed: 5700 },
   canManage: true,
   canDecide: true,
 };
