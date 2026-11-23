@@ -12,10 +12,11 @@ export async function flushWhatsApp(limit = 20): Promise<void> {
   if (!whatsappConfigured()) return;
   try {
     const admin = createAdminClient();
-    const { data: queue } = await admin.from("notification_deliveries").select("id, phone, attempts, notification_id").eq("status", "queued").lt("attempts", 5).order("created_at").limit(limit);
+    const { data: queue } = await admin.from("notification_deliveries").select("id, phone, attempts, notification_id").eq("channel", "whatsapp").eq("status", "queued").lt("attempts", 5).order("created_at").limit(limit);
     for (const d of queue ?? []) {
       const { data: n } = await admin.from("notifications").select("kind, params").eq("id", d.notification_id).maybeSingle();
       if (!n) continue;
+      if (!d.phone) continue;
       const r = await sendWhatsApp(d.phone, whatsappText(n.kind as NotificationKind, (n.params ?? {}) as Record<string, unknown>));
       await admin
         .from("notification_deliveries")

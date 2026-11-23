@@ -658,10 +658,12 @@ export type PayrollLineRow = OrgRow & Upd & {
   note: string | null;
 };
 
-export type NotificationKind = "approval" | "client_note" | "stage_confirmed" | "contract_accepted" | "addendum_accepted" | "payment_received" | "payment_late" | "doc_expiry" | "approval_reminder" | "maintenance_request";
+export type NotificationKind = "approval" | "client_note" | "stage_confirmed" | "contract_accepted" | "addendum_accepted" | "payment_received" | "payment_late" | "doc_expiry" | "approval_reminder" | "maintenance_request"
+  | "project_delay" | "project_over_budget" | "project_losing" | "missed_visit";
 export type NotificationRow = { id: string; organization_id: string; user_id: string; kind: NotificationKind; params: Json; link: string | null; dedupe_key: string | null; read_at: string | null; created_at: string };
-export type NotificationPrefRow = { organization_id: string; user_id: string; kind: NotificationKind; in_app: boolean; whatsapp: boolean; updated_at: string };
-export type NotificationDeliveryRow = { id: string; notification_id: string; organization_id: string; channel: "whatsapp"; phone: string; status: "queued" | "sent" | "failed"; attempts: number; last_error: string | null; sent_at: string | null; created_at: string };
+export type NotificationPrefRow = { organization_id: string; user_id: string; kind: NotificationKind; in_app: boolean; whatsapp: boolean; push: boolean; updated_at: string };
+export type PushSubscriptionRow = { id: string; organization_id: string; user_id: string; endpoint: string; p256dh: string; auth: string; device: string | null; failures: number; last_success_at: string | null; created_at: string; created_by: string | null };
+export type NotificationDeliveryRow = { id: string; notification_id: string; organization_id: string; channel: "whatsapp" | "push"; phone: string | null; user_id: string | null; status: "queued" | "sent" | "failed"; attempts: number; last_error: string | null; sent_at: string | null; created_at: string };
 
 export type InvoiceParty = { name: string | null; legal_name?: string | null; cr_number?: string | null; vat_number?: string | null; id_number?: string | null; address?: string | null; city?: string | null; district?: string | null; phone?: string | null };
 export type InvoiceRow = {
@@ -761,6 +763,7 @@ export type Database = {
       notifications: Table<NotificationRow>;
       notification_preferences: Table<NotificationPrefRow>;
       notification_deliveries: Table<NotificationDeliveryRow>;
+      push_subscriptions: Table<PushSubscriptionRow>;
       qoyod_settings: Table<QoyodSettingsRow>;
       client_receipts: Table<ClientReceiptRow>;
       invoices: Table<InvoiceRow>;
@@ -783,6 +786,7 @@ export type Database = {
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
       run_daily_reminders: { Args: Record<string, never>; Returns: number };
+      push_vapid_keys: { Args: { p_public?: string | null; p_private?: string | null }; Returns: Json };
       qoyod_set_key: { Args: { p_org: string; p_key: string }; Returns: undefined };
       qoyod_api_key: { Args: { p_org: string }; Returns: string | null };
       qoyod_backfill: { Args: { p_org: string; p_from: string }; Returns: number };

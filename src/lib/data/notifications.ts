@@ -19,14 +19,18 @@ export async function loadBell(session: SessionContext): Promise<BellData> {
   };
 }
 
-export type PrefsData = { prefs: { kind: NotificationKind; in_app: boolean; whatsapp: boolean }[]; phone: string | null };
+export type PrefsData = { prefs: { kind: NotificationKind; in_app: boolean; whatsapp: boolean; push: boolean }[]; phone: string | null; devices: number };
 
 export async function loadNotificationPrefs(session: SessionContext): Promise<PrefsData> {
   const supabase = await createClient();
-  const { data } = await supabase.from("notification_preferences").select("kind, in_app, whatsapp").eq("user_id", session.userId).eq("organization_id", session.organization.id);
+  const [{ data }, { count }] = await Promise.all([
+    supabase.from("notification_preferences").select("kind, in_app, whatsapp, push").eq("user_id", session.userId).eq("organization_id", session.organization.id),
+    supabase.from("push_subscriptions").select("id", { count: "exact", head: true }).eq("user_id", session.userId).eq("organization_id", session.organization.id),
+  ]);
   const byKind = new Map((data ?? []).map((p) => [p.kind, p]));
   return {
-    prefs: NOTIFICATION_KINDS.map((k) => byKind.get(k) ?? { kind: k, in_app: true, whatsapp: false }),
+    prefs: NOTIFICATION_KINDS.map((k) => byKind.get(k) ?? { kind: k, in_app: true, whatsapp: false, push: true }),
     phone: session.phone,
+    devices: count ?? 0,
   };
 }

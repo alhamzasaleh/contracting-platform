@@ -6,6 +6,7 @@ import type { NotificationKind } from "@/lib/supabase/database.types";
 
 export const NOTIFICATION_KINDS: NotificationKind[] = [
   "approval", "approval_reminder", "client_note", "stage_confirmed", "contract_accepted", "addendum_accepted", "payment_received", "payment_late", "doc_expiry", "maintenance_request",
+  "project_delay", "project_over_budget", "project_losing", "missed_visit",
 ];
 
 export type NotificationItem = { id: string; kind: NotificationKind; params: Record<string, unknown>; link: string | null; read: boolean; created_at: string };
@@ -35,6 +36,16 @@ export function whatsappText(kind: NotificationKind, p: Record<string, unknown>)
       return `دفعة متأخرة ${s("days")} يوم: ${s("label")} (${s("number")}) — المتبقي ${money(p.amount)}`;
     case "maintenance_request":
       return `طلب صيانة جديد ${s("number")} على ${s("contract")}: ${s("body")}`;
+    case "project_delay":
+      return `المشروع ${s("number")} (${s("client")}) متأخر ${s("days")} يوم عن موعد التسليم`;
+    case "project_over_budget":
+      return `مواد المشروع ${s("number")} (${s("client")}) تجاوزت التقدير بـ ${s("percent")}%`;
+    case "project_losing":
+      return Number(p.profit) < 0
+        ? `المشروع ${s("number")} (${s("client")}) يخسر — الربح الفعلي ${money(p.profit)}`
+        : `ربح المشروع ${s("number")} (${s("client")}) أقل من نصف المتوقع — الفعلي ${money(p.profit)}`;
+    case "missed_visit":
+      return `ما فيه زيارة موقع للمشروع ${s("number")} (${s("client")}) من ${s("days")} أيام`;
     case "doc_expiry":
       return Number(p.days) <= 0 ? `انتهت ${DOC[s("doc")] ?? ""} للموظف ${s("name")}` : `${DOC[s("doc")] ?? ""} للموظف ${s("name")} تنتهي بعد ${s("days")} يوم`;
   }

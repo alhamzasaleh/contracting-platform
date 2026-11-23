@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Switch } from "@/components/ui/switch";
 import type { NotificationKind } from "@/lib/supabase/database.types";
 
-type Pref = { kind: NotificationKind; in_app: boolean; whatsapp: boolean };
+type Pref = { kind: NotificationKind; in_app: boolean; whatsapp: boolean; push: boolean };
 
 /** Each user picks which notifications reach them, in the app and/or on WhatsApp. */
 export function NotificationPrefsView({ prefs: initial, phone, whatsappReady, preview }: { prefs: Pref[]; phone: string | null; whatsappReady: boolean; preview?: boolean }) {
@@ -39,14 +39,16 @@ export function NotificationPrefsView({ prefs: initial, phone, whatsappReady, pr
         {!whatsappReady && <p className="mt-2 rounded-xl bg-surface-2 px-3 py-2 text-sm text-muted-foreground">{t("whatsappPending")}</p>}
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-6 gap-y-4">
+        <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-4 sm:gap-x-6 gap-y-4">
           <span />
           <span className="text-center text-xs font-semibold text-muted-foreground">{t("inApp")}</span>
+          <span className="text-center text-xs font-semibold text-muted-foreground">{t("push")}</span>
           <span className="text-center text-xs font-semibold text-muted-foreground">{t("whatsapp")}</span>
           {prefs.map((p) => (
             <React.Fragment key={p.kind}>
               <span className="text-sm">{t(`k_${p.kind}`)}</span>
-              <Switch checked={p.in_app} onCheckedChange={(v) => set(p.kind, { in_app: v, whatsapp: v ? p.whatsapp : false })} aria-label={`${t(`k_${p.kind}`)} — ${t("inApp")}`} className="justify-self-center" />
+              <Switch checked={p.in_app} onCheckedChange={(v) => set(p.kind, { in_app: v, whatsapp: v ? p.whatsapp : false, push: v ? p.push : false })} aria-label={`${t(`k_${p.kind}`)} — ${t("inApp")}`} className="justify-self-center" />
+              <Switch checked={p.push} disabled={!p.in_app} onCheckedChange={(v) => set(p.kind, { push: v })} aria-label={`${t(`k_${p.kind}`)} — ${t("push")}`} className="justify-self-center" />
               <Switch checked={p.whatsapp} disabled={!p.in_app} onCheckedChange={(v) => set(p.kind, { whatsapp: v })} aria-label={`${t(`k_${p.kind}`)} — ${t("whatsapp")}`} className="justify-self-center" />
             </React.Fragment>
           ))}
