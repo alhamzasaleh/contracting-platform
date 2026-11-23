@@ -294,3 +294,14 @@ test.describe("qoyod (design preview)", () => {
     await expect(page.getByText(/تُعتمد فوراً/)).toBeVisible();
   });
 });
+
+test.describe("receipt voucher (design preview)", () => {
+  test("voucher shows amount in words and running totals; client page lists it", async ({ page }) => {
+    await page.goto("/dev/preview/receipt");
+    await expect(page.getByText("سند قبض", { exact: true })).toBeVisible();
+    await expect(page.getByText("فقط ثمانية عشر ألف وأربعمائة ريال سعودي لا غير")).toBeVisible();
+    await expect(page.getByText("المتبقي")).toBeVisible();
+    await page.goto("/dev/preview/portal/work");
+    await expect(page.getByRole("heading", { name: "سندات القبض" })).toBeVisible();
+  });
+});

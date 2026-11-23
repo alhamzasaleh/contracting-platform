@@ -45,6 +45,7 @@ export const SAMPLE_PROJECT: ProjectDetail = {
 export const SAMPLE_PORTAL_WORK: PortalData = {
   ...SAMPLE_PORTAL,
   contract: { ...SAMPLE_PORTAL.contract, status: "accepted", accepted_at: "2026-11-19T10:00:00Z", accepted_name: "أبو محمد" },
+  receipts: [{ number: "RV-2026-007", label: "عند توقيع العقد", amount: 18400, paid_on: "2026-11-20", method: "transfer", reference: null, created_at: "2026-11-20T09:00:00Z" }],
   execution: {
     stages: SAMPLE_PROJECT.stages.map((s) => ({
       id: s.id, seq: s.seq, name: s.name, status: s.status, progress: s.progress, is_final: s.is_final,

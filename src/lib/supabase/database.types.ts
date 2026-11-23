@@ -658,6 +658,10 @@ export type NotificationRow = { id: string; organization_id: string; user_id: st
 export type NotificationPrefRow = { organization_id: string; user_id: string; kind: NotificationKind; in_app: boolean; whatsapp: boolean; updated_at: string };
 export type NotificationDeliveryRow = { id: string; notification_id: string; organization_id: string; channel: "whatsapp"; phone: string; status: "queued" | "sent" | "failed"; attempts: number; last_error: string | null; sent_at: string | null; created_at: string };
 
+export type ClientReceiptRow = {
+  id: string; organization_id: string; number: string; contract_id: string; payment_id: string | null; addendum_id: string | null; label: string; amount: number;
+  paid_on: string; method: "transfer" | "cash" | "cheque" | "card" | null; reference: string | null; created_at: string; created_by: string | null;
+};
 export type QoyodSettingsRow = {
   organization_id: string; enabled: boolean; invoice_status: "Draft" | "Approved"; inventory_id: number | null; receive_account_id: number | null; expense_account_id: number | null;
   service_products: Record<string, number>; addendum_product_id: number | null; sync_from: string | null; key_last4: string | null; key_set_at: string | null; updated_at: string; updated_by: string | null;
@@ -737,6 +741,7 @@ export type Database = {
       notification_preferences: Table<NotificationPrefRow>;
       notification_deliveries: Table<NotificationDeliveryRow>;
       qoyod_settings: Table<QoyodSettingsRow>;
+      client_receipts: Table<ClientReceiptRow>;
       qoyod_sync_jobs: Table<QoyodJobRow>;
     };
     Views: {
@@ -758,6 +763,7 @@ export type Database = {
       qoyod_backfill: { Args: { p_org: string; p_from: string }; Returns: number };
       qoyod_claim_jobs: { Args: { p_limit: number }; Returns: QoyodJobRow[] };
       qoyod_retry: { Args: { p_org: string; p_job?: string | null }; Returns: number };
+      portal_receipts: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_invoices: { Args: { p_number: string; p_token: string }; Returns: Json };
       create_payroll_run: { Args: { p_org: string; p_month: string }; Returns: string };
       approve_payroll_run: { Args: { p_run: string }; Returns: undefined };

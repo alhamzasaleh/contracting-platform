@@ -108,6 +108,8 @@ export type ContractDetail = {
   canFinance: boolean;
   /** VAT % applied to new addenda (0 without a company VAT number) */
   vatPercent: number;
+  /** Receipt vouchers issued for this contract (newest last). */
+  receipts?: { number: string; label: string; amount: number; paid_on: string }[];
 };
 
 export type AddendumView = {
@@ -129,9 +131,10 @@ export async function loadContract(session: SessionContext, number: string): Pro
     supabase.from("client_portal_links").select("expires_at, revoked_at, last_opened_at, open_count").eq("contract_id", c.id).order("created_at", { ascending: false }),
   ]);
   const active = (links ?? []).find((l) => !l.revoked_at && new Date(l.expires_at) > new Date());
-  const [{ data: addenda }, settings] = await Promise.all([
+  const [{ data: addenda }, settings, { data: receipts }] = await Promise.all([
     supabase.from("addenda").select("id, number, title, description, amount, vat, total, extra_days, status, payment_status, accepted_at, accepted_name, created_at").eq("contract_id", c.id).order("created_at"),
     loadPricingSettings(session),
+    supabase.from("client_receipts").select("number, label, amount, paid_on").eq("contract_id", c.id).order("created_at"),
   ]);
   const pendingIds = (addenda ?? []).filter((a) => a.status === "pending_approval").map((a) => a.id);
   const { data: approvals } = pendingIds.length
@@ -153,6 +156,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
     addenda: (addenda ?? []).map((a) => ({ ...a, amount: n(a.amount), vat: n(a.vat), total: n(a.total), approval_id: (approvals ?? []).find((x) => x.entity_id === a.id)?.id ?? null })),
     canDecide: can(session, "approvals.decide"),
     canFinance: can(session, "finance.manage"),
+    receipts: (receipts ?? []).map((r) => ({ number: r.number, label: r.label, amount: Number(r.amount), paid_on: r.paid_on })),
     vatPercent: effectiveVatPercent(session.organization.vat_number, Number(settings?.vat_percent ?? 15)),
   };
 }

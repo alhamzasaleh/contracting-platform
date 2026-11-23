@@ -2091,5 +2091,27 @@
     "autoSetup": "Auto-prepare",
     "autoDone": "Prepared",
     "e_qoyodSetup": "Automatic preparation failed — pick from the lists manually"
+  },
+  "receipt": {
+    "title": "Receipt voucher",
+    "cr": "CR {n}",
+    "vat": "VAT No. {n}",
+    "amount": "Amount received",
+    "receivedFrom": "Received from",
+    "for": "For",
+    "contract": "contract",
+    "method": "Payment method",
+    "reference": "Reference",
+    "m_transfer": "Bank transfer",
+    "m_cash": "Cash",
+    "m_cheque": "Cheque",
+    "m_card": "Card / mada",
+    "contractValue": "Contract value (incl. addenda)",
+    "receivedToDate": "Received to date",
+    "remaining": "Remaining",
+    "receiver": "Received by",
+    "note": "Electronic voucher issued by the system on {date} — no signature needed.",
+    "listTitle": "Receipt vouchers",
+    "listHint": "One voucher for every amount we received — print it or save it as PDF."
   }
 }

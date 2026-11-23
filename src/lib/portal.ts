@@ -1,6 +1,7 @@
 import "server-only";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import type { ClientView } from "@/lib/quotes";
+import type { ReceiptItem } from "@/lib/receipts";
 import type { Brand } from "@/lib/supabase/database.types";
 import { blobToDataUrl } from "@/lib/org";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -24,6 +25,7 @@ export type PortalData = {
   addenda?: PortalAddendum[];
   /** Payments ("p<seq>") and addenda (AD- number) that have an official invoice from Qoyod. */
   invoices?: string[];
+  receipts?: ReceiptItem[];
 };
 
 export type PortalAddendum = {
@@ -94,5 +96,10 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
     const { data: inv } = await admin.rpc("portal_invoices", { p_number: number, p_token: token });
     invoices = ((inv as { items?: { key: string }[] } | null)?.items ?? []).map((x) => x.key);
   }
-  return { data: { ...d, execution, addenda, invoices, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
+  let receipts: ReceiptItem[] = [];
+  if (d.contract.status === "accepted") {
+    const { data: rv } = await admin.rpc("portal_receipts", { p_number: number, p_token: token });
+    receipts = ((rv as ReceiptItem[] | null) ?? []).map((r) => ({ ...r, amount: Number(r.amount) }));
+  }
+  return { data: { ...d, execution, addenda, invoices, receipts, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
 }

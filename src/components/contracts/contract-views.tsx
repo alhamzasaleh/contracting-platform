@@ -21,6 +21,7 @@ import type { ContractStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { anyTeamFree, spanOf, suggestStart, type Entry, type TeamInfo } from "@/lib/schedule";
 import { cn, ltr } from "@/lib/utils";
+import { ReceiptsList } from "@/components/finance/receipts-list";
 import { AddendaSection, type AddendaActions } from "./addenda-section";
 import { ContractTerms, type ContractOrg } from "./contract-terms";
 
@@ -406,6 +407,7 @@ export function ContractView({
       )}
 
       <AddendaSection detail={detail} actions={addendaActions} />
+      <ReceiptsList items={detail.receipts ?? []} hrefFor={(n) => `/print/receipts/${encodeURIComponent(n)}`} newTab />
       <ContractTerms
         org={org}
         client={client}

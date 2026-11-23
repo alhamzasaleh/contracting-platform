@@ -1,5 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
+import { ReceiptsList } from "@/components/finance/receipts-list";
 import { Camera, Check, CheckCircle2, Eraser, MessageSquare, PenLine, Send, ShieldCheck, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -219,6 +220,8 @@ export function PortalView({
             </section>
           )
         )}
+
+        <ReceiptsList items={data.receipts ?? []} hrefFor={(rv) => `/p/${encodeURIComponent(number)}/${token}/receipt/${encodeURIComponent(rv)}`} newTab />
 
         {!!data.invoices?.length && (
           <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="invoices-title">
