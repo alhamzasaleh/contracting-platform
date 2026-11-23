@@ -133,7 +133,7 @@ test.describe("schedule (design preview)", () => {
     await expect(page.getByText(/مشروع واحد بدون فريق/)).toBeVisible();
     const width = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(width).toBeLessThanOrEqual(1);
-    await page.getByRole("button", { name: /أبو محمد العتيبي · C-2026-004/ }).click();
+    await page.getByRole("button", { name: /أبو محمد العتيبي · \W?C-2026-004/ }).click();
     await expect(page.getByText(/مشغول في هذه الفترة/)).toBeVisible();
     await page.getByRole("button", { name: /أقرب موعد متاح/ }).click();
     await expect(page.getByText(/مشغول في هذه الفترة/)).toHaveCount(0);

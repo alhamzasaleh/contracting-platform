@@ -1,4 +1,5 @@
 "use client";
+import { DocNo } from "@/components/doc-no";
 import { CheckCircle2, Copy, FileSignature, FileText, Pencil, Printer, Send, ShieldAlert, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -46,7 +47,7 @@ export function QuotesView({ quotes, base = "" }: { quotes: QuoteListItem[]; bas
                 <Badge tone={STATUS_TONE[q.status]}>{t(`status_${q.status}`)}</Badge>
               </span>
               <span className="text-[12px] text-muted-foreground">
-                <span className="font-latin">{q.number}</span> · {t("versionN", { n: q.version })} · {fmt.date(q.created_at)}
+                <DocNo>{q.number}</DocNo> · {t("versionN", { n: q.version })} · {fmt.date(q.created_at)}
               </span>
             </span>
             {q.total != null && <span className="font-latin text-[16px] font-bold tabular-nums">{fmt.money(q.total)}</span>}
@@ -114,7 +115,7 @@ export function QuoteEditorView({
       <div className="flex items-center justify-between gap-2">
         <p className="text-[14px] font-bold">{t("fromSurvey")}</p>
         <Link href={`${base}/clients/${client.number}/surveys/${survey.number}`} className="font-latin text-[12px] text-primary underline-offset-2 hover:underline">
-          {survey.number}
+          <DocNo>{survey.number}</DocNo>
         </Link>
       </div>
       <p className="text-[13px] text-muted-foreground">
@@ -239,7 +240,7 @@ export function QuoteView({
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-border bg-surface p-5">
         <div className="grid gap-1">
           <p className="flex flex-wrap items-center gap-2">
-            <span className="font-latin text-[18px] font-bold">{quote.number}</span>
+            <DocNo className="text-[18px] font-bold">{quote.number}</DocNo>
             <Badge tone={STATUS_TONE[quote.status]}>{t(`status_${quote.status}`)}</Badge>
             <Badge>{t(`service_${quote.service}`)}</Badge>
           </p>

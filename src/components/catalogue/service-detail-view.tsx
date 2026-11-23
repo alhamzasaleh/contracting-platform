@@ -500,7 +500,7 @@ function DurationCalculator({ stages }: { stages: Stage[] }) {
         <div className="flex items-baseline justify-between rounded-xl bg-ink px-4 py-3 text-ink-foreground">
           <span className="text-[14px]">{t("estimatedDays")}</span>
           {hasProductivity ? (
-            <span className="num text-[24px] font-extrabold text-white">
+            <span className="num text-[24px] font-extrabold text-gypsum">
               {fmt.number(days, days % 1 ? 1 : 0)} <span className="text-[13px] font-normal text-ink-muted">{t("workingDays")}</span>
             </span>
           ) : (

@@ -49,7 +49,7 @@ export const SAMPLE_CONTRACTS: ContractListItem[] = [
 ];
 
 export const SAMPLE_PORTAL: PortalData = {
-  org: { name: "مؤسسة صالح للتشطيبات", legal_name: null, cr_number: "1010123456", vat_number: null, phone: "966551234567", city: "الرياض", address: "حي العليا، طريق الملك فهد", signatory_name: "صالح العتيبي", signatory_title: "المالك", logo_path: null, brand: { primary: "#1E4D4A", accent: "#4F6F66" } },
+  org: { name: "مؤسسة صالح للتشطيبات", legal_name: null, cr_number: "1010123456", vat_number: null, phone: "966551234567", city: "الرياض", address: "حي العليا، طريق الملك فهد", signatory_name: "صالح العتيبي", signatory_title: "المالك", logo_path: null, brand: { primary: "#B5653E", accent: "#D9CBB5" } },
   client: { name: SAMPLE_QUOTE.client.name, phone: SAMPLE_QUOTE.client.phone, city: SAMPLE_QUOTE.client.city, district: "النرجس", id_number: "1012345678" },
   contract: { ...SAMPLE_CONTRACT.contract },
   quote: { number: SAMPLE_QUOTE.quote.number, version: 2, date: "2026-11-22T09:00:00Z", valid_until: "2026-11-29", client_view: view, notes: SAMPLE_QUOTE.current!.notes },

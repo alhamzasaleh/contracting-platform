@@ -4,7 +4,7 @@ import { QuoteDocument } from "@/components/quotes/quote-document";
 import { requirePermission } from "@/lib/auth/session";
 import { loadPricingSettings } from "@/lib/data/catalogue";
 import { loadQuote } from "@/lib/data/quotes";
-import { signedAssetUrl } from "@/lib/org";
+import { logoDataUrl } from "@/lib/org";
 
 /** Print-ready quote (Share → Print → Save as PDF on the iPad). */
 export default async function PrintQuotePage({ params }: { params: Promise<{ number: string }> }) {
@@ -13,12 +13,12 @@ export default async function PrintQuotePage({ params }: { params: Promise<{ num
   const [detail, settings, logoUrl] = await Promise.all([
     loadQuote(session, decodeURIComponent(number)),
     loadPricingSettings(session),
-    signedAssetUrl(session.organization.logo_path),
+    logoDataUrl(session.organization.logo_path),
   ]);
   const o = session.organization;
   if (!detail.current) return null;
   return (
-    <main className="min-h-dvh bg-neutral-100 py-6 print:bg-white print:py-0">
+    <main className="min-h-dvh bg-background py-6 print:bg-white print:py-0">
       <BrandStyle primary={o.brand.primary} accent={o.brand.accent} />
       <div className="mx-auto mb-4 flex max-w-[820px] justify-end px-4 print:hidden">
         <PrintButton />

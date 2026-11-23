@@ -1,4 +1,5 @@
 "use client";
+import { DocNo } from "@/components/doc-no";
 import { AlertTriangle, CalendarClock, CalendarDays, Check, Copy, FileSignature, Link2, MessageCircle, Pencil, Plus, Trash2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -19,7 +20,7 @@ import type { ContractDetail, ContractDraft, ContractListItem } from "@/lib/data
 import type { ContractStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { anyTeamFree, spanOf, suggestStart, type Entry, type TeamInfo } from "@/lib/schedule";
-import { cn } from "@/lib/utils";
+import { cn, ltr } from "@/lib/utils";
 import { AddendaSection, type AddendaActions } from "./addenda-section";
 import { ContractTerms, type ContractOrg } from "./contract-terms";
 
@@ -43,7 +44,7 @@ export function ContractsView({ contracts, base = "" }: { contracts: ContractLis
                 <Badge tone={TONE[c.status]}>{t(`status_${c.status}`)}</Badge>
               </span>
               <span className="text-[12px] text-muted-foreground">
-                <span className="font-latin">{c.number}</span> · {t("startsOn", { date: fmt.date(c.start_date) })}
+                <DocNo>{c.number}</DocNo> · {t("startsOn", { date: fmt.date(c.start_date) })}
               </span>
             </span>
             <span className="font-latin text-[16px] font-bold tabular-nums">{fmt.money(c.total)}</span>
@@ -210,7 +211,7 @@ export function ContractEditor({
       <aside className="grid content-start gap-3 rounded-3xl border-2 border-primary/30 bg-surface p-5">
         <p className="text-[13px] text-muted-foreground">{t("total")}</p>
         <p className="font-latin text-[26px] font-extrabold tabular-nums">{fmt.money(draft.quote.total)}</p>
-        <p className="text-[12px] text-muted-foreground">{t("fromQuote", { number: draft.quote.number, v: draft.quote.version })}</p>
+        <p className="text-[12px] text-muted-foreground">{t("fromQuote", { number: ltr(draft.quote.number), v: draft.quote.version })}</p>
         <Button
           loading={pending}
           disabled={Math.abs(sum - 100) >= 0.01 || rows.some((r) => !r.label.trim() || !r.percent)}
@@ -279,7 +280,7 @@ export function ContractView({
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-border bg-surface p-5">
         <div>
           <p className="flex flex-wrap items-center gap-2">
-            <span className="font-latin text-[18px] font-bold">{c.number}</span>
+            <DocNo className="text-[18px] font-bold">{c.number}</DocNo>
             <Badge tone={TONE[c.status]}>{t(`status_${c.status}`)}</Badge>
             <Badge>{tq(`service_${c.service}`)}</Badge>
           </p>
@@ -289,7 +290,7 @@ export function ContractView({
             </Link>
             {" · "}
             <Link href={`${base}/quotations/${detail.quote.number}`} className="font-latin hover:underline">
-              {detail.quote.number}
+              <DocNo>{detail.quote.number}</DocNo>
             </Link>
           </p>
         </div>

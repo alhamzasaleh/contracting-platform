@@ -124,15 +124,19 @@ export type ThemeTokens = {
   accentForeground: string;
 };
 
+const GYPSUM = "#EFEBE3";
+const BASALT = "#22262A";
+
 /** Accessible primary/accent for light and dark UI from the raw brand colours. */
 export function deriveTheme(primary: string, accent?: string | null) {
   const acc = accent && isHex(accent) ? accent : oklchToHex({ ...hexToOklch(primary), h: (hexToOklch(primary).h + 150) % 360 });
 
+  // Text on brand colours is gypsum (§6.1); the colour is darkened until it reaches AA.
   const light: ThemeTokens = {
-    primary: ensureContrast(primary, "#FFFFFF", 4.5),
-    primaryForeground: "#FFFFFF",
-    accent: ensureContrast(acc, "#FFFFFF", 4.5),
-    accentForeground: "#FFFFFF",
+    primary: ensureContrast(primary, GYPSUM, 4.5),
+    primaryForeground: GYPSUM,
+    accent: ensureContrast(acc, GYPSUM, 4.5),
+    accentForeground: GYPSUM,
   };
 
   // Dark UI: brighten so the colour stands out on near-black, then pick text.
@@ -144,9 +148,9 @@ export function deriveTheme(primary: string, accent?: string | null) {
   const da = brighten(acc);
   const dark: ThemeTokens = {
     primary: dp,
-    primaryForeground: readableOn(dp),
+    primaryForeground: contrastRatio(dp, BASALT) >= 4.5 ? BASALT : readableOn(dp),
     accent: da,
-    accentForeground: readableOn(da),
+    accentForeground: contrastRatio(da, BASALT) >= 4.5 ? BASALT : readableOn(da),
   };
   return { light, dark };
 }

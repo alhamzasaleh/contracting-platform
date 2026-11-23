@@ -1,4 +1,5 @@
 "use client";
+import { ltr } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { useFormatter } from "@/components/formatter-provider";
 import { IncludedList, workItemLabel } from "@/components/quotes/quote-document";
@@ -70,7 +71,7 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
   const clauses: { title: string; body: React.ReactNode }[] = [];
   const add = (title: string, body: React.ReactNode) => clauses.push({ title, body });
 
-  add(t("s_annex"), <p>{t("s_annexBody", { quote: data.quoteNumber })}</p>);
+  add(t("s_annex"), <p>{t("s_annexBody", { quote: ltr(data.quoteNumber) })}</p>);
   if (v) {
     add(
       t("s_scope"),
@@ -79,7 +80,7 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
         <div className="-mx-1 overflow-x-auto px-1">
           <table className="w-full border-collapse text-[13px]">
             <thead>
-              <tr className="bg-neutral-100">
+              <tr className="bg-sand/35">
                 <th className="rounded-s-lg px-3 py-2 text-start">{t("item")}</th>
                 <th className="px-3 py-2 text-end">{t("qty")}</th>
                 <th className="px-3 py-2 text-end">{t("unitPrice")}</th>
@@ -90,7 +91,7 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
               {v.workTypes
                 .filter((w) => w.area > 0)
                 .map((w) => (
-                  <tr key={w.workType} className="border-b border-neutral-200">
+                  <tr key={w.workType} className="border-b border-sand">
                     <td className="px-3 py-2 font-sans font-bold">{workItemLabel(td, v.service, w.workType)}</td>
                     <td className="px-3 py-2 text-end">{fmt.number(w.area, 2)} m²</td>
                     <td className="px-3 py-2 text-end">{fmt.money(w.pricePerM2)}</td>
@@ -124,7 +125,7 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
       <div className="-mx-1 overflow-x-auto px-1">
         <table className="w-full border-collapse text-[13px]">
           <thead>
-            <tr className="bg-neutral-100">
+            <tr className="bg-sand/35">
               <th className="rounded-s-lg px-3 py-2 text-start">{t("payment")}</th>
               <th className="px-3 py-2 text-end">{t("percent")}</th>
               <th className="rounded-e-lg px-3 py-2 text-end">{t("amount")}</th>
@@ -132,7 +133,7 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
           </thead>
           <tbody className="font-latin tabular-nums">
             {data.payments.map((p) => (
-              <tr key={p.seq} className="border-b border-neutral-200">
+              <tr key={p.seq} className="border-b border-sand">
                 <td className="px-3 py-2 font-sans">
                   {p.seq}. {p.label}
                 </td>
@@ -185,12 +186,12 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
 
   const orgName = org.legal_name ?? org.name;
   return (
-    <article className="mx-auto grid min-w-0 max-w-[820px] gap-5 rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-neutral-900 sm:p-10 print:border-0 print:p-0">
+    <article className="mx-auto grid min-w-0 max-w-[820px] gap-5 rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-basalt sm:p-10 print:border-0 print:p-0">
       <header className="flex items-start justify-between gap-4 border-b-2 border-primary pb-4">
         <p className="text-[22px] font-extrabold text-primary">{t("docTitle", { work })}</p>
         <div className="text-end">
-          <p className="font-latin text-[13px]">{data.number}</p>
-          <p className="font-latin text-[12px] text-neutral-500">{fmt.date(data.date)}</p>
+          <p className="font-latin text-[13px]"><bdi dir="ltr" className="whitespace-nowrap">{data.number}</bdi></p>
+          <p className="font-latin text-[12px] text-doc-muted">{fmt.date(data.date)}</p>
         </div>
       </header>
 
@@ -229,7 +230,7 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
         ))}
       </ol>
 
-      <section className="grid gap-4 border-t border-neutral-200 pt-5 sm:grid-cols-2">
+      <section className="grid gap-4 border-t border-sand pt-5 sm:grid-cols-2">
         <div className="grid gap-1">
           <p className="font-bold">{t("firstParty")}</p>
           <p className="text-[13px]">{orgName}</p>
@@ -240,7 +241,7 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
           {data.accepted ? (
             <p className="rounded-2xl bg-primary/10 px-3 py-2 text-[13px] text-primary">{t("acceptedBy", { name: data.accepted.name, date: fmt.dateTime(data.accepted.at) })}</p>
           ) : (
-            <p className="text-[13px] text-neutral-500">{t("sigAwaiting")}</p>
+            <p className="text-[13px] text-doc-muted">{t("sigAwaiting")}</p>
           )}
         </div>
       </section>
@@ -250,10 +251,10 @@ export function ContractTerms({ data, org, client }: { data: ContractTermsData; 
 
 function Party({ title, name, children }: { title: string; name: string; children: React.ReactNode }) {
   return (
-    <div className="grid content-start gap-1 rounded-2xl bg-neutral-100 p-4">
+    <div className="grid content-start gap-1 rounded-2xl bg-sand/35 p-4">
       <p className="text-[12px] font-bold text-primary">{title}</p>
       <p className="text-[15px] font-extrabold">{name}</p>
-      <ul className="grid gap-0.5 text-[13px] text-neutral-700">{children}</ul>
+      <ul className="grid gap-0.5 text-[13px] text-doc-muted">{children}</ul>
     </div>
   );
 }

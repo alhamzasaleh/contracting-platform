@@ -1,5 +1,6 @@
 "use client";
 import { useTranslations } from "next-intl";
+import { BrandLogo } from "@/components/brand-logo";
 import { useFormatter } from "@/components/formatter-provider";
 import { STEPS } from "@/lib/pricing";
 import type { ClientView } from "@/lib/quotes";
@@ -49,26 +50,15 @@ export function QuoteDocument({
     : null;
 
   return (
-    <article className="min-w-0 quote-doc mx-auto grid max-w-[820px] gap-6 rounded-3xl border border-border bg-white p-6 text-[14px] text-neutral-900 sm:p-10 print:max-w-none print:rounded-none print:border-0 print:p-0">
-      <header className="flex items-start justify-between gap-6 border-b-2 border-primary pb-5">
-        <div className="flex items-center gap-4">
-          {org.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={org.logoUrl}
-              alt=""
-              className="h-16 w-auto object-contain"
-            />
-          ) : (
-            <span className="flex size-14 items-center justify-center rounded-t-full bg-primary text-[22px] font-bold text-primary-foreground">
-              {org.name.slice(0, 1)}
-            </span>
-          )}
+    <article className="min-w-0 quote-doc mx-auto grid max-w-[820px] gap-6 rounded-3xl border border-border bg-white p-6 text-[14px] text-basalt sm:p-10 print:max-w-none print:rounded-none print:border-0 print:p-0">
+      <header className="flex flex-wrap items-start justify-between gap-6 border-b-2 border-primary pb-5">
+        <div className="flex flex-wrap items-center gap-4">
+          {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="w-[140px] text-basalt" />}
           <div>
             <p className="text-[18px] font-extrabold">
               {org.legal_name ?? org.name}
             </p>
-            <p className="text-[12px] text-neutral-500">
+            <p className="text-[12px] text-doc-muted">
               {[
                 org.cr_number && t("cr", { n: org.cr_number }),
                 org.vat_number && t("vat", { n: org.vat_number }),
@@ -77,7 +67,7 @@ export function QuoteDocument({
                 .join(" · ")}
             </p>
             {(org.phone || org.city) && (
-              <p className="font-latin text-[12px] text-neutral-500">
+              <p className="font-latin text-[12px] text-doc-muted">
                 {[org.city, org.phone].filter(Boolean).join(" · ")}
               </p>
             )}
@@ -87,8 +77,8 @@ export function QuoteDocument({
           <p className="text-[22px] font-extrabold text-primary">
             {t("title")}
           </p>
-          <p className="font-latin text-[13px]">{number}</p>
-          <p className="text-[12px] text-neutral-500">
+          <p className="font-latin text-[13px]"><bdi dir="ltr" className="whitespace-nowrap">{number}</bdi></p>
+          <p className="text-[12px] text-doc-muted">
             {t("version", { n: version })}
           </p>
         </div>
@@ -96,24 +86,24 @@ export function QuoteDocument({
 
       <section className="grid gap-4 sm:grid-cols-2">
         <div>
-          <p className="text-[12px] text-neutral-500">{t("to")}</p>
+          <p className="text-[12px] text-doc-muted">{t("to")}</p>
           <p className="text-[16px] font-bold">{client.name}</p>
-          <p className="text-[13px] text-neutral-600">
+          <p className="text-[13px] text-doc-muted">
             {[client.city, phone].filter(Boolean).join(" · ")}
           </p>
         </div>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[13px] sm:justify-self-end">
-          <dt className="text-neutral-500">{t("date")}</dt>
+          <dt className="text-doc-muted">{t("date")}</dt>
           <dd className="font-latin">{fmt.date(date)}</dd>
           {validUntil && (
             <>
-              <dt className="text-neutral-500">{t("validUntil")}</dt>
+              <dt className="text-doc-muted">{t("validUntil")}</dt>
               <dd className="font-latin">{fmt.date(validUntil)}</dd>
             </>
           )}
-          <dt className="text-neutral-500">{t("service")}</dt>
+          <dt className="text-doc-muted">{t("service")}</dt>
           <dd>{tp(`kind_${view.service}`)}</dd>
-          <dt className="text-neutral-500">{t("projectType")}</dt>
+          <dt className="text-doc-muted">{t("projectType")}</dt>
           <dd>{tp(`pt_${view.options.projectType ?? "full"}`)}</dd>
         </dl>
       </section>
@@ -134,7 +124,7 @@ export function QuoteDocument({
           </thead>
           <tbody className="font-latin tabular-nums">
             {view.workTypes.map((w) => (
-              <tr key={w.workType} className="border-b border-neutral-200">
+              <tr key={w.workType} className="border-b border-sand">
                 <td className="px-3 py-2.5 font-sans font-bold">
                   {workItemLabel(t, view.service, w.workType)}
                 </td>
@@ -176,12 +166,12 @@ export function QuoteDocument({
             <dd className="font-latin tabular-nums">{fmt.money(view.vat)}</dd>
           </div>
         )}
-        <div className="flex justify-between border-t-2 border-neutral-900 pt-2 text-[17px] font-extrabold">
+        <div className="flex justify-between border-t-2 border-basalt pt-2 text-[17px] font-extrabold">
           <dt>{t("total")}</dt>
           <dd className="font-latin tabular-nums">{fmt.money(view.total)}</dd>
         </div>
         {view.vatPercent === 0 && (
-          <p className="text-[11px] text-neutral-500">{t("noVat")}</p>
+          <p className="text-[11px] text-doc-muted">{t("noVat")}</p>
         )}
       </dl>
 
@@ -193,7 +183,7 @@ export function QuoteDocument({
         </div>
       </section>
 
-      <section className="grid gap-1.5 rounded-2xl bg-neutral-100 p-4 text-[12px] leading-6 text-neutral-700 print:bg-neutral-100">
+      <section className="grid gap-1.5 rounded-2xl bg-sand/35 p-4 text-[12px] leading-6 text-doc-muted print:bg-sand/35">
         <p className="font-bold">{t("terms")}</p>
         {view.options.projectType === "labour" && (
           <p>• {t("termLabourOnly")}</p>
@@ -238,7 +228,7 @@ export function IncludedList({ view }: { view: ClientView }) {
           <li key={i.step}>
             • {tp(`step_${i.step}`)}
             {i.brand && ` — ${i.brand}`}
-            {coats.length > 0 && <span className="text-neutral-500"> ({coats.join("، ")})</span>}
+            {coats.length > 0 && <span className="text-doc-muted"> ({coats.join("، ")})</span>}
           </li>
         );
       })}

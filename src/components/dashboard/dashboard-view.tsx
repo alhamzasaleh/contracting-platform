@@ -71,8 +71,8 @@ export function DashboardView({ data }: { data: DashboardData }) {
           <p className="text-[13px] opacity-80">{t("actualMargin")}</p>
           <p className="num mt-2 text-[26px] font-extrabold sm:text-[32px]">—</p>
           <div className="mt-2 flex flex-col gap-1.5" aria-hidden>
-            <div className="h-1.5 rounded-full bg-white/20" />
-            <div className="h-1.5 rounded-full bg-white/20" />
+            <div className="h-1.5 rounded-full bg-gypsum/20" />
+            <div className="h-1.5 rounded-full bg-gypsum/20" />
           </div>
           <p className="mt-2 text-xs opacity-80">{t("marginHint")}</p>
         </motion.div>
@@ -117,7 +117,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
         {/* Approvals — ink panel */}
         <motion.section variants={item} className="flex flex-col gap-4 rounded-2xl bg-ink p-5 text-ink-foreground sm:p-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-[19px] font-extrabold text-white">{t("approvals")}</h2>
+            <h2 className="text-[19px] font-extrabold text-gypsum">{t("approvals")}</h2>
             <span className="num flex size-7 items-center justify-center rounded-full bg-[var(--brand-dark)] text-[13px] font-bold text-ink">
               {fmt.number(0)}
             </span>

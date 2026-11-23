@@ -1,3 +1,4 @@
+import { SAMPLE_LOGO } from "../../sample-logo";
 import { notFound } from "next/navigation";
 import { BrandStyle } from "@/components/brand-style";
 import { PortalView } from "@/components/portal/portal-view";
@@ -9,7 +10,7 @@ export default function P() {
   return (
     <>
       <BrandStyle primary={SAMPLE_PORTAL_WORK.org.brand.primary} accent={SAMPLE_PORTAL_WORK.org.brand.accent} />
-      <PortalView data={SAMPLE_PORTAL_WORK} logoUrl={null} number="C-2026-004" token="preview" />
+      <PortalView data={SAMPLE_PORTAL_WORK} logoUrl={SAMPLE_LOGO} number="C-2026-004" token="preview" />
     </>
   );
 }

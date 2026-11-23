@@ -1,8 +1,10 @@
 "use client";
+import { DocNo } from "@/components/doc-no";
 import { Camera, Check, CheckCircle2, Eraser, MessageSquare, PenLine, Send, ShieldCheck, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { ContractTerms } from "@/components/contracts/contract-terms";
 import { useFormatter } from "@/components/formatter-provider";
 import { HandoverCertificate } from "@/components/projects/handover-certificate";
@@ -132,20 +134,13 @@ export function PortalView({
     <div className="min-h-dvh bg-background">
       {/* Hero with the arch motif */}
       <header className="relative overflow-hidden bg-ink text-ink-foreground">
-        <div className="mx-auto grid max-w-[880px] gap-6 px-5 pt-10 pb-14 sm:grid-cols-[auto_1fr] sm:items-end [&>*]:min-w-0">
-          <div className="flex size-24 items-end justify-center overflow-hidden rounded-t-full border-2 border-white/20 bg-white/10 p-3">
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="" className="max-h-16 w-auto object-contain" />
-            ) : (
-              <span className="text-[36px] font-extrabold">{org.name.slice(0, 1)}</span>
-            )}
-          </div>
+        <div className="mx-auto grid max-w-[880px] gap-6 px-5 pt-10 pb-14 text-gypsum sm:grid-cols-[auto_1fr] sm:items-end [&>*]:min-w-0">
+          {logoUrl && <BrandLogo src={logoUrl} label={org.name} className="w-[160px] text-gypsum" />}
           <div className="grid gap-1.5">
             <p className="text-[14px] opacity-75">{org.legal_name ?? org.name}</p>
             <h1 className="text-[28px] leading-tight font-extrabold sm:text-[34px]">{t("hello", { name: data.client.name })}</h1>
             <p className="text-[15px] opacity-85">
-              {t("intro", { service: tp(`kind_${c.service}`) })} · <span className="font-latin">{c.number}</span>
+              {t("intro", { service: tp(`kind_${c.service}`) })} · <DocNo>{c.number}</DocNo>
             </p>
           </div>
         </div>
@@ -160,7 +155,7 @@ export function PortalView({
                 <span
                   className={cn(
                     "flex size-9 items-center justify-center rounded-full border-2 text-[13px] font-bold",
-                    i < current ? "border-primary bg-primary text-primary-foreground" : i === current ? "border-primary text-primary" : "border-border text-subtle-foreground",
+                    i < current ? "border-clay bg-clay text-gypsum" : i === current ? "border-clay text-primary" : "border-border text-subtle-foreground",
                   )}
                 >
                   {i < current ? <Check className="size-4" /> : i + 1}
@@ -455,7 +450,7 @@ function Addenda({ list, clientName, number, token, onAccept }: { list: NonNulla
         <article key={a.id} className={cn("grid gap-2 rounded-2xl p-4", a.status === "sent" ? "border-2 border-primary/50" : "bg-surface-sunken/50")}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="font-bold">
-              <span className="font-latin">{a.number}</span> · {a.title}
+              <DocNo>{a.number}</DocNo> · {a.title}
             </p>
             <p className="font-latin font-extrabold tabular-nums">{fmt.money(a.total)}</p>
           </div>

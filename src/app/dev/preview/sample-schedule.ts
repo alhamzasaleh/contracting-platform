@@ -12,7 +12,7 @@ export const SAMPLE_SCHEDULE: ScheduleData = {
     { id: "e4", full_name: "سليم خان", job_title: "دهّان" },
   ],
   teams: [
-    { id: "t1", name: "فريق الجبس", kind: "inhouse", services: ["gypsum"], color: "#1E4D4A", contact_phone: null, is_active: true, notes: null, members: ["e1", "e2"] },
+    { id: "t1", name: "فريق الجبس", kind: "inhouse", services: ["gypsum"], color: "#9A5231", contact_phone: null, is_active: true, notes: null, members: ["e1", "e2"] },
     { id: "t2", name: "فريق الدهان", kind: "inhouse", services: ["interior", "exterior"], color: "#3B5B7A", contact_phone: null, is_active: true, notes: null, members: ["e3", "e4"] },
     { id: "t3", name: "مؤسسة الإتقان (مقاول)", kind: "external", services: ["exterior"], color: "#6B4E71", contact_phone: "966551112222", is_active: true, notes: null, members: [] },
   ],

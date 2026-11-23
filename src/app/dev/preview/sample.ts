@@ -1,3 +1,4 @@
+import { SAMPLE_LOGO } from "./sample-logo";
 import type { AuditItem } from "@/components/settings/audit-view";
 import type { InvitationItem, MemberItem } from "@/components/settings/members-view";
 import type { ShellData } from "@/components/shell/types";
@@ -15,12 +16,12 @@ export const SAMPLE_ORG = {
   address: "حي العليا، طريق الملك فهد",
   signatory_name: "صالح العتيبي",
   signatory_title: "المالك",
-  brand: { primary: "#1E4D4A", accent: "#4F6F66", source: "default" as const },
+  brand: { primary: "#B5653E", accent: "#D9CBB5", source: "default" as const },
 };
 
 export const SAMPLE_SHELL: ShellData = {
   user: { name: "صالح العتيبي", phone: "966500000001" },
-  org: { name: SAMPLE_ORG.name, logoUrl: null },
+  org: { name: SAMPLE_ORG.name, logoUrl: SAMPLE_LOGO },
   role: "owner",
   permissions: [...PERMISSIONS],
   basePath: "/dev/preview",

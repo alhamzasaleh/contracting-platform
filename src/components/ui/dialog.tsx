@@ -17,7 +17,7 @@ export function DialogContent({
 }: React.ComponentProps<typeof D.Content> & { closeLabel?: string; side?: "start" | "end" | "bottom" }) {
   return (
     <D.Portal>
-      <D.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-[fade-in_0.2s_ease-out]" />
+      <D.Overlay className="fixed inset-0 z-50 bg-basalt/45 backdrop-blur-[2px] data-[state=open]:animate-[fade-in_0.2s_ease-out]" />
       <D.Content
         className={cn(
           "fixed z-50 bg-surface shadow-lg outline-none",

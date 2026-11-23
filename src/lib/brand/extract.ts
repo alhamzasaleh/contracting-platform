@@ -79,7 +79,7 @@ export function extractPalette(pixels: Uint8ClampedArray | number[], maxSamples 
   } else {
     // Monochrome logo: use the darkest prominent colour (often a near-black).
     const dark = [...merged].filter((m) => m.n > 0).sort((x, y) => x.l - y.l)[0];
-    primary = dark.l < 0.95 ? dark.hex : "#1E4D4A";
+    primary = dark.l < 0.95 ? dark.hex : "#B5653E";
   }
 
   const primaryHue = hexToOklch(primary).h;

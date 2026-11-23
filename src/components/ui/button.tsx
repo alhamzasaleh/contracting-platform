@@ -15,7 +15,7 @@ export const buttonVariants = cva(
           "border border-border-strong bg-surface text-foreground hover:bg-surface-2",
         ghost: "text-muted-foreground hover:bg-surface-2 hover:text-foreground",
         soft: "bg-primary-soft text-primary hover:bg-[color-mix(in_oklch,var(--primary)_16%,transparent)]",
-        danger: "bg-danger text-white shadow-sm hover:bg-[color-mix(in_oklch,var(--danger)_88%,black)]",
+        danger: "bg-danger text-gypsum shadow-sm hover:bg-[color-mix(in_oklch,var(--danger)_88%,black)]",
         link: "h-auto px-0 text-primary underline-offset-4 hover:underline",
       },
       size: {

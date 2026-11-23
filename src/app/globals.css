@@ -4,42 +4,49 @@
 
 /* -----------------------------------------------------------------------------
    Design tokens
-   Neutrals are fixed; brand colours come from the company's logo and are
-   injected per organization as --brand-* variables on <html> (see
-   src/components/brand-style.tsx). Defaults below are used until then.
+   Identity: ملمس / MALMAS (CLAUDE.md §6.1) — gypsum, basalt, clay, sand.
+   Neutrals are built from it; the brand (primary/accent) is injected per
+   organization as --brand-* variables (src/components/brand-style.tsx).
+   Defaults below follow the identity until then.
    -------------------------------------------------------------------------- */
 
 :root {
-  /* Brand (replaced per organization from its logo; see BrandStyle). */
-  --brand-light: #1e4d4a;
-  --brand-light-fg: #ffffff;
-  --brand-dark: #9db4a8;
-  --brand-dark-fg: #121416;
-  --accent-light: #4f6f66;
-  --accent-light-fg: #ffffff;
-  --accent-dark: #b9cec6;
-  --accent-dark-fg: #121416;
+  /* Identity palette (§6.1). Never small text on clay (contrast < 4.5:1). */
+  --gypsum: #efebe3;
+  --basalt: #22262a;
+  --clay: #b5653e;
+  --sand: #d9cbb5;
+
+  /* Brand (per organization; see BrandStyle). Defaults: clay, darkened for AA text. */
+  --brand-light: #9a5231;
+  --brand-light-fg: #efebe3;
+  --brand-dark: #d38a62;
+  --brand-dark-fg: #22262a;
+  --accent-light: #75654e;
+  --accent-light-fg: #efebe3;
+  --accent-dark: #d9cbb5;
+  --accent-dark-fg: #22262a;
 
   --radius: 1rem;
 
-  /* "Atelier" neutrals: warm sand + charcoal ink. */
-  --background: #f2efe9;
-  --foreground: #17191b;
-  --surface: #fbfaf7;
-  --surface-2: #f5f2ec;
-  --surface-sunken: #e9e4da;
-  --muted-foreground: #5f5c55;
-  --subtle-foreground: #7d796f;
-  --border: #e5e0d6;
-  --border-strong: #cfc9bd;
+  /* Neutrals from gypsum (background) and basalt (text). */
+  --background: var(--gypsum);
+  --foreground: var(--basalt);
+  --surface: #f7f5f0;
+  --surface-2: #f2efe8;
+  --surface-sunken: #e6e0d4;
+  --muted-foreground: #5c5850;
+  --subtle-foreground: #6b675f;
+  --border: #e0d8ca;
+  --border-strong: var(--sand);
   --ring: color-mix(in oklch, var(--primary) 55%, transparent);
 
-  /* Ink: the dark sidebar and emphasis panels (same in light and dark). */
-  --ink: #17191b;
-  --ink-2: #222629;
-  --ink-3: #2c3033;
-  --ink-foreground: #d9d6cf;
-  --ink-muted: #8b8f92;
+  /* Ink = basalt: the dark sidebar and emphasis panels (same in light and dark). */
+  --ink: var(--basalt);
+  --ink-2: #2b3035;
+  --ink-3: #343a40;
+  --ink-foreground: var(--gypsum);
+  --ink-muted: #a7aaac;
 
   --primary: var(--brand-light);
   --primary-foreground: var(--brand-light-fg);
@@ -61,19 +68,19 @@
 }
 
 .dark {
-  --background: #121416;
-  --foreground: #ece9e3;
-  --surface: #1a1d20;
-  --surface-2: #202427;
-  --surface-sunken: #0e1012;
-  --muted-foreground: #a9a69f;
-  --subtle-foreground: #8b8f92;
-  --border: #262a2e;
-  --border-strong: #353a3e;
+  --background: var(--basalt);
+  --foreground: var(--gypsum);
+  --surface: #2a2f34;
+  --surface-2: #30363b;
+  --surface-sunken: #1c1f22;
+  --muted-foreground: #b5b0a6;
+  --subtle-foreground: #9a9ea1;
+  --border: #383e44;
+  --border-strong: #464d54;
 
-  --ink: #0d0f10;
-  --ink-2: #1c2023;
-  --ink-3: #262a2e;
+  --ink: #1a1d20;
+  --ink-2: #24282c;
+  --ink-3: #2e3337;
 
   --primary: var(--brand-dark);
   --primary-foreground: var(--brand-dark-fg);
@@ -94,6 +101,11 @@
 }
 
 @theme inline {
+  --color-gypsum: var(--gypsum);
+  --color-basalt: var(--basalt);
+  --color-clay: var(--clay);
+  --color-sand: var(--sand);
+  --color-doc-muted: #5c5850;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);

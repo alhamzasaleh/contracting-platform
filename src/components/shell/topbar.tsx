@@ -22,7 +22,7 @@ import {
 import { Tooltip } from "@/components/ui/tooltip";
 import { useFormatter } from "@/components/formatter-provider";
 import { CommandMenu } from "./command-menu";
-import { OrgMark } from "./org-mark";
+import { BrandLogo } from "@/components/brand-logo";
 import { SidebarBrand, SidebarNav } from "./sidebar";
 import type { ShellData } from "./types";
 
@@ -62,9 +62,12 @@ export function Topbar({ data }: { data: ShellData }) {
         >
           <Menu className="!size-5" />
         </Button>
-        <div className="flex min-w-0 items-center gap-2.5 lg:hidden">
-          <OrgMark name={data.org.name} logoUrl={data.org.logoUrl} className="size-8" />
-          <span className="truncate text-[15px] font-semibold">{data.org.name}</span>
+        <div className="flex min-w-0 items-center gap-2.5 text-foreground lg:hidden">
+          {data.org.logoUrl ? (
+            <BrandLogo src={data.org.logoUrl} label={data.org.name} className="w-[120px]" />
+          ) : (
+            <span className="truncate text-[15px] font-semibold">{data.org.name}</span>
+          )}
         </div>
 
         {/* Search */}

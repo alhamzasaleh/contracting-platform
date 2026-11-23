@@ -40,7 +40,7 @@ export function CommandMenu({ data, open, onOpenChange }: { data: ShellData; ope
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
-        <D.Overlay className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[2px] data-[state=open]:animate-[fade-in_0.15s_ease-out]" />
+        <D.Overlay className="fixed inset-0 z-50 bg-basalt/35 backdrop-blur-[2px] data-[state=open]:animate-[fade-in_0.15s_ease-out]" />
         <D.Content
           className="fixed start-1/2 top-[12vh] z-50 w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-2xl border border-border bg-surface shadow-lg ltr:-translate-x-1/2 rtl:translate-x-1/2 data-[state=open]:animate-[dialog-in_0.2s_var(--ease-out-expo)]"
           aria-describedby={undefined}

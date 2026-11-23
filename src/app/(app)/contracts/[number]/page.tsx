@@ -3,14 +3,14 @@ import { ContractView } from "@/components/contracts/contract-views";
 import { PageHeader } from "@/components/shell/app-shell";
 import { requirePermission } from "@/lib/auth/session";
 import { loadContract } from "@/lib/data/contracts";
-import { signedAssetUrl } from "@/lib/org";
+import { logoDataUrl } from "@/lib/org";
 import { cancelAddendum, cancelContract, decideAddendum, markAddendumPaid, revokeLinks, saveAddendum, sendAddendum, sendContract } from "../actions";
 
 export default async function ContractPage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
   const session = await requirePermission("quotes.view");
   const t = await getTranslations("contract");
-  const [detail, logoUrl] = await Promise.all([loadContract(session, decodeURIComponent(number)), signedAssetUrl(session.organization.logo_path)]);
+  const [detail, logoUrl] = await Promise.all([loadContract(session, decodeURIComponent(number)), logoDataUrl(session.organization.logo_path)]);
   const o = session.organization;
   return (
     <div>

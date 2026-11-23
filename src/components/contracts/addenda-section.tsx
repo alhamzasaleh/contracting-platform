@@ -1,4 +1,5 @@
 "use client";
+import { DocNo } from "@/components/doc-no";
 import { Check, FilePlus2, Pencil, Send, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -71,7 +72,7 @@ export function AddendaSection({ detail, actions }: { detail: ContractDetail; ac
             <li key={a.id} className="grid gap-2 rounded-2xl bg-surface-sunken/50 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="flex flex-wrap items-center gap-2 font-bold">
-                  <span className="font-latin">{a.number}</span> {a.title}
+                  <DocNo>{a.number}</DocNo> {a.title}
                   <Badge tone={TONE[a.status]}>{t(`st_${a.status}`)}</Badge>
                   {a.status === "accepted" && <Badge tone={a.payment_status === "paid" ? "success" : "warning"}>{t(`pay_${a.payment_status}`)}</Badge>}
                 </p>

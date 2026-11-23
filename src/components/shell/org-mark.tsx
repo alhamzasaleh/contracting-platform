@@ -4,30 +4,6 @@ import { cn } from "@/lib/utils";
  * Company logo, or the arch mark (the "Atelier" motif) until a logo is
  * uploaded. `tone="ink"` is for dark surfaces such as the sidebar.
  */
-export function OrgMark({
-  name,
-  logoUrl,
-  className,
-  tone = "surface",
-}: {
-  name: string;
-  logoUrl: string | null;
-  className?: string;
-  tone?: "surface" | "ink";
-}) {
-  if (logoUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL
-      <img
-        src={logoUrl}
-        alt=""
-        className={cn("size-10 shrink-0 rounded-xl border border-border bg-white object-contain p-1", className)}
-      />
-    );
-  }
-  return <ArchMark className={className} tone={tone} label={name} />;
-}
-
 export function ArchMark({
   className,
   tone = "surface",

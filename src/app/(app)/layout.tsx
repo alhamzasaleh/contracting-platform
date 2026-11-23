@@ -1,11 +1,11 @@
 import { BrandStyle } from "@/components/brand-style";
 import { AppShell } from "@/components/shell/app-shell";
 import { getSession } from "@/lib/auth/session";
-import { signedAssetUrl } from "@/lib/org";
+import { logoDataUrl } from "@/lib/org";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  const logoUrl = await signedAssetUrl(session.organization.logo_path);
+  const logoUrl = await logoDataUrl(session.organization.logo_path);
 
   return (
     <>

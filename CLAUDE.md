@@ -59,7 +59,7 @@
 ### 3.3 Costing & pricing
 > The full pricing engine (catalogue, systems, quantity logic, seed values) is in **Appendix A — Pricing Engine**. It is the heart of the product: get it right before building quotes.
 - **Cost price list** for materials and labour, with history.
-- **Service → materials**: parametric "systems" per service (Appendix A), plus a **waste %** per material.
+- **Service → materials recipe (BOM)**: parametric "systems" per service (Appendix A), plus a **waste %** per material.
 - **Labour**: in-house or external. External priced **per m²** or **lump sum per project**.
 - **Extra costs**: transport, equipment rental (scaffolding etc.).
 - **Overheads** (labour housing, transport, fixed company costs): fixed % of project cost, set in settings.
@@ -152,6 +152,7 @@
 ### 3.19 Company settings
 - Single company, single identity: name, CR number, VAT number, logo.
 - **Brand colours extracted automatically from the uploaded logo** and applied to quote, contract, invoice and client page templates (editable).
+- For the owner's own organization, **seed the brand from the approved identity (§6.1)** instead of extracting from the logo.
 - Price lists, minimum margin, overhead %, service stages/specs/productivity, warranty default, approval limits, Qoyod key, WhatsApp settings.
 
 
@@ -194,7 +195,7 @@ If the Phase 1 schema is already built, add these through a new migration (non-d
 ## 6. Design direction (must feel premium)
 
 - Level: world-class SaaS (think Linear / Stripe / Vercel dashboards), adapted for Arabic.
-- **Approved direction: "Atelier"** (owner-approved Nov 2026; mock-ups in the design canvas): warm sand neutrals, charcoal "ink" sidebar and emphasis panels, deep petrol-green primary with sage accent, the **arch** motif (logo mark, photo frames, client page hero), pill buttons, large rounded cards. **No orange** in the identity. Brand colours will later be replaced by the logo's colours.
+- **Approved identity: ملمس / MALMAS (§6.1, approved 2026-11-23)** — replaces the earlier "Atelier" palette (petrol green, sage, arch motif). Kept from Atelier: pill buttons, large rounded cards, a dark ("ink" = basalt) sidebar and emphasis panels.
 - Arabic typography: **Almarai** (UI and documents); Inter for English. **Numbers are Western digits (123) in both languages** by default.
 - Theme built from brand colours (from logo), light + dark mode, refined neutrals, generous spacing, soft depth (subtle shadows/glass where it adds clarity, never decoration for its own sake).
 - Dashboard: animated KPI cards, interactive ECharts (cash-flow forecast, expected vs actual profit, service profitability, receivables ageing), drill-down on click, skeleton loaders, smooth page transitions.
@@ -202,6 +203,19 @@ If the Phase 1 schema is already built, add these through a new migration (non-d
 - Documents (quote, contract, invoice, handover certificate): print-grade, branded, bilingual-ready, RTL-perfect, with QR where relevant.
 - Client page: elegant timeline of the project, clear call-to-action at each step (accept, confirm stage, add note).
 - Accessibility: WCAG AA contrast, keyboard navigation, readable at arm's length on site.
+
+### 6.1 Approved brand identity — ملمس / MALMAS (approved 2026-11-23)
+- Full reference: project doc `الهوية-البصرية.md` and the design canvas https://claude.ai/artifact/1gbY2q6nttNNPfAd2cMQDj. The trade name is still pending registration; keep the brand name configurable, never hard-coded in components.
+- Logo: custom square-Kufic lettering of "ملمس" (not a font) + "MALMAS" outlined underneath. Files go in `public/brand/` (SVG): `malmas-primary-*` (Arabic + Latin) and `malmas-arabic-*` (Arabic only, for sizes under 120 px). Colour variants: basalt, gypsum, clay, black, white. Never redraw, stretch, tilt or recolour the logo.
+- Palette (design tokens):
+  | Token | Name | HEX | Use |
+  |---|---|---|---|
+  | `gypsum` | جبس | #EFEBE3 | light-mode background |
+  | `basalt` | بازلت | #22262A | text on light; dark-mode background |
+  | `clay` | طين نجدي | #B5653E | accent (buttons, highlights, charts' primary series). No small text on clay (contrast < 4.5:1) — use basalt or gypsum text only at ≥ 18.66 px bold |
+  | `sand` | رمل | #D9CBB5 | secondary surfaces, dividers |
+- Signature detail: the 45° cut (from the lam's top) may be reused sparingly — e.g. a small clay corner triangle on documents, as on the business card. No gradients, no gold.
+- Clear space around the logo = the height of the letter meem. Minimum size: 120 px / 30 mm with Latin; 60 px / 15 mm Arabic only.
 
 ---
 
@@ -233,7 +247,7 @@ Always show AI output as a **draft for human review**; never auto-post financial
 
 ## 9. Build phases
 
-1. **Foundation**: repo, Next.js, Supabase, auth (phone OTP), organizations, roles/permissions, RLS, audit log, i18n + RTL, design system & app shell, company settings with logo-colour extraction, document numbering. Deploy.
+1. **Foundation**: repo, Next.js, Supabase, auth (phone OTP), organizations, roles/permissions, RLS, audit log, i18n + RTL, design system & app shell (tokens from §6.1, logo files in `public/brand/`), company settings with logo-colour extraction, document numbering. Deploy.
 2. **Catalogue & pricing engine (Appendix A)**: brands, products with coverage/pack/price per supplier, datasheet AI import, equivalence groups, systems & variants, consumption rates, labour, overheads, margin rules, seed data from Appendix A.6. Build the quantity engine as a pure, fully unit-tested TypeScript module (golden tests from A.7) before any UI. (Also: employees & government cost settings → fully loaded cost per worker-day, §3.20 — owner addition, kept.)
 3. **Clients → survey → quote**: rooms with L×W×H, zones and overrides, quick-estimate mode, pricing engine UI, multi-option quotes, purchase list, readiness checks, quote versions, branded PDF, approvals for margin/discount.
 4. **Client page & contracts**: portal link, e-acceptance, contract with start date, project types, payment schedule with 75% warning.
@@ -286,7 +300,9 @@ Guide the owner through each one step by step when it's first needed.
 - **Phase 8**: `addenda` (AD-): draft → `submit_addendum()` (owner approves directly, others raise an `addendum` approval; the approvals trigger applies the decision) → `sent` → client accepts on the page (`portal_accept_addendum`, service role) → payment `requested`, a work stage is inserted before the final handover, delivery extends by `extra_days` (schedule too). Purchases/progress on an addendum are refused until it's accepted. `subcontractors` + `subcontractor_agreements` (lump | per m², weekly | progress) + `subcontractor_work` (earned amount priced by a trigger) + `subcontractor_payments` (finance.manage only; no retention). Petty cash: `petty_cash_accounts` (one per holder, opened by finance) + `petty_cash_entries` (ledger, no edits; top-up/return = finance, expense = holder or purchasing staff, receipt via `uploadInvoice`). Project costs include petty cash; subcontractor earned shown alongside. Helpers `src/lib/subcontractors`.
 - **Auth hook**: `public.hook_before_user_created` must be enabled in Supabase (Authentication → Hooks → Before User Created) so the Auth API can't create users outside the allow-list.
 - `npm run test:e2e` runs against the last `npm run build` — rebuild first.
-- Brand colours: `organizations.brand` → `BrandStyle` derives accessible light/dark tokens (`src/lib/brand/color.ts`). Neutral and "ink" tokens live in `src/app/globals.css`.
+- Brand colours: `organizations.brand` → `BrandStyle` derives accessible light/dark tokens (`src/lib/brand/color.ts`). Identity tokens (`--gypsum`, `--basalt`, `--clay`, `--sand`) and the neutrals built from them live in `src/app/globals.css`. Primary = clay, darkened automatically for button text contrast (≈ #9A5231 with gypsum text, owner-approved for AA); pure clay `--clay` for completed steps / highlights.
+- **Logo**: one single-colour file with a transparent background, shown by `BrandLogo` (CSS `mask-image`, coloured with `currentColor`): gypsum on dark surfaces (sidebar ~120 px, client page ~160 px), basalt on light ones (documents). The server embeds small logos as a data URL (`logoDataUrl`, same origin, no CORS for masks). No frame, circle or arch around it; no company name text next to it when a logo exists.
+- **Document numbers** (C-2026-001…) are always LTR-isolated: `<DocNo>` / `<bdi dir="ltr">` in JSX and `ltr()` (`src/lib/utils`) inside strings and `<option>`s.
 
 ## Appendix A — Pricing Engine (the core of the product)
 

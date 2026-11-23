@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shell/app-shell";
 import { requirePermission } from "@/lib/auth/session";
 import { loadPricingSettings } from "@/lib/data/catalogue";
 import { loadQuote } from "@/lib/data/quotes";
-import { signedAssetUrl } from "@/lib/org";
+import { logoDataUrl } from "@/lib/org";
 import { decideApproval, issueQuote } from "../actions";
 
 export default async function QuotePage({ params }: { params: Promise<{ number: string }> }) {
@@ -14,7 +14,7 @@ export default async function QuotePage({ params }: { params: Promise<{ number: 
   const [detail, settings, logoUrl] = await Promise.all([
     loadQuote(session, decodeURIComponent(number)),
     loadPricingSettings(session),
-    signedAssetUrl(session.organization.logo_path),
+    logoDataUrl(session.organization.logo_path),
   ]);
   const o = session.organization;
   return (

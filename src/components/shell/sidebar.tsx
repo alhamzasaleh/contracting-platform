@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { NAV, isActive, type NavItem } from "./nav";
-import { OrgMark } from "./org-mark";
+import { BrandLogo } from "@/components/brand-logo";
 import type { ShellData } from "./types";
 
 export function SidebarNav({ data, onNavigate }: { data: ShellData; onNavigate?: () => void }) {
@@ -56,7 +56,7 @@ export function SidebarNav({ data, onNavigate }: { data: ShellData; onNavigate?:
               );
               const cls = cn(
                 "group relative flex h-11 items-center gap-3 rounded-xl px-3 text-[14px] transition-colors lg:h-10",
-                active ? "font-bold text-white" : "text-ink-foreground/80 hover:bg-ink-2/60 hover:text-white",
+                active ? "font-bold text-gypsum" : "text-ink-foreground/80 hover:bg-ink-2/60 hover:text-gypsum",
                 soon && "cursor-default opacity-55 hover:bg-transparent hover:text-ink-foreground/80",
               );
               return soon ? (
@@ -97,9 +97,13 @@ export function Sidebar({ data }: { data: ShellData }) {
 
 export function SidebarBrand({ data }: { data: ShellData }) {
   return (
-    <div className="flex h-20 items-center gap-3 px-6">
-      <OrgMark name={data.org.name} logoUrl={data.org.logoUrl} tone="ink" />
-      <p className="min-w-0 truncate text-[16px] leading-tight font-extrabold text-white">{data.org.name}</p>
+    // The logo already carries the name (§6.1): shown alone, gypsum on basalt, no frame.
+    <div className="flex min-h-20 items-center px-6 py-4 text-gypsum">
+      {data.org.logoUrl ? (
+        <BrandLogo src={data.org.logoUrl} label={data.org.name} className="w-[120px]" />
+      ) : (
+        <p className="min-w-0 truncate text-[17px] leading-tight font-extrabold">{data.org.name}</p>
+      )}
     </div>
   );
 }
@@ -111,7 +115,7 @@ function SidebarUser({ data, roleLabel }: { data: ShellData; roleLabel: string }
         {(data.user.name ?? "؟").trim().charAt(0)}
       </span>
       <div className="min-w-0">
-        <p className="truncate text-[13px] font-bold text-white">{data.user.name ?? "—"}</p>
+        <p className="truncate text-[13px] font-bold text-gypsum">{data.user.name ?? "—"}</p>
         <p className="truncate text-[11px] text-ink-muted">{roleLabel}</p>
       </div>
     </div>

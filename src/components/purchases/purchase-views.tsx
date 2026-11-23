@@ -1,4 +1,5 @@
 "use client";
+import { DocNo } from "@/components/doc-no";
 import { AlertTriangle, ArrowLeftRight, Camera, Check, FileText, Package, Paperclip, Plus, ShoppingCart, Sparkles, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -19,7 +20,7 @@ import type { InventoryData, ItemRef, ProjectCost, PurchaseDetail, PurchaseForm,
 import { costStatus, lineAmount, purchaseTotals, type InvoiceDraft, type InvoiceFlag } from "@/lib/purchases";
 import type { PurchaseStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
-import { cn } from "@/lib/utils";
+import { cn, ltr } from "@/lib/utils";
 
 const TONE: Record<PurchaseStatus, "neutral" | "primary" | "success" | "danger" | "warning"> = {
   draft: "neutral",
@@ -58,12 +59,12 @@ export function PurchasesList({ purchases, canManage, base = "" }: { purchases: 
                 className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 rounded-2xl border border-border bg-surface px-4 py-3 transition-colors hover:border-primary/40"
               >
                 <p className="flex flex-wrap items-center gap-2 font-bold">
-                  <span className="font-latin">{p.number}</span>
+                  <DocNo>{p.number}</DocNo>
                   <Badge tone={TONE[p.status]}>{t(`status_${p.status}`)}</Badge>
                 </p>
                 <p className="font-latin text-end text-[15px] font-bold tabular-nums">{fmt.money(p.total)}</p>
                 <p className="col-span-full text-[13px] text-muted-foreground">
-                  {[p.supplier, p.project ? `${p.project.client} · ${p.project.number}` : t("toStock"), p.invoice_date && fmt.date(p.invoice_date)].filter(Boolean).join(" · ")}
+                  {[p.supplier, p.project ? `${p.project.client} · ${ltr(p.project.number)}` : t("toStock"), p.invoice_date && fmt.date(p.invoice_date)].filter(Boolean).join(" · ")}
                 </p>
               </Link>
             </li>
@@ -301,7 +302,7 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
               <option value="">{t("toStock")}</option>
               {form.projects.map((x) => (
                 <option key={x.id} value={x.id}>
-                  {x.number} · {x.client}
+                  {ltr(x.number)} · {x.client}
                 </option>
               ))}
             </NativeSelect>
@@ -434,7 +435,7 @@ export function PurchaseView({
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-border bg-surface p-5">
         <div className="grid gap-1">
           <p className="flex flex-wrap items-center gap-2 text-[18px] font-extrabold">
-            <span className="font-latin">{d.number}</span>
+            <DocNo>{d.number}</DocNo>
             <Badge tone={TONE[d.status]}>{t(`status_${d.status}`)}</Badge>
             {d.ai_extracted && (
               <Badge tone="info">
@@ -443,9 +444,9 @@ export function PurchaseView({
             )}
           </p>
           <p className="text-[13px] text-muted-foreground">
-            {[d.supplier, d.invoice_number && t("invoiceNo", { n: d.invoice_number }), d.invoice_date && fmt.date(d.invoice_date)].filter(Boolean).join(" · ")}
+            {[d.supplier, d.invoice_number && t("invoiceNo", { n: ltr(d.invoice_number) }), d.invoice_date && fmt.date(d.invoice_date)].filter(Boolean).join(" · ")}
           </p>
-          <p className="text-[13px]">{d.project ? `${t("chargeTo")}: ${d.project.client} · ${d.project.number}` : t("toStock")}</p>
+          <p className="text-[13px]">{d.project ? `${t("chargeTo")}: ${d.project.client} · ${ltr(d.project.number)}` : t("toStock")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {editable && (
@@ -632,7 +633,7 @@ export function InventoryView({
                     onClick={() => setMoving({ item: it, from: b.contract_id })}
                     className="rounded-full bg-surface-sunken px-3 py-1.5 text-[12px] ring-1 ring-border hover:ring-primary disabled:cursor-default"
                   >
-                    {project.get(b.contract_id!)?.client ?? "—"} · <span className="font-latin">{project.get(b.contract_id!)?.number}</span> ·{" "}
+                    {project.get(b.contract_id!)?.client ?? "—"} · <DocNo>{project.get(b.contract_id!)?.number}</DocNo> ·{" "}
                     <span className="font-latin font-bold tabular-nums">
                       {fmt.number(b.quantity, b.quantity % 1 ? 2 : 0)} {it.unit}
                     </span>
@@ -653,7 +654,7 @@ function MoveDialog({ data, item, from, onClose, move }: { data: InventoryData; 
   const t = useTranslations("purchases");
   const { run, pending } = useActionRunner();
   const available = data.balances.find((b) => b.item_id === item.id && b.contract_id === from)?.quantity ?? 0;
-  const targets = [...(item.is_general && from !== null ? [{ id: "", label: t("toStock") }] : []), ...data.projects.filter((p) => p.id !== from && p.status !== "cancelled").map((p) => ({ id: p.id, label: `${p.number} · ${p.client}` }))];
+  const targets = [...(item.is_general && from !== null ? [{ id: "", label: t("toStock") }] : []), ...data.projects.filter((p) => p.id !== from && p.status !== "cancelled").map((p) => ({ id: p.id, label: `${ltr(p.number)} · ${p.client}` }))];
   const [to, setTo] = React.useState(targets[0]?.id ?? "");
   const [qty, setQty] = React.useState(String(available));
   const [note, setNote] = React.useState("");
@@ -735,7 +736,7 @@ export function ProjectCostsView({ rows, base = "" }: { rows: ProjectCost[]; bas
           <li key={r.id} className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Link href={`${base}/contracts/${r.number}`} className="font-bold hover:text-primary">
-                {r.client} · <span className="font-latin">{r.number}</span>
+                {r.client} · <DocNo>{r.number}</DocNo>
               </Link>
               {s.level === "over" && (
                 <Badge tone="danger">

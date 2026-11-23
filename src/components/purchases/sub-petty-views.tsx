@@ -19,7 +19,7 @@ import type { ServiceKind } from "@/lib/pricing";
 import type { InvoiceDraft, InvoiceFlag } from "@/lib/purchases";
 import { pettyBalance, subSummary, workAmount } from "@/lib/subcontractors";
 import { toNumber } from "@/lib/validation/numbers";
-import { cn } from "@/lib/utils";
+import { cn, ltr } from "@/lib/utils";
 
 type Act<T = undefined> = (i: Record<string, unknown>) => Promise<ActionResult<T>>;
 const num = (v: string) => (typeof toNumber(v) === "number" ? (toNumber(v) as number) : 0);
@@ -86,7 +86,7 @@ export function SubcontractorsView({ data, actions }: { data: SubcontractorsData
                   <div key={g.id} className="grid gap-3 rounded-2xl bg-surface-sunken/50 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-bold">
-                        {p ? `${p.client} · ${p.number}` : "—"} — {g.scope}
+                        {p ? `${p.client} · ${ltr(p.number)}` : "—"} — {g.scope}
                       </p>
                       <div className="flex gap-1.5">
                         <Badge>{g.basis === "per_m2" ? t("perM2", { rate: fmt.money(g.rate) }) : t("lump")}</Badge>
@@ -275,7 +275,7 @@ function AgreementDialog({ subId, projects, onClose, save }: { subId: string; pr
         <NativeSelect value={contract} onChange={(e) => setContract(e.target.value)}>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.number} · {p.client}
+              {ltr(p.number)} · {p.client}
             </option>
           ))}
         </NativeSelect>
@@ -571,7 +571,7 @@ function EntryDialog({ account, kind, today, data, onClose, actions }: { account
               <option value="">{t("general")}</option>
               {data.projects.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.number} · {p.client}
+                  {ltr(p.number)} · {p.client}
                 </option>
               ))}
             </NativeSelect>

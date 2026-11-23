@@ -17,7 +17,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_45%_at_50%_45%,color-mix(in_oklch,var(--brand-dark)_14%,transparent),transparent)]" />
         <Arch />
         <div className="relative">
-          <p className="text-[26px] font-extrabold text-white lg:text-[34px]">{tApp("name")}</p>
+          <p className="text-[26px] font-extrabold text-gypsum lg:text-[34px]">{tApp("name")}</p>
           <p className="mt-2 max-w-sm text-[14px] leading-relaxed text-ink-muted lg:text-[15px]">{t("featureTitle")}</p>
         </div>
         <ul className="relative hidden max-w-sm space-y-3 text-start lg:block">

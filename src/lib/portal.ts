@@ -2,6 +2,7 @@ import "server-only";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import type { ClientView } from "@/lib/quotes";
 import type { Brand } from "@/lib/supabase/database.types";
+import { blobToDataUrl } from "@/lib/org";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -56,8 +57,13 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
   if (!d) return { data: null, logoUrl: null, limited: false };
   let logoUrl: string | null = null;
   if (d.org.logo_path) {
-    const { data: s } = await admin.storage.from("org-assets").createSignedUrl(d.org.logo_path, 600);
-    logoUrl = s?.signedUrl ?? null;
+    // embedded (same origin) so the page can colour it with a CSS mask; signed URL only for large files
+    const { data: file } = await admin.storage.from("org-assets").download(d.org.logo_path);
+    logoUrl = await blobToDataUrl(file);
+    if (!logoUrl) {
+      const { data: s } = await admin.storage.from("org-assets").createSignedUrl(d.org.logo_path, 600);
+      logoUrl = s?.signedUrl ?? null;
+    }
   }
   // execution: stages, the client's notes, and 10-minute signed photo URLs (this contract's files only)
   let execution: PortalExecution | null = null;

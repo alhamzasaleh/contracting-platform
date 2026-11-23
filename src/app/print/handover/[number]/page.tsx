@@ -3,16 +3,16 @@ import { HandoverCertificate } from "@/components/projects/handover-certificate"
 import { PrintButton } from "@/components/quotes/print-button";
 import { requirePermission } from "@/lib/auth/session";
 import { loadCertificate } from "@/lib/data/projects";
-import { signedAssetUrl } from "@/lib/org";
+import { logoDataUrl } from "@/lib/org";
 
 /** Print-ready final handover certificate (Share → Print → Save as PDF). */
 export default async function PrintHandoverPage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
   const session = await requirePermission("projects.view");
-  const [c, logoUrl] = await Promise.all([loadCertificate(session, decodeURIComponent(number)), signedAssetUrl(session.organization.logo_path)]);
+  const [c, logoUrl] = await Promise.all([loadCertificate(session, decodeURIComponent(number)), logoDataUrl(session.organization.logo_path)]);
   const o = session.organization;
   return (
-    <main className="min-h-dvh bg-neutral-100 py-6 print:bg-white print:py-0">
+    <main className="min-h-dvh bg-background py-6 print:bg-white print:py-0">
       <BrandStyle primary={o.brand.primary} accent={o.brand.accent} />
       <div className="mx-auto mb-4 flex max-w-[820px] justify-end px-4 print:hidden">
         <PrintButton />

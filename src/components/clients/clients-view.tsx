@@ -1,4 +1,5 @@
 "use client";
+import { DocNo } from "@/components/doc-no";
 import { ClipboardList, FileText, MapPin, MessageCircle, Pencil, Phone, Plus, Search, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -142,7 +143,7 @@ export function ClientsView({ clients, canManage, onSave, base = "" }: { clients
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-[16px] font-bold">{c.name}</span>
-                    <span className="font-latin text-[12px] text-muted-foreground">{c.number}</span>
+                    <DocNo className="text-[12px] text-muted-foreground">{c.number}</DocNo>
                   </div>
                   <span className="flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
                     {c.phone && <span className="ltr-inline font-latin">{displayPhone(c.phone)}</span>}
@@ -203,7 +204,7 @@ export function ClientDetailView({
     <div className="grid gap-6">
       <section className="flex flex-wrap items-start justify-between gap-4 rounded-3xl border border-border bg-surface p-5">
         <div className="grid gap-1.5">
-          <p className="font-latin text-[12px] text-muted-foreground">{client.number}</p>
+          <p className="font-latin text-[12px] text-muted-foreground"><bdi dir="ltr" className="whitespace-nowrap">{client.number}</bdi></p>
           <h2 className="text-[22px] font-bold">{client.name}</h2>
           <p className="flex flex-wrap gap-x-3 text-[14px] text-muted-foreground">
             {client.city && <span>{[client.city, client.district].filter(Boolean).join(" — ")}</span>}
@@ -268,7 +269,7 @@ export function ClientDetailView({
                       {s.visit_date && ` · ${fmt.date(s.visit_date)}`}
                     </span>
                   </span>
-                  <span className="font-latin text-[12px] text-muted-foreground">{s.number}</span>
+                  <DocNo className="text-[12px] text-muted-foreground">{s.number}</DocNo>
                 </Link>
               </li>
             ))}
@@ -292,7 +293,7 @@ export function ClientDetailView({
                   </span>
                   <span className="text-end">
                     {q.total != null && <span className="block font-latin text-[15px] font-bold tabular-nums">{fmt.money(q.total)}</span>}
-                    <span className="font-latin text-[12px] text-muted-foreground">{q.number}</span>
+                    <DocNo className="text-[12px] text-muted-foreground">{q.number}</DocNo>
                   </span>
                 </Link>
               </li>

@@ -199,7 +199,7 @@ export function SurveyView({
 
       <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="font-latin text-[12px] text-muted-foreground">{survey.number}</p>
+          <p className="font-latin text-[12px] text-muted-foreground"><bdi dir="ltr" className="whitespace-nowrap">{survey.number}</bdi></p>
           <Segmented
             name={t("mode")}
             value={mode}

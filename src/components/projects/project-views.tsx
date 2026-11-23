@@ -1,4 +1,5 @@
 "use client";
+import { DocNo } from "@/components/doc-no";
 import { Camera, Check, CheckCircle2, ExternalLink, FileBadge, HardHat, MapPin, MessageSquare, Phone, Send, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -44,7 +45,7 @@ export function ProjectsList({ projects, base = "" }: { projects: ProjectListIte
               <div>
                 <p className="text-[16px] font-bold">{p.client}</p>
                 <p className="text-[13px] text-muted-foreground">
-                  {tp(`kind_${p.service}`)} · <span className="font-latin">{p.number}</span>
+                  {tp(`kind_${p.service}`)} · <DocNo>{p.number}</DocNo>
                 </p>
               </div>
               {p.newNotes > 0 && (
@@ -134,7 +135,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
           <div>
             <p className="text-[20px] font-extrabold">{data.client.name}</p>
             <p className="text-[13px] text-muted-foreground">
-              {tp(`kind_${data.contract.service}`)} · <span className="font-latin">{data.contract.number}</span>
+              {tp(`kind_${data.contract.service}`)} · <DocNo>{data.contract.number}</DocNo>
               {(data.client.city || data.client.district) && ` · ${[data.client.city, data.client.district].filter(Boolean).join(" — ")}`}
             </p>
           </div>

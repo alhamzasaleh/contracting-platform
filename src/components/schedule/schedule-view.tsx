@@ -1,4 +1,5 @@
 "use client";
+import { DocNo } from "@/components/doc-no";
 import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, Pencil, Plus, Sparkles, Trash2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -17,13 +18,13 @@ import type { ActionResult } from "@/lib/actions";
 import type { ScheduleData, ScheduleEntry, ScheduleProject, ScheduleTeam } from "@/lib/data/schedule";
 import type { ServiceKind } from "@/lib/pricing";
 import { addDays, conflicts, daysBetween, earliestStart, overlaps, weekStart, windowDays, type Day } from "@/lib/schedule";
-import { cn } from "@/lib/utils";
+import { cn, ltr } from "@/lib/utils";
 
 type Save = (i: Record<string, unknown>) => Promise<ActionResult<{ id: string }>>;
 export type ScheduleActions = { saveTeam: Save; saveEntry: Save; deleteEntry: (i: { id: string }) => Promise<ActionResult> };
 
 const SERVICES: ServiceKind[] = ["gypsum", "interior", "exterior"];
-const COLORS = ["#1E4D4A", "#4F6F66", "#3B5B7A", "#6B4E71", "#7A6A3A", "#3F3F46"];
+const COLORS = ["#9A5231", "#22262A", "#55654F", "#3B5B7A", "#6B4E71", "#75654E"];
 const DAYS = 35; // five weeks
 const COL = 40; // px per day
 const LANE = 30; // px per stacked bar
@@ -140,7 +141,7 @@ function Timeline({ data, today, onEntry, onNeedTeams }: { data: ScheduleData; t
                   onClick={() => onEntry?.({ kind: "work", contract_id: p.id, start: p.start, end: p.end })}
                   className="rounded-full bg-surface px-3 py-1.5 text-[13px] ring-1 ring-border hover:ring-primary disabled:cursor-default"
                 >
-                  <span className="font-latin">{p.number}</span> · {p.client} · {fmt.dayMonth(p.start)}
+                  <DocNo>{p.number}</DocNo> · {p.client} · {fmt.dayMonth(p.start)}
                 </button>
               </li>
             ))}
@@ -200,7 +201,7 @@ function Timeline({ data, today, onEntry, onNeedTeams }: { data: ScheduleData; t
                 <button
                   key={p.id}
                   type="button"
-                  title={`${p.number} · ${p.client}`}
+                  title={`${ltr(p.number)} · ${p.client}`}
                   disabled={!onEntry || !data.teams.length}
                   onClick={() => onEntry?.({ kind: "work", contract_id: p.id, start: p.start, end: p.end })}
                   style={{ ...place(p), top: lane * LANE + 4 }}
@@ -240,7 +241,7 @@ function Timeline({ data, today, onEntry, onNeedTeams }: { data: ScheduleData; t
                     {placed.map(({ item: e, lane }) => {
                       const p = e.contract_id ? projectOf.get(e.contract_id) : undefined;
                       const clash = conflicts(all, e).length > 0;
-                      const label = e.kind === "work" ? (p ? `${p.client} · ${p.number}` : "—") : e.title || t(`kind_${e.kind}`);
+                      const label = e.kind === "work" ? (p ? `${p.client} · ${ltr(p.number)}` : "—") : e.title || t(`kind_${e.kind}`);
                       return (
                         <button
                           key={e.id}
@@ -251,7 +252,7 @@ function Timeline({ data, today, onEntry, onNeedTeams }: { data: ScheduleData; t
                           style={{ ...place(e), top: lane * LANE + 4, ...(e.kind === "work" ? { background: team.color } : {}) }}
                           className={cn(
                             "absolute flex h-[24px] items-center gap-1 rounded-full px-2.5 text-[12px] font-bold",
-                            e.kind === "work" ? "text-white" : "bg-[repeating-linear-gradient(135deg,var(--surface-sunken)_0_6px,var(--surface)_6px_12px)] text-muted-foreground ring-1 ring-border",
+                            e.kind === "work" ? "text-gypsum" : "bg-[repeating-linear-gradient(135deg,var(--surface-sunken)_0_6px,var(--surface)_6px_12px)] text-muted-foreground ring-1 ring-border",
                             clash && "ring-2 ring-danger",
                           )}
                         >
@@ -376,7 +377,7 @@ function EntryDialog({ data, today, initial, onClose, actions }: { data: Schedul
               .filter((p) => p.status !== "cancelled")
               .map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.number} · {p.client} · {tp(`kind_${p.service}`)}
+                  {ltr(p.number)} · {p.client} · {tp(`kind_${p.service}`)}
                 </option>
               ))}
           </NativeSelect>
@@ -429,7 +430,7 @@ function EntryDialog({ data, today, initial, onClose, actions }: { data: Schedul
               const p = c.contract_id ? projectOf.get(c.contract_id) : undefined;
               return (
                 <li key={c.id}>
-                  {p ? `${p.client} · ${p.number}` : c.title || t(`kind_${c.kind ?? "other"}`)} — {fmt.dayMonth(c.start)} → {fmt.dayMonth(c.end)}
+                  {p ? `${p.client} · ${ltr(p.number)}` : c.title || t(`kind_${c.kind ?? "other"}`)} — {fmt.dayMonth(c.start)} → {fmt.dayMonth(c.end)}
                 </li>
               );
             })}
