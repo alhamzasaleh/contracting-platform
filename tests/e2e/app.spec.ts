@@ -175,3 +175,24 @@ test.describe("purchases & stock (design preview)", () => {
     await expect(page.getByText(/تجاوز 9%/)).toBeVisible();
   });
 });
+
+test.describe("execution (design preview)", () => {
+  test("project page: check-in, stages, client notes and visits", async ({ page }) => {
+    await page.goto("/dev/preview/projects/detail");
+    await expect(page.getByRole("button", { name: "تسجيل وصول للموقع" })).toBeVisible();
+    await expect(page.getByText("بانتظار تأكيد العميل").first()).toBeVisible();
+    await expect(page.getByText(/يبعد \d+ م عن موقع المشروع/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "تمت المعالجة" })).toBeVisible();
+  });
+
+  test("client page: confirm a stage, final needs signature, send notes", async ({ page }) => {
+    await page.goto("/dev/preview/portal/work");
+    await expect(page.getByText("سير العمل")).toBeVisible();
+    await expect(page.getByRole("button", { name: "أؤكد استلام المرحلة" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "إرسال الملاحظة" })).toBeDisabled();
+    await page.getByLabel("ملاحظاتك").fill("ملاحظة تجريبية");
+    await expect(page.getByRole("button", { name: "إرسال الملاحظة" })).toBeEnabled();
+    const width = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(width).toBeLessThanOrEqual(1);
+  });
+});

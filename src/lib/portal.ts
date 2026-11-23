@@ -19,7 +19,16 @@ export type PortalData = {
   quote: { number: string; version: number; date: string; valid_until: string | null; client_view: ClientView; notes: string | null };
   payments: { seq: number; label: string; percent: number; amount: number; due_event: string; status: string }[];
   expires_at: string;
+  execution?: PortalExecution | null;
 };
+
+export type PortalStage = {
+  id: string; seq: number; name: string; status: "pending" | "in_progress" | "awaiting_client" | "confirmed"; progress: number; is_final: boolean;
+  report: string | null; sent_at: string | null; confirmed_at: string | null; confirmed_name: string | null; photos: string[];
+};
+export type PortalNote = { id: string; body: string; photos: string[]; status: string; reply: string | null; stage_id: string | null; created_at: string };
+/** Stages, notes and short-lived photo URLs (paths are replaced by signed URLs before reaching the page). */
+export type PortalExecution = { stages: PortalStage[]; notes: PortalNote[] };
 
 export const TOKEN_RE = /^[A-Za-z0-9_-]{32,100}$/;
 export const NUMBER_RE = /^[A-Z]{1,3}-\d{4}-\d{3,6}$/;
@@ -44,5 +53,22 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
     const { data: s } = await admin.storage.from("org-assets").createSignedUrl(d.org.logo_path, 600);
     logoUrl = s?.signedUrl ?? null;
   }
-  return { data: { ...d, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
+  // execution: stages, the client's notes, and 10-minute signed photo URLs (this contract's files only)
+  let execution: PortalExecution | null = null;
+  if (d.contract.status === "accepted") {
+    const { data: ex } = await admin.rpc("portal_execution", { p_number: number, p_token: token });
+    const e = ex as unknown as (PortalExecution & { org_id: string; contract_id: string }) | null;
+    if (e) {
+      const prefix = `${e.org_id}/${e.contract_id}/`;
+      const paths = [...new Set([...e.stages.flatMap((x) => x.photos), ...e.notes.flatMap((x) => x.photos)])].filter((p) => p.startsWith(prefix));
+      const { data: signed } = paths.length ? await admin.storage.from("project-photos").createSignedUrls(paths, 600) : { data: [] };
+      const url = new Map((signed ?? []).map((x) => [x.path, x.signedUrl]));
+      const sign = (list: string[]) => list.map((p) => url.get(p)).filter((u): u is string => !!u);
+      execution = {
+        stages: e.stages.map((x) => ({ ...x, photos: sign(x.photos) })),
+        notes: e.notes.map((x) => ({ ...x, photos: sign(x.photos) })),
+      };
+    }
+  }
+  return { data: { ...d, execution, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
 }

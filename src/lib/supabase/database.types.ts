@@ -549,6 +549,28 @@ export type InventoryMovementRow = OrgRow & {
   note: string | null;
 };
 
+export type StageStatus = "pending" | "in_progress" | "awaiting_client" | "confirmed";
+export type ProjectStageRow = OrgRow & Upd & {
+  contract_id: string;
+  seq: number;
+  name: string;
+  payment_event: string | null;
+  is_final: boolean;
+  status: StageStatus;
+  progress: number;
+  report: string | null;
+  report_ai: boolean;
+  sent_at: string | null;
+  confirmed_at: string | null;
+  confirmed_name: string | null;
+  confirmed_ip: string | null;
+  confirmed_user_agent: string | null;
+  confirmed_signature: string | null;
+};
+export type SiteVisitRow = OrgRow & { contract_id: string; latitude: number | null; longitude: number | null; accuracy_m: number | null; note: string | null; checked_in_at: string };
+export type ProgressUpdateRow = OrgRow & { contract_id: string; stage_id: string; progress: number; note: string | null; photos: string[]; visible_to_client: boolean };
+export type ClientNoteRow = OrgRow & Upd & { contract_id: string; stage_id: string | null; body: string; photos: string[]; status: "new" | "seen" | "resolved"; reply: string | null };
+
 export type Database = {
   public: {
     Tables: {
@@ -599,6 +621,10 @@ export type Database = {
       purchases: Table<PurchaseRow>;
       purchase_lines: Table<PurchaseLineRow>;
       inventory_movements: Table<InventoryMovementRow>;
+      project_stages: Table<ProjectStageRow>;
+      site_visits: Table<SiteVisitRow>;
+      progress_updates: Table<ProgressUpdateRow>;
+      client_notes: Table<ClientNoteRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
@@ -613,6 +639,9 @@ export type Database = {
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };
+      portal_execution: { Args: { p_number: string; p_token: string }; Returns: Json };
+      portal_confirm_stage: { Args: { p_number: string; p_token: string; p_stage: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };
+      portal_add_note: { Args: { p_number: string; p_token: string; p_stage: string | null; p_body: string; p_photos: string[] }; Returns: string | null };
       submit_purchase: { Args: { p_id: string }; Returns: string };
       move_stock: { Args: { p_item: string; p_quantity: number; p_from: string | null; p_to: string | null; p_note?: string | null }; Returns: string };
       schedule_roster: { Args: { p_org: string }; Returns: { id: string; full_name: string; job_title: string | null }[] };

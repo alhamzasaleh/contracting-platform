@@ -1,16 +1,19 @@
 "use client";
-import { Check, Eraser, PenLine, ShieldCheck } from "lucide-react";
+import { Camera, Check, CheckCircle2, Eraser, MessageSquare, PenLine, Send, ShieldCheck, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { ContractTerms } from "@/components/contracts/contract-terms";
 import { useFormatter } from "@/components/formatter-provider";
+import { HandoverCertificate } from "@/components/projects/handover-certificate";
 import { QuoteDocument } from "@/components/quotes/quote-document";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
-import type { PortalData } from "@/lib/portal";
+import { shrinkImage } from "@/lib/client/image";
+import { portalStep } from "@/lib/execution";
+import type { PortalData, PortalStage } from "@/lib/portal";
 import { cn } from "@/lib/utils";
 
 const STEPS = ["quote", "contract", "accepted", "work", "handover", "warranty"] as const;
@@ -85,12 +88,16 @@ export function PortalView({
   number,
   token,
   onAccept,
+  onConfirmStage,
+  onAddNote,
 }: {
   data: PortalData;
   logoUrl: string | null;
   number: string;
   token: string;
   onAccept?: (i: Record<string, unknown>) => Promise<ActionResult>;
+  onConfirmStage?: (i: Record<string, unknown>) => Promise<ActionResult>;
+  onAddNote?: (fd: FormData) => Promise<ActionResult>;
 }) {
   const t = useTranslations("portal");
   const tp = useTranslations("pricing");
@@ -104,7 +111,9 @@ export function PortalView({
   const [done, setDone] = React.useState(false);
   const { contract: c, org } = data;
   const accepted = done || c.status === "accepted";
-  const current = accepted ? 2 : 1;
+  const ex = data.execution;
+  const current = ex ? portalStep("accepted", ex.stages) : accepted ? 2 : 1;
+  const finalStage = ex?.stages.find((x) => x.is_final && x.status === "confirmed");
 
   const accept = () =>
     start(async () => {
@@ -166,7 +175,20 @@ export function PortalView({
           <Kpi label={t("duration")} value={t("days", { n: c.duration_days })} />
         </section>
 
-        {accepted ? (
+        {finalStage && (
+          <HandoverCertificate
+            data={{
+              org: { name: org.name, legal_name: org.legal_name, cr_number: org.cr_number, logoUrl },
+              client: { name: data.client.name, id_number: data.client.id_number },
+              contract: { number: c.number, service: c.service, warranty_months: c.warranty_months },
+              final: { confirmed_at: finalStage.confirmed_at!, confirmed_name: finalStage.confirmed_name },
+            }}
+          />
+        )}
+        {ex && ex.stages.length > 0 && <WorkProgress stages={ex.stages} clientName={data.client.name} number={number} token={token} onConfirm={onConfirmStage} />}
+        {ex && <ClientNotes data={data} number={number} token={token} onAdd={onAddNote} />}
+
+        {ex && ex.stages.length > 0 ? null : accepted ? (
           <section className="grid gap-2 rounded-3xl border border-success/40 bg-success-soft/50 p-6 text-center">
             <ShieldCheck className="mx-auto size-10 text-success" />
             <p className="text-[18px] font-bold">{t("thanks")}</p>
@@ -232,5 +254,189 @@ function Kpi({ label, value, strong }: { label: string; value: string; strong?: 
       <p className="text-[12px] text-muted-foreground">{label}</p>
       <p className={cn("font-latin tabular-nums", strong ? "text-[22px] font-extrabold" : "text-[16px] font-bold")}>{value}</p>
     </div>
+  );
+}
+
+function StageBar({ value }: { value: number }) {
+  return (
+    <div className="h-2 overflow-hidden rounded-full bg-surface-sunken" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
+      <div className="h-full rounded-full bg-primary" style={{ width: `${value}%` }} />
+    </div>
+  );
+}
+
+/** Stages as they progress; the client confirms each stage it was sent (final = signature). */
+function WorkProgress({ stages, clientName, number, token, onConfirm }: { stages: PortalStage[]; clientName: string; number: string; token: string; onConfirm?: (i: Record<string, unknown>) => Promise<ActionResult> }) {
+  const t = useTranslations("portal");
+  const { fmt } = useFormatter();
+  return (
+    <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
+      <p className="text-[17px] font-bold">{t("workTitle")}</p>
+      <ol className="grid gap-3">
+        {stages.map((s) => (
+          <li key={s.id} className={cn("grid gap-2 rounded-2xl p-4", s.status === "awaiting_client" ? "border-2 border-primary/50" : "bg-surface-sunken/50")}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-2 font-bold">
+                {s.status === "confirmed" ? <CheckCircle2 className="size-5 text-success" /> : <span className="flex size-6 items-center justify-center rounded-full bg-surface text-[12px]">{s.seq}</span>}
+                {s.name}
+              </p>
+              <span className="font-latin text-[13px] font-bold tabular-nums">{s.status === "confirmed" ? 100 : s.progress}%</span>
+            </div>
+            <StageBar value={s.status === "confirmed" ? 100 : s.progress} />
+            {s.report && <p className="whitespace-pre-line text-[14px] leading-7">{s.report}</p>}
+            {s.photos.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {s.photos.map((u) => (
+                  <a key={u} href={u} target="_blank" rel="noopener noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={u} alt="" className="size-20 rounded-xl object-cover" />
+                  </a>
+                ))}
+              </div>
+            )}
+            {s.status === "confirmed" && s.confirmed_at && <p className="text-[12px] text-success">{t("stageConfirmed", { name: s.confirmed_name ?? "", date: fmt.dateTime(s.confirmed_at) })}</p>}
+            {s.status === "awaiting_client" && <ConfirmStage stage={s} clientName={clientName} number={number} token={token} onConfirm={onConfirm} />}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function ConfirmStage({ stage, clientName, number, token, onConfirm }: { stage: PortalStage; clientName: string; number: string; token: string; onConfirm?: (i: Record<string, unknown>) => Promise<ActionResult> }) {
+  const t = useTranslations("portal");
+  const router = useRouter();
+  const [name, setName] = React.useState(clientName);
+  const [signature, setSignature] = React.useState<string | null>(null);
+  const [pending, start] = React.useTransition();
+  const [error, setError] = React.useState<string | null>(null);
+  const needSig = stage.is_final;
+  return (
+    <div className="grid gap-3 border-t border-border pt-3">
+      <p className="text-[13px] text-muted-foreground">{needSig ? t("finalHint") : t("confirmHint")}</p>
+      <Field id={`cs-${stage.id}`} label={t("yourName")}>
+        <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+      </Field>
+      {needSig && <SignaturePad onChange={setSignature} />}
+      {error && <p className="text-[13px] text-danger">{error}</p>}
+      <Button
+        loading={pending}
+        disabled={name.trim().length < 2 || (needSig && !signature)}
+        onClick={() =>
+          start(async () => {
+            setError(null);
+            if (!onConfirm) return;
+            const r = await onConfirm({ number, token, stage_id: stage.id, name: name.trim(), signature: needSig ? signature : null });
+            if (r.ok) router.refresh();
+            else setError(r.error === "rateLimited" ? t("errRate") : t("errGeneric"));
+          })
+        }
+      >
+        <Check /> {needSig ? t("signHandover") : t("confirmStage")}
+      </Button>
+    </div>
+  );
+}
+
+/** The client's notes (with photos) during the work; the team's reply appears under each. */
+function ClientNotes({ data, number, token, onAdd }: { data: PortalData; number: string; token: string; onAdd?: (fd: FormData) => Promise<ActionResult> }) {
+  const t = useTranslations("portal");
+  const { fmt } = useFormatter();
+  const router = useRouter();
+  const ex = data.execution!;
+  const [body, setBody] = React.useState("");
+  const [stage, setStage] = React.useState("");
+  const [files, setFiles] = React.useState<{ file: File; preview: string }[]>([]);
+  const [pending, start] = React.useTransition();
+  const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
+  const picker = React.useRef<HTMLInputElement>(null);
+  const add = async (list: FileList | null) => {
+    if (!list) return;
+    const next = [...files];
+    for (const f of [...list].slice(0, 6 - files.length)) {
+      const small = await shrinkImage(f, 1600);
+      if (small.type === "image/jpeg") next.push({ file: small, preview: URL.createObjectURL(small) });
+    }
+    setFiles(next);
+  };
+  return (
+    <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
+      <p className="flex items-center gap-2 text-[17px] font-bold">
+        <MessageSquare className="size-5 text-primary" /> {t("notesTitle")}
+      </p>
+      <p className="text-[13px] text-muted-foreground">{t("notesHint")}</p>
+      <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} maxLength={2000} aria-label={t("notesTitle")} />
+      {ex.stages.length > 0 && (
+        <select value={stage} onChange={(e) => setStage(e.target.value)} className="h-11 rounded-xl border border-border bg-surface px-3 text-[14px]" aria-label={t("noteStage")}>
+          <option value="">{t("noteGeneral")}</option>
+          {ex.stages.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="secondary" size="sm" disabled={files.length >= 6} onClick={() => picker.current?.click()}>
+          <Camera /> {t("addPhoto")}
+        </Button>
+        <input ref={picker} type="file" accept="image/*" multiple className="hidden" onChange={(e) => add(e.target.files)} />
+        {files.map((f, i) => (
+          <span key={f.preview} className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={f.preview} alt="" className="size-14 rounded-xl object-cover" />
+            <button type="button" aria-label={t("removePhoto")} onClick={() => setFiles((x) => x.filter((_, j) => j !== i))} className="absolute -end-1 -top-1 rounded-full bg-ink p-0.5 text-ink-foreground">
+              <X className="size-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+      {msg && <p className={cn("text-[13px]", msg.ok ? "text-success" : "text-danger")}>{msg.text}</p>}
+      <Button
+        className="justify-self-start"
+        loading={pending}
+        disabled={!body.trim()}
+        onClick={() =>
+          start(async () => {
+            setMsg(null);
+            if (!onAdd) return;
+            const fd = new FormData();
+            fd.set("number", number);
+            fd.set("token", token);
+            fd.set("body", body.trim());
+            if (stage) fd.set("stage_id", stage);
+            files.forEach((f) => fd.append("photos", f.file));
+            const r = await onAdd(fd);
+            if (r.ok) {
+              setBody("");
+              setFiles([]);
+              setMsg({ ok: true, text: t("noteSent") });
+              router.refresh();
+            } else setMsg({ ok: false, text: r.error === "rateLimited" ? t("errRate") : t("errGeneric") });
+          })
+        }
+      >
+        <Send /> {t("sendNote")}
+      </Button>
+      {ex.notes.length > 0 && (
+        <ul className="grid gap-2 border-t border-border pt-3">
+          {ex.notes.map((n) => (
+            <li key={n.id} className="grid gap-1.5 rounded-2xl bg-surface-sunken/50 p-3 text-[13px]">
+              <p className="text-[12px] text-muted-foreground">{fmt.dateTime(n.created_at)}</p>
+              <p className="whitespace-pre-line">{n.body}</p>
+              {n.photos.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {n.photos.map((u) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={u} src={u} alt="" className="size-14 rounded-xl object-cover" />
+                  ))}
+                </div>
+              )}
+              {n.reply && <p className="rounded-xl bg-surface px-3 py-2">↳ {n.reply}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
