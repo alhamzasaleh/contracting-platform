@@ -7,6 +7,7 @@ import type { InvoiceParty } from "@/lib/supabase/database.types";
 import type { Brand } from "@/lib/supabase/database.types";
 import { blobToDataUrl } from "@/lib/org";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { TOKEN_RE } from "@/lib/portal-token";
 
 /**
  * The public client page. Reads go through the server only: rate limited
@@ -64,7 +65,7 @@ export type PortalNote = { id: string; body: string; photos: string[]; status: s
 /** Stages, notes and short-lived photo URLs (paths are replaced by signed URLs before reaching the page). */
 export type PortalExecution = { stages: PortalStage[]; notes: PortalNote[] };
 
-export const TOKEN_RE = /^[A-Za-z0-9_-]{32,100}$/;
+export { TOKEN_RE };
 export const NUMBER_RE = /^[A-Z]{1,3}-\d{4}-\d{3,6}$/;
 
 export async function loadPortal(number: string, token: string): Promise<{ data: PortalData | null; logoUrl: string | null; limited: boolean; unavailable?: boolean }> {

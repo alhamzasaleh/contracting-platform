@@ -1,6 +1,6 @@
 "use server";
 
-import { createHash, randomBytes } from "node:crypto";
+import { hashPortalToken, newPortalToken } from "@/lib/portal-token";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
@@ -115,8 +115,8 @@ export async function sendContract(input: unknown): Promise<ActionResult<{ url: 
     if (portalLinkState(c.status, end, new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" })).warrantyEnded) return { ok: false, error: "warrantyEnded" };
   }
 
-  const token = randomBytes(32).toString("base64url");
-  const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+  const token = newPortalToken();
+  const tokenHash = hashPortalToken(token);
   // one locked step in the database: the new link is inserted, then the older ones revoked — two
   // presses at once can't leave two active links; if it is refused (warranty ended) nothing changes
   const { error: e2 } = await supabase.rpc("issue_portal_link", {
