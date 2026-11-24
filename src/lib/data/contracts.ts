@@ -57,29 +57,36 @@ export async function loadContractDraft(session: SessionContext, by: { quoteNumb
   const orgId = session.organization.id;
   let contract: ContractDraft["contract"] = null;
   let payments: ContractDraft["payments"] = [];
-  let quoteId: string;
+  const quoteCols = "id, number, service, current_version, client_id";
+  const settingsP = loadPricingSettings(session);
+  settingsP.catch(() => {}); // awaited below; never an unhandled rejection if notFound() comes first
+  let q: { id: string; number: string; service: ServiceKind; current_version: number; client_id: string } | null;
   if (by.contractNumber) {
-    const { data: c } = await supabase.from("contracts").select("*").eq("organization_id", orgId).eq("number", by.contractNumber).maybeSingle();
+    const { data: c } = await supabase.from("contracts").select("id, number, start_date, duration_days, warranty_months, notes, quote_id").eq("organization_id", orgId).eq("number", by.contractNumber).maybeSingle();
     if (!c) notFound();
     contract = { id: c.id, number: c.number, start_date: c.start_date, duration_days: c.duration_days, warranty_months: c.warranty_months, notes: c.notes };
-    quoteId = c.quote_id;
-    const { data: p } = await supabase.from("contract_payments").select("label, percent, due_event").eq("contract_id", c.id).order("seq");
+    const [{ data: p }, { data: quote }] = await Promise.all([
+      supabase.from("contract_payments").select("label, percent, due_event").eq("contract_id", c.id).order("seq"),
+      supabase.from("quotes").select(quoteCols).eq("id", c.quote_id).maybeSingle(),
+    ]);
     payments = (p ?? []).map((x) => ({ ...x, percent: n(x.percent) }));
+    q = quote;
   } else {
-    const { data: q } = await supabase.from("quotes").select("id").eq("organization_id", orgId).eq("number", by.quoteNumber!).maybeSingle();
-    if (!q) notFound();
-    quoteId = q.id;
+    const { data: quote } = await supabase.from("quotes").select(quoteCols).eq("organization_id", orgId).eq("number", by.quoteNumber!).maybeSingle();
+    q = quote;
   }
-  const { data: q } = await supabase.from("quotes").select("id, number, service, current_version, client_id").eq("id", quoteId).maybeSingle();
   if (!q) notFound();
-  const [{ data: ver }, { data: client }, settings] = await Promise.all([
-    supabase.from("quote_versions").select("total, selection, client_view").eq("quote_id", q.id).eq("version", q.current_version).maybeSingle(),
+  const verP = Promise.resolve(supabase.from("quote_versions").select("total, selection, client_view").eq("quote_id", q.id).eq("version", q.current_version).maybeSingle());
+  const [{ data: ver }, { data: client }, settings, { data: rate }, materialCostValue, bookTeam] = await Promise.all([
+    verP,
     supabase.from("clients").select("name").eq("id", q.client_id).maybeSingle(),
-    loadPricingSettings(session),
+    settingsP,
+    supabase.from("consumption_rates").select("value").eq("organization_id", orgId).eq("key", `${q.service}.productivity`).maybeSingle(),
+    can(session, "costs.view") ? materialCost(supabase, q.id, q.current_version) : Promise.resolve(null),
+    verP.then(({ data }) => loadBookingTeam(session, data?.selection)),
   ]);
   const view = ver?.client_view as unknown as ClientView | undefined;
   const area = (view?.workTypes ?? []).reduce((s, w) => s + w.area, 0);
-  const { data: rate } = await supabase.from("consumption_rates").select("value").eq("organization_id", orgId).eq("key", `${q.service}.productivity`).maybeSingle();
   const stages = defaultStages(q.service).map((s) => s.key);
   return {
     quote: {
@@ -92,8 +99,8 @@ export async function loadContractDraft(session: SessionContext, by: { quoteNumb
     stages,
     suggestedDays: suggestedDays(area, n(rate?.value) || (q.service === "gypsum" ? 40 : q.service === "interior" ? 120 : 100)),
     defaultWarranty: Number(settings?.default_warranty_months ?? 6),
-    materialCost: can(session, "costs.view") ? await materialCost(supabase, q.id, q.current_version) : null,
-    bookTeam: await loadBookingTeam(session, ver?.selection),
+    materialCost: materialCostValue,
+    bookTeam,
   };
 }
 
@@ -192,41 +199,54 @@ export async function loadContract(session: SessionContext, number: string): Pro
   const { data: c } = await supabase.from("contracts").select("*").eq("organization_id", orgId).eq("number", number).maybeSingle();
   if (!c) notFound();
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
-  const [{ data: client }, { data: q }, { data: ver }, { data: payments }, { data: links }] = await Promise.all([
+  // everything below depends only on the contract row: one parallel round (chained where one query needs another's answer)
+  // Promise.resolve: a query builder runs again on every .then(); a real promise runs it once and can be shared
+  const verP = Promise.resolve(supabase.from("quote_versions").select("version, created_at, client_view, notes, selection").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle());
+  const addendaP = Promise.resolve(supabase.from("addenda").select("id, number, title, description, amount, vat, total, extra_days, status, payment_status, accepted_at, accepted_name, created_at, paid_amount").eq("contract_id", c.id).order("created_at"));
+  const [
+    { data: client }, { data: q }, { data: ver }, { data: payments }, { data: links },
+    { data: addenda }, settings, { data: receipts }, { data: tpl }, { data: requestableRows },
+    bookTeam, warrantyEnd, { data: invoices }, { count: openMaintenance },
+    adCosts, approvals, { data: optRows }, materialCostValue,
+  ] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city, district, id_number").eq("id", c.client_id).maybeSingle(),
     supabase.from("quotes").select("number, valid_until").eq("id", c.quote_id).maybeSingle(),
-    supabase.from("quote_versions").select("version, created_at, client_view, notes, selection").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle(),
+    verP,
     supabase.from("contract_payments").select("id, seq, label, percent, amount, due_event, status, paid_amount, requested_at").eq("contract_id", c.id).order("seq"),
     supabase.from("client_portal_links").select("expires_at, revoked_at, last_opened_at, open_count").eq("contract_id", c.id).order("created_at", { ascending: false }),
-  ]);
-  const active = (links ?? []).find((l) => !l.revoked_at && new Date(l.expires_at) > new Date());
-  const [{ data: addenda }, settings, { data: receipts }, { data: tpl }, { data: requestableRows }] = await Promise.all([
-    supabase.from("addenda").select("id, number, title, description, amount, vat, total, extra_days, status, payment_status, accepted_at, accepted_name, created_at, paid_amount").eq("contract_id", c.id).order("created_at"),
+    addendaP,
     loadPricingSettings(session),
     can(session, "finance.view") ? supabase.from("client_receipts").select("number, label, amount, paid_on").eq("contract_id", c.id).order("created_at") : Promise.resolve({ data: [] as { number: string; label: string; amount: number; paid_on: string }[] }),
     supabase.from("contract_templates").select("terms").eq("organization_id", orgId).maybeSingle(),
     // exactly what request_contract_payment accepts for this user (stages may be hidden from him)
     c.status === "accepted" ? supabase.rpc("requestable_payments", { p_org: orgId, p_contract: c.id }) : Promise.resolve({ data: [] as { payment_id: string }[] }),
-  ]);
-  const requestable = new Set((requestableRows ?? []).map((r) => r.payment_id));
-  const [bookTeam, warrantyEnd] = await Promise.all([loadBookingTeam(session, ver?.selection), c.status === "accepted" ? loadWarrantyEnd(session, c.id) : Promise.resolve(null)]);
-  const [{ data: invoices }, { count: openMaintenance }] = await Promise.all([
+    verP.then(({ data }) => loadBookingTeam(session, data?.selection)),
+    c.status === "accepted" ? loadWarrantyEnd(session, c.id) : Promise.resolve(null),
     can(session, "finance.view")
       ? supabase.from("invoices").select("number, description, total, issue_date").eq("contract_id", c.id).order("issue_date").order("number")
       : Promise.resolve({ data: [] as { number: string; description: string; total: number; issue_date: string }[] }),
     c.status === "accepted" && can(session, "projects.view")
       ? supabase.from("maintenance_requests").select("id", { count: "exact", head: true }).eq("contract_id", c.id).in("status", ["open", "in_progress", "resolved"])
       : Promise.resolve({ count: 0 }),
+    addendaP.then(async ({ data }) => {
+      const adIds = (data ?? []).map((a) => a.id);
+      return can(session, "costs.view") && adIds.length
+        ? ((await supabase.from("addendum_costs").select("addendum_id, material_cost, other_cost").in("addendum_id", adIds)).data ?? [])
+        : [];
+    }),
+    addendaP.then(async ({ data }) => {
+      const pendingIds = (data ?? []).filter((a) => a.status === "pending_approval").map((a) => a.id);
+      return pendingIds.length
+        ? ((await supabase.from("approvals").select("id, entity_id").eq("entity", "addendum").eq("status", "pending").in("entity_id", pendingIds)).data ?? [])
+        : [];
+    }),
+    c.options?.length
+      ? supabase.from("quote_versions").select("version, total").eq("quote_id", c.quote_id).in("version", c.options.map((o) => o.version))
+      : Promise.resolve({ data: [] as { version: number; total: number }[] }),
+    can(session, "costs.view") ? materialCost(supabase, c.quote_id, c.quote_version) : Promise.resolve(null),
   ]);
-  const pendingIds = (addenda ?? []).filter((a) => a.status === "pending_approval").map((a) => a.id);
-  const adIds = (addenda ?? []).map((a) => a.id);
-  const { data: adCosts } = can(session, "costs.view") && adIds.length ? await supabase.from("addendum_costs").select("addendum_id, material_cost, other_cost").in("addendum_id", adIds) : { data: [] as { addendum_id: string; material_cost: number; other_cost: number }[] };
-  const { data: approvals } = pendingIds.length
-    ? await supabase.from("approvals").select("id, entity_id").eq("entity", "addendum").eq("status", "pending").in("entity_id", pendingIds)
-    : { data: [] as { id: string; entity_id: string }[] };
-  const { data: optRows } = c.options?.length
-    ? await supabase.from("quote_versions").select("version, total").eq("quote_id", c.quote_id).in("version", c.options.map((o) => o.version))
-    : { data: [] as { version: number; total: number }[] };
+  const active = (links ?? []).find((l) => !l.revoked_at && new Date(l.expires_at) > new Date());
+  const requestable = new Set((requestableRows ?? []).map((r) => r.payment_id));
   return {
     options: c.options?.length ? c.options.map((o) => ({ ...o, total: n(optRows?.find((r) => r.version === o.version)?.total) })) : null,
     contract: {
@@ -243,7 +263,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
       late_days: p.status === "requested" ? lateDays(p.requested_at, today) : null,
     })),
     link: { active: !!active, expires_at: active?.expires_at ?? null, last_opened_at: active?.last_opened_at ?? null, open_count: active?.open_count ?? 0 },
-    materialCost: can(session, "costs.view") ? await materialCost(supabase, c.quote_id, c.quote_version) : null,
+    materialCost: materialCostValue,
     canManage: can(session, "quotes.manage"),
     canPurchase: can(session, "purchases.manage"),
     canViewProject: can(session, "projects.view"),

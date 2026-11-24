@@ -819,6 +819,7 @@ export type Database = {
       can_create_organization: { Args: Record<string, never>; Returns: boolean };
       accept_pending_invitations: { Args: Record<string, never>; Returns: number };
       my_permissions: { Args: { p_org: string }; Returns: string[] };
+      session_context: { Args: Record<string, never>; Returns: Json | null };
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };

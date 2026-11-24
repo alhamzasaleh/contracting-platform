@@ -12,11 +12,11 @@ export default async function NewContractPage({ searchParams }: { searchParams: 
   if (!quote) notFound();
   const session = await requirePermission("quotes.manage");
   const t = await getTranslations("contract");
-  const draft = await loadContractDraft(session, { quoteNumber: quote });
+  const [draft, busy] = await Promise.all([loadContractDraft(session, { quoteNumber: quote }), loadBusy(session)]);
   return (
     <div>
       <PageHeader title={t("newTitle")} description={t("newSubtitle")} />
-      <ContractEditor draft={draft} onSave={saveContract} busy={await loadBusy(session)} />
+      <ContractEditor draft={draft} onSave={saveContract} busy={busy} />
     </div>
   );
 }

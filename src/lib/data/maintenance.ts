@@ -1,6 +1,7 @@
 import "server-only";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { MaintenanceStatus } from "@/lib/supabase/database.types";
+import { once, rows } from "@/lib/data/query";
 import { createClient } from "@/lib/supabase/server";
 
 export type MaintenanceItem = {
@@ -25,25 +26,35 @@ const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riy
 export async function loadMaintenance(session: SessionContext): Promise<MaintenancePageData> {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const [{ data: rows }, { data: warranties }, { data: memberships }] = await Promise.all([
-    supabase.from("maintenance_requests").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(300),
+  const rowsP = once(supabase.from("maintenance_requests").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(300));
+  const membershipsP = once(supabase.from("memberships").select("user_id").eq("organization_id", orgId).eq("status", "active"));
+  // chained onto the requests (their contracts → clients, photo links) and the members (names): ~3 round trips in all
+  const contractsP = rowsP.then(({ data }) => {
+    const contractIds = [...new Set((data ?? []).map((r) => r.contract_id))];
+    return contractIds.length ? rows(supabase.from("contracts").select("id, number, client_id").in("id", contractIds)) : [];
+  });
+  const [{ data: list0 }, { data: warranties }, contracts, clients, signed, profiles] = await Promise.all([
+    rowsP,
     supabase.rpc("contract_warranties", { p_org: orgId }),
-    supabase.from("memberships").select("user_id").eq("organization_id", orgId).eq("status", "active"),
+    contractsP,
+    contractsP.then((cs) => {
+      const clientIds = [...new Set(cs.map((c) => c.client_id))];
+      return clientIds.length ? rows(supabase.from("clients").select("id, name, phone").in("id", clientIds)) : [];
+    }),
+    rowsP.then(async ({ data }) => {
+      const paths = [...new Set((data ?? []).flatMap((r) => r.photos))];
+      return paths.length ? ((await supabase.storage.from("project-photos").createSignedUrls(paths, 600)).data ?? []) : [];
+    }),
+    membershipsP.then(({ data }) => {
+      const ids = (data ?? []).map((m) => m.user_id);
+      return ids.length ? rows(supabase.from("profiles").select("id, full_name, phone").in("id", ids)) : [];
+    }),
   ]);
-  const list = rows ?? [];
-  const contractIds = [...new Set(list.map((r) => r.contract_id))];
-  const { data: contracts } = contractIds.length ? await supabase.from("contracts").select("id, number, client_id").in("id", contractIds) : { data: [] };
-  const clientIds = [...new Set((contracts ?? []).map((c) => c.client_id))];
-  const { data: clients } = clientIds.length ? await supabase.from("clients").select("id, name, phone").in("id", clientIds) : { data: [] };
-  const contract = new Map((contracts ?? []).map((c) => [c.id, c]));
-  const client = new Map((clients ?? []).map((c) => [c.id, c]));
+  const list = list0 ?? [];
+  const contract = new Map(contracts.map((c) => [c.id, c]));
+  const client = new Map(clients.map((c) => [c.id, c]));
+  const url = new Map(signed.map((s) => [s.path, s.signedUrl]));
 
-  const paths = [...new Set(list.flatMap((r) => r.photos))];
-  const { data: signed } = paths.length ? await supabase.storage.from("project-photos").createSignedUrls(paths, 600) : { data: [] };
-  const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
-
-  const ids = (memberships ?? []).map((m) => m.user_id);
-  const { data: profiles } = ids.length ? await supabase.from("profiles").select("id, full_name, phone").in("id", ids) : { data: [] };
   const d = today();
   return {
     requests: list.map((r) => {

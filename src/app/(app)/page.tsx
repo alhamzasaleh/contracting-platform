@@ -8,22 +8,23 @@ import { createClient } from "@/lib/supabase/server";
 export default async function HomePage() {
   const session = await getSession();
   const supabase = await createClient();
-  const { count } = await supabase
-    .from("memberships")
-    .select("id", { count: "exact", head: true })
-    .eq("organization_id", session.organization.id);
-
   const org = session.organization;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh" }).format(new Date());
-  const finance = can(session, "finance.view") ? await loadOwnerFinance(session, today) : null;
-  // an approver without finance.view still gets the approvals card (approve in one tap)
-  const approvals = !finance && can(session, "approvals.decide") ? await loadPendingApprovals(session) : null;
-  let expiring: { total: number; expired: number } | null = null;
-  if (can(session, "hr.view")) {
-    const { data: emps } = await supabase.from("employees").select("id, full_name, status, id_expiry, passport_expiry, insurance_expiry").eq("organization_id", org.id);
-    const docs = expiringDocuments(emps ?? [], today);
-    expiring = { total: docs.length, expired: docs.filter((d) => d.level === "expired").length };
-  }
+  // all independent: one parallel round
+  const [{ count }, finance, approvals, expiring] = await Promise.all([
+    supabase.from("memberships").select("id", { count: "exact", head: true }).eq("organization_id", org.id),
+    can(session, "finance.view") ? loadOwnerFinance(session, today) : Promise.resolve(null),
+    // an approver without finance.view still gets the approvals card (approve in one tap)
+    !can(session, "finance.view") && can(session, "approvals.decide") ? loadPendingApprovals(session) : Promise.resolve(null),
+    can(session, "hr.view")
+      ? supabase
+          .from("employees").select("id, full_name, status, id_expiry, passport_expiry, insurance_expiry").eq("organization_id", org.id)
+          .then(({ data: emps }) => {
+            const docs = expiringDocuments(emps ?? [], today);
+            return { total: docs.length, expired: docs.filter((d) => d.level === "expired").length };
+          })
+      : Promise.resolve(null),
+  ]);
   return (
     <DashboardView
       data={{

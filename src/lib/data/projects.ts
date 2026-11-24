@@ -80,29 +80,36 @@ export async function loadProject(session: SessionContext, number: string): Prom
   const orgId = session.organization.id;
   const { data: c } = await supabase.from("contracts").select("id, number, service, start_date, duration_days, warranty_months, accepted_at, client_id, status, quote_id, quote_version").eq("organization_id", orgId).eq("number", number).maybeSingle();
   if (!c || c.status !== "accepted") notFound();
-  const [{ data: client }, { data: stages }, { data: updates }, { data: visits }, { data: notes }, { data: payments }, { data: members }] = await Promise.all([
+  // Promise.resolve: a query builder runs again on every .then(); a real promise runs it once and can be shared
+  const updatesP = Promise.resolve(supabase.from("progress_updates").select("id, stage_id, progress, note, photos, created_at, visible_to_client").eq("contract_id", c.id).order("created_at", { ascending: false }).limit(300));
+  const notesP = Promise.resolve(supabase.from("client_notes").select("id, body, photos, status, reply, stage_id, created_at").eq("contract_id", c.id).order("created_at", { ascending: false }));
+  const [
+    { data: client }, { data: stages }, { data: updates }, { data: visits }, { data: notes }, { data: payments }, { data: members },
+    { data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam, signed,
+  ] = await Promise.all([
     supabase.from("clients").select("name, phone, city, district, location_url").eq("id", c.client_id).maybeSingle(),
     supabase.from("project_stages").select("*").eq("contract_id", c.id).order("seq"),
-    supabase.from("progress_updates").select("id, stage_id, progress, note, photos, created_at, visible_to_client").eq("contract_id", c.id).order("created_at", { ascending: false }).limit(300),
+    updatesP,
     supabase.from("site_visits").select("id, checked_in_at, latitude, longitude, accuracy_m, note, created_by").eq("contract_id", c.id).order("checked_in_at", { ascending: false }).limit(30),
-    supabase.from("client_notes").select("id, body, photos, status, reply, stage_id, created_at").eq("contract_id", c.id).order("created_at", { ascending: false }),
+    notesP,
     supabase.from("contract_payments").select("seq, label, amount, due_event, status").eq("contract_id", c.id).order("seq"),
     supabase.from("profiles").select("id, full_name"),
-  ]);
-  const [{ data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam] = await Promise.all([
     supabase.from("addenda").select("number, title, total, payment_status, extra_days").eq("contract_id", c.id).eq("status", "accepted").order("created_at"),
     supabase.from("maintenance_requests").select("id", { count: "exact", head: true }).eq("contract_id", c.id).in("status", ["open", "in_progress", "resolved"]),
-    can(session, "costs.view") ? loadProjectCosts(session) : Promise.resolve(null),
+    // this project's costs only (filtered in the database; the same figures as the costs page)
+    can(session, "costs.view") ? loadProjectCosts(session, c.id) : Promise.resolve(null),
     // the database's own warranty end (handover + warranty months)
     loadWarrantyEnd(session, c.id),
     // G1: the team priced on the quote, pre-selected when booking
     supabase.from("quote_versions").select("selection").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle().then(({ data }) => loadBookingTeam(session, data?.selection)),
+    // short-lived signed URLs for every photo on the page (private bucket)
+    Promise.all([updatesP, notesP]).then(async ([u, nt]): Promise<{ path: string | null; signedUrl: string | null }[]> => {
+      const paths = [...new Set([...(u.data ?? []).flatMap((x) => x.photos), ...(nt.data ?? []).flatMap((x) => x.photos)])];
+      return paths.length ? ((await supabase.storage.from("project-photos").createSignedUrls(paths, 600)).data ?? []) : [];
+    }),
   ]);
   const extraDays = (addenda ?? []).reduce((s, a) => s + a.extra_days, 0);
   const own = costs?.find((x) => x.id === c.id);
-  // short-lived signed URLs for every photo on the page (private bucket)
-  const paths = [...new Set([...(updates ?? []).flatMap((u) => u.photos), ...(notes ?? []).flatMap((n) => n.photos)])];
-  const { data: signed } = paths.length ? await supabase.storage.from("project-photos").createSignedUrls(paths, 600) : { data: [] };
   const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
   const photo = (p: string) => ({ path: p, url: url.get(p) ?? null });
   const who = new Map((members ?? []).map((m) => [m.id, m.full_name]));

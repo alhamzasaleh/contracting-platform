@@ -1,6 +1,7 @@
 import { MembersView, type InvitationItem, type MemberItem } from "@/components/settings/members-view";
 import { effectivePermissions, type PermissionOverrides } from "@/lib/auth/permissions";
 import { can, getSession } from "@/lib/auth/session";
+import { once, rows } from "@/lib/data/query";
 import { createClient } from "@/lib/supabase/server";
 import { inviteMember, revokeInvitation, updateMember } from "./actions";
 
@@ -9,13 +10,18 @@ export default async function MembersPage() {
   const supabase = await createClient();
   const orgId = session.organization.id;
 
-  const [{ data: memberships }, { data: invitations }] = await Promise.all([
+  const manage = can(session, "members.manage");
+  const membershipsP = once(
     supabase
       .from("memberships")
       .select("id, user_id, role, status, permission_overrides, project_scope")
       .eq("organization_id", orgId)
       .order("created_at"),
-    can(session, "members.manage")
+  );
+  // one parallel round (+ the members' names, chained onto the memberships)
+  const [{ data: memberships }, { data: invitations }, profiles, [{ data: contracts }, { data: assignments }, { data: clients }]] = await Promise.all([
+    membershipsP,
+    manage
       ? supabase
           .from("member_invitations")
           .select("id, phone, full_name, role, expires_at")
@@ -25,22 +31,20 @@ export default async function MembersPage() {
           .gt("expires_at", new Date().toISOString())
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] as { id: string; phone: string; full_name: string | null; role: InvitationItem["role"]; expires_at: string }[] }),
+    membershipsP.then(({ data }) => {
+      const userIds = (data ?? []).map((m) => m.user_id);
+      return userIds.length ? rows(supabase.from("profiles").select("id, full_name, phone").in("id", userIds)) : [];
+    }),
+    // projects to assign (members.manage) and who is assigned where
+    manage
+      ? Promise.all([
+          supabase.from("contracts").select("id, number, client_id, status").eq("organization_id", orgId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(300),
+          supabase.from("project_members").select("contract_id, user_id").eq("organization_id", orgId),
+          supabase.from("clients").select("id, name").eq("organization_id", orgId),
+        ])
+      : Promise.resolve([{ data: [] }, { data: [] }, { data: [] }] as const),
   ]);
-
-  const userIds = (memberships ?? []).map((m) => m.user_id);
-  const { data: profiles } = userIds.length
-    ? await supabase.from("profiles").select("id, full_name, phone").in("id", userIds)
-    : { data: [] };
-  const byId = new Map((profiles ?? []).map((p) => [p.id, p]));
-  // projects to assign (members.manage) and who is assigned where
-  const manage = can(session, "members.manage");
-  const [{ data: contracts }, { data: assignments }, { data: clients }] = manage
-    ? await Promise.all([
-        supabase.from("contracts").select("id, number, client_id, status").eq("organization_id", orgId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(300),
-        supabase.from("project_members").select("contract_id, user_id").eq("organization_id", orgId),
-        supabase.from("clients").select("id, name").eq("organization_id", orgId),
-      ])
-    : [{ data: [] }, { data: [] }, { data: [] }];
+  const byId = new Map(profiles.map((p) => [p.id, p]));
   const clientName = new Map((clients ?? []).map((c: { id: string; name: string }) => [c.id, c.name]));
 
   const members: MemberItem[] = (memberships ?? []).map((m) => ({

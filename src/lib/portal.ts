@@ -82,82 +82,73 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
   }
   const d = data as unknown as PortalData | null;
   if (!d) return { data: null, logoUrl: null, limited: false };
-  let logoUrl: string | null = null;
-  // the approved SVG logo when stored (organization found through the token-checked link)
-  const { data: link } = await admin.rpc("portal_warranty", { p_number: number, p_token: token });
-  const orgId = (link as { org_id?: string } | null)?.org_id;
-  if (orgId) {
-    const { data: o } = await admin.from("organizations").select("logo_svg").eq("id", orgId).maybeSingle();
-    if (o?.logo_svg) logoUrl = `data:image/svg+xml;base64,${Buffer.from(o.logo_svg, "utf8").toString("base64")}`;
-  }
-  if (!logoUrl && d.org.logo_path) {
-    // embedded (same origin) so the page can colour it with a CSS mask; signed URL only for large files
-    const { data: file } = await admin.storage.from("org-assets").download(d.org.logo_path);
-    logoUrl = await blobToDataUrl(file);
-    if (!logoUrl) {
-      const { data: s } = await admin.storage.from("org-assets").createSignedUrl(d.org.logo_path, 600);
-      logoUrl = s?.signedUrl ?? null;
-    }
-  }
-  // execution: stages, the client's notes, and 10-minute signed photo URLs (this contract's files only)
-  let execution: PortalExecution | null = null;
-  if (d.contract.status === "accepted") {
-    const { data: ex } = await admin.rpc("portal_execution", { p_number: number, p_token: token });
-    const e = ex as unknown as (PortalExecution & { org_id: string; contract_id: string }) | null;
-    if (e) {
+  // Everything below needs only the token-checked view: one parallel round, each part chained only
+  // where it needs another's answer (the warranty call is shared: logo + warranty section).
+  const accepted = d.contract.status === "accepted";
+  type PortalFn = "portal_warranty" | "portal_execution" | "portal_addenda" | "portal_invoices" | "portal_receipts" | "portal_options" | "portal_contract_terms" | "portal_invoice_docs";
+  const call = async <T,>(fn: PortalFn): Promise<T | null> => {
+    const { data: x } = await admin.rpc(fn, { p_number: number, p_token: token });
+    return x as unknown as T | null;
+  };
+  const warrantyP = call<PortalWarranty & { org_id?: string; contract_id: string }>("portal_warranty");
+  const [logoUrl, execution, addenda, invoices, receipts, options, rawTerms, invoiceDocs, warranty] = await Promise.all([
+    (async (): Promise<string | null> => {
+      // the approved SVG logo when stored (organization found through the token-checked link)
+      const orgId = (await warrantyP)?.org_id;
+      if (orgId) {
+        const { data: o } = await admin.from("organizations").select("logo_svg").eq("id", orgId).maybeSingle();
+        if (o?.logo_svg) return `data:image/svg+xml;base64,${Buffer.from(o.logo_svg, "utf8").toString("base64")}`;
+      }
+      if (!d.org.logo_path) return null;
+      // embedded (same origin) so the page can colour it with a CSS mask; signed URL only for large files
+      const { data: file } = await admin.storage.from("org-assets").download(d.org.logo_path);
+      const inline = await blobToDataUrl(file);
+      if (inline) return inline;
+      const { data: su } = await admin.storage.from("org-assets").createSignedUrl(d.org.logo_path, 600);
+      return su?.signedUrl ?? null;
+    })(),
+    // execution: stages, the client's notes, and 10-minute signed photo URLs (this contract's files only)
+    (async (): Promise<PortalExecution | null> => {
+      if (!accepted) return null;
+      const e = await call<PortalExecution & { org_id: string; contract_id: string }>("portal_execution");
+      if (!e) return null;
       const prefix = `${e.org_id}/${e.contract_id}/`;
       const paths = [...new Set([...e.stages.flatMap((x) => x.photos), ...e.notes.flatMap((x) => x.photos)])].filter((p) => p.startsWith(prefix));
       const { data: signed } = paths.length ? await admin.storage.from("project-photos").createSignedUrls(paths, 600) : { data: [] };
       const url = new Map((signed ?? []).map((x) => [x.path, x.signedUrl]));
       const sign = (list: string[]) => list.map((p) => url.get(p)).filter((u): u is string => !!u);
-      execution = {
+      return {
         stages: e.stages.map((x) => ({ ...x, photos: sign(x.photos) })),
         notes: e.notes.map((x) => ({ ...x, photos: sign(x.photos) })),
       };
-    }
-  }
-  let addenda: PortalAddendum[] = [];
-  if (d.contract.status === "accepted") {
-    const { data: ad } = await admin.rpc("portal_addenda", { p_number: number, p_token: token });
-    addenda = ((ad as unknown as PortalAddendum[] | null) ?? []).map((a) => ({ ...a, amount: Number(a.amount), vat: Number(a.vat), total: Number(a.total) }));
-  }
-  let invoices: string[] = [];
-  if (d.contract.status === "accepted") {
-    const { data: inv } = await admin.rpc("portal_invoices", { p_number: number, p_token: token });
-    invoices = ((inv as { items?: { key: string }[] } | null)?.items ?? []).map((x) => x.key);
-  }
-  let receipts: ReceiptItem[] = [];
-  if (d.contract.status === "accepted") {
-    const { data: rv } = await admin.rpc("portal_receipts", { p_number: number, p_token: token });
-    receipts = ((rv as ReceiptItem[] | null) ?? []).map((r) => ({ ...r, amount: Number(r.amount) }));
-  }
-  let options: PortalOption[] = [];
-  if (d.contract.status === "sent" || d.contract.status === "draft") {
-    const { data: op } = await admin.rpc("portal_options", { p_number: number, p_token: token });
-    options = ((op as PortalOption[] | null) ?? []).map((o) => ({ ...o, subtotal: Number(o.subtotal), vat: Number(o.vat), total: Number(o.total) }));
-  }
-  const { data: rawTerms } = await admin.rpc("portal_contract_terms", { p_number: number, p_token: token });
-  const parsedTerms = termsSchema.safeParse(rawTerms ?? {});
-  const terms = parsedTerms.success ? parsedTerms.data : null;
-  let invoiceDocs: PortalInvoice[] = [];
-  if (d.contract.status === "accepted") {
-    const { data: inv } = await admin.rpc("portal_invoice_docs", { p_number: number, p_token: token });
-    invoiceDocs = ((inv as PortalInvoice[] | null) ?? []).map((i) => ({ ...i, subtotal: Number(i.subtotal), vat_percent: Number(i.vat_percent), vat: Number(i.vat), total: Number(i.total), paid: Number(i.paid) }));
-  }
-  let warranty: PortalWarranty | null = null;
-  if (d.contract.status === "accepted") {
-    const { data: w } = await admin.rpc("portal_warranty", { p_number: number, p_token: token });
-    const x = w as unknown as (PortalWarranty & { org_id: string; contract_id: string }) | null;
-    if (x?.handover_at) {
+    })(),
+    accepted
+      ? call<PortalAddendum[]>("portal_addenda").then((ad) => (ad ?? []).map((a) => ({ ...a, amount: Number(a.amount), vat: Number(a.vat), total: Number(a.total) })))
+      : Promise.resolve([] as PortalAddendum[]),
+    accepted ? call<{ items?: { key: string }[] }>("portal_invoices").then((inv) => (inv?.items ?? []).map((x) => x.key)) : Promise.resolve([] as string[]),
+    accepted ? call<ReceiptItem[]>("portal_receipts").then((rv) => (rv ?? []).map((r) => ({ ...r, amount: Number(r.amount) }))) : Promise.resolve([] as ReceiptItem[]),
+    d.contract.status === "sent" || d.contract.status === "draft"
+      ? call<PortalOption[]>("portal_options").then((op) => (op ?? []).map((o) => ({ ...o, subtotal: Number(o.subtotal), vat: Number(o.vat), total: Number(o.total) })))
+      : Promise.resolve([] as PortalOption[]),
+    call<unknown>("portal_contract_terms"),
+    accepted
+      ? call<PortalInvoice[]>("portal_invoice_docs").then((inv) => (inv ?? []).map((i) => ({ ...i, subtotal: Number(i.subtotal), vat_percent: Number(i.vat_percent), vat: Number(i.vat), total: Number(i.total), paid: Number(i.paid) })))
+      : Promise.resolve([] as PortalInvoice[]),
+    (async (): Promise<PortalWarranty | null> => {
+      if (!accepted) return null;
+      const x = (await warrantyP) as (PortalWarranty & { org_id: string; contract_id: string }) | null;
+      if (!x?.handover_at) return null;
       const prefix = `${x.org_id}/${x.contract_id}/`;
       const paths = [...new Set(x.requests.flatMap((r) => r.photos))].filter((p) => p.startsWith(prefix));
       const { data: signed } = paths.length ? await admin.storage.from("project-photos").createSignedUrls(paths, 600) : { data: [] };
       const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
-      warranty = {
+      return {
         handover_at: x.handover_at, warranty_end: x.warranty_end, active: x.active,
         requests: x.requests.map((r) => ({ ...r, photos: r.photos.map((p) => url.get(p)).filter((u): u is string => !!u) })),
       };
-    }
-  }
+    })(),
+  ]);
+  const parsedTerms = termsSchema.safeParse(rawTerms ?? {});
+  const terms = parsedTerms.success ? parsedTerms.data : null;
   return { data: { ...d, options, execution, addenda, invoices, receipts, warranty, invoiceDocs, terms, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
 }

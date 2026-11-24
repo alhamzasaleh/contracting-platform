@@ -2,6 +2,7 @@ import "server-only";
 import { aiConfigured } from "@/lib/ai/invoice";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { ServiceKind } from "@/lib/pricing";
+import { once, rows } from "@/lib/data/query";
 import { createClient } from "@/lib/supabase/server";
 
 const n = (v: unknown) => Number(v ?? 0);
@@ -50,15 +51,22 @@ export type SubcontractorsData = {
 export async function loadSubcontractors(session: SessionContext): Promise<SubcontractorsData> {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const [{ data: subs }, { data: agreements }, { data: work }, { data: payments }, projectList] = await Promise.all([
+  const agreementsP = once(supabase.from("subcontractor_agreements").select("id, subcontractor_id, contract_id, scope, basis, rate, quantity_m2, schedule, status, auto_progress, review_addendum_id").eq("organization_id", orgId).order("created_at", { ascending: false }));
+  const [{ data: subs }, { data: agreements }, { data: work }, { data: payments }, projectList, reviewAds, rates] = await Promise.all([
     supabase.from("subcontractors").select("id, name, phone, services, iban, vat_number, notes, is_active").eq("organization_id", orgId).order("name"),
-    supabase.from("subcontractor_agreements").select("id, subcontractor_id, contract_id, scope, basis, rate, quantity_m2, schedule, status, auto_progress, review_addendum_id").eq("organization_id", orgId).order("created_at", { ascending: false }),
+    agreementsP,
     supabase.from("subcontractor_work").select("id, agreement_id, work_date, quantity_m2, percent, amount, note, auto").eq("organization_id", orgId).order("work_date", { ascending: false }).limit(5000),
     supabase.from("subcontractor_payments").select("id, agreement_id, paid_on, amount, method, reference").eq("organization_id", orgId).order("paid_on", { ascending: false }).limit(5000),
     projects(supabase, orgId, can(session, "quotes.view")),
+    // the addenda an agreement must be reviewed for (chained onto the agreements)
+    agreementsP.then(({ data }) => {
+      const reviewIds = [...new Set((data ?? []).map((g) => g.review_addendum_id).filter((x): x is string => !!x))];
+      return reviewIds.length ? rows(supabase.from("addenda").select("id, number").in("id", reviewIds)) : [];
+    }),
+    can(session, "costs.view")
+      ? rows(supabase.from("labour_rates").select("subcontractor_id, basis, rate").eq("organization_id", orgId).eq("is_active", true).not("subcontractor_id", "is", null))
+      : Promise.resolve([]),
   ]);
-  const reviewIds = [...new Set((agreements ?? []).map((g) => g.review_addendum_id).filter((x): x is string => !!x))];
-  const { data: reviewAds } = reviewIds.length ? await supabase.from("addenda").select("id, number").in("id", reviewIds) : { data: [] as { id: string; number: string }[] };
   return {
     subs: subs ?? [],
     agreements: (agreements ?? []).map(({ review_addendum_id, ...g }) => ({
@@ -69,9 +77,7 @@ export async function loadSubcontractors(session: SessionContext): Promise<Subco
     projects: projectList,
     canManage: can(session, "purchases.manage"),
     canPay: can(session, "finance.manage"),
-    rates: can(session, "costs.view")
-      ? (((await supabase.from("labour_rates").select("subcontractor_id, basis, rate").eq("organization_id", orgId).eq("is_active", true).not("subcontractor_id", "is", null)).data ?? []) as { subcontractor_id: string; basis: "external_per_unit" | "external_lump"; rate: number }[]).map((r) => ({ ...r, rate: n(r.rate) }))
-      : [],
+    rates: (rates as { subcontractor_id: string; basis: "external_per_unit" | "external_lump"; rate: number }[]).map((r) => ({ ...r, rate: n(r.rate) })),
   };
 }
 
@@ -89,14 +95,18 @@ export type PettyCashData = {
 export async function loadPettyCash(session: SessionContext): Promise<PettyCashData> {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const [{ data: accounts }, { data: entries }, { data: memberships }, projectList] = await Promise.all([
+  const membershipsP = once(supabase.from("memberships").select("user_id").eq("organization_id", orgId));
+  const [{ data: accounts }, { data: entries }, { data: memberships }, projectList, profiles] = await Promise.all([
     supabase.from("petty_cash_accounts").select("id, name, holder_id, is_active").eq("organization_id", orgId).order("name"),
     supabase.from("petty_cash_entries").select("id, account_id, kind, entry_date, amount, contract_id, description, supplier_name, attachment_path, ai_extracted").eq("organization_id", orgId).order("entry_date", { ascending: false }).limit(2000),
-    supabase.from("memberships").select("user_id").eq("organization_id", orgId),
+    membershipsP,
     projects(supabase, orgId, can(session, "quotes.view") || can(session, "projects.view")),
+    membershipsP.then(({ data }) => {
+      const ids = (data ?? []).map((m) => m.user_id);
+      return ids.length ? rows(supabase.from("profiles").select("id, full_name, phone").in("id", ids)) : [];
+    }),
   ]);
   const ids = (memberships ?? []).map((m) => m.user_id);
-  const { data: profiles } = ids.length ? await supabase.from("profiles").select("id, full_name, phone").in("id", ids) : { data: [] };
   const name = new Map((profiles ?? []).map((p) => [p.id, p.full_name || (p.phone ? `0${p.phone.slice(3)}` : "—")]));
   return {
     accounts: (accounts ?? []).map((a) => ({ ...a, holder: name.get(a.holder_id) ?? "—" })),

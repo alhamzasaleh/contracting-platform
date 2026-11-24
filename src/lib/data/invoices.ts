@@ -9,7 +9,9 @@ export type InvoicesPageData = { invoices: InvoiceListItem[]; qoyodEnabled: bool
 
 const n = (v: unknown) => Number(v ?? 0);
 
-async function build(session: SessionContext, filter?: { number: string }): Promise<{ items: InvoiceListItem[]; qoyodEnabled: boolean }> {
+type Receipt = { number: string; amount: number; paid_on: string };
+
+async function build(session: SessionContext, filter?: { number: string }): Promise<{ items: InvoiceListItem[]; qoyodEnabled: boolean; receipts: Receipt[] }> {
   const supabase = await createClient();
   const orgId = session.organization.id;
   let q = supabase.from("invoices").select("*").eq("organization_id", orgId).order("issue_date", { ascending: false }).order("number", { ascending: false }).limit(500);
@@ -20,11 +22,16 @@ async function build(session: SessionContext, filter?: { number: string }): Prom
   const adIds = list.flatMap((i) => (i.addendum_id ? [i.addendum_id] : []));
   const cIds = [...new Set(list.map((i) => i.contract_id))];
   const entityIds = [...payIds, ...adIds];
-  const [{ data: pays }, { data: ads }, { data: cons }, { data: jobs }] = await Promise.all([
+  const one = filter && list.length === 1 ? list[0] : null;
+  const [{ data: pays }, { data: ads }, { data: cons }, { data: jobs }, { data: receipts }] = await Promise.all([
     payIds.length ? supabase.from("contract_payments").select("id, paid_amount, status").in("id", payIds) : Promise.resolve({ data: [] }),
     adIds.length ? supabase.from("addenda").select("id, paid_amount, payment_status").in("id", adIds) : Promise.resolve({ data: [] }),
     cIds.length ? supabase.from("contracts").select("id, number").in("id", cIds) : Promise.resolve({ data: [] }),
     entityIds.length && can(session, "finance.view") ? supabase.from("qoyod_sync_jobs").select("id, entity_id, status").eq("kind", "invoice").in("entity_id", entityIds) : Promise.resolve({ data: [] }),
+    // one invoice's page: the receipt vouchers for the payment it bills (same round as the rest)
+    one
+      ? (one.payment_id ? supabase.from("client_receipts").select("number, amount, paid_on").eq("payment_id", one.payment_id) : supabase.from("client_receipts").select("number, amount, paid_on").eq("addendum_id", one.addendum_id!)).order("created_at")
+      : Promise.resolve({ data: [] as Receipt[] }),
   ]);
   // marked paid = paid in full (also rows from before amounts were recorded: paid_amount null)
   const paidIn = new Map<string, { amount: number; full: boolean }>([
@@ -35,6 +42,7 @@ async function build(session: SessionContext, filter?: { number: string }): Prom
   const job = new Map((jobs ?? []).map((j) => [j.entity_id, j]));
   return {
     qoyodEnabled: !!qs?.enabled,
+    receipts: (receipts ?? []).map((r) => ({ number: r.number, amount: n(r.amount), paid_on: r.paid_on })),
     items: list.map((i) => {
       const ent = (i.payment_id ?? i.addendum_id)!;
       const j = job.get(ent);
@@ -56,13 +64,7 @@ export async function loadInvoices(session: SessionContext): Promise<InvoicesPag
 export type InvoicePageItem = InvoiceListItem & { qoyodEnabled: boolean; receipts: { number: string; amount: number; paid_on: string }[] };
 
 export async function loadInvoice(session: SessionContext, number: string): Promise<InvoicePageItem> {
-  const { items, qoyodEnabled } = await build(session, { number });
+  const { items, qoyodEnabled, receipts } = await build(session, { number });
   if (!items[0]) notFound();
-  // the receipt vouchers for the payment this invoice bills
-  const supabase = await createClient();
-  const { data: inv } = await supabase.from("invoices").select("payment_id, addendum_id").eq("id", items[0].id).maybeSingle();
-  const { data: receipts } = inv
-    ? await (inv.payment_id ? supabase.from("client_receipts").select("number, amount, paid_on").eq("payment_id", inv.payment_id) : supabase.from("client_receipts").select("number, amount, paid_on").eq("addendum_id", inv.addendum_id!)).order("created_at")
-    : { data: [] };
-  return { ...items[0], qoyodEnabled, receipts: (receipts ?? []).map((r) => ({ number: r.number, amount: n(r.amount), paid_on: r.paid_on })) };
+  return { ...items[0], qoyodEnabled, receipts };
 }

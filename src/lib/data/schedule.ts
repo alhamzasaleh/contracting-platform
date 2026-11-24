@@ -24,7 +24,7 @@ export async function loadSchedule(session: SessionContext): Promise<ScheduleDat
   const orgId = session.organization.id;
   const since = addDays(new Date().toISOString().slice(0, 10), -120);
   const seeProjects = can(session, "quotes.view");
-  const [{ data: teams }, { data: members }, { data: entries }, { data: roster }, contracts, clients] = await Promise.all([
+  const [{ data: teams }, { data: members }, { data: entries }, { data: roster }, contracts, clients, { data: addenda }] = await Promise.all([
     supabase.from("teams").select("id, name, kind, services, color, contact_phone, is_active, notes, subcontractor_id").eq("organization_id", orgId).order("name"),
     supabase.from("team_members").select("team_id, employee_id").eq("organization_id", orgId),
     supabase.from("schedule_entries").select("id, team_id, contract_id, kind, title, start_date, end_date, notes").eq("organization_id", orgId).gte("end_date", since).order("start_date"),
@@ -33,9 +33,9 @@ export async function loadSchedule(session: SessionContext): Promise<ScheduleDat
       ? supabase.from("contracts").select("id, number, client_id, service, status, start_date, duration_days").eq("organization_id", orgId).neq("status", "cancelled").order("start_date")
       : Promise.resolve({ data: [] as never[] }),
     seeProjects ? supabase.from("clients").select("id, name").eq("organization_id", orgId) : Promise.resolve({ data: [] as never[] }),
+    // accepted additional works extend the delivery date
+    seeProjects ? supabase.from("addenda").select("contract_id, extra_days").eq("organization_id", orgId).eq("status", "accepted") : Promise.resolve({ data: [] as { contract_id: string; extra_days: number }[] }),
   ]);
-  // accepted additional works extend the delivery date
-  const { data: addenda } = seeProjects ? await supabase.from("addenda").select("contract_id, extra_days").eq("organization_id", orgId).eq("status", "accepted") : { data: [] };
   const extra = new Map<string, number>();
   for (const a of addenda ?? []) extra.set(a.contract_id, (extra.get(a.contract_id) ?? 0) + a.extra_days);
   const byTeam = new Map<string, string[]>();

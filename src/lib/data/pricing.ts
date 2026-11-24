@@ -18,7 +18,7 @@ export async function loadPricingContext(session: SessionContext): Promise<{
   const supabase = await createClient();
   const orgId = session.organization.id;
   const seeHr = can(session, "hr.view");
-  const [catalogue, settings, { data: rates }, { data: services }, { data: templates }, employees, costItems] = await Promise.all([
+  const [catalogue, settings, { data: rates }, { data: services }, { data: templates }, employees, costItems, { data: teamRows }, { data: memberRows }] = await Promise.all([
     loadEngineData(session),
     loadPricingSettings(session),
     supabase.from("labour_rates").select("id, name, basis, rate, service_id, is_active").eq("organization_id", orgId).eq("is_active", true).order("name"),
@@ -28,13 +28,11 @@ export async function loadPricingContext(session: SessionContext): Promise<{
       ? supabase.from("employees").select("id, full_name, job_title, is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances, status").eq("organization_id", orgId).eq("status", "active").order("full_name")
       : Promise.resolve({ data: [] as never[] }),
     seeHr ? loadCostItems(session) : Promise.resolve([]),
+    seeHr
+      ? supabase.from("teams").select("id, name").eq("organization_id", orgId).eq("kind", "inhouse").eq("is_active", true).order("name")
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    seeHr ? supabase.from("team_members").select("team_id, employee_id").eq("organization_id", orgId) : Promise.resolve({ data: [] as { team_id: string; employee_id: string }[] }),
   ]);
-  const [{ data: teamRows }, { data: memberRows }] = seeHr
-    ? await Promise.all([
-        supabase.from("teams").select("id, name").eq("organization_id", orgId).eq("kind", "inhouse").eq("is_active", true).order("name"),
-        supabase.from("team_members").select("team_id, employee_id").eq("organization_id", orgId),
-      ])
-    : [{ data: [] as { id: string; name: string }[] }, { data: [] as { team_id: string; employee_id: string }[] }];
   const serviceCode = new Map((services ?? []).map((s) => [s.id, s.code]));
   const workingDays = Number(settings?.working_days_per_month ?? 26);
 

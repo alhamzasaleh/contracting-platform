@@ -2,6 +2,7 @@ import "server-only";
 import { notFound } from "next/navigation";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { SurveyRoom, SurveyTotals } from "@/lib/survey";
+import { once, rows } from "@/lib/data/query";
 import { createClient } from "@/lib/supabase/server";
 
 const n = (v: unknown) => Number(v ?? 0);
@@ -52,30 +53,41 @@ export async function loadClientDetail(session: SessionContext, number: string):
     .eq("number", number)
     .maybeSingle();
   if (!client) notFound();
-  const [{ data: surveys }, { data: rooms }, { data: quotes }] = await Promise.all([
-    supabase.from("surveys").select("id, number, title, mode, visit_date").eq("client_id", client.id).order("created_at", { ascending: false }),
-    supabase.from("survey_rooms").select("survey_id").eq("organization_id", orgId),
-    supabase.from("quotes").select("id, number, service, status, current_version, created_at").eq("client_id", client.id).order("created_at", { ascending: false }),
-  ]);
   const finance = can(session, "finance.view");
-  const { data: contracts } = can(session, "quotes.view")
-    ? await supabase.from("contracts").select("id, number, service, status, total").eq("client_id", client.id).neq("status", "cancelled").order("created_at", { ascending: false })
-    : { data: [] as { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; total: number }[] };
-  const cids = (contracts ?? []).map((c) => c.id);
-  const accepted = (contracts ?? []).filter((c) => c.status === "accepted").map((c) => c.id);
-  const [{ data: repairs }, { data: addenda }, { data: receipts }, { data: invoices }] = await Promise.all([
-    cids.length && can(session, "projects.view") ? supabase.from("maintenance_requests").select("contract_id").in("contract_id", cids).in("status", ["open", "in_progress", "resolved"]) : Promise.resolve({ data: [] as { contract_id: string }[] }),
-    finance && accepted.length ? supabase.from("addenda").select("contract_id, total").in("contract_id", accepted).eq("status", "accepted") : Promise.resolve({ data: [] as { contract_id: string; total: number }[] }),
-    finance && cids.length ? supabase.from("client_receipts").select("amount").in("contract_id", cids) : Promise.resolve({ data: [] as { amount: number }[] }),
-    finance && cids.length ? supabase.from("invoices").select("number, total, issue_date").in("contract_id", cids).order("issue_date", { ascending: false }).limit(100) : Promise.resolve({ data: [] as { number: string; total: number; issue_date: string }[] }),
+  const surveysP = once(supabase.from("surveys").select("id, number, title, mode, visit_date").eq("client_id", client.id).order("created_at", { ascending: false }));
+  const quotesP = once(supabase.from("quotes").select("id, number, service, status, current_version, created_at").eq("client_id", client.id).order("created_at", { ascending: false }));
+  const contractsP: Promise<{ data: { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; total: number }[] | null }> = can(session, "quotes.view")
+    ? once(supabase.from("contracts").select("id, number, service, status, total").eq("client_id", client.id).neq("status", "cancelled").order("created_at", { ascending: false }))
+    : Promise.resolve({ data: [] });
+  // one parallel round after the client; queries that need his surveys / quotes / contracts are chained onto them
+  const [{ data: surveys }, rooms, { data: quotes }, versions, { data: contracts }, [repairs, addenda, receipts, invoices]] = await Promise.all([
+    surveysP,
+    // rooms of his surveys only (counted per survey)
+    surveysP.then(({ data }) => {
+      const ids = (data ?? []).map((x) => x.id);
+      return ids.length ? rows(supabase.from("survey_rooms").select("survey_id").in("survey_id", ids)) : [];
+    }),
+    quotesP,
+    quotesP.then(({ data }) => {
+      const ids = (data ?? []).map((q) => q.id);
+      return ids.length ? rows(supabase.from("quote_versions").select("quote_id, version, total").in("quote_id", ids)) : [];
+    }),
+    contractsP,
+    contractsP.then(({ data }) => {
+      const cids = (data ?? []).map((c) => c.id);
+      const accepted = (data ?? []).filter((c) => c.status === "accepted").map((c) => c.id);
+      return Promise.all([
+        cids.length && can(session, "projects.view") ? rows(supabase.from("maintenance_requests").select("contract_id").in("contract_id", cids).in("status", ["open", "in_progress", "resolved"])) : [],
+        finance && accepted.length ? rows(supabase.from("addenda").select("contract_id, total").in("contract_id", accepted).eq("status", "accepted")) : [],
+        finance && cids.length ? rows(supabase.from("client_receipts").select("amount").in("contract_id", cids)) : [],
+        finance && cids.length ? rows(supabase.from("invoices").select("number, total, issue_date").in("contract_id", cids).order("issue_date", { ascending: false }).limit(100)) : [],
+      ]);
+    }),
   ]);
-  const billed = (contracts ?? []).filter((c) => c.status === "accepted").reduce((s, c) => s + n(c.total), 0) + (addenda ?? []).reduce((s, a) => s + n(a.total), 0);
-  const received = (receipts ?? []).reduce((s, r) => s + n(r.amount), 0);
+  const accepted = (contracts ?? []).filter((c) => c.status === "accepted").map((c) => c.id);
+  const billed = (contracts ?? []).filter((c) => c.status === "accepted").reduce((s, c) => s + n(c.total), 0) + addenda.reduce((s, a) => s + n(a.total), 0);
+  const received = receipts.reduce((s, r) => s + n(r.amount), 0);
   const r2 = (x: number) => Math.round(x * 100) / 100;
-  const ids = (quotes ?? []).map((q) => q.id);
-  const { data: versions } = ids.length
-    ? await supabase.from("quote_versions").select("quote_id, version, total").in("quote_id", ids)
-    : { data: [] as { quote_id: string; version: number; total: number }[] };
   return {
     client,
     surveys: (surveys ?? []).map((s) => ({ ...s, rooms: (rooms ?? []).filter((r) => r.survey_id === s.id).length })),

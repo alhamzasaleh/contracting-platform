@@ -10,11 +10,11 @@ export default async function EditContractPage({ params }: { params: Promise<{ n
   const { number } = await params;
   const session = await requirePermission("quotes.manage");
   const t = await getTranslations("contract");
-  const draft = await loadContractDraft(session, { contractNumber: decodeURIComponent(number) });
+  const [draft, busy] = await Promise.all([loadContractDraft(session, { contractNumber: decodeURIComponent(number) }), loadBusy(session)]);
   return (
     <div>
       <PageHeader title={t("editTitle", { number: draft.contract!.number })} />
-      <ContractEditor draft={draft} onSave={saveContract} busy={await loadBusy(session)} />
+      <ContractEditor draft={draft} onSave={saveContract} busy={busy} />
     </div>
   );
 }

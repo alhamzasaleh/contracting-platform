@@ -5,6 +5,7 @@ import { loadPricingContext } from "@/lib/data/pricing";
 import type { Quantities, Selection, ServiceKind } from "@/lib/pricing";
 import type { ClientView, PurchaseItem } from "@/lib/quotes";
 import type { QuoteStatus } from "@/lib/supabase/database.types";
+import { rows } from "@/lib/data/query";
 import { createClient } from "@/lib/supabase/server";
 import { surveyGaps, surveyQuantities, type SurveyRoom, type SurveyTotals } from "@/lib/survey";
 import type { Line } from "@/lib/engine";
@@ -71,6 +72,9 @@ async function surveySource(supabase: Awaited<ReturnType<typeof createClient>>, 
 export async function loadQuoteEditor(session: SessionContext, args: { surveyNumber?: string; service?: ServiceKind; quoteNumber?: string }) {
   const supabase = await createClient();
   const orgId = session.organization.id;
+  // the pricing context doesn't depend on the quote: start it now, alongside the quote lookups
+  const contextP = loadPricingContext(session);
+  contextP.catch(() => {}); // awaited below; never an unhandled rejection if notFound() comes first
   let quote: { id: string; number: string; service: ServiceKind; survey_id: string | null; current_version: number } | null = null;
   let initial: Selection | null = null;
   let discount = 0;
@@ -80,18 +84,20 @@ export async function loadQuoteEditor(session: SessionContext, args: { surveyNum
     const { data } = await supabase.from("quotes").select("id, number, service, survey_id, current_version").eq("organization_id", orgId).eq("number", args.quoteNumber).maybeSingle();
     if (!data || !data.survey_id) notFound();
     quote = data;
-    const { data: v } = await supabase.from("quote_versions").select("selection, discount, client_view, pricing_method, notes").eq("quote_id", data.id).eq("version", data.current_version).maybeSingle();
-    if (v) {
-      initial = v.selection as unknown as Selection;
-      discount = n((v.client_view as { discountPercent?: number } | null)?.discountPercent ?? 0);
-      method = v.pricing_method;
-      notes = v.notes;
-    }
   }
   const kind = (quote?.service ?? args.service)!;
-  const src = await surveySource(supabase, orgId, quote ? { id: quote.survey_id! } : { number: args.surveyNumber }, kind);
+  const [v, src, [{ ctx, templates, canSeeCrewCost }, history]] = await Promise.all([
+    quote ? supabase.from("quote_versions").select("selection, discount, client_view, pricing_method, notes").eq("quote_id", quote.id).eq("version", quote.current_version).maybeSingle().then((r) => r.data) : Promise.resolve(null),
+    surveySource(supabase, orgId, quote ? { id: quote.survey_id! } : { number: args.surveyNumber }, kind),
+    Promise.all([contextP, loadPastStats(session, kind, quote?.id ?? null)]),
+  ]);
   if (!src) notFound();
-  const [{ ctx, templates, canSeeCrewCost }, history] = await Promise.all([loadPricingContext(session), loadPastStats(session, kind, quote?.id ?? null)]);
+  if (v) {
+    initial = v.selection as unknown as Selection;
+    discount = n((v.client_view as { discountPercent?: number } | null)?.discountPercent ?? 0);
+    method = v.pricing_method;
+    notes = v.notes;
+  }
   return { quote, kind, initial, discount, method, notes, ...src, ctx, templates, canSeeCrewCost, history };
 }
 
@@ -120,9 +126,10 @@ export async function loadPastStats(session: SessionContext, kind: ServiceKind, 
     supabase.from("pricing_settings").select("min_margin_percent").eq("organization_id", orgId).maybeSingle(),
   ]);
   const accepted = (contracts ?? []).filter((c) => c.status === "accepted");
-  const { data: finals } = accepted.length
-    ? await supabase.from("project_stages").select("contract_id, confirmed_at").eq("is_final", true).eq("status", "confirmed").in("contract_id", accepted.map((c) => c.id))
-    : { data: [] as { contract_id: string; confirmed_at: string | null }[] };
+  // the final stages (actual duration) are needed only at the end: fetched alongside the margins below
+  const finalsP = accepted.length
+    ? rows(supabase.from("project_stages").select("contract_id, confirmed_at").eq("is_final", true).eq("status", "confirmed").in("contract_id", accepted.map((c) => c.id)))
+    : Promise.resolve([] as { contract_id: string; confirmed_at: string | null }[]);
   const monthAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
   const picked = list
     .map((q) => {
@@ -133,15 +140,18 @@ export async function loadPastStats(session: SessionContext, kind: ServiceKind, 
       const version = won && c ? c.quote_version : q.current_version;
       const v = (versions ?? []).find((x) => x.quote_id === q.id && x.version === version);
       if (!v) return null;
-      const fin = c ? (finals ?? []).find((f) => f.contract_id === c.id)?.confirmed_at : null;
-      const actualDays = c && fin ? Math.max(1, Math.round((Date.parse(fin) - Date.parse(c.start_date)) / 86_400_000)) : null;
-      return { q, v, outcome: (won ? "won" : "lost") as "won" | "lost", plannedDays: c?.duration_days ?? null, actualDays };
+      return { q, v, c, outcome: (won ? "won" : "lost") as "won" | "lost", plannedDays: c?.duration_days ?? null };
     })
     .filter((x): x is NonNullable<typeof x> => !!x);
-  const { data: costs } = picked.length
-    ? await supabase.from("quote_version_costs").select("quote_version_id, margin_percent").in("quote_version_id", picked.map((p) => p.v.id))
-    : { data: [] as { quote_version_id: string; margin_percent: number }[] };
-  const margin = new Map((costs ?? []).map((c) => [c.quote_version_id, n(c.margin_percent)]));
+  const [costs, finals] = await Promise.all([
+    picked.length ? rows(supabase.from("quote_version_costs").select("quote_version_id, margin_percent").in("quote_version_id", picked.map((p) => p.v.id))) : Promise.resolve([] as { quote_version_id: string; margin_percent: number }[]),
+    finalsP,
+  ]);
+  const actualDaysOf = (c: { id: string; start_date: string } | undefined) => {
+    const fin = c ? finals.find((f) => f.contract_id === c.id)?.confirmed_at : null;
+    return c && fin ? Math.max(1, Math.round((Date.parse(fin) - Date.parse(c.start_date)) / 86_400_000)) : null;
+  };
+  const margin = new Map(costs.map((c) => [c.quote_version_id, n(c.margin_percent)]));
   return pastStats(
     picked
       .filter((p) => margin.has(p.v.id))
@@ -150,7 +160,7 @@ export async function loadPastStats(session: SessionContext, kind: ServiceKind, 
         margin: margin.get(p.v.id)!,
         workTypes: ((p.v.client_view as unknown as ClientView | null)?.workTypes ?? []).map((w) => ({ workType: w.workType, pricePerM2: n(w.pricePerM2) })),
         plannedDays: p.plannedDays,
-        actualDays: p.actualDays,
+        actualDays: actualDaysOf(p.c),
       })),
     n(settings?.min_margin_percent ?? 20),
   );

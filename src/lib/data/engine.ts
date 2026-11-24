@@ -80,11 +80,11 @@ export async function loadProducts(session: SessionContext) {
 export async function loadProductLines(session: SessionContext) {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const [{ products, brands, suppliers }, { data: groups }] = await Promise.all([
+  const [{ products, brands, suppliers }, { data: groups }, { data: rows }] = await Promise.all([
     loadProducts(session),
     supabase.from("equivalence_groups").select("*").eq("organization_id", orgId).order("name"),
+    supabase.from("products").select("id, coverage_per_unit").eq("organization_id", orgId),
   ]);
-  const { data: rows } = await supabase.from("products").select("id, coverage_per_unit").eq("organization_id", orgId);
   const override = new Map((rows ?? []).map((r) => [r.id, n(r.coverage_per_unit)]));
   const brandOf = (p: (typeof products)[number]): LineBrand => ({
     id: p.id,

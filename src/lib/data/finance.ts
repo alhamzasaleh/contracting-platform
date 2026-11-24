@@ -8,6 +8,7 @@ import { addendumPaid, ageing, cashStatutoryItems, expectedPaymentDate, paydays,
 import type { ServiceKind } from "@/lib/pricing";
 import { costStatus } from "@/lib/purchases";
 import { addDays } from "@/lib/schedule";
+import { once, rows as rowsOf } from "@/lib/data/query";
 import { createClient } from "@/lib/supabase/server";
 import { ltr } from "@/lib/utils";
 
@@ -78,20 +79,72 @@ export async function loadPendingApprovals(session: SessionContext): Promise<App
 export async function loadOwnerFinance(session: SessionContext, today: string): Promise<OwnerFinance> {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const [{ data: contracts }, { data: clients }, { data: settings }, { data: addenda }, { data: approvals }, { data: stages }] = await Promise.all([
-    supabase.from("contracts").select("id, number, client_id, service, status, start_date, duration_days, total, quote_id, quote_version, accepted_at").eq("organization_id", orgId).eq("status", "accepted"),
+  // Every query starts at once; the few that need another's answer are chained onto it, so the
+  // whole page costs about three database round trips (`once`: a query shared by chained ones is sent once).
+  const contractsP = once(supabase.from("contracts").select("id, number, client_id, service, status, start_date, duration_days, total, quote_id, quote_version, accepted_at").eq("organization_id", orgId).eq("status", "accepted"));
+  const addendaP = once(supabase.from("addenda").select("id, contract_id, number, title, amount, vat, total, extra_days, status, payment_status, accepted_at, paid_amount, paid_at").eq("organization_id", orgId).eq("status", "accepted"));
+  const versionsP = contractsP.then(({ data: list }) =>
+    list?.length ? rowsOf(supabase.from("quote_versions").select("id, quote_id, version, client_view").in("quote_id", list.map((c) => c.quote_id))) : [],
+  );
+  const seeHr = can(session, "hr.view");
+  const seeEstimates = can(session, "costs.view");
+  const [
+    { data: contracts }, { data: clients }, { data: settings }, { data: addenda }, { data: approvals }, { data: stages },
+    payments, versions, requestableRows,
+    hr, spend, costs, estimatedTotals, { data: tc }, { data: monthReceipts },
+  ] = await Promise.all([
+    contractsP,
     supabase.from("clients").select("id, name, phone").eq("organization_id", orgId),
     supabase.from("finance_settings").select("cash_balance, cash_balance_on, payday").eq("organization_id", orgId).maybeSingle(),
-    supabase.from("addenda").select("id, contract_id, number, title, amount, vat, total, extra_days, status, payment_status, accepted_at, paid_amount, paid_at").eq("organization_id", orgId).eq("status", "accepted"),
+    addendaP,
     supabase.from("approvals").select("id, kind, entity, entity_id, details, created_at").eq("organization_id", orgId).eq("status", "pending").order("created_at"),
     supabase.from("project_stages").select("contract_id, status, progress, is_final").eq("organization_id", orgId),
-  ]);
-  const ids = (contracts ?? []).map((c) => c.id);
-  const [{ data: payments }, { data: versions }, { data: requestableRows }] = await Promise.all([
-    ids.length ? supabase.from("contract_payments").select("id, contract_id, seq, label, amount, due_event, status, requested_at, expected_date, paid_amount, paid_at").in("contract_id", ids).order("seq") : Promise.resolve({ data: [] as never[] }),
-    ids.length ? supabase.from("quote_versions").select("id, quote_id, version, client_view").in("quote_id", (contracts ?? []).map((c) => c.quote_id)) : Promise.resolve({ data: [] as never[] }),
+    contractsP.then(({ data: list }) =>
+      list?.length ? rowsOf(supabase.from("contract_payments").select("id, contract_id, seq, label, amount, due_event, status, requested_at, expected_date, paid_amount, paid_at").in("contract_id", list.map((c) => c.id)).order("seq")) : [],
+    ),
+    versionsP,
     // exactly what request_contract_payment accepts for this user (stages may be hidden from him)
-    ids.length ? supabase.rpc("requestable_payments", { p_org: orgId }) : Promise.resolve({ data: [] as { payment_id: string }[] }),
+    contractsP.then(({ data: list }) => (list?.length ? rowsOf(supabase.rpc("requestable_payments", { p_org: orgId })) : [])),
+    seeHr
+      ? Promise.all([
+          supabase.from("employees").select("is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances, status").eq("organization_id", orgId).neq("status", "final_exit"),
+          supabase.from("employee_cost_items").select("code, applies_to, basis, value, amortize_months, is_active, is_provision").eq("organization_id", orgId),
+          supabase
+            .from("payroll_runs").select("id, month, status").eq("organization_id", orgId).gte("month", `${today.slice(0, 7)}-01`).order("month").limit(12)
+            .then(async ({ data: runs }) => {
+              const runIds = (runs ?? []).map((r) => r.id);
+              const { data: lines } = runIds.length ? await supabase.from("payroll_lines").select("run_id, net").in("run_id", runIds) : { data: [] as { run_id: string; net: number }[] };
+              return { runs: runs ?? [], lines: lines ?? [] };
+            }),
+        ])
+      : Promise.resolve(null),
+    can(session, "purchases.view")
+      ? Promise.all([
+          supabase.from("subcontractor_work").select("agreement_id, amount").eq("organization_id", orgId).limit(20000),
+          supabase.from("subcontractor_payments").select("agreement_id, amount").eq("organization_id", orgId).limit(20000),
+          supabase.from("purchases").select("number, total").eq("organization_id", orgId).eq("status", "pending_approval"),
+          supabase.from("petty_cash_entries").select("account_id, kind, amount").eq("organization_id", orgId).limit(20000),
+        ])
+      : Promise.resolve(null),
+    loadProjectCosts(session),
+    // estimated total cost per accepted contract: its quote version's lines (+ accepted addenda's own estimate)
+    seeEstimates
+      ? Promise.all([
+          Promise.all([contractsP, versionsP]).then(async ([{ data: list }, vs]) => {
+            const vid = (vs as { id: string; quote_id: string; version: number }[]).filter((v) => (list ?? []).some((c) => c.quote_id === v.quote_id && c.quote_version === v.version));
+            const { data: vc } = vid.length ? await supabase.from("quote_version_costs").select("quote_version_id, lines").in("quote_version_id", vid.map((v) => v.id)) : { data: [] };
+            return { vid, total: new Map((vc ?? []).map((x) => [x.quote_version_id, (x.lines as unknown as Line[]).reduce((s, l) => s + l.cost, 0)])) };
+          }),
+          addendaP.then(async ({ data: ads }) => {
+            const accepted = (ads ?? []).map((a) => a.id);
+            return accepted.length ? ((await supabase.from("addendum_costs").select("addendum_id, contract_id, material_cost, other_cost").in("addendum_id", accepted)).data ?? []) : [];
+          }),
+        ])
+      : Promise.resolve(null),
+    // our team's fixed cost: how much of this month is charged to projects (the rest is covered by the overhead %)
+    seeEstimates && can(session, "finance.view") && seeHr ? supabase.rpc("team_cost_month", { p_org: orgId }) : Promise.resolve({ data: null }),
+    // collected this month = the receipt vouchers issued this month (contract payments and addenda, partial too)
+    supabase.from("client_receipts").select("amount").eq("organization_id", orgId).gte("paid_on", `${today.slice(0, 7)}-01`).lte("paid_on", today),
   ]);
   const requestable = new Set((requestableRows ?? []).map((r) => r.payment_id));
   const clientName = new Map((clients ?? []).map((c) => [c.id, c.name]));
@@ -135,29 +188,18 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   const horizon = addDays(today, 12 * 7);
   const outflows: Flow[] = [];
   let payroll = 0;
-  if (can(session, "hr.view")) {
-    const [{ data: employees }, { data: items }, { data: runs }] = await Promise.all([
-      supabase.from("employees").select("is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances, status").eq("organization_id", orgId).neq("status", "final_exit"),
-      supabase.from("employee_cost_items").select("code, applies_to, basis, value, amortize_months, is_active, is_provision").eq("organization_id", orgId),
-      supabase.from("payroll_runs").select("id, month, status").eq("organization_id", orgId).gte("month", `${today.slice(0, 7)}-01`).order("month").limit(12),
-    ]);
+  if (hr) {
+    const [{ data: employees }, { data: items }, { runs, lines }] = hr;
     payroll = r2((employees ?? []).reduce((s, e) => s + n(e.basic_salary) + n(e.housing_allowance) + n(e.transport_allowance) + n(e.other_allowances), 0));
     // statutory items paid every month (GOSI %, monthly fees); provisions and annual / one-off items aren't monthly cash
     const monthlyItems: CostItem[] = cashStatutoryItems((items ?? []) as (CostItem & { is_provision: boolean })[]).map((i) => ({ ...i, value: n(i.value) }));
     const statutory = r2((employees ?? []).reduce((s, e) => s + employeeCost({ is_saudi: !!e.is_saudi, basic_salary: n(e.basic_salary), housing_allowance: n(e.housing_allowance), transport_allowance: n(e.transport_allowance), other_allowances: n(e.other_allowances) }, monthlyItems, 26).statutory.reduce((x, i) => x + i.monthly, 0), 0));
     // a month's payroll run: its net (after overtime, deductions and advances) replaces the gross
-    const runIds = (runs ?? []).map((r) => r.id);
-    const { data: lines } = runIds.length ? await supabase.from("payroll_lines").select("run_id, net").in("run_id", runIds) : { data: [] as { run_id: string; net: number }[] };
-    const runNets = (runs ?? []).map((r) => ({ month: r.month, status: r.status, net: (lines ?? []).filter((l) => l.run_id === r.id).reduce((s, l) => s + n(l.net), 0) }));
+    const runNets = runs.map((r) => ({ month: r.month, status: r.status, net: lines.filter((l) => l.run_id === r.id).reduce((s, l) => s + n(l.net), 0) }));
     outflows.push(...payrollFlows(paydays(today, payday, horizon), runNets, payroll, statutory));
   }
-  if (can(session, "purchases.view")) {
-    const [{ data: work }, { data: paid }, { data: pending }, { data: petty }] = await Promise.all([
-      supabase.from("subcontractor_work").select("agreement_id, amount").eq("organization_id", orgId).limit(20000),
-      supabase.from("subcontractor_payments").select("agreement_id, amount").eq("organization_id", orgId).limit(20000),
-      supabase.from("purchases").select("number, total").eq("organization_id", orgId).eq("status", "pending_approval"),
-      supabase.from("petty_cash_entries").select("account_id, kind, amount").eq("organization_id", orgId).limit(20000),
-    ]);
+  if (spend) {
+    const [{ data: work }, { data: paid }, { data: pending }, { data: petty }] = spend;
     const earned = (work ?? []).reduce((s, w) => s + n(w.amount), 0);
     const paidSubs = (paid ?? []).reduce((s, p) => s + n(p.amount), 0);
     if (earned - paidSubs > 0.005) outflows.push({ date: today, amount: r2(earned - paidSubs), label: "subcontractors", kind: "subcontractors" });
@@ -183,16 +225,11 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   }
 
   // --- profit per project ---------------------------------------------------------------
-  const costs = await loadProjectCosts(session);
   const costOf = new Map(costs.map((c) => [c.id, c]));
   let estimated = new Map<string, number>();
-  if (can(session, "costs.view") && versions?.length) {
-    const vid = (versions as { id: string; quote_id: string; version: number }[]).filter((v) => (contracts ?? []).some((c) => c.quote_id === v.quote_id && c.quote_version === v.version));
-    const { data: vc } = vid.length ? await supabase.from("quote_version_costs").select("quote_version_id, lines").in("quote_version_id", vid.map((v) => v.id)) : { data: [] };
-    const total = new Map((vc ?? []).map((x) => [x.quote_version_id, (x.lines as unknown as Line[]).reduce((s, l) => s + l.cost, 0)]));
+  if (estimatedTotals && versions?.length) {
+    const [{ vid, total }, adCosts] = estimatedTotals;
     // accepted additional works add their own estimated cost (addendum_costs)
-    const accepted = new Set((addenda ?? []).map((a) => a.id));
-    const { data: adCosts } = accepted.size ? await supabase.from("addendum_costs").select("addendum_id, contract_id, material_cost, other_cost").in("addendum_id", [...accepted]) : { data: [] };
     const extra = new Map<string, number>();
     for (const a of adCosts ?? []) extra.set(a.contract_id, (extra.get(a.contract_id) ?? 0) + n(a.material_cost) + n(a.other_cost));
     estimated = new Map((contracts ?? []).map((c) => [c.id, (total.get(vid.find((v) => v.quote_id === c.quote_id && v.version === c.quote_version)?.id ?? "") ?? 0) + (extra.get(c.id) ?? 0)]).filter(([, v]) => (v as number) > 0) as [string, number][]);
@@ -228,15 +265,8 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
 
   // our team's fixed cost: how much of this month is charged to projects (the rest is covered by the overhead %)
   let teamCost: OwnerFinance["teamCost"] = null;
-  if (can(session, "costs.view") && can(session, "finance.view") && can(session, "hr.view")) {
-    const { data: tc } = await supabase.rpc("team_cost_month", { p_org: orgId });
-    const row = tc?.[0];
-    if (row && n(row.monthly) > 0) teamCost = { monthly: n(row.monthly), allocated: n(row.allocated), toDate: n(row.to_date), unabsorbed: r2(Math.max(0, n(row.to_date) - n(row.allocated))) };
-  }
-
-  const monthStart = today.slice(0, 7);
-  // collected this month = the receipt vouchers issued this month (contract payments and addenda, partial too)
-  const { data: monthReceipts } = await supabase.from("client_receipts").select("amount").eq("organization_id", orgId).gte("paid_on", `${monthStart}-01`).lte("paid_on", today);
+  const row = tc?.[0];
+  if (row && n(row.monthly) > 0) teamCost = { monthly: n(row.monthly), allocated: n(row.allocated), toDate: n(row.to_date), unabsorbed: r2(Math.max(0, n(row.to_date) - n(row.allocated))) };
   return {
     today,
     orgName: session.organization.name,

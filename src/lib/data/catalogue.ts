@@ -1,5 +1,6 @@
 import "server-only";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import type { ServiceSummary } from "@/components/catalogue/services-view";
 import type { MaterialItem } from "@/components/catalogue/materials-view";
 import { can, type SessionContext } from "@/lib/auth/session";
@@ -8,10 +9,15 @@ import { createClient } from "@/lib/supabase/server";
 
 const n = (v: unknown) => (v == null ? null : Number(v));
 
-export async function loadPricingSettings(session: SessionContext) {
+/** Cached per request: several loaders on one page ask for it. */
+const pricingSettingsOf = cache(async (orgId: string) => {
   const supabase = await createClient();
-  const { data } = await supabase.from("pricing_settings").select("*").eq("organization_id", session.organization.id).maybeSingle();
+  const { data } = await supabase.from("pricing_settings").select("*").eq("organization_id", orgId).maybeSingle();
   return data;
+});
+
+export async function loadPricingSettings(session: SessionContext) {
+  return pricingSettingsOf(session.organization.id);
 }
 
 async function loadPrices(session: SessionContext) {
@@ -27,14 +33,14 @@ async function loadPrices(session: SessionContext) {
 export async function loadServices(session: SessionContext): Promise<ServiceSummary[]> {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const [{ data: services }, { data: stages }, { data: recipes }, prices, settings] = await Promise.all([
+  const [{ data: services }, { data: stages }, { data: recipes }, prices, settings, { data: mats }] = await Promise.all([
     supabase.from("services").select("*").eq("organization_id", orgId).order("sort_order").order("created_at"),
     supabase.from("service_stages").select("service_id").eq("organization_id", orgId),
     supabase.from("service_material_recipes").select("service_id, material_id, qty_per_unit, waste_percent, calc_mode, coats").eq("organization_id", orgId),
     loadPrices(session),
     loadPricingSettings(session),
+    supabase.from("materials").select("id, coverage_per_unit").eq("organization_id", orgId),
   ]);
-  const { data: mats } = await supabase.from("materials").select("id, coverage_per_unit").eq("organization_id", orgId);
   const coverage = new Map((mats ?? []).map((m) => [m.id, n(m.coverage_per_unit)]));
   const seeCosts = can(session, "costs.view");
   const defaultWaste = Number(settings?.default_waste_percent ?? 5);
