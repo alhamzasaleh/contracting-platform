@@ -9,9 +9,11 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "list",
   use: { baseURL: `http://localhost:${PORT}`, trace: "off" },
   projects: [
-    { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "ipad", use: { ...devices["iPad Pro 11"], browserName: "chromium" } },
-    { name: "phone", use: { ...devices["Pixel 7"] } },
+    { name: "desktop", use: { ...devices["Desktop Chrome"] }, testIgnore: /layout\.spec\.ts/ },
+    { name: "ipad", use: { ...devices["iPad Pro 11"], browserName: "chromium" }, testIgnore: /layout\.spec\.ts/ },
+    { name: "phone", use: { ...devices["Pixel 7"] }, testIgnore: /layout\.spec\.ts/ },
+    // every preview page at 8 widths with its dialogs (sets its own sizes): `npm run test:layout`, a CI job of its own
+    { name: "layout", use: { ...devices["Desktop Chrome"] }, testMatch: /layout\.spec\.ts/ },
   ],
   webServer: {
     // Production build with the sample-data design preview switched on and

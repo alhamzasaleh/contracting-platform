@@ -45,3 +45,23 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: End-to-end tests
         run: npm run test:e2e
+
+  # Every preview page at 8 screen widths (phone → desktop), with the dialogs its buttons open:
+  # no sideways scroll, nothing outside its card or dialog, no cut numbers, aligned fields, no holes.
+  # Its own job so the main checks stay quick.
+  layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Layout on every screen size
+        run: npm run test:layout -- --workers 4

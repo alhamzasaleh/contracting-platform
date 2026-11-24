@@ -77,7 +77,7 @@ function ClientDialog({
       <Field id="cl-phone" label={t("phone")} optional={tc("optional")} error={errors.phone ? t("phoneInvalid") : undefined}>
         <Input name="phone" defaultValue={client?.phone ? `0${client.phone.slice(3)}` : ""} inputMode="tel" dir="ltr" placeholder="05xxxxxxxx" className="font-latin rtl:text-right" />
       </Field>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="cl-city" label={t("city")} optional={tc("optional")}>
           <Input name="city" defaultValue={client?.city ?? ""} />
         </Field>

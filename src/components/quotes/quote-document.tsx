@@ -4,6 +4,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { useFormatter } from "@/components/formatter-provider";
 import { STEPS } from "@/lib/pricing";
 import type { ClientView } from "@/lib/quotes";
+import { useListSep, useUnitText } from "@/components/forms/form-kit";
 
 export type DocOrg = {
   name: string;
@@ -40,6 +41,7 @@ export function QuoteDocument({
   notes: string | null;
   warrantyMonths: number;
 }) {
+  const unitText = useUnitText();
   const t = useTranslations("doc");
   const tp = useTranslations("pricing");
   const { fmt } = useFormatter();
@@ -129,7 +131,7 @@ export function QuoteDocument({
                   {workItemLabel(t, view.service, w.workType)}
                 </td>
                 <td className="px-3 py-2.5 text-end">
-                  {fmt.number(w.area, 2)} m²
+                  {fmt.number(w.area, 2)} {unitText("m2")}
                 </td>
                 <td className="px-3 py-2.5 text-end">
                   {fmt.money(w.pricePerM2)}
@@ -211,6 +213,7 @@ export function workItemLabel(t: ReturnType<typeof useTranslations<"doc">>, serv
 
 /** What the price includes: each chosen step with brand and coats, features, labour. */
 export function IncludedList({ view }: { view: ClientView }) {
+  const sep = useListSep();
   const t = useTranslations("doc");
   const tp = useTranslations("pricing");
   const { fmt } = useFormatter();
@@ -228,7 +231,7 @@ export function IncludedList({ view }: { view: ClientView }) {
           <li key={i.step}>
             • {tp(`step_${i.step}`)}
             {i.brand && ` — ${i.brand}`}
-            {coats.length > 0 && <span className="text-doc-muted"> ({coats.join("، ")})</span>}
+            {coats.length > 0 && <span className="text-doc-muted"> ({coats.join(sep)})</span>}
           </li>
         );
       })}

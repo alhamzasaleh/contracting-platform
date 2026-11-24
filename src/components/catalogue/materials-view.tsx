@@ -3,7 +3,7 @@ import { History, Package, Pencil, Plus, Search, TrendingDown, TrendingUp } from
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
-import { FormDialog, NumberInput, bool, str, useActionRunner } from "@/components/forms/form-kit";
+import { FormDialog, NumberInput, bool, str, useActionRunner, useUnitText } from "@/components/forms/form-kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -55,6 +55,7 @@ export function MaterialsView({
   actions?: MaterialsActions;
 }) {
   const t = useTranslations();
+  const unitText = useUnitText();
   const { fmt } = useFormatter();
   const { run, pending, fieldText } = useActionRunner();
   const [query, setQuery] = React.useState("");
@@ -126,7 +127,7 @@ export function MaterialsView({
         <Field id="mt-name-en" label={t("catalogue.nameEn")} optional={t("common.optional")}>
           <Input name="name_en" defaultValue={m?.name_en ?? ""} dir="ltr" className="font-latin rtl:text-right" />
         </Field>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="field-row grid gap-4 sm:grid-cols-2">
           <Field id="mt-unit" label={t("catalogue.unit")}>
             <NativeSelect name="unit" defaultValue={m?.unit ?? "piece"}>
               {MATERIAL_UNITS.map((u) => (
@@ -145,12 +146,12 @@ export function MaterialsView({
             <option key={c} value={c} />
           ))}
         </datalist>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="field-row grid gap-4 sm:grid-cols-2">
           <Field id="mt-brand" label={t("catalogue.brand")} optional={t("common.optional")}>
-            <Input name="brand" defaultValue={m?.brand ?? ""} placeholder="جوتن، الجزيرة، كناوف…" list="material-brands" />
+            <Input name="brand" defaultValue={m?.brand ?? ""} placeholder={t("catalogue.brandPh")} list="material-brands" />
           </Field>
           <Field id="mt-pack" label={t("catalogue.packageDesc")} optional={t("common.optional")}>
-            <Input name="package_desc" defaultValue={m?.package_desc ?? ""} placeholder="جالون 3.6 لتر / لوح 120×240" />
+            <Input name="package_desc" defaultValue={m?.package_desc ?? ""} placeholder={t("catalogue.packagePh")} />
           </Field>
         </div>
         <datalist id="material-brands">
@@ -159,7 +160,7 @@ export function MaterialsView({
           ))}
         </datalist>
         <Field id="mt-cov" label={t("catalogue.coverage")} hint={t("catalogue.coverageHint")} optional={t("common.optional")} error={fieldText(errors.coverage_per_unit)}>
-          <NumberInput name="coverage_per_unit" defaultValue={m?.coverage_per_unit ?? ""} suffix="م²" />
+          <NumberInput name="coverage_per_unit" defaultValue={m?.coverage_per_unit ?? ""} suffix={unitText("m2")} />
         </Field>
         <Field id="mt-supplier" label={t("catalogue.preferredSupplier")} optional={t("common.optional")}>
           <NativeSelect name="preferred_supplier_id" defaultValue={m?.preferred_supplier_id ?? ""}>

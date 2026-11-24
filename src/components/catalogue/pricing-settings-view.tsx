@@ -70,7 +70,7 @@ export function PricingSettingsView({
               </Button>
             )}
           </div>
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="field-row grid gap-5 sm:grid-cols-2">
             {FIELDS.map(([key, label, hint, suffix]) => (
               <Field key={key} id={`ps-${key}`} label={t(`catalogue.${label}`)} hint={hint ? t(`catalogue.${hint}`) : undefined} error={fieldText(errors[key])}>
                 <NumberInput

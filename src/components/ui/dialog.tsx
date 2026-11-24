@@ -1,6 +1,7 @@
 "use client";
 import * as D from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -11,10 +12,12 @@ export const DialogClose = D.Close;
 export function DialogContent({
   className,
   children,
-  closeLabel = "Close",
+  closeLabel,
   side,
   ...props
 }: React.ComponentProps<typeof D.Content> & { closeLabel?: string; side?: "start" | "end" | "bottom" }) {
+  // the close button is named in the reader's language even when a dialog doesn't pass its own label
+  const t = useTranslations("common");
   return (
     <D.Portal>
       <D.Overlay className="fixed inset-0 z-50 bg-basalt/45 backdrop-blur-[2px] data-[state=open]:animate-[fade-in_0.2s_ease-out]" />
@@ -28,15 +31,22 @@ export function DialogContent({
           side === "bottom" &&
             "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)] data-[state=open]:animate-[slide-in-bottom_0.3s_var(--ease-out-expo)]",
           !side &&
-            "start-1/2 top-1/2 w-[calc(100%-2rem)] max-w-lg -translate-y-1/2 rounded-2xl border border-border ltr:-translate-x-1/2 rtl:translate-x-1/2 data-[state=open]:animate-[dialog-in_0.25s_var(--ease-out-expo)]",
+            "start-1/2 top-1/2 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg -translate-y-1/2 flex flex-col overflow-hidden rounded-2xl border border-border ltr:-translate-x-1/2 rtl:translate-x-1/2 data-[state=open]:animate-[dialog-in_0.25s_var(--ease-out-expo)]",
           className,
         )}
         {...props}
       >
-        {children}
+        {side ? (
+          children
+        ) : (
+          // the box scrolls, not the dialog, so the close button below stays put
+          <div data-dialog-scroll className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+            {children}
+          </div>
+        )}
         <D.Close
           className="absolute end-3.5 top-3.5 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-          aria-label={closeLabel}
+          aria-label={closeLabel ?? t("close")}
         >
           <X className="size-4" />
         </D.Close>

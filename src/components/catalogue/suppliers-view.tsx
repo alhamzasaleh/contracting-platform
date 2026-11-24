@@ -65,7 +65,7 @@ export function SuppliersView({
         <Field id="sp-name" label={t("catalogue.supplierName")} error={fieldText(errors.name)}>
           <Input name="name" defaultValue={s?.name} />
         </Field>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="field-row grid gap-4 sm:grid-cols-2">
           <Field id="sp-contact" label={t("catalogue.contactName")} optional={t("common.optional")}>
             <Input name="contact_name" defaultValue={s?.contact_name ?? ""} />
           </Field>

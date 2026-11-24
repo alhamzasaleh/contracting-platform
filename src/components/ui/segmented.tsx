@@ -3,7 +3,15 @@ import { motion } from "motion/react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-/** iOS-style segmented control with an animated thumb. */
+/**
+ * iOS-style segmented control with an animated thumb.
+ * Options follow the reading direction (right → left in Arabic, left → right
+ * in English) and an "all" option always comes first.
+ */
+export function orderOptions<T extends { value: string }>(options: T[]): T[] {
+  return [...options.filter((o) => o.value === "all"), ...options.filter((o) => o.value !== "all")];
+}
+
 export function Segmented<T extends string>({
   value,
   onChange,
@@ -24,7 +32,7 @@ export function Segmented<T extends string>({
       aria-label={name}
       className={cn("inline-flex max-w-full rounded-xl border border-border bg-surface-sunken p-1", className)}
     >
-      {options.map((o) => {
+      {orderOptions(options).map((o) => {
         const active = o.value === value;
         return (
           <button

@@ -4,9 +4,11 @@ import { BrandLogo } from "@/components/brand-logo";
 import { useFormatter } from "@/components/formatter-provider";
 import type { ReceiptDoc } from "@/lib/receipts";
 import { amountInWords } from "@/lib/tafqeet";
+import { useListSep } from "@/components/forms/form-kit";
 
 /** سند قبض — print-grade, branded receipt voucher for money received from a client. */
 export function ReceiptVoucher({ data }: { data: ReceiptDoc }) {
+  const sep = useListSep();
   const t = useTranslations("receipt");
   const locale = useLocale() as "ar" | "en";
   const { fmt } = useFormatter();
@@ -22,7 +24,7 @@ export function ReceiptVoucher({ data }: { data: ReceiptDoc }) {
             <p className="text-[14px] font-extrabold text-basalt">{org}</p>
             {data.org.cr_number && <p>{t("cr", { n: data.org.cr_number })}</p>}
             {data.org.vat_number && <p>{t("vat", { n: data.org.vat_number })}</p>}
-            {(data.org.city || data.org.address) && <p>{[data.org.address, data.org.city].filter(Boolean).join("، ")}</p>}
+            {(data.org.city || data.org.address) && <p>{[data.org.address, data.org.city].filter(Boolean).join(sep)}</p>}
           </div>
         </div>
         <div className="text-end">

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
-import { DeleteButton, FormDialog, NumberInput, bool, str, useActionRunner } from "@/components/forms/form-kit";
+import { DeleteButton, FormDialog, NumberInput, bool, str, useActionRunner, useUnitText } from "@/components/forms/form-kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -489,7 +489,7 @@ function DurationCalculator({ stages }: { stages: Stage[] }) {
         <CardDescription>{t("durationHint")}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="field-row grid gap-3 sm:grid-cols-2">
           <Field id="dc-area" label={t("area")}>
             <NumberInput value={area} onChange={(e) => setArea(e.target.value)} />
           </Field>
@@ -526,6 +526,7 @@ function RecipeQtyFields({
   fieldText: (k?: string) => string | undefined;
 }) {
   const t = useTranslations("catalogue");
+  const unitText = useUnitText();
   const { fmt } = useFormatter();
   const coverage = line?.coverage_per_unit ?? material?.coverage_per_unit ?? null;
   const [mode, setMode] = React.useState<"coverage" | "fixed">(line?.calc_mode ?? (coverage ? "coverage" : "fixed"));
@@ -557,7 +558,7 @@ function RecipeQtyFields({
           <div className="rounded-xl bg-surface-2 px-4 py-3 text-[14px]">
             {coverage ? (
               <p className="num">
-                {t("coversPer", { area: fmt.number(coverage, 2), unit })} → <b>{fmt.number(c / coverage, 4)} {unit}</b> / م²
+                {t("coversPer", { area: fmt.number(coverage, 2), unit })} → <b>{fmt.number(c / coverage, 4)} {unit}</b> / {unitText("m2")}
               </p>
             ) : (
               <p className="text-warning">{t("noCoverageHint")}</p>

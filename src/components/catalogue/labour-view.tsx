@@ -189,7 +189,7 @@ export function LabourView({
               </Field>
             )}
             <Field id="lb-name" label={t("catalogue.name")} error={fieldText(errors.name)}>
-              <Input name="name" value={rateName} onChange={(e) => setRateName(e.target.value)} placeholder="مقاول دهانات — أبو محمد" />
+              <Input name="name" value={rateName} onChange={(e) => setRateName(e.target.value)} placeholder={t("catalogue.labourNamePh")} />
             </Field>
             <Field id="lb-svc" label={t("catalogue.service")}>
               <NativeSelect name="service_id" defaultValue={l?.service_id ?? ""}>
@@ -199,7 +199,7 @@ export function LabourView({
                 ))}
               </NativeSelect>
             </Field>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="field-row grid gap-4 sm:grid-cols-2">
               <Field id="lb-basis" label={t("catalogue.basis")}>
                 <NativeSelect name="basis" defaultValue={l?.basis ?? "external_per_unit"}>
                   <option value="external_per_unit">{t("catalogue.basisPerUnit")}</option>
@@ -245,9 +245,9 @@ export function LabourView({
             }
           >
             <Field id="ex-name" label={t("catalogue.name")} error={fieldText(errors.name)}>
-              <Input name="name" defaultValue={x?.name} placeholder="تأجير سقالات" />
+              <Input name="name" defaultValue={x?.name} placeholder={t("catalogue.extraNamePh")} />
             </Field>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="field-row grid gap-4 sm:grid-cols-2">
               <Field id="ex-amount" label={t("catalogue.defaultAmount")} error={fieldText(errors.default_amount)}>
                 <NumberInput name="default_amount" defaultValue={x?.default_amount ?? ""} suffix={t("dashboard.sar")} />
               </Field>

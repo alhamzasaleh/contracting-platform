@@ -26,7 +26,8 @@
     "copy": "Copy",
     "copied": "Copied",
     "required": "This field is required",
-    "rights": "© {year} {name} — All rights reserved"
+    "rights": "© {year} {name} — All rights reserved",
+    "listSep": ", "
   },
   "nav": {
     "home": "Home",
@@ -148,7 +149,8 @@
     "actualMargin": "Actual profit margin",
     "marginHint": "Actual vs expected — appears with the first project",
     "projectsEmpty": "Your first project appears here",
-    "approvalsHint": "Below-minimum margins, discounts and large purchases appear here for one-tap approval."
+    "approvalsHint": "Below-minimum margins, discounts and large purchases appear here for one-tap approval.",
+    "greetingName": "{greeting}, {name}"
   },
   "settings": {
     "title": "Settings",
@@ -242,7 +244,15 @@
     "projectsAll": "All projects",
     "projectsAssigned": "Selected projects",
     "noProjects": "No projects yet.",
-    "projectAccessHint": "With “Selected projects” they see only the ticked projects: their contracts, payments, visits, photos, purchases and alerts — everything else is hidden."
+    "projectAccessHint": "With “Selected projects” they see only the ticked projects: their contracts, payments, visits, photos, purchases and alerts — everything else is hidden.",
+    "pvDocTitle": "Quotation",
+    "pvTotal": "Total incl. VAT",
+    "pvProject": "Al-Olaya villa — interior paint",
+    "pvStage1": "Site preparation",
+    "pvStage2": "Putty",
+    "pvStage3": "Final coat",
+    "pvInProgress": "In progress",
+    "pvConfirm": "Confirm stage handover"
   },
   "audit": {
     "insert": "Created",
@@ -457,7 +467,11 @@
     "tabCalibration": "Actual consumption",
     "linkedSub": "Linked to subcontractors & teams",
     "pickSub": "Subcontractor",
-    "newSubByName": "New subcontractor (type the name below)"
+    "newSubByName": "New subcontractor (type the name below)",
+    "labourNamePh": "Painting contractor — Abu Mohammed",
+    "extraNamePh": "Scaffolding rental",
+    "brandPh": "Jotun, Al-Jazeera, Knauf…",
+    "packagePh": "3.6 L gallon / 120×240 board"
   },
   "units": {
     "m2": "m²",
@@ -541,7 +555,14 @@
     "markReviewed": "Reviewed today",
     "noAccess": "The employees page needs the employees & payroll permission",
     "months": "months",
-    "tabPayroll": "Payroll"
+    "tabPayroll": "Payroll",
+    "job_painter": "Painter",
+    "job_gypsum": "Gypsum installer",
+    "job_plasterer": "Plasterer",
+    "job_tiler": "Tiler",
+    "job_supervisor": "Supervisor",
+    "job_driver": "Driver",
+    "job_labourer": "Labourer"
   },
   "errors": {
     "duplicate": "This item already exists",
@@ -665,6 +686,10 @@
     "unit_pack": "pack",
     "unit_m2": "m²",
     "unit_m": "m",
+    "unit_board": "board",
+    "unit_pail": "pail",
+    "unit_pcs": "pcs",
+    "unit_trip": "trip",
     "cat_putty": "Putty",
     "cat_primer": "Primer",
     "cat_finish_paint": "Wall paint",

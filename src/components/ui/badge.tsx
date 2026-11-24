@@ -3,7 +3,8 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap [&_svg]:size-3",
+  // wraps only when a long label meets a narrow screen (never wider than its box)
+  "inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs leading-snug font-medium [&_svg]:size-3 [&_svg]:shrink-0",
   {
     variants: {
       tone: {

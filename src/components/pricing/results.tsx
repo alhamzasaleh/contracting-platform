@@ -58,6 +58,9 @@ export function LinesTable({ lines, explain }: { lines: Line[]; explain: (role: 
   const { fmt } = useFormatter();
   const tf = useTranslations("formulas");
   const ti = useTranslations("inputs");
+  const tz = useTranslations("survey");
+  /** wet / decorative → «رطب» / «ديكوري» (engine zone ids are never shown as they are) */
+  const zoneName = (z: string) => (tz.has(`zone_${z}`) ? tz(`zone_${z}`) : z);
   // The engine speaks English internally; show formulas and value names in the user's language.
   const formulaText = (f: string) => (FORMULA_KEYS[f] && tf.has(FORMULA_KEYS[f]) ? tf(FORMULA_KEYS[f]) : f);
   const inputName = (k: string) => (ti.has(k) ? ti(k) : k);
@@ -116,7 +119,7 @@ export function LinesTable({ lines, explain }: { lines: Line[]; explain: (role: 
                         <span className="block text-[12px] text-muted-foreground">
                           {l.group === "labour" ? t("qty") : t("buy")}:{" "}
                           <span className="font-latin">{purchase(l)}</span>
-                          {l.zone && <Badge className="ms-2">{l.zone}</Badge>}
+                          {l.zone && <Badge className="ms-2">{zoneName(l.zone)}</Badge>}
                           {l.cost === 0 && !l.key.startsWith("missing_") && (
                             <Badge tone="warning" className="ms-2">
                               {t("noPriceLine")}

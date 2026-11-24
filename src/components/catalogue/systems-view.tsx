@@ -2,7 +2,7 @@
 import { Layers, Pencil, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
-import { FormDialog, str, useActionRunner } from "@/components/forms/form-kit";
+import { FormDialog, str, useActionRunner, useListSep } from "@/components/forms/form-kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -44,6 +44,7 @@ export function SystemsView({
   onSaveVariants?: (i: Record<string, unknown>) => Promise<ActionResult>;
   onSeed?: () => Promise<ActionResult>;
 }) {
+  const sep = useListSep();
   const t = useTranslations("engine");
   const { run, pending } = useActionRunner();
   const [editing, setEditing] = React.useState<{ id: string; kind: "system" | "variant"; title: string; text: string | null } | null>(null);
@@ -114,7 +115,7 @@ export function SystemsView({
                       <span className="min-w-0 text-[13px]">
                         {c.group}
                         {!canManage && variantNames && (
-                          <span className="block text-[11px] text-muted-foreground">{t("onlyFor", { list: variantNames.join("، ") })}</span>
+                          <span className="block text-[11px] text-muted-foreground">{t("onlyFor", { list: variantNames.join(sep) })}</span>
                         )}
                         {/* Which options (roller / profile / spray…) this component is used with — the owner ticks them. */}
                         {canManage && s.variants.length > 1 && (

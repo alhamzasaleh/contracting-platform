@@ -12,7 +12,7 @@ import {
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
-import { NumberInput, useActionRunner } from "@/components/forms/form-kit";
+import { NumberInput, useActionRunner, useListSep } from "@/components/forms/form-kit";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -503,7 +503,7 @@ export function PricingView({
           <section className="grid gap-3 rounded-2xl border border-border bg-surface p-4">
             <p className="text-[14px] font-bold">{t("quantities")}</p>
             {kind === "gypsum" && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="field-row grid grid-cols-2 gap-3">
                 {qty("ceilNormal", te("boardNormal"), "m²")}
                 {qty("ceilMoisture", te("boardMoisture"), "m²")}
                 {qty("ceilFire", te("boardFire"), "m²")}
@@ -511,18 +511,23 @@ export function PricingView({
               </div>
             )}
             {kind === "interior" && (
-              <div className="grid grid-cols-2 gap-3">
-                {qty("walls", te("walls"), "m²")}
-                {qty("ceilings", te("ceilings"), "m²")}
-                {qty("wet", te("wetZone"), "m²")}
-                {qty("decorative", te("decorativeZone"), "m²")}
-                {qty("colours", te("wallColours"))}
-                {qty("ceilingColours", te("ceilingColours"))}
-                {qty("crackM", te("cracks"), "m")}
-              </div>
+              <>
+                <div className="field-row grid-cols-2 gap-3">
+                  {qty("walls", te("walls"), "m²")}
+                  {qty("ceilings", te("ceilings"), "m²")}
+                  {qty("wet", te("wetZone"), "m²")}
+                  {qty("decorative", te("decorativeZone"), "m²")}
+                </div>
+                {/* three per row: no field left alone on a line */}
+                <div className="field-row grid-cols-3 gap-2 sm:gap-3">
+                  {qty("colours", te("wallColours"))}
+                  {qty("ceilingColours", te("ceilingColours"))}
+                  {qty("crackM", te("cracks"), "m")}
+                </div>
+              </>
             )}
             {kind === "exterior" && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="field-row grid-cols-3 gap-2 sm:gap-3">
                 {qty("facade", te("facadeArea"), "m²")}
                 {qty("extColours", te("wallColours"))}
                 {qty("scaffoldDays", te("scaffoldDays"))}
@@ -625,14 +630,14 @@ export function PricingView({
                   <p className="text-[13px] font-bold">
                     {te("optionalFeatures")}
                   </p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="field-row grid grid-cols-2 gap-3">
                     {qty("troughM", te("trough"), "m")}
                     {qty("shadowM", te("shadow"), "m")}
                   </div>
                   <p className="text-[12px] text-muted-foreground">
                     {t("hatches")}
                   </p>
-                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                  <div className="field-row grid-cols-5 gap-x-1.5 sm:gap-x-3">
                     {PRESETS.hatches.map((h) => (
                       <Field
                         key={h}
@@ -731,7 +736,8 @@ export function PricingView({
           />
         )}
 
-        <section className="grid grid-cols-2 items-end gap-3">
+        {/* items-start: the risk reserve carries a hint underneath; both fields still start on one line */}
+        <section className="grid grid-cols-2 items-start gap-3">
           <Field id="margin" label={te("margin")}>
             <NumberInput
               id="margin"
@@ -912,6 +918,7 @@ function ScopeSummary({
   sel: Selection;
   visible: StepDef[];
 }) {
+  const sep = useListSep();
   const t = useTranslations("pricing");
   const included: string[] = [];
   const excluded: string[] = [];
@@ -923,14 +930,14 @@ function ScopeSummary({
     <div className="grid gap-2 rounded-2xl border border-border bg-surface p-4 text-[13px] sm:grid-cols-2">
       <div>
         <p className="mb-1 font-bold text-primary">{t("included")}</p>
-        <p className="leading-6">{included.join("، ") || "—"}</p>
+        <p className="leading-6">{included.join(sep) || "—"}</p>
       </div>
       <div>
         <p className="mb-1 flex items-center gap-1.5 font-bold text-muted-foreground">
           <Lock className="size-3.5" /> {t("notIncluded")}
         </p>
         <p className="leading-6 text-muted-foreground">
-          {excluded.join("، ") || "—"}
+          {excluded.join(sep) || "—"}
         </p>
       </div>
     </div>

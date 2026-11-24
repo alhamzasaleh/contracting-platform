@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
-import { FormDialog, NumberInput, str, useActionRunner } from "@/components/forms/form-kit";
+import { FormDialog, NumberInput, str, useActionRunner, useUnitText } from "@/components/forms/form-kit";
 import { SurveyAiDraft } from "./survey-ai-draft";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,10 @@ function Pills<T extends string>({ value, options, onChange, render, label }: { 
   );
 }
 
+/** rows of number fields that always fill the row (no field left alone on a line), labels lined up at the bottom */
+const ROW3 = "field-row grid-cols-3 gap-x-2 gap-y-3 sm:gap-x-3";
+const ROW4 = "field-row grid-cols-2 gap-x-2 gap-y-3 sm:grid-cols-4 sm:gap-x-3";
+
 export function SurveyView({
   detail,
   canManage,
@@ -58,6 +62,7 @@ export function SurveyView({
   canQuote: boolean;
   actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>> };
 }) {
+  const unitText = useUnitText();
   const t = useTranslations("survey");
   const tc = useTranslations("common");
   const { fmt } = useFormatter();
@@ -156,7 +161,7 @@ export function SurveyView({
           )
         }
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="field-row grid gap-4 sm:grid-cols-2">
           <Field id="rm-name" label={t("roomName")} error={fieldText(errors.name)}>
             <Input name="name" defaultValue={r.name ?? ""} placeholder={t("roomNamePh")} autoFocus />
           </Field>
@@ -164,7 +169,7 @@ export function SurveyView({
             <Input name="unit_label" defaultValue={r.unit_label ?? ""} placeholder={t("unitLabelPh")} />
           </Field>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="field-row grid grid-cols-3 gap-3">
           <Field id="rm-l" label={t("length")} error={fieldText(errors.length_m)}>
             <NumberInput name="length_m" defaultValue={r.length_m ?? ""} suffix="m" />
           </Field>
@@ -235,7 +240,7 @@ export function SurveyView({
             ]}
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
+        <div className="field-row grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,16rem)]">
           <Field id="sv-title" label={t("title")} optional={tc("optional")}>
             <Input value={meta.title} onChange={(e) => (setMeta({ ...meta, title: e.target.value }), setDirty(true))} placeholder={t("titlePh")} disabled={!canManage} />
           </Field>
@@ -299,34 +304,36 @@ export function SurveyView({
         </section>
       )}
 
-      <section key={totalsKey} className="grid gap-4 rounded-3xl border border-border bg-surface p-5">
+      <section key={totalsKey} className="grid gap-4 rounded-3xl border border-border bg-surface p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-[17px] font-bold">{mode === "rooms" ? t("extrasTitle") : t("totalsTitle")}</h3>
           {mode === "total" && aiDraft}
         </div>
-        <div className="grid gap-5 lg:grid-cols-3">
-          <div className="grid content-start gap-3">
+        {/* one block per service, stacked; inside, fields flow in columns wide enough to read a whole number */}
+        <div className="grid gap-5 divide-y divide-border/60 [&>*:not(:first-child)]:pt-5">
+          <div className="grid gap-3">
             <p className="flex items-center gap-2 text-[14px] font-bold"><Hammer className="size-4" /> {t("svc_gypsum")}</p>
             {mode === "total" && (
-              <div className="grid grid-cols-3 gap-2">
+              <div className={ROW3}>
                 {tot("ceilNormal", t("board_normal"), "m²")}
                 {tot("ceilMoisture", t("board_moisture"), "m²")}
                 {tot("ceilFire", t("board_fire"), "m²")}
               </div>
             )}
-            <div className="grid grid-cols-3 gap-2">
+            <div className={ROW3}>
               {tot("partitions", t("partitions"), "m²")}
               {tot("troughM", t("trough"), "m")}
               {tot("shadowM", t("shadow"), "m")}
             </div>
-            <p className="text-[12px] text-muted-foreground">{t("hatches")}</p>
-            <div className="grid grid-cols-5 gap-1.5">
+            <p className="text-[13px] text-muted-foreground">{t("hatches")}</p>
+            <div className="field-row grid-cols-5 gap-x-1.5 sm:gap-x-3">
               {PRESETS.hatches.map((h) => (
-                <Field key={h} id={`h-${h}`} label={h.replace("x", "×")}>
+                <Field key={h} id={`h-${h}`} label={<span className="font-latin">{h.replace("x", "×")}</span>}>
                   <NumberInput
                     id={`h-${h}`}
                     defaultValue={totals.hatches?.[h] || ""}
                     disabled={!canManage}
+                    inputMode="numeric"
                     onChange={(e) => {
                       const v = toNumber(e.target.value);
                       setTotals((s) => ({ ...s, hatches: { ...(s.hatches ?? {}), [h]: typeof v === "number" ? Math.max(0, Math.round(v)) : 0 } }));
@@ -337,25 +344,25 @@ export function SurveyView({
               ))}
             </div>
           </div>
-          <div className="grid content-start gap-3">
+          <div className="grid gap-3">
             <p className="flex items-center gap-2 text-[14px] font-bold"><PaintRoller className="size-4" /> {t("svc_interior")}</p>
             {mode === "total" && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className={ROW4}>
                 {tot("walls", t("walls"), "m²")}
                 {tot("ceilings", t("ceilings"), "m²")}
                 {tot("wet", t("wet"), "m²")}
                 {tot("decorative", t("decorative"), "m²")}
               </div>
             )}
-            <div className="grid grid-cols-3 gap-2">
+            <div className={ROW3}>
               {tot("colours", t("colours"), undefined, true)}
               {tot("ceilingColours", t("ceilingColours"), undefined, true)}
               {tot("crackM", t("cracks"), "m")}
             </div>
           </div>
-          <div className="grid content-start gap-3">
+          <div className="grid gap-3">
             <p className="flex items-center gap-2 text-[14px] font-bold"><PaintBucket className="size-4" /> {t("svc_exterior")}</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className={ROW3}>
               {tot("facade", t("facade"), "m²")}
               {tot("extColours", t("colours"), undefined, true)}
               {tot("scaffoldDays", t("scaffoldDays"), undefined, true)}
@@ -397,7 +404,7 @@ export function SurveyView({
                     <div key={label} className="flex justify-between gap-2">
                       <dt className="text-muted-foreground">{label}</dt>
                       <dd className="font-latin tabular-nums">
-                        {fmt.number(v, 1)} {u}
+                        {fmt.number(v, 1)} {unitText(u)}
                       </dd>
                     </div>
                   ))}

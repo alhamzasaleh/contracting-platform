@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { useFormatter } from "@/components/formatter-provider";
-import { useActionRunner } from "@/components/forms/form-kit";
+import { useActionRunner, useUnitText } from "@/components/forms/form-kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -85,6 +85,7 @@ export type ProjectActions = {
 };
 
 export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail; actions?: ProjectActions; base?: string }) {
+  const unitText = useUnitText();
   const tw = useTranslations("wa");
   const t = useTranslations("projects");
   const tp = useTranslations("pricing");
@@ -223,7 +224,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
         {gpsNote && <p className="rounded-2xl bg-warning-soft px-4 py-2 text-[13px]">{gpsNote}</p>}
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_340px] [&>*]:min-w-0">
+      <div className="grid gap-5 min-[1150px]:grid-cols-[minmax(0,1fr)_340px] [&>*]:min-w-0">
         {/* stages */}
         <section className="grid content-start gap-3">
           <p className="text-[15px] font-bold">{t("stages")}</p>
@@ -264,7 +265,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
                         <a className="inline-flex items-center gap-1 text-primary underline" href={`https://maps.google.com/?q=${v.latitude},${v.longitude}`} target="_blank" rel="noopener noreferrer">
                           <ExternalLink className="size-3" /> {t("onMap")}
                         </a>
-                        {v.accuracy_m != null && <span>± {fmt.number(v.accuracy_m, 0)} m</span>}
+                        {v.accuracy_m != null && <span>± {fmt.number(v.accuracy_m, 0)} {unitText("m")}</span>}
                         {far != null && <span className={cn(far > 300 && "font-bold text-danger")}>{t("fromSite", { m: fmt.number(far, 0) })}</span>}
                       </p>
                     ) : (

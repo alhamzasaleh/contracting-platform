@@ -46,6 +46,8 @@ function daysUntil(date: string | null) {
   return Math.ceil((new Date(date).getTime() - Date.now()) / 86_400_000);
 }
 
+const JOBS = ["painter", "gypsum", "plasterer", "tiler", "supervisor", "driver", "labourer"] as const;
+
 export function EmployeesView({
   employees,
   costItems,
@@ -61,6 +63,7 @@ export function EmployeesView({
 }) {
   const t = useTranslations("hr");
   const tc = useTranslations("common");
+  const td = useTranslations("dashboard");
   const { fmt } = useFormatter();
   const { run, pending, fieldText } = useActionRunner();
   const [editing, setEditing] = React.useState<Employee | "new" | null>(null);
@@ -152,7 +155,7 @@ export function EmployeesView({
             className="w-full"
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="field-row grid gap-4 sm:grid-cols-2">
           {saudi === "non_saudi" && (
             <Field id="em-nat" label={t("nationality")} optional={tc("optional")}>
               <Input name="nationality" defaultValue={e?.nationality ?? ""} />
@@ -183,11 +186,12 @@ export function EmployeesView({
           </Field>
         </div>
         <datalist id="job-titles">
-          {["دهّان", "فني جبس", "مليّس", "مبلّط", "مشرف", "سائق", "عامل"].map((j) => (
-            <option key={j} value={j} />
+          {/* suggestions in the reader's language; what is already saved stays as it was typed */}
+          {JOBS.map((j) => (
+            <option key={j} value={t(`job_${j}`)} />
           ))}
         </datalist>
-        <div className="grid gap-4 rounded-2xl bg-surface-2 p-4 sm:grid-cols-2">
+        <div className="field-row grid gap-4 rounded-2xl bg-surface-2 p-4 sm:grid-cols-2">
           {(["basic_salary", "housing_allowance", "transport_allowance", "other_allowances"] as const).map((k) => (
             <Field
               key={k}
@@ -195,11 +199,11 @@ export function EmployeesView({
               label={t(k === "basic_salary" ? "basicSalary" : k === "housing_allowance" ? "housing" : k === "transport_allowance" ? "transport" : "otherAllowances")}
               error={fieldText(errors[k])}
             >
-              <NumberInput name={k} defaultValue={e?.[k] ?? ""} suffix="ر.س" />
+              <NumberInput name={k} defaultValue={e?.[k] ?? ""} suffix={td("sar")} />
             </Field>
           ))}
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="field-row grid gap-4 sm:grid-cols-2">
           <Field id="em-iban" label={t("iban")} hint={t("ibanHint")} optional={tc("optional")} error={fieldText(errors.iban)}>
             <Input name="iban" defaultValue={e?.iban ?? ""} dir="ltr" className="font-latin uppercase rtl:text-right" />
           </Field>

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
-import { FormDialog, useActionRunner } from "@/components/forms/form-kit";
+import { FormDialog, useActionRunner, useListSep } from "@/components/forms/form-kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -178,7 +178,8 @@ function Timeline({ data, today, onEntry, onNeedTeams }: { data: ScheduleData; t
         </div>
 
         <div className="max-w-full overflow-x-auto overscroll-x-contain">
-          <div className="grid w-max" style={{ gridTemplateColumns: `minmax(120px, 160px) ${DAYS * COL}px` }}>
+          {/* a narrower name column on phones, so the days (and the bars) get most of the screen */}
+          <div className="grid w-max [--label-col:112px] sm:[--label-col:160px]" style={{ gridTemplateColumns: `var(--label-col) ${DAYS * COL}px` }}>
             {/* header */}
             <div className="sticky start-0 z-20 border-b border-border bg-surface" />
             <div className="flex border-b border-border">
@@ -237,9 +238,9 @@ function Timeline({ data, today, onEntry, onNeedTeams }: { data: ScheduleData; t
               return (
                 <React.Fragment key={team.id}>
                   <RowLabel>
-                    <span className="flex items-center gap-2">
+                    <span className="flex min-w-0 items-center gap-2" title={team.name}>
                       <span className="size-2.5 shrink-0 rounded-full" style={{ background: team.color }} />
-                      <span className="truncate">{team.name}</span>
+                      <span className="line-clamp-2 min-w-0 break-words">{team.name}</span>
                     </span>
                   </RowLabel>
                   <Lane days={days} today={today} rows={Math.max(1, placed.reduce((m, x) => Math.max(m, x.lane + 1), 0))}>
@@ -279,7 +280,7 @@ function Timeline({ data, today, onEntry, onNeedTeams }: { data: ScheduleData; t
 }
 
 function RowLabel({ children }: { children: React.ReactNode }) {
-  return <div className="sticky start-0 z-10 flex items-center border-b border-border bg-surface px-4 py-2 text-[13px] font-bold">{children}</div>;
+  return <div className="sticky start-0 z-10 flex min-w-0 items-center overflow-hidden border-b border-border bg-surface px-3 py-2 text-[13px] leading-snug font-bold sm:px-4">{children}</div>;
 }
 
 function Lane({ days, today, rows, children }: { days: Day[]; today: Day; rows: number; children: React.ReactNode }) {
@@ -406,7 +407,7 @@ function EntryDialog({ data, today, initial, onClose, actions }: { data: Schedul
           ))}
         </NativeSelect>
       </Field>
-      <div className="grid grid-cols-2 items-start gap-4">
+      <div className="field-row grid items-start gap-4 sm:grid-cols-2">
         <Field id="se-start" label={t("from")}>
           <Input
             type="date"
@@ -472,6 +473,7 @@ function EntryDialog({ data, today, initial, onClose, actions }: { data: Schedul
 // --- Teams -------------------------------------------------------------------------
 
 function Teams({ data, onEdit }: { data: ScheduleData; onEdit?: (t: Partial<ScheduleTeam>) => void }) {
+  const sep = useListSep();
   const t = useTranslations("schedule");
   const tp = useTranslations("pricing");
   const names = new Map(data.roster.map((r) => [r.id, r.full_name]));
@@ -515,7 +517,7 @@ function Teams({ data, onEdit }: { data: ScheduleData; onEdit?: (t: Partial<Sche
           </div>
           {team.kind === "inhouse" ? (
             <p className="text-[13px] text-muted-foreground">
-              {team.members.length ? team.members.map((m) => names.get(m) ?? "—").join("، ") : t("noMembers")}
+              {team.members.length ? team.members.map((m) => names.get(m) ?? "—").join(sep) : t("noMembers")}
             </p>
           ) : (
             team.contact_phone && <p className="font-latin text-[13px] text-muted-foreground">0{team.contact_phone.slice(3)}</p>

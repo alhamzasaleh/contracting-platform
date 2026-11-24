@@ -296,3 +296,67 @@ export function itemsToLink(
   }
   return [...out].map(([id, product_id]) => ({ id, product_id }));
 }
+
+type Num = number | string | null;
+export type ProjectCostInput = {
+  contracts: { id: string; number: string; client_id: string; status: string }[];
+  clients: { id: string; name: string }[];
+  moves: { contract_id: string | null; quantity: Num; unit_cost: Num }[];
+  purchases: { id: string; contract_id: string | null; status: string; total: Num; subtotal: Num }[];
+  subWork: { agreement_id: string; amount: Num }[];
+  agreements: { id: string; contract_id: string | null }[];
+  petty: { contract_id: string | null; amount: Num }[];
+  repairs: { contract_id: string | null; cost: Num }[];
+  /** in-house labour per project (null when the viewer can't see it) */
+  labour: { contract_id: string | null; labour: Num }[] | null;
+  /** expense lines of recorded project purchases */
+  expenseLines: { purchase_id: string; amount: Num }[];
+  /** estimated material cost per contract (costs.view) */
+  estimates: Map<string, number>;
+  /** a VAT-registered company reclaims purchase VAT; otherwise VAT is part of cost */
+  vatRegistered: boolean;
+};
+
+/**
+ * Actual vs estimated cost per project from already-loaded rows (pure). The same function serves the
+ * costs page (every project) and the project page (rows filtered to one project in the database), so a
+ * project's figures can't differ between the two.
+ */
+export function projectCostRows(d: ProjectCostInput) {
+  const n = (v: unknown) => Number(v ?? 0);
+  const r = (x: number) => Math.round(x * 100) / 100;
+  const sumBy = <T,>(rows: T[], key: (x: T) => string | null | undefined, val: (x: T) => number) => {
+    const m = new Map<string, number>();
+    for (const x of rows) {
+      const k = key(x);
+      if (k) m.set(k, (m.get(k) ?? 0) + val(x));
+    }
+    return m;
+  };
+  const names = new Map(d.clients.map((c) => [c.id, c.name]));
+  const purchaseContract = new Map(d.purchases.map((p) => [p.id, p.contract_id]));
+  const agreementContract = new Map(d.agreements.map((g) => [g.id, g.contract_id]));
+  const vatFactor = new Map(d.purchases.map((p) => [p.id, d.vatRegistered || !n(p.subtotal) ? 1 : n(p.total) / n(p.subtotal)]));
+  const materials = sumBy(d.moves, (m) => m.contract_id, (m) => n(m.quantity) * n(m.unit_cost));
+  const expenses = sumBy(d.expenseLines, (l) => purchaseContract.get(l.purchase_id), (l) => n(l.amount) * (vatFactor.get(l.purchase_id) ?? 1));
+  const subs = sumBy(d.subWork, (w) => agreementContract.get(w.agreement_id), (w) => n(w.amount));
+  const petty = sumBy(d.petty, (e) => e.contract_id, (e) => n(e.amount));
+  const pending = sumBy(d.purchases.filter((p) => p.status === "pending_approval"), (p) => p.contract_id, (p) => n(p.total));
+  const repairs = sumBy(d.repairs, (m) => m.contract_id, (m) => n(m.cost));
+  const labourOf = d.labour ? sumBy(d.labour, (l) => l.contract_id, (l) => n(l.labour)) : null;
+  return d.contracts.map((c) => {
+    const mat = materials.get(c.id) ?? 0;
+    const exp = expenses.get(c.id) ?? 0;
+    const pet = petty.get(c.id) ?? 0;
+    const sub = subs.get(c.id) ?? 0;
+    const maintenance = repairs.get(c.id) ?? 0;
+    const labour = labourOf ? labourOf.get(c.id) ?? 0 : null;
+    return {
+      id: c.id, number: c.number, client: names.get(c.client_id) ?? "—", status: c.status,
+      estimated: d.estimates.get(c.id) ?? null, materials: r(mat), expenses: r(exp), subcontractors: r(sub), petty: r(pet),
+      materialsActual: r(mat + exp + pet),
+      actual: r(mat + exp + pet + sub + maintenance + (labour ?? 0)), pending: r(pending.get(c.id) ?? 0),
+      labour: labour == null ? null : r(labour), maintenance: r(maintenance),
+    };
+  });
+}

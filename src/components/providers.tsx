@@ -1,4 +1,5 @@
 "use client";
+import { useTranslations } from "next-intl";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,6 +17,7 @@ export function Providers({
   locale: Locale;
   numerals: Numerals;
 }) {
+  const t = useTranslations("notify");
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange nonce={nonce}>
       <FormatterProvider locale={locale} numerals={numerals}>
@@ -24,6 +26,8 @@ export function Providers({
           <Toaster
             position={locale === "ar" ? "bottom-left" : "bottom-right"}
             dir={locale === "ar" ? "rtl" : "ltr"}
+            // the toast region is announced by screen readers: name it in the reader's language
+            containerAriaLabel={t("title")}
             toastOptions={{
               classNames: {
                 toast: "!rounded-xl !border-border !bg-surface !text-foreground !shadow-lg !font-[inherit]",

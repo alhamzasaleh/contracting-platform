@@ -6,6 +6,7 @@ import { IncludedList, workItemLabel } from "@/components/quotes/quote-document"
 import type { ServiceKind } from "@/lib/pricing";
 import type { ClientView } from "@/lib/quotes";
 import { fillPlaceholders, type ClauseKey, type ContractTermsConfig } from "@/lib/contracts/terms";
+import { useListSep, useUnitText } from "@/components/forms/form-kit";
 
 export type ContractTermsData = {
   number: string;
@@ -58,6 +59,8 @@ export function useContractWork() {
  * with the scope of works, specifications, value, payments and legal terms.
  */
 export function ContractTerms({ data, org, client, terms }: { data: ContractTermsData; org: ContractOrg; client: ContractClient; terms?: ContractTermsConfig | null }) {
+  const unitText = useUnitText();
+  const sep = useListSep();
   const t = useTranslations("contract");
   const td = useTranslations("doc");
   const { fmt } = useFormatter();
@@ -121,7 +124,7 @@ export function ContractTerms({ data, org, client, terms }: { data: ContractTerm
               .map((w) => (
                 <tr key={w.workType} className="border-b border-sand">
                   <td className="px-3 py-2 font-sans font-bold">{workItemLabel(td, v.service, w.workType)}</td>
-                  <td className="px-3 py-2 text-end">{fmt.number(w.area, 2)} m²</td>
+                  <td className="px-3 py-2 text-end">{fmt.number(w.area, 2)} {unitText("m2")}</td>
                   <td className="px-3 py-2 text-end">{fmt.money(w.pricePerM2)}</td>
                   <td className="px-3 py-2 text-end">{fmt.money(w.total)}</td>
                 </tr>
@@ -228,7 +231,7 @@ export function ContractTerms({ data, org, client, terms }: { data: ContractTerm
         <Party title={t("firstParty")} name={orgName}>
           {org.cr_number && <li>{t("p_cr", { n: org.cr_number })}</li>}
           {org.vat_number && <li>{t("p_vat", { n: org.vat_number })}</li>}
-          {(org.address || org.city) && <li>{t("p_address", { a: [org.address, org.city].filter(Boolean).join("، ") })}</li>}
+          {(org.address || org.city) && <li>{t("p_address", { a: [org.address, org.city].filter(Boolean).join(sep) })}</li>}
           {org.phone && <li>{t("p_phone", { p: localPhone(org.phone)! })}</li>}
           {org.signatory_name && (
             <li>{org.signatory_title ? t("p_rep", { name: org.signatory_name, title: org.signatory_title }) : t("p_repNoTitle", { name: org.signatory_name })}</li>

@@ -186,7 +186,7 @@ export function ServiceDialog({
       <Field id="svc-name-en" label={t("catalogue.nameEn")} optional={t("common.optional")}>
         <Input name="name_en" defaultValue={service?.name_en ?? ""} dir="ltr" className="font-latin rtl:text-right" />
       </Field>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="svc-unit" label={t("catalogue.unit")}>
           <NativeSelect name="unit" defaultValue={service?.unit ?? "m2"}>
             {(["m2", "m", "piece", "lump"] as const).map((u) => (

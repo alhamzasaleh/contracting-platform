@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/shell/app-shell";
 import { MaintenanceView } from "@/components/projects/maintenance-view";
 import type { MaintenancePageData } from "@/lib/data/maintenance";
+import { previewNoop } from "../../preview-actions";
 
 const ago = (d: number) => new Date(Date.now() - d * 864e5).toISOString();
 const inDays = (d: number) => new Date(Date.now() + d * 864e5).toISOString().slice(0, 10);
@@ -25,7 +26,7 @@ export default function PreviewMaintenance() {
   return (
     <div>
       <PageHeader title="الصيانة والضمان" />
-      <MaintenanceView data={DATA} focus={null} base="/dev/preview" />
+      <MaintenanceView data={DATA} focus={null} base="/dev/preview" actions={{ update: previewNoop, create: previewNoop }} />
     </div>
   );
 }

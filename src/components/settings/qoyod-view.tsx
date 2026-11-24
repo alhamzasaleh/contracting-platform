@@ -173,7 +173,7 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
             <CardDescription>{t("setupHint")}</CardDescription>
             {optionsError && <p className="mt-2 text-sm text-danger">{optionsError}</p>}
           </CardHeader>
-          <CardContent className="grid gap-5 sm:grid-cols-2">
+          <CardContent className="field-row gap-x-5 gap-y-5 sm:grid-cols-2">
             <Field id="q-inventory" label={t("inventory")} hint={t("inventoryHint")}>
               {select("q-inventory", s.inventory_id, (v) => setS({ ...s, inventory_id: v }), options?.inventories ?? [])}
             </Field>

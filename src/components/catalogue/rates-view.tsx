@@ -86,7 +86,7 @@ export function RatesView({
   return (
     <div className="grid gap-5">
       <p className="rounded-2xl bg-primary-soft/60 px-5 py-3.5 text-[14px] text-foreground">{t("ratesIntro")}</p>
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="columns-1 gap-5 lg:columns-2 *:mb-5 *:break-inside-avoid">
         {SECTIONS.map((sec) => {
           // Coats are chosen per client in Pricing (and saved in its template) — not here.
           const list = rates.filter((r) => r.section === sec && !r.key.includes(".coats."));

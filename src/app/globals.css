@@ -171,6 +171,37 @@
   .grid > * {
     min-width: 0;
   }
+  /* flex rows too: a field or button never keeps its row wider than the screen */
+  .flex > input,
+  .flex > select,
+  .flex > textarea {
+    min-width: 0;
+  }
+  /* Date/time fields: Safari on iPad/iPhone gives them a wide built-in minimum
+     width and ignores width: 100%, so they burst out of cards and dialogs.
+     Drop the native frame there (ours is drawn by the input class). */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"] {
+    min-width: 0;
+    max-width: 100%;
+  }
+  @supports (-webkit-touch-callout: none) {
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    input[type="month"] {
+      -webkit-appearance: none;
+      appearance: none;
+      display: block;
+      line-height: calc(3rem - 2px);
+    }
+    input::-webkit-date-and-time-value {
+      text-align: start;
+      min-height: 1.5em;
+    }
+  }
   *,
   ::before,
   ::after {
@@ -295,4 +326,24 @@
 [dir="rtl"] {
   --slide-start: 100%;
   --slide-end: -100%;
+}
+
+/* A row (or grid) of fields: each Field spans three of the grid's rows — label, control, hint — through
+   a subgrid, so controls side by side line up even when one label wraps to two lines or only one field
+   has a hint or an error. Outside any layer so it wins over the Field's own gap utility. */
+.field-row {
+  display: grid;
+}
+.field-row > [data-field] {
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  row-gap: 0;
+  align-content: normal;
+}
+.field-row > [data-field] > [data-field-label] {
+  align-self: end;
+  padding-bottom: 0.5rem;
+}
+.field-row > [data-field] > [data-field-hint] {
+  padding-top: 0.5rem;
 }

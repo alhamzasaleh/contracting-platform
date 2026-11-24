@@ -4,9 +4,11 @@ import { BrandLogo } from "@/components/brand-logo";
 import { useFormatter } from "@/components/formatter-provider";
 import { invoiceRemaining, type InvoiceDoc } from "@/lib/invoices";
 import { amountInWords } from "@/lib/tafqeet";
+import { useListSep } from "@/components/forms/form-kit";
 
 /** Invoice (فاتورة / فاتورة ضريبية) — print-grade and branded; "tax" only when issued with a VAT number. */
 export function InvoiceDocument({ data, logoUrl, qr }: { data: InvoiceDoc; logoUrl?: string | null; qr?: string | null }) {
+  const sep = useListSep();
   const t = useTranslations("invoice");
   const locale = useLocale() as "ar" | "en";
   const { fmt } = useFormatter();
@@ -24,7 +26,7 @@ export function InvoiceDocument({ data, logoUrl, qr }: { data: InvoiceDoc; logoU
             <p className="text-[14px] font-extrabold text-basalt">{seller}</p>
             {s.cr_number && <p>{t("cr", { n: s.cr_number })}</p>}
             {s.vat_number && <p>{t("vat", { n: s.vat_number })}</p>}
-            {(s.city || s.address) && <p>{[s.address, s.city].filter(Boolean).join("، ")}</p>}
+            {(s.city || s.address) && <p>{[s.address, s.city].filter(Boolean).join(sep)}</p>}
           </div>
         </div>
         <div className="text-end">
@@ -44,7 +46,7 @@ export function InvoiceDocument({ data, logoUrl, qr }: { data: InvoiceDoc; logoU
           <dd className="font-semibold">{b.name}</dd>
           {b.id_number && <dd className="text-doc-muted">{t("idNumber", { n: b.id_number })}</dd>}
           {b.phone && <dd className="text-doc-muted"><bdi dir="ltr" className="font-latin">{b.phone.startsWith("966") ? `0${b.phone.slice(3)}` : b.phone}</bdi></dd>}
-          {(b.city || b.district) && <dd className="text-doc-muted">{[b.district, b.city].filter(Boolean).join("، ")}</dd>}
+          {(b.city || b.district) && <dd className="text-doc-muted">{[b.district, b.city].filter(Boolean).join(sep)}</dd>}
         </dl>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-2xl border border-sand p-4 text-[13px]">
           <dt className="text-doc-muted">{t("issueDate")}</dt><dd className="font-semibold">{fmt.date(data.issue_date)}</dd>

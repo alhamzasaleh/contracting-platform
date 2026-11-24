@@ -234,7 +234,7 @@ export function BrandingEditor({
               ]}
               className="w-full"
             />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <ColorSlot label={t("settings.primary")} value={brand.primary} active={target === "primary"} disabled={!canEdit} onFocus={() => setTarget("primary")} onChange={(v) => setBrand((b) => ({ ...b, primary: v, source: "manual" }))} />
               <ColorSlot label={t("settings.accent")} value={brand.accent ?? theme.light.accent} active={target === "accent"} disabled={!canEdit} onFocus={() => setTarget("accent")} onChange={(v) => setBrand((b) => ({ ...b, accent: v, source: "manual" }))} />
             </div>
@@ -379,7 +379,7 @@ function BrandPreview({
                   <div className="flex items-start justify-between">
                     <PreviewLogo logoUrl={logoUrl} orgName={orgName} />
                     <div className="text-end">
-                      <p className="text-[13px] font-bold text-[var(--p)]">عرض سعر</p>
+                      <p className="text-[13px] font-bold text-[var(--p)]">{t("pvDocTitle")}</p>
                       <p className="font-latin text-[10px] text-gray-500 ltr-inline">{fmt.digits("Q-2026-001")}</p>
                     </div>
                   </div>
@@ -393,7 +393,7 @@ function BrandPreview({
                     ))}
                   </div>
                   <div className="mt-4 flex items-center justify-between rounded-md bg-[color-mix(in_oklch,var(--p)_8%,white)] px-3 py-2">
-                    <span className="text-[10px] font-semibold">الإجمالي شامل الضريبة</span>
+                    <span className="text-[10px] font-semibold">{t("pvTotal")}</span>
                     <span className="num text-[12px] font-bold text-[var(--p)]">{fmt.money(48300)}</span>
                   </div>
                   <div className="mt-4 h-7 w-28 rounded-md bg-[var(--p)]" />
@@ -413,12 +413,12 @@ function BrandPreview({
                     <PreviewLogo logoUrl={logoUrl} orgName={orgName} className="h-7 rounded-md bg-white p-0.5" />
                     <span className="text-[11px] font-semibold">{orgName}</span>
                   </div>
-                  <p className="relative mt-4 text-[15px] font-bold">فيلا العليا — دهانات داخلية</p>
+                  <p className="relative mt-4 text-[15px] font-bold">{t("pvProject")}</p>
                   <p className="relative font-latin text-[10px] opacity-80 ltr-inline">{fmt.digits("P-2026-014")}</p>
                 </div>
                 <div className="-mt-6 px-3 pb-4">
                   <div className="rounded-xl bg-white p-3 shadow-md ring-1 ring-black/5">
-                    {["تجهيز الموقع", "المعجون", "الدهان النهائي"].map((s, i) => (
+                    {[t("pvStage1"), t("pvStage2"), t("pvStage3")].map((s, i) => (
                       <div key={s} className="flex items-center gap-2 py-1.5">
                         <span
                           className={cn(
@@ -429,11 +429,11 @@ function BrandPreview({
                           {i < 2 && <Check className="size-2.5" strokeWidth={3} />}
                         </span>
                         <span className="text-[11px]">{s}</span>
-                        {i === 2 && <Badge className="ms-auto bg-[color-mix(in_oklch,var(--a)_14%,white)] px-1.5 text-[9px] text-[var(--a)] ring-0">جارٍ</Badge>}
+                        {i === 2 && <Badge className="ms-auto bg-[color-mix(in_oklch,var(--a)_14%,white)] px-1.5 text-[9px] text-[var(--a)] ring-0">{t("pvInProgress")}</Badge>}
                       </div>
                     ))}
                   </div>
-                  <div className="mt-3 rounded-lg bg-[var(--p)] py-2 text-center text-[11px] font-semibold text-white">تأكيد استلام المرحلة</div>
+                  <div className="mt-3 rounded-lg bg-[var(--p)] py-2 text-center text-[11px] font-semibold text-white">{t("pvConfirm")}</div>
                 </div>
               </motion.div>
             )}

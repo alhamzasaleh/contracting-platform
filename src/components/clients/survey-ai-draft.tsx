@@ -11,6 +11,7 @@ import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
 import type { DraftRoom, cleanDraft } from "@/lib/survey/ai-draft";
 import { cn } from "@/lib/utils";
+import { useListSep } from "@/components/forms/form-kit";
 
 type Draft = ReturnType<typeof cleanDraft>;
 type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start(): void; stop(): void; onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
@@ -43,6 +44,7 @@ export function SurveyAiDraft({
   preview?: boolean;
   sample?: Draft;
 }) {
+  const sep = useListSep();
   const t = useTranslations("survey");
   const locale = useLocale();
   const { fmt } = useFormatter();
@@ -225,7 +227,7 @@ export function SurveyAiDraft({
                           r.gypsum_ceiling && t("aiGypsum", { board: t(`board_${r.ceiling_board}`) }),
                           r.wall_zone !== "normal" && t(`zone_${r.wall_zone}`),
                           r.openings_m2 > 0 && t("aiOpenings", { m2: fmt.number(r.openings_m2) }),
-                          r.missing.length > 0 && t("aiMissing", { what: r.missing.map((m) => t(`ai_miss_${m}`)).join("، ") }),
+                          r.missing.length > 0 && t("aiMissing", { what: r.missing.map((m) => t(`ai_miss_${m}`)).join(sep) }),
                         ]
                           .filter(Boolean)
                           .join(" · ")}

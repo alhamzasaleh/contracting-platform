@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
-import { FormDialog, NumberInput, useActionRunner } from "@/components/forms/form-kit";
+import { FormDialog, NumberInput, useActionRunner, useUnitText, useUnitHint } from "@/components/forms/form-kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -108,6 +108,9 @@ const emptyRow = (): Row => ({ key: ++rowKey, kind: "material", item: "new", new
 
 export function PurchaseEditor({ form, actions, base = "", initialProject }: { form: PurchaseForm; actions?: PurchaseActions; base?: string; initialProject?: string }) {
   const t = useTranslations("purchases");
+  const unitText = useUnitText();
+  /** the unit in the reader's language under the field, only when the stored value is a key (pack → عبوة) */
+  const unitHint = useUnitHint();
   const { fmt } = useFormatter();
   const router = useRouter();
   const { run, pending, errorText } = useActionRunner();
@@ -224,8 +227,8 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
     );
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_340px] [&>*]:min-w-0">
-      <div className="grid content-start gap-5 [&>*]:min-w-0">
+    <div className="grid gap-6 min-[1150px]:grid-cols-[minmax(0,1fr)_340px] [&>*]:min-w-0">
+      <div className="@container grid content-start gap-5 [&>*]:min-w-0">
         {/* 1. the invoice */}
         <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5">
           <p className="text-[15px] font-bold">{t("step1")}</p>
@@ -274,8 +277,8 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
         </section>
 
         {/* 2. supplier and invoice details */}
-        <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5 sm:grid-cols-2">
-          <p className="text-[15px] font-bold sm:col-span-2">{t("step2")}</p>
+        <section className="field-row gap-x-4 gap-y-4 rounded-3xl border border-border bg-surface p-5 @xl:grid-cols-2">
+          <p className="text-[15px] font-bold @xl:col-span-2">{t("step2")}</p>
           <Field id="pu-supplier" label={t("supplier")}>
             <NativeSelect
               value={supplierId}
@@ -320,8 +323,8 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
           </Field>
         </section>
 
-        {/* 3. lines */}
-        <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
+        {/* 3. lines (laid out by the card's width: it is narrow beside the totals panel on an iPad) */}
+        <section className="@container grid gap-3 rounded-3xl border border-border bg-surface p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[15px] font-bold">{t("step3")}</p>
             {quoteList && (
@@ -367,11 +370,11 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
           <ul className="grid gap-2">
             {rows.map((r, ri) => (
               <li key={r.key} className={cn("grid gap-3 rounded-2xl bg-surface-sunken/50 p-3", r.unclear && "ring-2 ring-warning")}>
-                <div className="grid gap-3 sm:grid-cols-[1fr_220px_auto]">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 @xl:grid-cols-[minmax(0,1fr)_minmax(0,14rem)_auto]">
                   <Field id={`pl-d-${ri}`} label={t("description")}>
                     <Input value={r.description} onChange={(e) => setRow(r.key, { description: e.target.value })} />
                   </Field>
-                  <Field id={`pl-i-${ri}`} label={t("stockItem")}>
+                  <Field id={`pl-i-${ri}`} label={t("stockItem")} className="order-1 col-span-full @xl:order-none @xl:col-span-1">
                     <NativeSelect
                       value={r.kind === "expense" ? "__expense" : r.item}
                       // another item than the suggested one drops the suggested catalogue product
@@ -380,13 +383,13 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                       <option value="new">{t("newItem")}</option>
                       {form.items.map((it) => (
                         <option key={it.id} value={it.id}>
-                          {it.name} ({it.unit})
+                          {it.name} ({unitText(it.unit)})
                         </option>
                       ))}
                       <option value="__expense">{t("expense")}</option>
                     </NativeSelect>
                   </Field>
-                  <Button type="button" variant="ghost" size="icon-sm" className="self-end" aria-label={t("removeLine")} disabled={rows.length === 1} onClick={() => setRows((x) => x.filter((y) => y.key !== r.key))}>
+                  <Button type="button" variant="ghost" size="icon-sm" className="mb-1.5 self-end" aria-label={t("removeLine")} disabled={rows.length === 1} onClick={() => setRows((x) => x.filter((y) => y.key !== r.key))}>
                     <Trash2 />
                   </Button>
                 </div>
@@ -411,11 +414,11 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                     <Switch checked={r.general} onCheckedChange={(v) => setRow(r.key, { general: v })} aria-label={t("generalItem")} />
                   </label>
                 )}
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="field-row grid grid-cols-2 items-end gap-3 @xl:grid-cols-4">
                   <Field id={`pl-q-${ri}`} label={t("quantity")}>
                     <NumberInput value={r.quantity} onChange={(e) => setRow(r.key, { quantity: e.target.value })} />
                   </Field>
-                  <Field id={`pl-u-${ri}`} label={t("unit")}>
+                  <Field id={`pl-u-${ri}`} label={t("unit")} hint={unitHint(r.unit)}>
                     <Input value={r.unit} onChange={(e) => setRow(r.key, { unit: e.target.value })} dir="ltr" className="font-latin rtl:text-right" />
                   </Field>
                   <Field id={`pl-p-${ri}`} label={t("unitPrice")}>
@@ -439,7 +442,7 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
         </Field>
       </div>
 
-      <aside className="grid content-start gap-3 self-start rounded-3xl border-2 border-primary/30 bg-surface p-5 lg:sticky lg:top-24">
+      <aside className="grid content-start gap-3 self-start rounded-3xl border-2 border-primary/30 bg-surface p-5 min-[1150px]:sticky min-[1150px]:top-24">
         <div className="flex justify-between text-[14px]">
           <span>{t("subtotal")}</span>
           <span className="font-latin tabular-nums">{fmt.money(totals.subtotal)}</span>
@@ -482,6 +485,7 @@ export function PurchaseView({
   actions?: { cancel: (i: { id: string }) => Promise<ActionResult>; decide: (i: Record<string, unknown>) => Promise<ActionResult>; pay?: (i: Record<string, unknown>) => Promise<ActionResult> };
 }) {
   const t = useTranslations("purchases");
+  const unitText = useUnitText();
   const { fmt } = useFormatter();
   const { run, pending } = useActionRunner();
   const itemName = new Map(items.map((i) => [i.id, i]));
@@ -571,7 +575,7 @@ export function PurchaseView({
         </section>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_320px] [&>*]:min-w-0">
+      <div className="grid gap-5 min-[1150px]:grid-cols-[minmax(0,1fr)_320px] [&>*]:min-w-0">
         <section className="rounded-3xl border border-border bg-surface p-5">
           <div className="-mx-1 overflow-x-auto px-1">
             <table className="w-full border-collapse text-[14px]">
@@ -596,7 +600,7 @@ export function PurchaseView({
                         </p>
                       </td>
                       <td className="px-2 py-2.5 text-end font-latin tabular-nums">
-                        {fmt.number(l.quantity, l.quantity % 1 ? 2 : 0)} {l.unit}
+                        {fmt.number(l.quantity, l.quantity % 1 ? 2 : 0)} {unitText(l.unit)}
                       </td>
                       <td className="px-2 py-2.5 text-end font-latin tabular-nums">{fmt.money(l.unit_price)}</td>
                       <td className="px-2 py-2.5 text-end font-latin tabular-nums">{fmt.money(l.amount)}</td>
@@ -622,7 +626,8 @@ export function PurchaseView({
           </dl>
           {d.notes && <p className="mt-4 whitespace-pre-line text-[13px] text-muted-foreground">{d.notes}</p>}
         </section>
-        <section className="grid content-start gap-2 rounded-3xl border border-border bg-surface p-5">
+        {/* the photo panel keeps its own height beside a long table (no stretched empty card) and stays in view */}
+        <aside className="grid content-start gap-2 self-start rounded-3xl border border-border bg-surface p-5 min-[1150px]:sticky min-[1150px]:top-24">
           <p className="text-[13px] font-bold">{t("invoicePhoto")}</p>
           {d.attachmentUrl ? (
             d.attachmentIsPdf ? (
@@ -638,7 +643,7 @@ export function PurchaseView({
           ) : (
             <p className="text-[13px] text-muted-foreground">{t("noPhoto")}</p>
           )}
-        </section>
+        </aside>
       </div>
     </div>
   );
@@ -654,6 +659,7 @@ export function InventoryView({
   actions?: { move: (i: Record<string, unknown>) => Promise<ActionResult>; saveItem: (i: Record<string, unknown>) => Promise<ActionResult<{ id: string }>> };
 }) {
   const t = useTranslations("purchases");
+  const unitText = useUnitText();
   const { fmt } = useFormatter();
   const [moving, setMoving] = React.useState<{ item: ItemRef; from: string | null } | null>(null);
   const [newItem, setNewItem] = React.useState(false);
@@ -701,7 +707,7 @@ export function InventoryView({
                   <p className="text-[13px]">
                     {t("inStock")}:{" "}
                     <span className="font-latin font-bold tabular-nums">
-                      {fmt.number(stock.quantity, stock.quantity % 1 ? 2 : 0)} {it.unit}
+                      {fmt.number(stock.quantity, stock.quantity % 1 ? 2 : 0)} {unitText(it.unit)}
                     </span>{" "}
                     <span className="font-latin text-muted-foreground tabular-nums">({fmt.money(stock.value)})</span>
                   </p>
@@ -723,7 +729,7 @@ export function InventoryView({
                   >
                     {project.get(b.contract_id!)?.client ?? "—"} · <DocNo>{project.get(b.contract_id!)?.number}</DocNo> ·{" "}
                     <span className="font-latin font-bold tabular-nums">
-                      {fmt.number(b.quantity, b.quantity % 1 ? 2 : 0)} {it.unit}
+                      {fmt.number(b.quantity, b.quantity % 1 ? 2 : 0)} {unitText(it.unit)}
                     </span>
                   </button>
                 ))}
@@ -741,6 +747,8 @@ export function InventoryView({
 
 function MoveDialog({ data, item, from, onClose, move }: { data: InventoryData; item: ItemRef; from: string | null; onClose: () => void; move?: (i: Record<string, unknown>) => Promise<ActionResult> }) {
   const t = useTranslations("purchases");
+  const unitText = useUnitText();
+  const { fmt } = useFormatter();
   const { run, pending } = useActionRunner();
   const available = data.balances.find((b) => b.item_id === item.id && b.contract_id === from)?.quantity ?? 0;
   const targets = [...(item.is_general && from !== null ? [{ id: "", label: t("toStock") }] : []), ...data.projects.filter((p) => p.id !== from && p.status !== "cancelled").map((p) => ({ id: p.id, label: `${ltr(p.number)} · ${p.client}` }))];
@@ -753,7 +761,7 @@ function MoveDialog({ data, item, from, onClose, move }: { data: InventoryData; 
       open
       onOpenChange={(v) => !v && onClose()}
       title={t("moveTitle", { item: item.name })}
-      description={t("available", { n: available, unit: item.unit })}
+      description={t("available", { n: fmt.number(available, available % 1 ? 2 : 0), unit: unitText(item.unit) })}
       pending={pending}
       submitLabel={t("move")}
       onSubmit={() => run(move && (() => move({ item_id: item.id, quantity: q, from, to: to || null, note: note || null })), { onSuccess: onClose })}
@@ -769,7 +777,7 @@ function MoveDialog({ data, item, from, onClose, move }: { data: InventoryData; 
       </Field>
       {!item.is_general && from !== null && <p className="text-[13px] text-muted-foreground">{t("specificStays")}</p>}
       <Field id="mv-q" label={t("quantity")} error={q > available ? t("tooMuch") : undefined}>
-        <NumberInput value={qty} onChange={(e) => setQty(e.target.value)} suffix={item.unit} />
+        <NumberInput value={qty} onChange={(e) => setQty(e.target.value)} suffix={unitText(item.unit)} />
       </Field>
       <Field id="mv-n" label={t("notes")} optional={t("optional")}>
         <Input value={note} onChange={(e) => setNote(e.target.value)} />
@@ -781,6 +789,7 @@ function MoveDialog({ data, item, from, onClose, move }: { data: InventoryData; 
 /** New stock item, or an existing one (rename / link to a catalogue product; unit and kind stay as they are). */
 function ItemDialog({ item, onClose, save, products }: { item?: ItemRef; onClose: () => void; save?: (i: Record<string, unknown>) => Promise<ActionResult<{ id: string }>>; products: { id: string; label: string }[] }) {
   const t = useTranslations("purchases");
+  const unitHint = useUnitHint();
   const { run, pending, fieldText } = useActionRunner();
   const [product, setProduct] = React.useState(item?.product_id ?? "");
   const [name, setName] = React.useState(item?.name ?? "");
@@ -817,7 +826,7 @@ function ItemDialog({ item, onClose, save, products }: { item?: ItemRef; onClose
       <Field id="it-n" label={t("itemName")} error={fieldText(errors.name)}>
         <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
       </Field>
-      <Field id="it-u" label={t("unit")}>
+      <Field id="it-u" label={t("unit")} hint={unitHint(unit)}>
         <Input value={unit} onChange={(e) => setUnit(e.target.value)} disabled={!!item} dir="ltr" className="font-latin rtl:text-right" />
       </Field>
       {!item && (
@@ -921,12 +930,12 @@ function SupplierPayment({ d, pay }: { d: PurchaseDetail; pay?: (i: Record<strin
   return (
     <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
       <p className="font-bold">{t("payTitle", { total: fmt.money(d.total) })}</p>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="field-row grid gap-3 sm:grid-cols-3">
         <Field id="pay-date" label={t("payDate")}>
           <Input id="pay-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} dir="ltr" />
         </Field>
         <Field id="pay-from" label={t("payFrom")}>
-          <Segmented name="pay-from" value={from} onChange={(v) => setFrom(v as "bank" | "cash")} options={[{ value: "bank", label: t("paidFrom_bank") }, { value: "cash", label: t("paidFrom_cash") }]} />
+          <Segmented name={t("payFrom")} value={from} onChange={(v) => setFrom(v as "bank" | "cash")} options={[{ value: "bank", label: t("paidFrom_bank") }, { value: "cash", label: t("paidFrom_cash") }]} />
         </Field>
         <Field id="pay-ref" label={t("payRef")}>
           <Input id="pay-ref" value={ref} maxLength={80} onChange={(e) => setRef(e.target.value)} />

@@ -80,12 +80,12 @@ export function CompanyForm({
 
   return (
     <form action={submit} onChange={() => setDirty(true)} noValidate>
-      <Card>
+      <Card className="@container">
         <CardHeader>
           <CardTitle>{t("settings.companyTitle")}</CardTitle>
           <CardDescription>{t("settings.companyHint")}</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-5 sm:grid-cols-2">
+        <CardContent className="field-row gap-x-5 gap-y-5 @xl:grid-cols-2">
           {field("name", { autoComplete: "organization" })}
           {field("legal_name", { optional: true })}
           {field("cr_number", { ltr: true, inputMode: "numeric" })}
@@ -93,7 +93,7 @@ export function CompanyForm({
           {field("phone", { ltr: true, inputMode: "tel", optional: true })}
           {field("email", { ltr: true, inputMode: "email", optional: true })}
           {field("city", { optional: true })}
-          <Field id="company-address" label={t("settings.address")} optional={t("common.optional")} className="sm:col-span-2" error={msg(errors.address)}>
+          <Field id="company-address" label={t("settings.address")} optional={t("common.optional")} className="@xl:col-span-2" error={msg(errors.address)}>
             <Textarea name="address" defaultValue={values.address ?? ""} disabled={!canEdit} rows={2} />
           </Field>
           {field("signatory_name", { optional: true, hint: t("settings.signatoryHint") })}

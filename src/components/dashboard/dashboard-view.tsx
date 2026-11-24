@@ -62,6 +62,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
   const firstName = data.userName?.split(" ")[0];
   const done = data.setup.filter((s) => s.done).length;
   const base = data.basePath ?? "";
+  const setup = done < data.setup.length ? <SetupChecklist steps={data.setup} base={base} /> : null;
 
   return (
     <motion.div
@@ -80,7 +81,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
             {fmt.date(new Date())}
           </p>
           <h1 className="mt-1 text-[32px] leading-tight font-extrabold sm:text-[44px]">
-            {firstName ? `${greeting}، ${firstName}` : greeting}
+            {firstName ? t("greetingName", { greeting, name: firstName }) : greeting}
           </h1>
           <p className="mt-2 text-[15px] text-muted-foreground">
             {t("subtitle")}
@@ -109,6 +110,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
           f={data.finance}
           actions={data.financeActions}
           base={base}
+          aside={setup}
         />
       ) : (
         <>
@@ -246,85 +248,93 @@ export function DashboardView({ data }: { data: DashboardData }) {
         </>
       )}
 
-      {/* Setup checklist (hidden once everything is done) */}
-      {done < data.setup.length && (
-        <motion.section
-          variants={item}
-          className="overflow-hidden rounded-2xl border border-border bg-surface"
-        >
-          <div className="flex items-center gap-4 p-5 sm:p-6">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary"><ListChecks className="size-6" /></span>
-            <div className="flex-1">
-              <h2 className="text-[19px] font-extrabold">{t("setupTitle")}</h2>
-              <p className="num text-sm text-muted-foreground">
-                {t("setupSubtitle", {
-                  done: fmt.number(done),
-                  total: fmt.number(data.setup.length),
-                })}
-              </p>
-            </div>
-            <ProgressRing value={done / data.setup.length} />
-          </div>
-          <div className="grid gap-2 px-5 pb-5 sm:grid-cols-2 sm:px-6 sm:pb-6">
-            {data.setup.map((s) => {
-              const inner = (
-                <>
-                  <span
-                    className={cn(
-                      "flex size-7 shrink-0 items-center justify-center rounded-full border",
-                      s.done
-                        ? "border-transparent bg-primary text-primary-foreground"
-                        : "border-border-strong bg-surface",
-                    )}
-                  >
-                    {s.done ? (
-                      <Check className="size-4" strokeWidth={2.5} />
-                    ) : (
-                      <span className="size-1.5 rounded-full bg-border-strong" />
-                    )}
-                  </span>
-                  <span
-                    className={cn(
-                      "flex-1 text-[14px]",
-                      s.done &&
-                        "text-muted-foreground line-through decoration-border-strong",
-                    )}
-                  >
-                    {t(s.key)}
-                  </span>
-                  {s.href && !s.done && (
-                    <ArrowUpLeft className="size-4 text-subtle-foreground ltr:-scale-x-100" />
-                  )}
-                  {!s.href && !s.done && (
-                    <span className="rounded-full bg-surface-sunken px-2.5 py-0.5 text-xs text-muted-foreground">
-                      {t("phase", { n: fmt.number(2) })}
-                    </span>
-                  )}
-                </>
-              );
-              const cls =
-                "flex min-h-14 items-center gap-3 rounded-xl border border-border bg-surface-2/60 px-4 py-3 transition-colors";
-              return s.href && !s.done ? (
-                <Link
-                  key={s.key}
-                  href={`${base}${s.href}`}
-                  className={cn(
-                    cls,
-                    "hover:border-primary/40 hover:bg-primary-softer",
-                  )}
-                >
-                  {inner}
-                </Link>
-              ) : (
-                <div key={s.key} className={cls}>
-                  {inner}
-                </div>
-              );
-            })}
-          </div>
-        </motion.section>
-      )}
+      {/* Setup checklist (hidden once everything is done). With finance it is passed to OwnerFinanceSections: from xl the last card of the side column (under receivables and alerts), below xl right after the profit chart. */}
+      {!data.finance && setup}
     </motion.div>
+  );
+}
+
+/** "Set up your account" steps with a progress ring. */
+function SetupChecklist({ steps, base }: { steps: SetupStep[]; base: string }) {
+  const t = useTranslations("dashboard");
+  const { fmt } = useFormatter();
+  const done = steps.filter((s) => s.done).length;
+  return (
+    <motion.section
+              variants={item}
+              className="@container overflow-hidden rounded-2xl border border-border bg-surface"
+            >
+              <div className="flex items-center gap-4 p-5 sm:p-6">
+                <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary"><ListChecks className="size-6" /></span>
+                <div className="flex-1">
+                  <h2 className="text-[19px] font-extrabold">{t("setupTitle")}</h2>
+                  <p className="num text-sm text-muted-foreground">
+                    {t("setupSubtitle", {
+                      done: fmt.number(done),
+                      total: fmt.number(steps.length),
+                    })}
+                  </p>
+                </div>
+                <ProgressRing value={done / steps.length} />
+              </div>
+              <div className="grid gap-2 px-5 pb-5 @lg:grid-cols-2 sm:px-6 sm:pb-6">
+                {steps.map((s) => {
+                  const inner = (
+                    <>
+                      <span
+                        className={cn(
+                          "flex size-7 shrink-0 items-center justify-center rounded-full border",
+                          s.done
+                            ? "border-transparent bg-primary text-primary-foreground"
+                            : "border-border-strong bg-surface",
+                        )}
+                      >
+                        {s.done ? (
+                          <Check className="size-4" strokeWidth={2.5} />
+                        ) : (
+                          <span className="size-1.5 rounded-full bg-border-strong" />
+                        )}
+                      </span>
+                      <span
+                        className={cn(
+                          "flex-1 text-[14px]",
+                          s.done &&
+                            "text-muted-foreground line-through decoration-border-strong",
+                        )}
+                      >
+                        {t(s.key)}
+                      </span>
+                      {s.href && !s.done && (
+                        <ArrowUpLeft className="size-4 text-subtle-foreground ltr:-scale-x-100" />
+                      )}
+                      {!s.href && !s.done && (
+                        <span className="rounded-full bg-surface-sunken px-2.5 py-0.5 text-xs text-muted-foreground">
+                          {t("phase", { n: fmt.number(2) })}
+                        </span>
+                      )}
+                    </>
+                  );
+                  const cls =
+                    "flex min-h-14 items-center gap-3 rounded-xl border border-border bg-surface-2/60 px-4 py-3 transition-colors";
+                  return s.href && !s.done ? (
+                    <Link
+                      key={s.key}
+                      href={`${base}${s.href}`}
+                      className={cn(
+                        cls,
+                        "hover:border-primary/40 hover:bg-primary-softer",
+                      )}
+                    >
+                      {inner}
+                    </Link>
+                  ) : (
+                    <div key={s.key} className={cls}>
+                      {inner}
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.section>
   );
 }
 

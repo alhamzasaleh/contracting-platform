@@ -160,7 +160,7 @@ function CostDialog({ a, onClose, save }: { a: AddendumView; onClose: () => void
       onSubmit={() => run(() => save({ addendum_id: a.id, material_cost: num(material), other_cost: num(other) }), { onSuccess: onClose })}
     >
       <p className="text-[13px] text-muted-foreground">{t("estimateHint")}</p>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="ad-cost-m" label={t("estMaterials")}>
           <NumberInput value={material} onChange={(e) => setMaterial(e.target.value)} />
         </Field>
@@ -219,7 +219,7 @@ function AddendumDialog({ contractId, vatPercent, initial, onClose, save }: { co
       <Field id="ad-desc" label={t("fieldScope")} hint={t("scopeHint")} error={fieldText(errors.description)}>
         <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
       </Field>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="ad-amount" label={t("amount")} hint={vatPercent > 0 ? t("plusVat", { vat: fmt.money(vat) }) : t("noVat")}>
           <NumberInput value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>

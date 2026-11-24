@@ -80,12 +80,24 @@ export function SectionContentSkeleton({ kpis = 0 }: { kpis?: number }) {
   );
 }
 
-/** A document page (contract, quote, project, client, invoice, purchase): main column + side panel. */
-export function DetailPageSkeleton() {
+/** Column layouts of the document pages, the same breakpoints as the pages themselves. */
+const DETAIL_COLUMNS = {
+  /** contract editor, project page: side panel from 1150px */
+  side: "min-[1150px]:grid-cols-[minmax(0,1fr)_340px]",
+  /** quote page: 360px panel from xl */
+  quote: "xl:grid-cols-[minmax(0,1fr)_360px]",
+  /** client page: two equal columns from lg */
+  halves: "lg:grid-cols-2",
+  /** new quote (pricing): the choices beside the results from xl */
+  pricing: "xl:grid-cols-[minmax(0,460px)_1fr]",
+} as const;
+
+/** A document page with a side panel (project, new contract, quote, client, pricing). */
+export function DetailPageSkeleton({ columns = "side" }: { columns?: keyof typeof DETAIL_COLUMNS }) {
   return (
     <div aria-busy="true">
       <Header actions description={false} />
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+      <div className={`grid gap-6 ${DETAIL_COLUMNS[columns]}`}>
         <div className="grid content-start gap-5">
           <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5">
             <Skeleton className="h-6 w-56 max-w-full rounded-lg" />
@@ -101,13 +113,174 @@ export function DetailPageSkeleton() {
           <Card className="h-48" />
           <Card className="h-32" />
         </div>
-        <aside className="grid content-start gap-3 rounded-3xl border border-border bg-surface p-5">
+        <aside className="grid content-start gap-3 self-start rounded-3xl border border-border bg-surface p-5">
           <Skeleton className="h-5 w-32 rounded-lg" />
           <Skeleton className="h-10 w-full rounded-full" />
           <Skeleton className="h-10 w-full rounded-full" />
           <Skeleton className="h-24 w-full rounded-2xl" />
         </aside>
       </div>
+    </div>
+  );
+}
+
+/** A one-column document (contract, invoice): its header, the document and the cards under it. */
+export function DocumentPageSkeleton() {
+  return (
+    <div aria-busy="true">
+      <Header actions description={false} />
+      <div className="grid gap-5">
+        <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5 sm:p-8">
+          <div className="flex items-start justify-between gap-4">
+            <Skeleton className="h-12 w-28 rounded-xl" />
+            <div className="grid justify-items-end gap-2">
+              <Skeleton className="h-6 w-40 rounded-lg" />
+              <Skeleton className="h-4 w-24 rounded-lg" />
+            </div>
+          </div>
+          <Skeleton className="h-28 w-full rounded-2xl" />
+          <Skeleton className="h-40 w-full rounded-2xl" />
+          <Skeleton className="ms-auto h-16 w-56 max-w-full rounded-2xl" />
+        </section>
+        <Card className="h-32" />
+      </div>
+    </div>
+  );
+}
+
+/** The owner's home: greeting, four KPI cards (four across from xl), then two columns of cards from xl. */
+export function HomeSkeleton() {
+  return (
+    <div className="grid gap-5 sm:gap-6" aria-busy="true">
+      <div className="grid gap-3">
+        <Skeleton className="h-3 w-28 rounded-lg" />
+        <Skeleton className="h-10 w-64 max-w-full rounded-xl sm:h-12" />
+        <Skeleton className="h-4 w-48 rounded-lg" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="min-h-28 rounded-2xl" />
+        ))}
+      </div>
+      <div className="grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] xl:items-start">
+        <div className="grid gap-4 sm:gap-5">
+          <Skeleton className="h-80 rounded-2xl" />
+          <Skeleton className="h-72 rounded-2xl" />
+        </div>
+        <div className="grid gap-4 sm:gap-5">
+          <Skeleton className="h-56 rounded-2xl" />
+          <Skeleton className="h-48 rounded-2xl" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A survey: its title card, the rooms, then the extras form. */
+export function SurveySkeleton() {
+  return (
+    <div className="grid gap-6" aria-busy="true">
+      <Skeleton className="h-4 w-32 rounded-lg" />
+      <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5">
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton className="h-3 w-24 rounded-lg" />
+          <Skeleton className="h-11 w-48 rounded-xl" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,16rem)]">
+          <Skeleton className="h-12 w-full rounded-xl" />
+          <Skeleton className="h-12 w-full rounded-xl" />
+        </div>
+      </section>
+      <ul className="grid gap-2 md:grid-cols-2">
+        {Array.from({ length: 4 }, (_, i) => (
+          <li key={i} className="grid gap-2 rounded-2xl border border-border bg-surface p-4">
+            <Skeleton className="h-4 w-32 rounded-lg" />
+            <Skeleton className="h-3 w-40 rounded-lg" />
+            <Skeleton className="h-5 w-48 rounded-full" />
+          </li>
+        ))}
+      </ul>
+      <section className="grid gap-4 rounded-3xl border border-border bg-surface p-4 sm:p-5">
+        <Skeleton className="h-5 w-48 rounded-lg" />
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          {Array.from({ length: 3 }, (_, i) => (
+            <Skeleton key={i} className="h-12 w-full rounded-xl" />
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/** A purchase (under the purchases header and tabs): its header card, the lines table and the invoice photo panel. */
+export function PurchaseViewSkeleton() {
+  return (
+    <div className="grid gap-5" aria-busy="true">
+      <section className="grid gap-2 rounded-3xl border border-border bg-surface p-5">
+        <Skeleton className="h-6 w-48 rounded-lg" />
+        <Skeleton className="h-4 w-64 max-w-full rounded-lg" />
+      </section>
+      <div className="grid gap-5 min-[1150px]:grid-cols-[minmax(0,1fr)_320px]">
+        <section className="grid content-start gap-2 rounded-3xl border border-border bg-surface p-5">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-10 w-full rounded-xl" />
+          ))}
+          <Skeleton className="ms-auto mt-2 h-16 w-56 max-w-full rounded-2xl" />
+        </section>
+        <aside className="grid content-start gap-2 self-start rounded-3xl border border-border bg-surface p-5">
+          <Skeleton className="h-4 w-24 rounded-lg" />
+          <Skeleton className="h-40 w-full rounded-2xl" />
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+/** A document under a section's own header and tabs (purchase detail / new purchase): the document's form and lines beside a side panel. */
+export function SectionDocumentSkeleton() {
+  return (
+    <div className="grid gap-5 min-[1150px]:grid-cols-[minmax(0,1fr)_340px]" aria-busy="true">
+      <div className="grid content-start gap-5">
+        <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5">
+          <Skeleton className="h-6 w-56 max-w-full rounded-lg" />
+          <div className="grid gap-4 sm:grid-cols-2">
+            {Array.from({ length: 4 }, (_, i) => (
+              <div key={i} className="grid gap-2">
+                <Skeleton className="h-3 w-20 rounded-lg" />
+                <Skeleton className="h-11 w-full rounded-xl" />
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="grid gap-2 rounded-3xl border border-border bg-surface p-5">
+          <Skeleton className="h-5 w-32 rounded-lg" />
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="grid grid-cols-[minmax(0,1fr)_4rem_5rem] items-center gap-3">
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+            </div>
+          ))}
+        </section>
+      </div>
+      <aside className="grid content-start gap-3 rounded-3xl border border-border bg-surface p-5">
+        <Skeleton className="h-40 w-full rounded-2xl" />
+        <Skeleton className="h-5 w-32 rounded-lg" />
+        <Skeleton className="h-10 w-full rounded-full" />
+      </aside>
+    </div>
+  );
+}
+
+/** A list inside the settings frame (members, audit log): a toolbar and rows. */
+export function SettingsListSkeleton() {
+  return (
+    <div className="grid gap-4" aria-busy="true">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Skeleton className="h-6 w-40 rounded-lg" />
+        <Skeleton className="h-11 w-32 rounded-full" />
+      </div>
+      <Rows count={5} />
     </div>
   );
 }
@@ -143,7 +316,7 @@ export function ScheduleSkeleton() {
         </div>
         <section className="grid gap-2 rounded-3xl border border-border bg-surface p-4">
           {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="grid grid-cols-[96px_1fr] items-center gap-3 sm:grid-cols-[160px_1fr]">
+            <div key={i} className="grid grid-cols-[112px_1fr] items-center gap-3 sm:grid-cols-[160px_1fr]">
               <Skeleton className="h-4 w-full rounded-lg" />
               <Skeleton className="h-9 w-full rounded-xl" />
             </div>

@@ -54,7 +54,7 @@ function Collections({ f, actions, base }: { f: OwnerFinance; actions?: ReportAc
         <p className="text-[14px]">
           {t("outstanding")}: <span className="font-latin font-bold tabular-nums">{fmt.money(f.kpis.outstanding)}</span>
         </p>
-        <Segmented name={t("show")} value={show} onChange={setShow} options={[{ value: "open", label: t("showOpen") }, { value: "all", label: t("showAll") }]} />
+        <Segmented name={t("show")} value={show} onChange={setShow} options={[{ value: "all", label: t("showAll") }, { value: "open", label: t("showOpen") }]} />
       </div>
       {groups.map((g) => (
         <section key={g.contract} className="grid gap-2 rounded-3xl border border-border bg-surface p-5">
@@ -181,7 +181,7 @@ export function RecordPaymentDialog({
       pending={pending}
       onSubmit={() => run(submit && (() => submit({ paid_on: date, amount: num(amount), method, reference: ref || null })), { onSuccess: onClose })}
     >
-      <div className="grid grid-cols-2 gap-4">
+      <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field
           id="rp-a"
           label={t("amount")}

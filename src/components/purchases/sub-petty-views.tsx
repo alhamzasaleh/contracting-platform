@@ -3,7 +3,7 @@ import { AlertTriangle, Banknote, Camera, HardHat, Plus, Receipt, Sparkles, Tras
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
-import { FormDialog, NumberInput, useActionRunner } from "@/components/forms/form-kit";
+import { FormDialog, NumberInput, useActionRunner, useListSep } from "@/components/forms/form-kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -30,6 +30,7 @@ const today = () => new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 
 export type SubActions = { saveSub: Act<{ id: string }>; saveAgreement: Act; addWork: Act; deleteWork: (i: { id: string }) => Promise<ActionResult>; addPayment: Act };
 
 export function SubcontractorsView({ data, actions }: { data: SubcontractorsData; actions?: SubActions }) {
+  const sep = useListSep();
   const t = useTranslations("subs");
   const tp = useTranslations("pricing");
   const { fmt } = useFormatter();
@@ -60,7 +61,7 @@ export function SubcontractorsView({ data, actions }: { data: SubcontractorsData
                 <div>
                   <p className="text-[16px] font-bold">{s.name}</p>
                   <p className="text-[13px] text-muted-foreground">
-                    {[s.services.map((x) => tp(`kind_${x}`)).join("، "), s.phone && `0${s.phone.slice(3)}`].filter(Boolean).join(" · ")}
+                    {[s.services.map((x) => tp(`kind_${x}`)).join(sep), s.phone && `0${s.phone.slice(3)}`].filter(Boolean).join(" · ")}
                   </p>
                   {(data.rates ?? []).some((r) => r.subcontractor_id === s.id) && (
                     <p className="text-[12px] text-muted-foreground">
@@ -259,7 +260,7 @@ function SubDialog({ initial, onClose, save }: { initial: Partial<Subcontractors
           </button>
         ))}
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="sb-vat" label={t("vat")} optional={t("optional")} error={errors.vat_number ? t("vatInvalid") : undefined}>
           <Input value={vat} onChange={(e) => setVat(e.target.value)} inputMode="numeric" dir="ltr" className="font-latin rtl:text-right" />
         </Field>
@@ -358,7 +359,7 @@ function AgreementDialog({
         <Input value={scope} onChange={(e) => setScope(e.target.value)} placeholder={t("scopeHint")} />
       </Field>
       <Segmented name={t("basis")} value={basis} onChange={setBasis} options={[{ value: "per_m2", label: t("basis_per_m2") }, { value: "lump", label: t("basis_lump") }]} />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="ag-r" label={basis === "lump" ? t("lumpAmount") : t("rate")}>
           <NumberInput value={rate} onChange={(e) => setRate(e.target.value)} />
         </Field>
@@ -452,7 +453,7 @@ function PayDialog({ agreement: g, today, onClose, save }: { agreement: SubAgree
       pending={pending}
       onSubmit={() => run(save && (() => save({ agreement_id: g.id, paid_on: date, amount: num(amount), method, reference: ref || null, note: null })), { onSuccess: onClose })}
     >
-      <div className="grid grid-cols-2 gap-4">
+      <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="py-d" label={t("date")}>
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
@@ -592,6 +593,7 @@ function AccountDialog({ members, onClose, save }: { members: PettyCashData["mem
 }
 
 function EntryDialog({ account, kind, today, data, onClose, actions }: { account: string; kind: "topup" | "expense" | "return"; today: string; data: PettyCashData; onClose: () => void; actions?: PettyActions }) {
+  const sep = useListSep();
   const t = useTranslations("petty");
   const { run, pending, errorText } = useActionRunner();
   const [date, setDate] = React.useState(today);
@@ -622,7 +624,7 @@ function EntryDialog({ account, kind, today, data, onClose, actions }: { account
     if (d.total != null) setAmount(String(d.total));
     if (d.supplier_name) setSupplier(d.supplier_name);
     if (d.invoice_date && /^\d{4}-\d{2}-\d{2}$/.test(d.invoice_date)) setDate(d.invoice_date);
-    if (d.lines.length) setDescription(d.lines.map((l) => l.description).join("، ").slice(0, 300));
+    if (d.lines.length) setDescription(d.lines.map((l) => l.description).join(sep).slice(0, 300));
     setNote(t("aiFilled"));
   };
 
@@ -653,7 +655,7 @@ function EntryDialog({ account, kind, today, data, onClose, actions }: { account
           {note && <p className="text-[13px] text-muted-foreground">{note}</p>}
         </div>
       )}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="pe-d" label={t("date")}>
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>

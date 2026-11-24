@@ -7,7 +7,7 @@ import * as React from "react";
 import { chartColours, EChart, type EChartOption } from "@/components/charts/echart";
 import { DocNo } from "@/components/doc-no";
 import { useFormatter } from "@/components/formatter-provider";
-import { FormDialog, NumberInput, useActionRunner } from "@/components/forms/form-kit";
+import { FormDialog, NumberInput, useActionRunner, useListSep } from "@/components/forms/form-kit";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ export type FinanceActions = {
 };
 
 /** §3.16 owner home: KPIs, cash-flow forecast, approvals, profit, receivables, delays. Every number links to its details. */
-export function OwnerFinanceSections({ f, actions, base = "" }: { f: OwnerFinance; actions?: FinanceActions; base?: string }) {
+export function OwnerFinanceSections({ f, actions, base = "", aside }: { f: OwnerFinance; actions?: FinanceActions; base?: string; aside?: React.ReactNode }) {
   const t = useTranslations("finance");
   const { fmt } = useFormatter();
   const kpis = [
@@ -34,30 +34,33 @@ export function OwnerFinanceSections({ f, actions, base = "" }: { f: OwnerFinanc
     { key: "dueSoon", value: f.kpis.dueSoon, href: `${base}/reports`, tone: "" },
     { key: "collectedMonth", value: f.kpis.collectedMonth, href: `${base}/reports`, tone: "" },
   ] as const;
+  // the four KPI cards: same height (the row's), padding and number position
+  const kpiCard = "flex h-full min-h-28 flex-col rounded-2xl p-4 sm:p-5";
+  const kpiNumber = "num mt-auto pt-2 text-[clamp(1rem,5vw,1.5rem)] leading-tight font-extrabold tabular-nums break-words sm:text-[28px]";
   return (
     <>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {kpis.map((k) => (
-          <motion.div key={k.key} variants={item}>
-            <Link href={k.href} className="block rounded-2xl border border-border bg-surface p-4 transition-colors hover:border-primary/40 sm:p-5">
+          <motion.div key={k.key} variants={item} className="h-full">
+            <Link href={k.href} className={cn(kpiCard, "border border-border bg-surface transition-colors hover:border-primary/40")}>
               <p className="text-[13px] text-muted-foreground">{t(k.key)}</p>
-              <p className={cn("num mt-2 text-[clamp(1rem,5vw,1.5rem)] font-extrabold tabular-nums break-words sm:text-[28px]", k.tone === "warn" && "text-primary")}>{fmt.money(k.value)}</p>
+              <p className={cn(kpiNumber, k.tone === "warn" && "text-primary")}>{fmt.money(k.value)}</p>
             </Link>
           </motion.div>
         ))}
-        <motion.div variants={item}>
+        <motion.div variants={item} className="h-full">
           {/* opens the projects page only for projects.view */}
           {(() => {
             const body = (
               <>
                 <p className="text-[13px] opacity-80">{t("activeProjects")}</p>
-                <p className="num mt-2 text-[28px] font-extrabold text-gypsum">{fmt.number(f.kpis.activeProjects)}</p>
+                <p className={cn(kpiNumber, "text-gypsum")}>{fmt.number(f.kpis.activeProjects)}</p>
                 {(f.delayed.length > 0 || f.overBudget.length > 0) && (
-                  <p className="mt-1 text-[12px] text-ink-muted">{t("attention", { delayed: f.delayed.length, over: f.overBudget.length })}</p>
+                  <p className="mt-1 text-[12px] leading-snug text-ink-muted">{t("attention", { delayed: f.delayed.length, over: f.overBudget.length })}</p>
                 )}
               </>
             );
-            const cls = "block rounded-2xl bg-ink p-4 text-ink-foreground sm:p-5";
+            const cls = cn(kpiCard, "border border-ink bg-ink text-ink-foreground");
             return f.links.projects ? (
               <Link href={`${base}/projects`} className={cls}>
                 {body}
@@ -69,17 +72,31 @@ export function OwnerFinanceSections({ f, actions, base = "" }: { f: OwnerFinanc
         </motion.div>
       </div>
 
-      <div className="grid gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] [&>*]:min-w-0">
-        <CashFlow f={f} actions={actions} />
-        <Approvals f={f} decide={actions?.decide} base={base} />
-      </div>
-
-      <div className="grid gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] [&>*]:min-w-0">
-        <Profit f={f} base={base} />
-        <div className="grid content-start gap-4 sm:gap-5">
-          <Receivables f={f} base={base} />
-          <Attention f={f} base={base} />
-          <TeamCost f={f} base={base} />
+      {/* Two independent columns on wide screens (no holes from uneven row heights); below that one column in reading order.
+          Main: cash flow, profit, team cost — side: approvals, receivables, alerts, then "set up your account". */}
+      <div className="flex flex-col gap-4 sm:gap-5 xl:grid xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] xl:items-start">
+        <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-5">
+          <div className="order-1 min-w-0 xl:order-none">
+            <CashFlow f={f} actions={actions} />
+          </div>
+          <div className="order-3 min-w-0 xl:order-none">
+            <Profit f={f} base={base} />
+          </div>
+          <div className="order-7 min-w-0 empty:hidden xl:order-none">
+            <TeamCost f={f} base={base} />
+          </div>
+        </div>
+        <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-5">
+          <div className="order-2 min-w-0 xl:order-none">
+            <Approvals f={f} decide={actions?.decide} base={base} />
+          </div>
+          <div className="order-5 min-w-0 xl:order-none">
+            <Receivables f={f} base={base} />
+          </div>
+          <div className="order-6 min-w-0 empty:hidden xl:order-none">
+            <Attention f={f} base={base} />
+          </div>
+          {aside && <div className="order-4 min-w-0 xl:order-none">{aside}</div>}
         </div>
       </div>
     </>
@@ -245,6 +262,7 @@ export function ApprovalsCard({ approvals, canDecide, decide, base }: { approval
 }
 
 function Profit({ f, base }: { f: OwnerFinance; base: string }) {
+  const sep = useListSep();
   const t = useTranslations("finance");
   const tp = useTranslations("pricing");
   const { fmt } = useFormatter();
@@ -283,7 +301,7 @@ function Profit({ f, base }: { f: OwnerFinance; base: string }) {
           {p && <PickedProfit p={p} href={projectHref(p.number, f.links)} base={base} />}
           {f.profits.some((r) => r.losing) && (
             <p className="mt-2 flex gap-2 text-[13px] text-danger">
-              <TrendingDown className="size-4 shrink-0" /> {t("losing", { list: f.profits.filter((r) => r.losing).map((r) => r.client).join("، ") })}
+              <TrendingDown className="size-4 shrink-0" /> {t("losing", { list: f.profits.filter((r) => r.losing).map((r) => r.client).join(sep) })}
             </p>
           )}
           {byService.length > 0 && (

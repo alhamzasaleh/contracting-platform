@@ -5,7 +5,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export const buttonVariants = cva(
-  "relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-bold transition-[background-color,box-shadow,transform,color,border-color] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "relative inline-flex max-w-full select-none items-center justify-center gap-2 rounded-full text-center text-sm leading-tight font-bold transition-[background-color,box-shadow,transform,color,border-color] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -19,10 +19,11 @@ export const buttonVariants = cva(
         link: "h-auto px-0 text-primary underline-offset-4 hover:underline",
       },
       size: {
-        sm: "h-8 px-3 text-[13px]",
-        md: "h-11 px-5",
-        lg: "h-12 px-6 text-[15px]",
-        xl: "h-14 px-7 text-base",
+        // a minimum height, not a fixed one: in a narrow card a long label wraps inside the pill instead of sticking out
+        sm: "min-h-8 px-3 py-1 text-[13px]",
+        md: "min-h-11 px-5 py-2",
+        lg: "min-h-12 px-6 py-2 text-[15px]",
+        xl: "min-h-14 px-7 py-2 text-base",
         icon: "size-10",
         "icon-sm": "size-8",
       },

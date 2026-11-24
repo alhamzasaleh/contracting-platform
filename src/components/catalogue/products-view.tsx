@@ -337,7 +337,7 @@ export function ProductsView({
           </NativeSelect>
         </Field>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="field-row grid gap-4 sm:grid-cols-2">
           <Field id="pr-brand" label={t("engine.brand")}>
             <NativeSelect
               key={fam}
@@ -376,7 +376,7 @@ export function ProductsView({
           </p>
           {spec.kind === "coverage" && (
             <>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="field-row grid gap-4 sm:grid-cols-2">
                 <Field
                   id="pr-ref"
                   label={t("engine.packSizeIn", { unit })}
@@ -471,7 +471,7 @@ export function ProductsView({
         </fieldset>
 
         {!p && canSeeCosts && (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="field-row grid gap-4 sm:grid-cols-2">
             <Field
               id="pr-iprice"
               label={t(`engine.priceOf_${spec.kind}`, { unit })}
@@ -504,7 +504,7 @@ export function ProductsView({
             <ChevronDown className="size-4 transition group-open:rotate-180" />
           </summary>
           <div className="mt-4 grid gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="field-row grid gap-4 sm:grid-cols-2">
               <Field
                 id="pr-waste"
                 label={t("engine.waste")}
@@ -594,7 +594,7 @@ export function ProductsView({
           )
         }
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="field-row grid gap-4 sm:grid-cols-2">
           <Field
             id="pk-size"
             label={t("engine.packSize")}
@@ -682,7 +682,7 @@ export function ProductsView({
             ))}
           </ul>
         )}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="field-row grid gap-4 sm:grid-cols-2">
           <Field
             id="pp-price"
             label={t("engine.packPrice")}

@@ -25,6 +25,7 @@ export function CostItemsView({
   actions?: { seed: () => Promise<ActionResult>; save: (i: Record<string, unknown>) => Promise<ActionResult> };
 }) {
   const t = useTranslations("hr");
+  const tc = useTranslations("dashboard");
   const { fmt } = useFormatter();
   const { run, pending, fieldText } = useActionRunner();
   const [editing, setEditing] = React.useState<CostItemRow | null>(null);
@@ -122,7 +123,7 @@ export function CostItemsView({
           }
         >
           <Field id="ci-value" label={t("value")} error={fieldText(errors.value)}>
-            <NumberInput name="value" defaultValue={editing.value || ""} suffix={editing.basis === "percent" ? "%" : "ر.س"} autoFocus />
+            <NumberInput name="value" defaultValue={editing.value || ""} suffix={editing.basis === "percent" ? "%" : tc("sar")} autoFocus />
           </Field>
           {editing.basis === "one_time" && (
             <Field id="ci-amort" label={t("amortize")} error={fieldText(errors.amortize_months)}>

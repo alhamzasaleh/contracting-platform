@@ -121,17 +121,18 @@ export function ContractEditor({
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+    <div className="grid gap-6 min-[1150px]:grid-cols-[minmax(0,1fr)_340px]">
       <div className="grid content-start gap-5">
-        <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5">
+        <section className="@container grid gap-4 rounded-3xl border border-border bg-surface p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[15px] font-bold">
               {draft.client.name} · {tp(`kind_${draft.quote.service}`)}
             </p>
             <Badge>{tp(`pt_${draft.quote.projectType}`)}</Badge>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Field id="ct-start" label={t("start")}>
+          {/* sized by the card, not the screen: the card is narrow next to the side panel on an iPad */}
+          <div className="field-row grid grid-cols-2 items-start gap-4 @lg:grid-cols-3">
+            <Field id="ct-start" className="col-span-2 @lg:col-span-1" label={t("start")}>
               <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
             </Field>
             <Field id="ct-days" label={t("duration")} hint={t("durationHint", { n: draft.suggestedDays })}>
@@ -158,18 +159,28 @@ export function ContractEditor({
           )}
         </section>
 
-        <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
+        <section className="@container grid gap-3 rounded-3xl border border-border bg-surface p-5">
           <div className="flex items-center justify-between">
             <p className="text-[15px] font-bold">{t("payments")}</p>
             <span className={cn("font-latin text-[13px] font-bold", Math.abs(sum - 100) < 0.01 ? "text-success" : "text-danger")}>{t("sum", { n: fmt.number(sum, 2) })}</span>
           </div>
           <ul className="grid gap-2">
             {rows.map((r, i) => (
-              <li key={i} className="grid grid-cols-[1fr_96px_auto] items-end gap-2 rounded-2xl bg-surface-sunken/50 p-3 sm:grid-cols-[1fr_160px_96px_auto]">
-                <Field id={`pl-${i}`} label={t("payment")}>
+              // narrow card: the payment's name (delete at the end of its label), then "when" + %; wide card: all in one row
+              <li key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,6.5rem)] items-end gap-2 rounded-2xl bg-surface-sunken/50 p-3 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,11rem)_6.5rem]">
+                <Field
+                  id={`pl-${i}`}
+                  label={t("payment")}
+                  className="col-span-2 @2xl:col-span-1"
+                  action={
+                    <Button variant="ghost" size="icon-sm" aria-label={t("removePayment")} onClick={() => setRows((x) => x.filter((_, j) => j !== i))} disabled={rows.length === 1}>
+                      <Trash2 />
+                    </Button>
+                  }
+                >
                   <Input value={r.label} onChange={(e) => setRow(i, { label: e.target.value })} />
                 </Field>
-                <Field id={`pe-${i}`} label={t("when")} className="hidden sm:grid">
+                <Field id={`pe-${i}`} label={t("when")} className="col-span-2 @2xl:col-span-1">
                   <NativeSelect value={r.due_event} onChange={(e) => setRow(i, { due_event: e.target.value as DueEvent })}>
                     {EVENTS.map((e) => (
                       <option key={e} value={e}>
@@ -181,10 +192,7 @@ export function ContractEditor({
                 <Field id={`pp-${i}`} label={t("percent")}>
                   <NumberInput value={r.text ?? (r.percent ?? "")} onChange={(e) => setPercent(i, e.target.value)} suffix="%" />
                 </Field>
-                <Button variant="ghost" size="icon-sm" aria-label={t("removePayment")} onClick={() => setRows((x) => x.filter((_, j) => j !== i))} disabled={rows.length === 1}>
-                  <Trash2 />
-                </Button>
-                <p className="col-span-full text-end font-latin text-[12px] text-muted-foreground tabular-nums">{fmt.money(amounts[i] ?? 0)}</p>
+                <p className="self-center text-end font-latin text-[12px] text-muted-foreground tabular-nums @2xl:col-span-full @2xl:self-auto">{fmt.money(amounts[i] ?? 0)}</p>
               </li>
             ))}
           </ul>
@@ -214,7 +222,7 @@ export function ContractEditor({
         </Field>
       </div>
 
-      <aside className="grid content-start gap-3 rounded-3xl border-2 border-primary/30 bg-surface p-5">
+      <aside className="grid content-start gap-3 self-start rounded-3xl border-2 border-primary/30 bg-surface p-5 min-[1150px]:sticky min-[1150px]:top-24">
         <p className="text-[13px] text-muted-foreground">{t("total")}</p>
         <p className="font-latin text-[26px] font-extrabold tabular-nums">{fmt.money(draft.quote.total)}</p>
         <p className="text-[12px] text-muted-foreground">{t("fromQuote", { number: ltr(draft.quote.number), v: draft.quote.version })}</p>

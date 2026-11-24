@@ -61,7 +61,7 @@ export function MaintenanceView({ data, focus, contract = null, actions, base = 
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented name={t("filter")} value={filter} onChange={setFilter} options={[{ value: "active", label: t("fActive") }, { value: "all", label: t("fAll") }]} />
+        <Segmented name={t("filter")} value={filter} onChange={setFilter} options={[{ value: "all", label: t("fAll") }, { value: "active", label: t("fActive") }]} />
         {contract && (
           <Link href={`${base}/maintenance`} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-[13px] hover:border-primary/50">
             {t("onlyProject")} <bdi dir="ltr" className="font-latin">{contract}</bdi> <X className="size-3.5" aria-label={t("showAll")} />

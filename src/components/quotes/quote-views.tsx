@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
-import { NumberInput, useActionRunner } from "@/components/forms/form-kit";
+import { NumberInput, useActionRunner, useUnitText } from "@/components/forms/form-kit";
 import { PricingView } from "@/components/pricing/pricing-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,6 +99,7 @@ export function QuoteEditorView({
   onSave?: SaveVersion;
   base?: string;
 }) {
+  const unitText = useUnitText();
   const t = useTranslations("quotes");
   const ts = useTranslations("survey");
   const { fmt } = useFormatter();
@@ -134,7 +135,7 @@ export function QuoteEditorView({
             <div key={label} className="flex justify-between gap-2">
               <dt className="text-muted-foreground">{label}</dt>
               <dd className="font-latin tabular-nums">
-                {fmt.number(v, 1)} {u}
+                {fmt.number(v, 1)} {unitText(u)}
               </dd>
             </div>
           ))}
@@ -159,7 +160,7 @@ export function QuoteEditorView({
         renderActions: (sel, outcome) => (
           <section className="grid gap-3 rounded-2xl border-2 border-primary/30 bg-surface p-4">
             <p className="text-[14px] font-bold">{quote ? t("newVersionOf", { number: quote.number }) : t("newQuote")}</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="field-row grid grid-cols-2 gap-3">
               <Field id="q-discount" label={t("discountPercent")} hint={t("discountHint")}>
                 <NumberInput
                   id="q-discount"

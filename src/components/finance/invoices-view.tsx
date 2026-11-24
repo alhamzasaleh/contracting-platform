@@ -46,10 +46,10 @@ export function InvoicesView({ data, base = "", today }: { data: InvoicesPageDat
         value={filter}
         onChange={setFilter}
         options={[
+          { value: "all", label: t("fAll") },
           { value: "open", label: t("fOpen") },
           { value: "overdue", label: t("fOverdue") },
           { value: "paid", label: t("fPaid") },
-          { value: "all", label: t("fAll") },
         ]}
       />
       {shown.length === 0 ? (

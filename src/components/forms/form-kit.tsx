@@ -132,23 +132,29 @@ export function FormDialog({
 
 /** Number input (always LTR, unit on its physical right: "345 m²"): decimal keypad on iPad, LTR digits, accepts Arabic digits. */
 export const NumberInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { suffix?: string }>(
-  ({ suffix, className, ...props }, ref) => (
+  ({ suffix: unit, className, ...props }, ref) => {
+    // a unit key ("m", "m2", "L"…) is shown in the reader's language ("م²" / "m²"); other text as given
+    const suffix = useUnitText()(unit) || undefined;
+    return (
     <div className="relative">
       <Input
         ref={ref}
         inputMode="decimal"
         dir="ltr"
         autoComplete="off"
-        className={cn("font-latin rtl:text-right", suffix && "pr-12", className)}
+        className={cn("px-3 font-latin rtl:text-right", className)}
         {...props}
+        // room for the unit, sized to it, so a short field still shows its whole number
+        style={suffix ? { paddingRight: `calc(1rem + ${Math.max(1, [...suffix].length)}ch)`, ...props.style } : props.style}
       />
       {suffix && (
-        <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-subtle-foreground">
+        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-subtle-foreground">
           {suffix}
         </span>
       )}
     </div>
-  ),
+    );
+  },
 );
 NumberInput.displayName = "NumberInput";
 
@@ -173,6 +179,30 @@ export function DeleteButton({ onConfirm, pending, label }: { onConfirm: () => v
       <Trash2 /> {label ?? t("delete")}
     </Button>
   );
+}
+
+/** Engine unit keys ("pack", "sheet", "L"…) in the reader's language; anything else (units typed by the user) as it is. */
+export function useUnitText() {
+  const t = useTranslations("engine");
+  return React.useCallback(
+    (u?: string | null) => {
+      if (!u) return "";
+      const key = u === "m²" ? "m2" : u;
+      return t.has(`unit_${key}`) ? t(`unit_${key}`) : u;
+    },
+    [t],
+  );
+}
+
+/** Under a free-text unit field: the unit in the reader's language, only when the value is a unit key (pack → «عبوة»). */
+export function useUnitHint() {
+  const unitText = useUnitText();
+  return (u?: string | null) => (u && unitText(u) !== u ? unitText(u) : undefined);
+}
+
+/** The list separator of the reader's language ("، " / ", "). */
+export function useListSep() {
+  return useTranslations("common")("listSep");
 }
 
 export const str = (fd: FormData, k: string) => String(fd.get(k) ?? "");

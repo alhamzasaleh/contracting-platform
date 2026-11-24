@@ -57,7 +57,7 @@ export function PayrollView({ data, today, actions, base = "" }: { data: Payroll
       <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <Field id="pr-month" label={t("month")}>
-            <Input type="month" value={data.month} onChange={(e) => /^\d{4}-\d{2}$/.test(e.target.value) && router.push(`${base}/team/payroll?month=${e.target.value}`)} className="w-48" />
+            <Input type="month" value={data.month} onChange={(e) => /^\d{4}-\d{2}$/.test(e.target.value) && router.push(`${base}/team/payroll?month=${e.target.value}`)} className="w-56 max-w-full" />
           </Field>
           {data.run && (
             <div className="flex flex-wrap items-center gap-2">
@@ -245,7 +245,7 @@ function AdvanceDialog({ employees, today, onClose, save }: { employees: Payroll
           ))}
         </NativeSelect>
       </Field>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="adv-a" label={t("amount")}>
           <NumberInput value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>

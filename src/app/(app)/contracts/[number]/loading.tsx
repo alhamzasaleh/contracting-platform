@@ -1,5 +1,5 @@
-import { DetailPageSkeleton } from "@/components/shell/page-skeletons";
+import { DocumentPageSkeleton } from "@/components/shell/page-skeletons";
 
 export default function Loading() {
-  return <DetailPageSkeleton />;
+  return <DocumentPageSkeleton />;
 }

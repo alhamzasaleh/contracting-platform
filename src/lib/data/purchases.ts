@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { aiConfigured } from "@/lib/ai/invoice";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { Line } from "@/lib/engine";
-import { linesFromPurchaseList, markBought, projectBought, purchaseCharge, stockBalances, type ListLine, type PurchaseCharge } from "@/lib/purchases";
+import { linesFromPurchaseList, markBought, projectBought, projectCostRows, purchaseCharge, stockBalances, type ListLine, type PurchaseCharge } from "@/lib/purchases";
 import type { PurchaseItem } from "@/lib/quotes";
 import type { PurchaseStatus } from "@/lib/supabase/database.types";
 import { rows } from "@/lib/data/query";
@@ -307,28 +307,8 @@ export async function loadProjectCosts(session: SessionContext, only?: string): 
         })
       : Promise.resolve(new Map<string, number>()),
   ]);
-  const labourOf = new Map((labourRows ?? []).map((l) => [l.contract_id, n(l.labour)]));
-  const agreementContract = new Map((subAgreements ?? []).map((g) => [g.id, g.contract_id]));
-  const names = new Map((clients ?? []).map((c) => [c.id, c.name]));
-  const purchaseContract = new Map((purchases ?? []).map((p) => [p.id, p.contract_id as string]));
-  // without a VAT number, VAT is a cost too
-  const vatFactor = new Map((purchases ?? []).map((p) => [p.id, session.organization.vat_number || !n(p.subtotal) ? 1 : n(p.total) / n(p.subtotal)]));
-
-  return (contracts ?? []).map((c) => {
-    const materials = (moves ?? []).filter((m) => m.contract_id === c.id).reduce((s, m) => s + n(m.quantity) * n(m.unit_cost), 0);
-    const expenses = (expenseLines ?? []).filter((l) => purchaseContract.get(l.purchase_id) === c.id).reduce((s, l) => s + n(l.amount) * (vatFactor.get(l.purchase_id) ?? 1), 0);
-    const subs = (subWork ?? []).filter((w) => agreementContract.get(w.agreement_id) === c.id).reduce((s, w) => s + n(w.amount), 0);
-    const pettySum = (petty ?? []).filter((e) => e.contract_id === c.id).reduce((s, e) => s + n(e.amount), 0);
-    const pending = (purchases ?? []).filter((p) => p.contract_id === c.id && p.status === "pending_approval").reduce((s, p) => s + n(p.total), 0);
-    const r = (x: number) => Math.round(x * 100) / 100;
-    const labour = labourRows ? labourOf.get(c.id) ?? 0 : null;
-    const maintenance = (repairs ?? []).filter((m) => m.contract_id === c.id).reduce((s, m) => s + n(m.cost), 0);
-    return {
-      id: c.id, number: c.number, client: names.get(c.client_id) ?? "—", status: c.status,
-      estimated: estimates.get(c.id) ?? null, materials: r(materials), expenses: r(expenses), subcontractors: r(subs), petty: r(pettySum),
-      materialsActual: r(materials + expenses + pettySum),
-      actual: r(materials + expenses + pettySum + subs + maintenance + (labour ?? 0)), pending: r(pending),
-      labour: labour == null ? null : r(labour), maintenance: r(maintenance),
-    };
+  return projectCostRows({
+    contracts: contracts ?? [], clients: clients ?? [], moves: moves ?? [], purchases: purchases ?? [], subWork: subWork ?? [], agreements: subAgreements ?? [],
+    petty: petty ?? [], repairs: repairs ?? [], labour: labourRows ?? null, expenseLines: expenseLines ?? [], estimates, vatRegistered: !!session.organization.vat_number,
   });
 }

@@ -215,7 +215,7 @@ export function ProductLinesView({
           <p className="text-[13px] text-muted-foreground">{t(`lineKindHint_${kind}`)}</p>
           {kind === "coverage" && (
             <>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="field-row grid gap-4 sm:grid-cols-2">
                 <Field id="ln-ref" label={t("refPackSizeQ", { unit })}>
                   <NumberInput name="ref_size" defaultValue={refSize} suffix={unit} />
                 </Field>
@@ -287,7 +287,7 @@ export function ProductLinesView({
           )
         }
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field id="br-brand" label={t("brand")}>
             <NativeSelect name="brand_id" defaultValue={options[0]?.id ?? ""}>
               <option value="">{t("genericBrand")}</option>
@@ -343,7 +343,7 @@ export function ProductLinesView({
         }
       >
         {cov && <p className="text-[13px] text-muted-foreground">{t("packCoverageAuto", { area: qn(cov), unit })}</p>}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field id="pk-size" label={t("packSizeIn", { unit })} error={fieldText(errors.size)}>
             <NumberInput name="size" suffix={unit} />
           </Field>
@@ -391,7 +391,7 @@ export function ProductLinesView({
             ))}
           </ul>
         )}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field id="pp-price" label={t("packPrice")} error={fieldText(errors.unit_price)}>
             <NumberInput name="unit_price" suffix={t("sar")} autoFocus />
           </Field>
@@ -421,7 +421,7 @@ export function ProductLinesView({
           run(actions && (() => actions.updateBrand({ id: brand.id, coverage_per_unit: perUnit })), { onSuccess: () => setCoverageFor(null) });
         }}
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="field-row grid gap-4 sm:grid-cols-2">
           <Field id="bc-size" label={t("refPackSizeQ", { unit })}>
             <NumberInput name="ref_size" defaultValue={ref} suffix={unit} />
           </Field>
@@ -501,7 +501,8 @@ export function ProductLinesView({
 
       {visible.length === 0 && <p className="py-10 text-center text-muted-foreground">{t("noResults")}</p>}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* two flowing columns (cards differ a lot in height with their brands): no stretched cards, no holes */}
+      <div className="columns-1 gap-4 lg:columns-2 *:mb-4 *:break-inside-avoid">
         {visible.map((l) => {
           const missing = lineMissing(l);
           const kind = CATEGORY_SPEC[l.category].kind;
