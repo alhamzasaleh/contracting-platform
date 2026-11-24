@@ -583,7 +583,10 @@
     "paymentOverDue": "المبلغ أكبر من المتبقي على الدفعة",
     "paymentAlreadyPaid": "الدفعة مسدّدة بالكامل",
     "subWorkOver": "الكمية أكبر من المتبقي في الاتفاقية — عدّل الاتفاقية أولاً إذا زاد العمل",
-    "agreementClosed": "الاتفاقية مغلقة — لا يُسجَّل عليها عمل"
+    "agreementClosed": "الاتفاقية مغلقة — لا يُسجَّل عليها عمل",
+    "scheduleInvalid": "جدول الدفعات غير صحيح — راجع المسميات والنسب والمواعيد",
+    "addendumNotAccepted": "الدفعة تُسجَّل بعد موافقة العميل على الملحق",
+    "noPaymentSchedule": "العقد ما له جدول دفعات — احفظ الدفعات أولاً"
   },
   "engine": {
     "emptyTitle": "ابدأ كتالوج التسعير",
@@ -2466,7 +2469,8 @@
     "st_closed": "مغلق",
     "st_rejected": "غير مشمول",
     "closedBy": "أغلقه {name} في {date}",
-    "ourTeam": "فريق الشركة"
+    "ourTeam": "فريق الشركة",
+    "rejectedBy": "رفضه {name} في {date}"
   },
   "warranty": {
     "title": "الضمان والصيانة",
@@ -2488,7 +2492,8 @@
     "st_resolved": "تم — بانتظار تأكيدك",
     "st_closed": "مغلق",
     "st_rejected": "غير مشمول بالضمان",
-    "closedByStaff": "أغلقها فريق الشركة في {date}"
+    "closedByStaff": "أغلقها فريق الشركة في {date}",
+    "rejectedByStaff": "رفضها فريق الشركة في {date}"
   },
   "assistant": {
     "title": "المساعد",
@@ -2639,6 +2644,9 @@
     "none": "ما فيه شي يحتاج إرسال الحين.",
     "generalTitle": "رسالة للعميل",
     "general": "مرحباً {name}، معك {org} بخصوص مشروعك ({contract}). ",
-    "btnOpen": "واتساب العميل"
+    "btnOpen": "واتساب العميل",
+    "maintenanceClosed": "مرحباً {name}، أغلقنا طلب الصيانة {number}.{reply} إذا عندك أي ملاحظة راسلنا. شكراً لك — {org}",
+    "maintenanceRejected": "مرحباً {name}، بخصوص طلب الصيانة {number}: نعتذر، ما يشمله الضمان.{reply} لأي استفسار راسلنا. — {org}",
+    "maintenanceReply": " ردّنا: «{reply}»"
   }
 }

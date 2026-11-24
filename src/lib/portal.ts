@@ -45,7 +45,7 @@ export type PortalInvoice = {
 export type PortalMaintenance = {
   id: string; number: string; body: string; photos: string[]; status: "open" | "in_progress" | "resolved" | "closed" | "rejected";
   reply: string | null; created_at: string; resolved_at: string | null; client_confirmed_at: string | null;
-  /** when it was closed / rejected; closed_by_staff = the company closed it (not the client's confirmation) */
+  /** when it was closed / rejected; closed_by_staff = a staff member closed / rejected it (closed_by set), not the client's confirmation */
   closed_at?: string | null; closed_by_staff?: boolean;
 };
 /** Warranty after the final handover, and the client's maintenance requests (photos as 10-minute signed URLs). */

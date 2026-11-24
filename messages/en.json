@@ -583,7 +583,10 @@
     "paymentOverDue": "The amount is more than what is left on this payment",
     "paymentAlreadyPaid": "This payment is already paid in full",
     "subWorkOver": "More than what is left on the agreement — edit the agreement first if the work grew",
-    "agreementClosed": "The agreement is closed — no work can be recorded on it"
+    "agreementClosed": "The agreement is closed — no work can be recorded on it",
+    "scheduleInvalid": "The payment schedule isn't valid — check the labels, percentages and due events",
+    "addendumNotAccepted": "Payments are recorded once the client accepts the addendum",
+    "noPaymentSchedule": "The contract has no payment schedule — save the payments first"
   },
   "engine": {
     "emptyTitle": "Start the pricing catalogue",
@@ -2466,7 +2469,8 @@
     "st_closed": "Closed",
     "st_rejected": "Not covered",
     "closedBy": "Closed by {name} on {date}",
-    "ourTeam": "our team"
+    "ourTeam": "our team",
+    "rejectedBy": "Rejected by {name} on {date}"
   },
   "warranty": {
     "title": "Warranty & maintenance",
@@ -2488,7 +2492,8 @@
     "st_resolved": "Done — awaiting your confirmation",
     "st_closed": "Closed",
     "st_rejected": "Not covered by warranty",
-    "closedByStaff": "Closed by our team on {date}"
+    "closedByStaff": "Closed by our team on {date}",
+    "rejectedByStaff": "Rejected by our team on {date}"
   },
   "assistant": {
     "title": "Assistant",
@@ -2639,6 +2644,9 @@
     "none": "Nothing to send right now.",
     "generalTitle": "Message the client",
     "general": "Hello {name}, this is {org} about your project ({contract}). ",
-    "btnOpen": "WhatsApp the client"
+    "btnOpen": "WhatsApp the client",
+    "maintenanceClosed": "Hello {name}, we have closed maintenance request {number}.{reply} If you have any remark, message us. Thank you — {org}",
+    "maintenanceRejected": "Hello {name}, about maintenance request {number}: we're sorry, it isn't covered by the warranty.{reply} For any question, message us. — {org}",
+    "maintenanceReply": " Our reply: \"{reply}\""
   }
 }

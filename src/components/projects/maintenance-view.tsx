@@ -160,6 +160,16 @@ function RequestCard({ r, data, open, actions, base }: { r: MaintenanceItem; dat
           {r.status === "resolved" && (
             <WhatsAppButton phone={r.client_phone} label={tw("btnNotify")} text={tw("maintenance", { name: r.client, number: ltr(r.number), org: data.orgName ?? "" })} />
           )}
+          {/* closed by staff without the client's confirmation, or rejected: tell him, with our reply */}
+          {(r.status === "rejected" || (r.status === "closed" && r.closed_by && !r.client_confirmed_at)) && (
+            <WhatsAppButton
+              phone={r.client_phone}
+              label={tw("btnNotify")}
+              text={tw(r.status === "rejected" ? "maintenanceRejected" : "maintenanceClosed", {
+                name: r.client, number: ltr(r.number), org: data.orgName ?? "", reply: r.reply ? tw("maintenanceReply", { reply: r.reply }) : "",
+              })}
+            />
+          )}
           <Badge tone={TONE[r.status]}>{t(`st_${r.status}`)}</Badge>
         </span>
       </div>
@@ -176,9 +186,9 @@ function RequestCard({ r, data, open, actions, base }: { r: MaintenanceItem; dat
       )}
       {r.reply && !edit && <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm">↳ {r.reply}</p>}
       {r.client_confirmed_at && <p className="text-[12px] text-success">{t("confirmed", { date: fmt.dateTime(r.client_confirmed_at) })}</p>}
-      {r.status === "closed" && !r.client_confirmed_at && r.closed_at && (
+      {(r.status === "closed" || r.status === "rejected") && r.closed_by && r.closed_at && (
         <p className="text-[12px] text-muted-foreground">
-          {t("closedBy", { name: data.members.find((m) => m.id === r.closed_by)?.name ?? t("ourTeam"), date: fmt.dateTime(r.closed_at) })}
+          {t(r.status === "rejected" ? "rejectedBy" : "closedBy", { name: data.members.find((m) => m.id === r.closed_by)?.name ?? t("ourTeam"), date: fmt.dateTime(r.closed_at) })}
         </p>
       )}
 

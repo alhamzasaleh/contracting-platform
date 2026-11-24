@@ -8,7 +8,7 @@ import { z } from "zod";
 import { runBackground } from "@/lib/background";
 import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
-import { linkExpiry, percentSum, portalLinkState } from "@/lib/contracts";
+import { linkExpiry, percentSum, portalLinkState, scheduleSaveError } from "@/lib/contracts";
 import { loadWarrantyEnd } from "@/lib/data/contracts";
 import { effectiveVatPercent } from "@/lib/costing";
 import { paymentRecordError, paymentRequestError } from "@/lib/finance";
@@ -67,49 +67,33 @@ export async function saveContract(input: unknown): Promise<ActionResult<{ numbe
   const orgId = session.organization.id;
   const supabase = await createClient();
 
-  let contractId = v.contract_id ?? null;
-  let number: string;
-  if (contractId) {
-    const { data: c } = await supabase.from("contracts").select("id, number, status").eq("id", contractId).eq("organization_id", orgId).maybeSingle();
-    if (!c || (c.status !== "draft" && c.status !== "sent")) return { ok: false, error: "contractLocked" };
-    number = c.number;
-  } else {
-    // From the quote's current, issued version (total and project type are frozen there).
-    const { data: q } = await supabase.from("quotes").select("id, status, current_version, client_id, service, options").eq("id", v.quote_id!).eq("organization_id", orgId).maybeSingle();
-    if (!q || q.status !== "issued") return { ok: false, error: "quoteNotIssued" };
-    // with options the client picks later; until then the contract shows the first one offered
-    const startVersion = q.options?.length ? (q.options.some((o) => o.version === q.current_version) ? q.current_version : q.options[0].version) : q.current_version;
-    const { data: ver } = await supabase.from("quote_versions").select("total, selection").eq("quote_id", q.id).eq("version", startVersion).maybeSingle();
-    if (!ver) return { ok: false, error: "invalid" };
-    const projectType = ((ver.selection as { options?: { projectType?: string } } | null)?.options?.projectType ?? "full") as "full" | "labour" | "supply";
-    // the company's clause settings are copied into the contract (editable until the client accepts)
-    const { data: tpl } = await supabase.from("contract_templates").select("terms").eq("organization_id", orgId).maybeSingle();
-    const { data: c, error } = await supabase
-      .from("contracts")
-      .insert({
-        terms: (tpl?.terms ?? {}) as Json,
-        organization_id: orgId, quote_id: q.id, quote_version: startVersion, options: q.options ?? null, client_id: q.client_id, service: q.service,
-        project_type: projectType, start_date: v.start_date, duration_days: v.duration_days, warranty_months: v.warranty_months,
-        total: Number(ver.total), notes: v.notes,
-      })
-      .select("id, number")
-      .single();
-    if (error) return fail(error, "create");
-    contractId = c.id;
-    number = c.number;
+  const payments = v.payments.map((p) => ({ label: p.label, percent: p.percent, due_event: p.due_event }));
+  const refused = (e: { code?: string; message?: string }, what: string): ActionResult<never> => {
+    const why = scheduleSaveError(e);
+    return why ? { ok: false, error: why } : fail(e, what);
+  };
+
+  if (!v.contract_id) {
+    // a NEW contract and its schedule in one database transaction (public.create_contract): the
+    // contract is inserted as the user (RLS + every contract trigger), from the quote's current
+    // or first offered version (total, project type, options) with the company's clause template
+    // — a refused schedule rolls the contract back, so no draft is left without payments
+    const { data, error } = await supabase.rpc("create_contract", {
+      p_quote: v.quote_id!, p_start: v.start_date, p_duration: v.duration_days, p_warranty: v.warranty_months, p_notes: v.notes, p_payments: payments,
+    });
+    if (error || !data) return refused(error ?? {}, "create");
+    return done({ number: data.number });
   }
 
+  const { data: c } = await supabase.from("contracts").select("id, number, status").eq("id", v.contract_id).eq("organization_id", orgId).maybeSingle();
+  if (!c || (c.status !== "draft" && c.status !== "sent")) return { ok: false, error: "contractLocked" };
   // dates + the whole payment schedule in one database step (amounts from the contract total,
   // the last payment absorbs rounding) — a refusal leaves the previous schedule as it was
   const { error: e3 } = await supabase.rpc("save_contract_schedule", {
-    p_contract: contractId,
-    p_start: v.start_date,
-    p_duration: v.duration_days,
-    p_warranty: v.warranty_months,
-    p_notes: v.notes,
-    p_payments: v.payments.map((p) => ({ label: p.label, percent: p.percent, due_event: p.due_event })),
+    p_contract: c.id, p_start: v.start_date, p_duration: v.duration_days, p_warranty: v.warranty_months, p_notes: v.notes, p_payments: payments,
   });
-  if (e3) return e3.code === "22023" ? { ok: false, error: "paymentsSum" } : fail(e3, "payments");
+  if (e3) return refused(e3, "payments");
+  const number = c.number;
   return done({ number });
 }
 
@@ -140,6 +124,8 @@ export async function sendContract(input: unknown): Promise<ActionResult<{ url: 
   });
   // the database closes the client page once the warranty has ended, whatever the caller may see
   if (e2?.message?.includes("warranty_ended")) return { ok: false, error: "warrantyEnded" };
+  // defence: a contract without payments never reaches the client (create_contract prevents it)
+  if (e2?.message?.includes("no payment schedule")) return { ok: false, error: "noPaymentSchedule" };
   if (e2) return fail(e2, "link");
   if (c.status === "draft") {
     const { error } = await supabase.from("contracts").update({ status: "sent" }).eq("id", c.id);

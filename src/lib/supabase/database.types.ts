@@ -848,6 +848,10 @@ export type Database = {
         Args: { p_contract: string; p_start: string; p_duration: number; p_warranty: number; p_notes: string | null; p_payments: { label: string; percent: number; due_event: string }[] };
         Returns: undefined;
       };
+      create_contract: {
+        Args: { p_quote: string; p_start: string; p_duration: number; p_warranty: number; p_notes: string | null; p_payments: { label: string; percent: number; due_event: string }[] };
+        Returns: { id: string; number: string };
+      };
       claim_push_subscription: { Args: { p_org: string; p_endpoint: string; p_p256dh: string; p_auth: string; p_device: string | null }; Returns: string };
       record_addendum_payment: { Args: { p_addendum: string; p_paid_on: string; p_amount: number; p_method: string; p_reference: string | null }; Returns: string };
       request_contract_payment: { Args: { p_payment: string }; Returns: undefined };

@@ -82,3 +82,20 @@ export function portalLinkState(status: string, warrantyEnd: string | null, toda
   const warrantyEnded = !!warrantyEnd && warrantyEnd < today;
   return { canIssue: status !== "cancelled" && !warrantyEnded, message: status === "accepted" ? "waMessageProject" : "waMessage", warrantyEnded };
 }
+
+/**
+ * Which message a refused contract save shows (create_contract / save_contract_schedule):
+ * a locked contract, the 100 % rule, an unissued quote, or any other invalid schedule.
+ * null = not a schedule problem (the caller's generic handling decides).
+ */
+export function scheduleSaveError(error: { code?: string; message?: string } | null | undefined): "contractLocked" | "paymentsSum" | "quoteNotIssued" | "needsApproval" | "scheduleInvalid" | null {
+  if (!error) return null;
+  const m = error.message ?? "";
+  if (/contract is locked/.test(m)) return "contractLocked";
+  if (/must total 100/.test(m)) return "paymentsSum";
+  // the quote itself (create_contract, check_contract_quote)
+  if (/quote not issued|needs an issued quote/.test(m)) return "quoteNotIssued";
+  if (/waiting for the owner/.test(m)) return "needsApproval";
+  if (error.code === "22023") return "scheduleInvalid";
+  return null;
+}

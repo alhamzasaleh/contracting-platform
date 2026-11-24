@@ -57,7 +57,8 @@ export const SAMPLE_PORTAL_WORK: PortalData = {
   warranty: {
     handover_at: "2026-11-20T10:00:00Z", warranty_end: "2027-05-20", active: true,
     requests: [{ id: "mr1", number: "MR-2026-001", body: "شق بسيط فوق باب المجلس.", photos: [], status: "resolved", reply: "تمت المعالجة وإعادة الدهان.", created_at: "2026-11-21T09:00:00Z", resolved_at: "2026-11-22T15:00:00Z", client_confirmed_at: null },
-      { id: "mr0", number: "MR-2026-000", body: "صوت طقطقة في السقف المعلّق.", photos: [], status: "closed", reply: "تمت المعاينة: تمدد حراري طبيعي، لا يحتاج إصلاح.", created_at: "2026-11-20T12:00:00Z", resolved_at: null, client_confirmed_at: null, closed_at: "2026-11-21T08:00:00Z", closed_by_staff: true }],
+      { id: "mr0", number: "MR-2026-000", body: "صوت طقطقة في السقف المعلّق.", photos: [], status: "closed", reply: "تمت المعاينة: تمدد حراري طبيعي، لا يحتاج إصلاح.", created_at: "2026-11-20T12:00:00Z", resolved_at: null, client_confirmed_at: null, closed_at: "2026-11-21T08:00:00Z", closed_by_staff: true },
+      { id: "mr-1", number: "MR-2026-002", body: "خدش في دهان الصالة بعد نقل الأثاث.", photos: [], status: "rejected", reply: "الخدش من نقل الأثاث وليس عيباً في التنفيذ.", created_at: "2026-11-22T12:00:00Z", resolved_at: null, client_confirmed_at: null, closed_at: "2026-11-22T16:00:00Z", closed_by_staff: true }],
   },
   invoiceDocs: [{ id: "iv1", number: "INV-2026-001", kind: "simple", issue_date: "2026-11-20", due_date: "2026-11-20", description: "عند توقيع العقد", seller: { name: "مؤسسة ملمس" }, buyer: { name: "أبو محمد" }, subtotal: 18400, vat_percent: 0, vat: 0, total: 18400, paid: 18400, official: "p1", has_official: false }],
   receipts: [{ number: "RV-2026-007", label: "عند توقيع العقد", amount: 18400, paid_on: "2026-11-20", method: "transfer", reference: null, created_at: "2026-11-20T09:00:00Z" }],

@@ -45,8 +45,9 @@ export function paymentRequestError(message: string | null | undefined): "paymen
 }
 
 /** A refused record_client_payment / record_addendum_payment → a message key for the person. */
-export function paymentRecordError(message: string | null | undefined): "paymentOverDue" | "paymentAlreadyPaid" | "paymentNotAccepted" | null {
+export function paymentRecordError(message: string | null | undefined): "paymentOverDue" | "paymentAlreadyPaid" | "paymentNotAccepted" | "addendumNotAccepted" | null {
   if (!message) return null;
+  if (/addendum isn't accepted/.test(message)) return "addendumNotAccepted";
   if (/more than the amount due/.test(message)) return "paymentOverDue";
   if (/already paid/.test(message)) return "paymentAlreadyPaid";
   if (/isn't accepted/.test(message)) return "paymentNotAccepted";

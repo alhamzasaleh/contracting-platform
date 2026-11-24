@@ -231,6 +231,27 @@ describe("#23 maintenance closed by staff or the client", () => {
     expect(r.rows[0]).toEqual({ closed_by: null, closed_at: null });
   });
 
+  it("client confirms → staff reopen → staff close: credited to staff, not the client", async () => {
+    const id = await open();
+    await as({ userId: sup }, (q) => q("update public.maintenance_requests set status = 'resolved' where id = $1", [id]));
+    await as("service_role", (q) => q("select public.portal_confirm_maintenance($1,$2,$3)", [c.number, c.token, id]));
+    await as({ userId: sup }, (q) => q("update public.maintenance_requests set status = 'in_progress' where id = $1", [id]));
+    let r = await asAdmin((q) => q<{ client_confirmed_at: string | null; closed_by: string | null }>("select client_confirmed_at, closed_by from public.maintenance_requests where id = $1", [id]));
+    expect(r.rows[0]).toEqual({ client_confirmed_at: null, closed_by: null });
+    await as({ userId: owner }, (q) => q("update public.maintenance_requests set status = 'closed' where id = $1", [id]));
+    r = await asAdmin((q) => q("select client_confirmed_at, closed_by from public.maintenance_requests where id = $1", [id]));
+    expect(r.rows[0]).toEqual({ client_confirmed_at: null, closed_by: owner });
+    const w = await as("service_role", (q) => q<{ w: { requests: { id: string; closed_by_staff: boolean; client_confirmed_at: string | null }[] } }>("select public.portal_warranty($1,$2) as w", [c.number, c.token]));
+    expect(w.rows[0].w.requests.find((x) => x.id === id)).toMatchObject({ closed_by_staff: true, client_confirmed_at: null });
+  });
+
+  it("rejected by staff reads as closed by staff on the client page", async () => {
+    const id = await open();
+    await as({ userId: sup }, (q) => q("update public.maintenance_requests set status = 'rejected', reply = 'غير مشمول' where id = $1", [id]));
+    const w = await as("service_role", (q) => q<{ w: { requests: { id: string; status: string; closed_by_staff: boolean }[] } }>("select public.portal_warranty($1,$2) as w", [c.number, c.token]));
+    expect(w.rows[0].w.requests.find((x) => x.id === id)).toMatchObject({ status: "rejected", closed_by_staff: true });
+  });
+
   it("the client closing a resolved request leaves closed_by empty (closed by the client)", async () => {
     const id = await open();
     await as({ userId: sup }, (q) => q("update public.maintenance_requests set status = 'resolved' where id = $1", [id]));
@@ -239,5 +260,65 @@ describe("#23 maintenance closed by staff or the client", () => {
     const mine = w.rows[0].w.requests.find((x) => x.id === id)!;
     expect(mine).toMatchObject({ status: "closed", closed_by_staff: false });
     expect(mine.client_confirmed_at).not.toBeNull();
+  });
+});
+
+describe("review: a new contract and its schedule are one step", () => {
+  const sched = (rows: { label: string; percent: number; due_event: string }[]) => JSON.stringify(rows);
+  const full = sched([{ label: "توقيع", percent: 30, due_event: "signing" }, { label: "تسليم", percent: 70, due_event: "handover" }]);
+  async function issuedQuote(total: number) {
+    return as({ userId: owner }, async (q) => {
+      const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
+      await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{\"options\":{\"projectType\":\"labour\"}}','{}','{}',$3,$3)", [org, quote, total]);
+      await q("select public.issue_quote($1, null)", [quote]);
+      return quote;
+    });
+  }
+  const contractsOf = (quote: string) => asAdmin((q) => q<{ id: string }>("select id from public.contracts where quote_id = $1", [quote]));
+
+  it("creates the contract from the issued quote (total, project type, clause template) with its payments", async () => {
+    await as({ userId: owner }, (q) => q("insert into public.contract_templates (organization_id, terms) values ($1, '{\"custom\":[]}') on conflict (organization_id) do update set terms = excluded.terms", [org]));
+    const quote = await issuedQuote(2000);
+    const r = await as({ userId: sup }, (q) => q<{ c: { id: string; number: string } }>("select public.create_contract($1, current_date + 2, 15, 6, 'ن', $2::jsonb) as c", [quote, full]));
+    const { id, number } = r.rows[0].c;
+    expect(number).toMatch(/^C-\d{4}-\d{3}$/);
+    const c = await asAdmin((q) => q<{ total: string; project_type: string; terms: unknown; status: string; quote_version: number; duration_days: number }>("select total, project_type, terms, status, quote_version, duration_days from public.contracts where id = $1", [id]));
+    expect(c.rows[0]).toMatchObject({ project_type: "labour", terms: { custom: [] }, status: "draft", quote_version: 1, duration_days: 15 });
+    expect(Number(c.rows[0].total)).toBe(2000);
+    const p = await asAdmin((q) => q<{ amount: string }>("select amount from public.contract_payments where contract_id = $1 order by seq", [id]));
+    expect(p.rows.map((x) => Number(x.amount))).toEqual([600, 1400]);
+  });
+
+  it("a refused schedule leaves no contract behind (and the quote can be contracted again)", async () => {
+    const quote = await issuedQuote(1000);
+    for (const bad of [sched([{ label: "أ", percent: 90, due_event: "signing" }]), sched([]), sched([{ label: "أ", percent: 100, due_event: "whenever" }])]) {
+      await expectDenied(as({ userId: sup }, (q) => q("select public.create_contract($1, current_date, 10, 6, null, $2::jsonb)", [quote, bad])), /invalid payment schedule/);
+    }
+    expect((await contractsOf(quote)).rowCount).toBe(0);
+    await as({ userId: sup }, (q) => q("select public.create_contract($1, current_date, 10, 6, null, $2::jsonb)", [quote, full]));
+    expect((await contractsOf(quote)).rowCount).toBe(1);
+  });
+
+  it("same rules as before: an unissued quote, a viewer, a restricted member are refused", async () => {
+    const draft = await as({ userId: owner }, async (q) => (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id);
+    await expectDenied(as({ userId: sup }, (q) => q("select public.create_contract($1, current_date, 10, 6, null, $2::jsonb)", [draft, full])), /quote not issued/);
+    const quote = await issuedQuote(1000);
+    await expectDenied(as({ userId: viewer }, (q) => q("select public.create_contract($1, current_date, 10, 6, null, $2::jsonb)", [quote, full])), /quote not issued|permission denied|not allowed|row-level security/);
+    expect((await contractsOf(quote)).rowCount).toBe(0);
+  });
+
+  it("defence: a contract with no payment schedule can't be sent or accepted", async () => {
+    const quote = await issuedQuote(1000);
+    const c = await as({ userId: owner }, async (q) => (await q<{ id: string; number: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total) values ($1,$2,1,$3,'gypsum',current_date,10,1000) returning id, number", [org, quote, client])).rows[0]);
+    const token = "tok_" + randomBytes(24).toString("hex");
+    await expectDenied(as({ userId: owner }, (q) => q("select public.issue_portal_link($1, $2, now() + interval '60 days')", [c.id, hash(token)])), /no payment schedule/);
+    // even if it reached the client somehow (an older link), acceptance is refused
+    await as({ userId: owner }, async (q) => {
+      await q("update public.contracts set status = 'sent' where id = $1", [c.id]);
+      await q("insert into public.client_portal_links (organization_id, contract_id, token_hash, expires_at) values ($1,$2,$3, now() + interval '60 days')", [org, c.id, hash(token)]);
+    });
+    await expectDenied(as("service_role", (q) => q("select public.portal_accept($1,$2,'محمد',null,'1.1.1.1','x')", [c.number, token])), /no payment schedule/);
+    const k = await asAdmin((q) => q<{ status: string }>("select status from public.contracts where id = $1", [c.id]));
+    expect(k.rows[0].status).toBe("sent");
   });
 });

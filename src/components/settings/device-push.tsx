@@ -7,6 +7,7 @@ import { removePushSubscription, savePushSubscription, sendPushTest } from "@/ap
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { deviceName } from "@/lib/client/device";
+import { claimDevice, enableDevice } from "@/lib/client/push-device";
 
 type State = "loading" | "unsupported" | "ios" | "denied" | "off" | "on";
 
@@ -39,7 +40,8 @@ export function DevicePush({ publicKey, devices, preview }: { publicKey: string 
       if (Notification.permission === "denied") return "denied";
       const reg = await navigator.serviceWorker.getRegistration();
       const sub = await reg?.pushManager.getSubscription();
-      return sub ? "on" : "off";
+      // a shared iPad: the subscription may be someone else's — claim it for this user first
+      return preview ? (sub ? "on" : "off") : claimDevice(sub, savePushSubscription, deviceName());
     };
     decide()
       .catch(() => "unsupported" as State)
@@ -47,7 +49,7 @@ export function DevicePush({ publicKey, devices, preview }: { publicKey: string 
     return () => {
       alive = false;
     };
-  }, []);
+  }, [preview]);
 
   const enable = async () => {
     if (preview) return toast(tc("saved"));
@@ -61,16 +63,16 @@ export function DevicePush({ publicKey, devices, preview }: { publicKey: string 
       }
       const reg = await registration();
       await navigator.serviceWorker.ready;
-      const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }));
-      const json = sub.toJSON();
-      const r = await savePushSubscription({ endpoint: json.endpoint, keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth }, device: deviceName() });
-      if (r.ok) {
+      const ok = await enableDevice({
+        existing: await reg.pushManager.getSubscription(),
+        subscribe: () => reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }),
+        save: savePushSubscription,
+        device: deviceName(),
+      });
+      if (ok) {
         setState("on");
         toast.success(t("deviceOn"));
-      } else {
-        await sub.unsubscribe().catch(() => undefined);
-        toast.error(tc("error"));
-      }
+      } else toast.error(tc("error"));
     } catch {
       toast.error(tc("error"));
     } finally {
@@ -84,7 +86,11 @@ export function DevicePush({ publicKey, devices, preview }: { publicKey: string 
     try {
       const sub = await (await navigator.serviceWorker.getRegistration())?.pushManager.getSubscription();
       if (sub) {
-        await removePushSubscription({ endpoint: sub.endpoint });
+        // the row must be this user's before the browser stops (claim, then remove) — never
+        // unsubscribe a device whose row someone else holds without taking it over first
+        if ((await claimDevice(sub, savePushSubscription, deviceName())) !== "on") throw new Error("claim");
+        const r = await removePushSubscription({ endpoint: sub.endpoint });
+        if (!r.ok) throw new Error("remove");
         await sub.unsubscribe();
       }
       setState("off");

@@ -17,7 +17,7 @@ describe("#18 recording more than a payment's amount", () => {
     expect(paymentRecordError("more than the amount due")).toBe("paymentOverDue");
     expect(paymentRecordError("already paid")).toBe("paymentAlreadyPaid");
     expect(paymentRecordError("the contract isn't accepted")).toBe("paymentNotAccepted");
-    expect(paymentRecordError("the addendum isn't accepted")).toBe("paymentNotAccepted");
+    expect(paymentRecordError("the addendum isn't accepted")).toBe("addendumNotAccepted");
     expect(paymentRecordError("something else")).toBeNull();
     expect(paymentRecordError(undefined)).toBeNull();
   });

@@ -12,7 +12,12 @@
 --   #22 progress updates / client notes must use a stage of the same contract.
 --   #23 owner decision: staff MAY close a maintenance request (or the client after
 --       "resolved"); staff closing is stamped (closed_by, closed_at) and shown on the
---       client page; users can't write those stamps themselves.
+--       client page; users can't write those stamps themselves; reopening clears the
+--       client's confirmation too.
+--   review: public.create_contract() — a new contract and its payment schedule in ONE
+--       transaction (invoker: the insert runs as the user, every RLS policy and contract
+--       trigger applies exactly as before); defence: no client-page link and no acceptance
+--       for a contract without payments.
 -- Non-destructive: one new column, new functions, redefined functions/triggers.
 -- =============================================================================
 
@@ -123,6 +128,56 @@ end;
 $$;
 revoke all on function public.save_contract_schedule(uuid, date, int, int, text, jsonb) from public, anon;
 grant execute on function public.save_contract_schedule(uuid, date, int, int, text, jsonb) to authenticated, service_role;
+
+-- A NEW contract and its schedule in one transaction: if the schedule is refused, the contract
+-- insert is rolled back with it (no draft without payments). SECURITY INVOKER on purpose: the
+-- insert runs as the user, so RLS (quotes.manage, project access) and every trigger on contracts
+-- (number, guard_contract, check_contract_quote — issued quote with nothing open, total from the
+-- version —, options check) apply exactly as for a direct insert. What it inserts mirrors the
+-- app's former path (contracts/actions.ts): the quote's current (or first offered) version,
+-- its project type, the options, and the company's clause template.
+create or replace function public.create_contract(p_quote uuid, p_start date, p_duration int, p_warranty int, p_notes text, p_payments jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  q public.quotes;
+  v_version int;
+  v_total numeric;
+  v_selection jsonb;
+  v_terms jsonb;
+  v_id uuid;
+  v_number text;
+begin
+  select * into q from public.quotes where id = p_quote;
+  if q.id is null or q.status <> 'issued' then
+    raise exception 'quote not issued' using errcode = '22023';
+  end if;
+  -- with options the client picks later; until then the contract shows the first one offered
+  v_version := case
+    when q.options is not null and jsonb_array_length(q.options) > 0 then
+      case when exists (select 1 from jsonb_array_elements(q.options) e where (e ->> 'version')::int = q.current_version)
+           then q.current_version else (q.options -> 0 ->> 'version')::int end
+    else q.current_version end;
+  select v.total, v.selection into v_total, v_selection from public.quote_versions v where v.quote_id = q.id and v.version = v_version;
+  if v_total is null then
+    raise exception 'quote version not found' using errcode = 'P0002';
+  end if;
+  select t.terms into v_terms from public.contract_templates t where t.organization_id = q.organization_id;
+  insert into public.contracts (organization_id, quote_id, quote_version, options, client_id, service, project_type,
+                                start_date, duration_days, warranty_months, total, notes, terms)
+  values (q.organization_id, q.id, v_version, q.options, q.client_id, q.service,
+          coalesce(v_selection -> 'options' ->> 'projectType', 'full'),
+          p_start, p_duration, p_warranty, v_total, nullif(trim(p_notes), ''), coalesce(v_terms, '{}'::jsonb))
+  returning id, number into v_id, v_number;
+  perform public.save_contract_schedule(v_id, p_start, p_duration, p_warranty, p_notes, p_payments);
+  return jsonb_build_object('id', v_id, 'number', v_number);
+end;
+$$;
+revoke all on function public.create_contract(uuid, date, int, int, text, jsonb) from public, anon;
+grant execute on function public.create_contract(uuid, date, int, int, text, jsonb) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- #20 Subcontractor work: cumulative caps (copied from phase 8; caps added).
@@ -293,17 +348,20 @@ begin
       -- staff closing (the client's own close comes through portal_confirm_maintenance)
       new.closed_by := case when v_user then auth.uid() end;
     elsif new.status in ('open', 'in_progress') then
+      -- reopened: the client's earlier confirmation no longer stands (a later staff close
+      -- must not read as his)
       new.resolved_at := null;
       new.closed_at := null;
       new.closed_by := null;
+      new.client_confirmed_at := null;
     end if;
   end if;
   return new;
 end;
 $$;
 
--- Client page: when and by whom (staff or the client) a request was closed
--- (copied from warranty_maintenance.sql; closed_at / closed_by_staff added).
+-- Client page: when and by whom (staff or the client) a request was closed / rejected
+-- (copied from warranty_maintenance.sql; closed_at / closed_by_staff = closed_by is set added).
 create or replace function public.portal_warranty(p_number text, p_token text)
 returns jsonb
 language plpgsql
@@ -331,9 +389,111 @@ begin
     'requests', coalesce((
       select jsonb_agg(jsonb_build_object('id', m.id, 'number', m.number, 'body', m.body, 'photos', to_jsonb(m.photos), 'status', m.status,
         'reply', m.reply, 'created_at', m.created_at, 'resolved_at', m.resolved_at, 'client_confirmed_at', m.client_confirmed_at,
-        'closed_at', m.closed_at, 'closed_by_staff', m.status in ('closed', 'rejected') and m.client_confirmed_at is null) order by m.created_at desc)
+        'closed_at', m.closed_at, 'closed_by_staff', m.status in ('closed', 'rejected') and m.closed_by is not null) order by m.created_at desc)
       from public.maintenance_requests m where m.contract_id = v_link.contract_id), '[]'::jsonb));
 end;
 $$;
 revoke all on function public.portal_warranty(text, text) from public, anon, authenticated;
 grant execute on function public.portal_warranty(text, text) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- Defence: a contract without a payment schedule never reaches the client
+--   (copied from review_batch2 / review_batch1; the contract_payments check added).
+-- ---------------------------------------------------------------------------
+create or replace function public.issue_portal_link(p_contract uuid, p_token_hash text, p_expires timestamptz)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  c public.contracts;
+  v_id uuid;
+begin
+  select * into c from public.contracts where id = p_contract for update;
+  if c.id is null or not private.has_permission(c.organization_id, 'quotes.manage') or not private.can_access_contract(c.organization_id, c.id) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  if c.status = 'cancelled' or p_token_hash is null or p_token_hash !~ '^[0-9a-f]{64}$'
+     or p_expires is null or p_expires <= now() or p_expires > now() + interval '3 years' then
+    raise exception 'invalid link' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.contract_payments p where p.contract_id = c.id) then
+    raise exception 'no payment schedule' using errcode = '22023';
+  end if;
+  insert into public.client_portal_links (organization_id, contract_id, token_hash, expires_at)
+  values (c.organization_id, c.id, p_token_hash, p_expires)
+  returning id into v_id;
+  update public.client_portal_links set revoked_at = now()
+  where contract_id = c.id and revoked_at is null and id <> v_id;
+  return v_id;
+end;
+$$;
+revoke all on function public.issue_portal_link(uuid, text, timestamptz) from public, anon;
+grant execute on function public.issue_portal_link(uuid, text, timestamptz) to authenticated;
+
+create or replace function public.portal_accept(p_number text, p_token text, p_name text, p_signature text, p_ip text, p_user_agent text, p_version int default null)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_link public.client_portal_links;
+  v_contract public.contracts;
+  v_total numeric;
+  v_last int;
+begin
+  if p_token is null or char_length(p_token) < 32 or char_length(p_token) > 100 then
+    return false;
+  end if;
+  if p_name is null or char_length(trim(p_name)) < 2 or char_length(p_name) > 160 then
+    raise exception 'name required' using errcode = '22023';
+  end if;
+  if p_signature is not null and (char_length(p_signature) > 200000 or p_signature !~ '^data:image/png;base64,[A-Za-z0-9+/=]+$') then
+    raise exception 'invalid signature' using errcode = '22023';
+  end if;
+  v_link := private.portal_link(p_number, p_token);
+  if v_link.id is null then
+    return false;
+  end if;
+  select * into v_contract from public.contracts where id = v_link.contract_id and status = 'sent' for update;
+  if v_contract.id is null then
+    return false;
+  end if;
+  if not exists (select 1 from public.contract_payments p where p.contract_id = v_contract.id) then
+    raise exception 'no payment schedule' using errcode = '22023';
+  end if;
+
+  if v_contract.options is not null then
+    if p_version is null or not exists (select 1 from jsonb_array_elements(v_contract.options) e where (e ->> 'version')::int = p_version) then
+      raise exception 'choose an option' using errcode = '22023';
+    end if;
+    select v.total into v_total from public.quote_versions v where v.quote_id = v_contract.quote_id and v.version = p_version;
+    -- the payment amounts follow the agreed percentages of the chosen option (the last absorbs rounding)
+    select max(seq) into v_last from public.contract_payments where contract_id = v_contract.id;
+    update public.contract_payments p
+    set amount = case when p.seq = v_last
+                      then v_total - coalesce((select sum(round(v_total * x.percent / 100, 2)) from public.contract_payments x
+                                               where x.contract_id = v_contract.id and x.seq <> v_last), 0)
+                      else round(v_total * p.percent / 100, 2) end
+    where p.contract_id = v_contract.id;
+    update public.contracts set quote_version = p_version, total = v_total where id = v_contract.id;
+  elsif p_version is not null and p_version <> v_contract.quote_version then
+    raise exception 'no options on this contract' using errcode = '22023';
+  end if;
+
+  update public.contracts
+  set status = 'accepted', accepted_at = now(), accepted_name = trim(p_name), accepted_signature = p_signature,
+      accepted_ip = left(p_ip, 64), accepted_user_agent = left(p_user_agent, 400)
+  where id = v_contract.id;
+  -- the quote shows what the client agreed to (the chosen option)
+  update public.quotes q set status = 'accepted', current_version = coalesce(p_version, v_contract.quote_version) where q.id = v_contract.quote_id;
+  insert into public.audit_log (organization_id, actor_id, action, table_name, record_id, after)
+  values (v_contract.organization_id, null, 'client_accept', 'contracts', v_contract.id::text,
+          jsonb_build_object('name', trim(p_name), 'ip', left(p_ip, 64), 'signed', p_signature is not null, 'option', p_version));
+  return true;
+end;
+$$;
+revoke all on function public.portal_accept(text, text, text, text, text, text, int) from public, anon, authenticated;
+grant execute on function public.portal_accept(text, text, text, text, text, text, int) to service_role;
