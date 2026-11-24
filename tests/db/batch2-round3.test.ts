@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { as, asAdmin, asServer, closePool, createUser, expectDenied, resetDatabase } from "./db";
+import { as, asAdmin, asServer, closePool, createUser, expectDenied, getPool, resetDatabase } from "./db";
 
 /**
  * Review of batch 2, third round (Nov 2026):
@@ -128,7 +128,8 @@ describe("#4 Qoyod petty cash: routed when queued; one reconciliation keeps Qoyo
       const add = (acct: number | null, a: number) => { if (acct != null) held.set(acct, Math.round(((held.get(acct) ?? 0) + a) * 100) / 100); };
       for (const j of await jobs()) {
         const a = Number(j.amount);
-        if (j.entity_type === "petty_cash_opening") { add(j.to_account_id, a); add(j.from_account_id, -a); continue; }
+        // a reconcile that failed for good never posted: it isn't counted (retrying it recomputes)
+        if (j.entity_type === "petty_cash_opening") { if (j.status !== "failed") { add(j.to_account_id, a); add(j.from_account_id, -a); } continue; }
         if (j.route !== "cash" || j.kind === "bill") continue;
         add(j.cash_account_id, j.kind === "transfer" && j.entry_kind === "topup" ? a : -a);
       }
@@ -301,6 +302,127 @@ describe("#4 Qoyod petty cash: routed when queued; one reconciliation keeps Qoyo
     await t.setCash(null);
     // kept (bank → 7) and reversed (7 → bank) — not withdrawn
     expect((await t.reconciles()).map(move)).toEqual([{ from: null, to: 7, amount: "300.00" }, { from: 7, to: null, amount: "300.00" }]);
+  });
+
+  it("R1: entries recorded while sending was off are queued when it is switched on, before the reconcile", async () => {
+    const t = await setup("Org R4 petty off", null);
+    await t.entry("topup", 1000);
+    await t.setCash(7);
+    await t.set("enabled = false");
+    await t.entry("topup", 500);
+    await t.entry("expense", 85);
+    await t.set("enabled = true");
+    // the two entries got their jobs (routed to the cash account set now), the reconcile counted them
+    expect((await t.jobs()).filter((j) => j.entity_type === "petty_cash").map((j) => [j.kind, j.route, j.cash_account_id])).toEqual(
+      expect.arrayContaining([["transfer", "cash", 7], ["bill", null, null], ["bill_payment", "cash", 7]]),
+    );
+    expect((await t.jobs()).filter((j) => j.entity_type === "petty_cash")).toHaveLength(4);
+    expect(await t.qoyodCash()).toEqual({ 7: 1415 });
+    expect(await t.real()).toBe(1415);
+    // switching on again queues nothing twice
+    await t.set("enabled = false");
+    await t.set("enabled = true");
+    expect((await t.jobs()).filter((j) => j.entity_type === "petty_cash")).toHaveLength(4);
+    expect(await t.qoyodCash()).toEqual({ 7: 1415 });
+  });
+
+  it("R1: the settings row created already switched on queues the earlier entries; sync_from is respected", async () => {
+    const t = await setup("Org R4 petty insert", null);
+    await asAdmin((q) => q("delete from public.qoyod_settings where organization_id = $1", [t.o]));
+    await t.entry("topup", 400);
+    expect(await t.jobs()).toEqual([]);
+    await as({ userId: owner }, (q) => q("insert into public.qoyod_settings (organization_id, enabled, receive_account_id, cash_account_id) values ($1, true, 8, 7)", [t.o]));
+    expect(await t.qoyodCash()).toEqual({ 7: 400 });
+    // sync from tomorrow: today's entries recorded while off are not sent
+    await t.set("enabled = false");
+    await t.entry("expense", 50);
+    await asAdmin((q) => q("update public.qoyod_settings set sync_from = current_date + 1 where organization_id = $1", [t.o]));
+    await t.set("enabled = true");
+    expect((await t.jobs()).filter((j) => j.entity_type === "petty_cash")).toHaveLength(1);
+  });
+
+  it("R2: an entry recorded while a settings change is in flight waits for it and is routed by the new settings", async () => {
+    const t = await setup("Org R4 petty race", null);
+    await t.entry("topup", 1000);
+    const begin = async (userId: string) => {
+      const c = await getPool().connect();
+      await c.query("begin");
+      await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: userId, role: "authenticated" })]);
+      await c.query("set local role authenticated");
+      return c;
+    };
+    const a = await begin(owner);
+    const b = await begin(sup);
+    try {
+      await a.query("update public.qoyod_settings set cash_account_id = 7 where organization_id = $1", [t.o]);
+      let inserted = false;
+      const acc = (await asAdmin((q) => q<{ id: string }>("select id from public.petty_cash_accounts where organization_id = $1", [t.o]))).rows[0].id;
+      const pending = b.query("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,'expense',85,'x')", [t.o, acc]).then(() => { inserted = true; });
+      await new Promise((r) => setTimeout(r, 300));
+      // the entry's routing reads the settings row "for share": it waits for the change to commit
+      expect(inserted).toBe(false);
+      await a.query("commit");
+      await pending;
+      await b.query("commit");
+    } finally {
+      a.release();
+      b.release();
+    }
+    expect((await t.jobs()).filter((j) => j.kind === "bill_payment").map((j) => [j.route, j.cash_account_id])).toEqual([["cash", 7]]);
+    expect(await t.qoyodCash()).toEqual({ 7: 915 });
+    expect(await t.real()).toBe(915);
+  });
+
+  it("R3: a reconcile that failed for good isn't counted; retrying it recomputes instead of re-sending", async () => {
+    const t = await setup("Org R4 petty failed", null);
+    await t.entry("topup", 300);
+    await t.setCash(7);
+    const [r1] = await t.reconciles();
+    await asAdmin((q) => q("update public.qoyod_sync_jobs set status = 'running', attempts = 6 where id = $1", [r1.id]));
+    await asAdmin((q) => q("update public.qoyod_sync_jobs set status = 'failed', last_error = 'HTTP 422' where id = $1", [r1.id]));
+    // a settings change meanwhile: the failed one moved nothing, so 300 goes bank → 9 (not 7 → 9)
+    await t.setCash(9);
+    expect((await t.reconciles()).filter((j) => j.status !== "failed").map(move)).toEqual([{ from: null, to: 9, amount: "300.00" }]);
+    expect(await t.qoyodCash()).toEqual({ 9: 300 });
+    // retrying the failed reconcile deletes it and recomputes: nothing new to move
+    const n = await as({ userId: owner }, (q) => q<{ n: number }>("select public.qoyod_retry($1, $2) as n", [t.o, r1.id]));
+    expect(n.rows[0].n).toBe(1);
+    expect((await t.reconciles()).map((j) => j.id)).not.toContain(r1.id);
+    expect((await t.reconciles()).map(move)).toEqual([{ from: null, to: 9, amount: "300.00" }]);
+    // a failed reconcile retried with "retry all" too, and another failed job is simply retried
+    const [r2] = await t.reconciles();
+    await asAdmin((q) => q("update public.qoyod_sync_jobs set status = 'failed' where organization_id = $1", [t.o]));
+    await as({ userId: owner }, (q) => q("select public.qoyod_retry($1, null)", [t.o]));
+    const after = await t.jobs();
+    expect(after.filter((j) => j.entity_type === "petty_cash").every((j) => j.status === "queued")).toBe(true);
+    expect(after.map((j) => j.id)).not.toContain(r2.id);
+    expect((await t.reconciles()).map(move)).toEqual([{ from: null, to: 9, amount: "300.00" }]);
+    expect(await t.qoyodCash()).toEqual({ 9: 300 });
+  });
+
+  it("R5: in Draft the worker doesn't claim jobs that wait for Approved, so a corrected choice can still withdraw them", async () => {
+    const t = await setup("Org R4 petty draft", null);
+    await t.entry("topup", 600);
+    await t.entry("expense", 100);
+    await t.setCash(7);
+    const claimAll = async () => {
+      const got: { organization_id: string; kind: string; entity_type: string }[] = [];
+      for (let i = 0; i < 40; i++) {
+        const r = await as("service_role", (q) => q<{ organization_id: string; kind: string; entity_type: string }>("select organization_id, kind, entity_type from public.qoyod_claim_jobs(50)"));
+        if (!r.rows.length) break;
+        got.push(...r.rows);
+      }
+      return got.filter((j) => j.organization_id === t.o);
+    };
+    const claimed = await claimAll();
+    // the bill was claimed (the worker runs); payments / transfers / reconciles were not
+    expect(claimed.map((j) => j.kind)).toEqual(["bill"]);
+    expect((await t.reconciles()).map((j) => j.status)).toEqual(["queued"]);
+    await t.setCash(9);
+    expect((await t.reconciles()).map(move)).toEqual([{ from: null, to: 9, amount: "500.00" }]);
+    // switched to Approved → claimed
+    await t.set("invoice_status = 'Approved'");
+    expect((await claimAll()).map((j) => j.kind).sort()).toEqual(["bill_payment", "transfer", "transfer"]);
   });
 
   it("a job's route and accounts are set by the database, not by whoever inserts it", async () => {

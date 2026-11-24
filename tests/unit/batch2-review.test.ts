@@ -39,17 +39,16 @@ describe("#4 Qoyod subcontractor bills and the automatic setup", () => {
   });
 
   const full = { inventory_id: 1, receive_account_id: 2, expense_account_id: 3, salary_account_id: 4, cash_account_id: 5, subcontract_account_id: 6, addendum_product_id: 7, service_products: { gypsum: 1, interior: 2, exterior: 3 }, auto_setup_at: null as string | null };
-  const now = new Date("2026-11-23T10:00:00Z");
   it("runs when a required setting is missing, every time", () => {
-    expect(autoSetupDue(full, now)).toBe(false);
-    expect(autoSetupDue({ ...full, inventory_id: null, auto_setup_at: "2026-11-23T09:59:00Z" }, now)).toBe(true);
-    expect(autoSetupDue({ ...full, service_products: { gypsum: 1, interior: 2 } }, now)).toBe(true);
+    expect(autoSetupDue({ ...full, auto_setup_at: "2026-11-23T09:00:00Z" })).toBe(false);
+    expect(autoSetupDue({ ...full, inventory_id: null, auto_setup_at: "2026-11-23T09:59:00Z" })).toBe(true);
+    expect(autoSetupDue({ ...full, service_products: { gypsum: 1, interior: 2 }, auto_setup_at: "2026-11-23T09:00:00Z" })).toBe(true);
   });
-  it("optional accounts (salary, cash, subcontracting) missing: at most once a day", () => {
+  it("optional accounts (salary, cash, subcontracting) missing: only at the first setup (the owner's clearing sticks)", () => {
     const opt = { ...full, salary_account_id: null, subcontract_account_id: null };
-    expect(autoSetupDue({ ...opt, auto_setup_at: null }, now)).toBe(true);
-    expect(autoSetupDue({ ...opt, auto_setup_at: "2026-11-23T01:00:00Z" }, now)).toBe(false);
-    expect(autoSetupDue({ ...opt, auto_setup_at: "2026-11-22T09:00:00Z" }, now)).toBe(true);
+    expect(autoSetupDue({ ...opt, auto_setup_at: null })).toBe(true);
+    expect(autoSetupDue({ ...opt, auto_setup_at: "2026-11-23T01:00:00Z" })).toBe(false);
+    expect(autoSetupDue({ ...opt, auto_setup_at: "2026-11-22T09:00:00Z" })).toBe(false);
   });
 });
 

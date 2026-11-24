@@ -12,7 +12,12 @@ export const TAX = { vat15: "1", zero: "2", exempt: "3" } as const;
  * Jobs that can't be posted on a draft document in Qoyod (a draft invoice/bill can't be paid;
  * a journal entry posts at once): they wait until sending is "Approved".
  */
-const NEEDS_APPROVED = new Set(["invoice_payment", "bill_payment", "payroll", "transfer"]);
+export const NEEDS_APPROVED_KINDS = ["invoice_payment", "bill_payment", "payroll", "transfer"] as const;
+/**
+ * The database's `qoyod_claim_jobs` doesn't claim these kinds while sending is "Draft" (the same
+ * list, kept in sync by tests/unit/qoyod-petty-r4.test.tsx).
+ */
+const NEEDS_APPROVED = new Set<string>(NEEDS_APPROVED_KINDS);
 export function waitsForApproved(kind: string, invoiceStatus: string | null | undefined): boolean {
   return NEEDS_APPROVED.has(kind) && invoiceStatus !== "Approved";
 }
@@ -272,15 +277,38 @@ type SetupState = {
   service_products: Record<string, number> | null; auto_setup_at: string | null;
 };
 /**
- * Whether the worker should run the automatic Qoyod setup again: always when something every
- * invoice/bill needs is missing; when only optional accounts (salary, cash, subcontracting —
- * which have fallbacks or are picked on exact names only) are empty, at most once a day.
+ * Whether the worker should run the automatic Qoyod setup: always when something every
+ * invoice/bill needs is missing; otherwise only once, the first time (`auto_setup_at` empty) —
+ * the optional accounts (salary, cash, subcontracting) are picked then and never again, so an
+ * account the owner cleared stays empty.
  */
-export function autoSetupDue(s: SetupState, now: Date = new Date()): boolean {
+export function autoSetupDue(s: SetupState): boolean {
   const p = s.service_products ?? {};
   if (!s.inventory_id || !s.receive_account_id || !s.expense_account_id || !s.addendum_product_id || !p.gypsum || !p.interior || !p.exterior) return true;
-  if (s.salary_account_id && s.cash_account_id && s.subcontract_account_id) return false;
-  return !s.auto_setup_at || now.getTime() - new Date(s.auto_setup_at).getTime() >= 24 * 3_600_000;
+  return !s.auto_setup_at;
+}
+
+type AutoPicked = Omit<SetupState, "auto_setup_at" | "service_products"> & { service_products: Record<string, number> };
+/**
+ * The settings after an automatic setup: only empty settings are filled (the owner's choices
+ * stay). Required ones whenever empty; the optional accounts (salary, cash, subcontracting) only
+ * at the first setup (`auto_setup_at` empty) — after that an empty one is the owner's choice.
+ * The cash account is never the bank account.
+ */
+export function autoSetupNext(cur: Partial<SetupState> | null | undefined, auto: AutoPicked): AutoPicked {
+  const first = !cur?.auto_setup_at;
+  const receive = cur?.receive_account_id ?? auto.receive_account_id;
+  const optional = (k: "salary_account_id" | "cash_account_id" | "subcontract_account_id") => cur?.[k] ?? (first ? auto[k] : null);
+  return {
+    inventory_id: cur?.inventory_id ?? auto.inventory_id,
+    receive_account_id: receive,
+    expense_account_id: cur?.expense_account_id ?? auto.expense_account_id,
+    salary_account_id: optional("salary_account_id"),
+    cash_account_id: cashAccountOrNull(optional("cash_account_id"), receive),
+    subcontract_account_id: optional("subcontract_account_id"),
+    service_products: { ...auto.service_products, ...(cur?.service_products ?? {}) },
+    addendum_product_id: cur?.addendum_product_id ?? auto.addendum_product_id,
+  };
 }
 export const billPaymentRef = (purchaseNumber: string) => `${purchaseNumber}/PAID`;
 /** Subcontractor payments and petty-cash expenses have no document number: a short, unique id. */

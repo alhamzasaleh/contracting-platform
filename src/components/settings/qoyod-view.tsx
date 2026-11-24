@@ -17,6 +17,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import type { QoyodPageData } from "@/lib/data/qoyod";
 import type { QoyodOptions } from "@/lib/qoyod/client";
+import { waitsForApproved } from "@/lib/qoyod/payloads";
 
 const SERVICES = ["gypsum", "interior", "exterior"] as const;
 const num = (v: string) => (v ? Number(v) : null);
@@ -94,6 +95,12 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
       {value != null && options && !list.some((x) => x.id === value) && <option value={value}>#{value}</option>}
     </NativeSelect>
   );
+
+  // a reconcile's account (null = the bank account): its name from Qoyod when loaded
+  const accountName = (id: number | null) => {
+    const a = accounts.find((x) => x.id === (id ?? data.settings.receive_account_id));
+    return a ? a.name : id == null ? t("bankShort") : `#${id}`;
+  };
 
   const statusTone = { queued: "warning", running: "warning", done: "success", failed: "danger" } as const;
 
@@ -314,7 +321,9 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
                     <div className="min-w-0">
                       <p className="text-sm font-medium">
                         {j.opening ? (
-                          t("kind_pettyOpening")
+                          <>
+                            {t("kind_pettyOpening")} · <bdi>{t("reconcileDirection", { from: accountName(j.from_account_id ?? null), to: accountName(j.to_account_id ?? null) })}</bdi>
+                          </>
                         ) : (
                           <>
                             {t(`kind_${j.kind}`)} · <bdi dir="ltr" className="font-latin">{j.label}</bdi>
@@ -325,6 +334,8 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
                         {j.amount != null && `${fmt.money(j.amount)} · `}
                         {fmt.dateTime(j.done_at ?? j.created_at)}
                         {j.last_error && j.status !== "done" && <span className="text-danger"> · {explain(t, j.last_error)}</span>}
+                        {/* not claimed by the worker while sending is Draft (the database keeps it untouched) */}
+                        {!j.last_error && j.status === "queued" && waitsForApproved(j.kind, data.settings.invoice_status) && <span> · {t("waiting_approved")}</span>}
                         {j.last_error?.startsWith("skipped:") && j.status === "done" && <span> · {explain(t, j.last_error)}</span>}
                       </p>
                     </div>

@@ -4,7 +4,7 @@ import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.type
 import { qoyod, QoyodError } from "./client";
 import { qoyodAutoSetup } from "./setup";
 import { effectiveVatPercent } from "@/lib/costing";
-import { approveSimpleBillBody, autoSetupDue, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, cashAccountOrNull, pettyOpeningBody, pettyOpeningTag, pettyPlan, pettyReconcileAccounts, pettyTag, pettyTransferBody, simpleBillBody, simpleBillPaymentBody, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
+import { approveSimpleBillBody, autoSetupDue, autoSetupNext, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyOpeningBody, pettyOpeningTag, pettyPlan, pettyReconcileAccounts, pettyTag, pettyTransferBody, simpleBillBody, simpleBillPaymentBody, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Ctx = { admin: Admin; key: string; s: QoyodSettingsRow };
@@ -73,25 +73,18 @@ export async function runQoyodSync(limit = 20): Promise<{ done: number; failed: 
 
 /**
  * Something we create ourselves is missing (e.g. a service product) → prepare it in Qoyod now.
- * Only optional accounts empty (salary, cash, subcontracting) → retried at most once a day.
+ * The optional accounts (salary, cash, subcontracting) only at the very first setup: one the
+ * owner cleared afterwards is never picked again (`autoSetupNext`).
  */
 async function fillMissing(admin: Admin, key: string, s: QoyodSettingsRow): Promise<QoyodSettingsRow> {
-  const products = s.service_products ?? {};
   if (!autoSetupDue(s)) return s;
-  const attempt = new Date().toISOString();
-  await admin.from("qoyod_settings").update({ auto_setup_at: attempt }).eq("organization_id", s.organization_id);
-  s = { ...s, auto_setup_at: attempt };
   try {
     const { data: org } = await admin.from("organizations").select("vat_number").eq("id", s.organization_id).single();
     const auto = await qoyodAutoSetup(key, !!org?.vat_number);
-    const next = {
-      inventory_id: s.inventory_id ?? auto.inventory_id, receive_account_id: s.receive_account_id ?? auto.receive_account_id, expense_account_id: s.expense_account_id ?? auto.expense_account_id,
-      salary_account_id: s.salary_account_id ?? auto.salary_account_id, cash_account_id: cashAccountOrNull(s.cash_account_id ?? auto.cash_account_id, s.receive_account_id ?? auto.receive_account_id),
-      subcontract_account_id: s.subcontract_account_id ?? auto.subcontract_account_id,
-      service_products: { ...auto.service_products, ...products }, addendum_product_id: s.addendum_product_id ?? auto.addendum_product_id,
-    };
-    await admin.from("qoyod_settings").update(next).eq("organization_id", s.organization_id);
-    return { ...s, ...next };
+    const next = autoSetupNext(s, auto);
+    const attempt = new Date().toISOString();
+    await admin.from("qoyod_settings").update({ ...next, auto_setup_at: attempt }).eq("organization_id", s.organization_id);
+    return { ...s, ...next, auto_setup_at: attempt };
   } catch {
     return s;
   }
@@ -380,7 +373,8 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number | { skipped: s
         // a reconcile: from → to as fixed when it was queued (null = the bank account)
         const acc = pettyReconcileAccounts(job, s.receive_account_id);
         if ("missing" in acc) throw new Blocked(`missing:${acc.missing}`);
-        if ("skip" in acc) return { skipped: "same_account" };
+        // its two accounts became the same (an older cash account is now the bank account)
+        if ("skip" in acc) return { skipped: "same_account_reconcile" };
         const { fromAccountId, toAccountId } = acc;
         const hit = await journalEntry(ctx, pettyOpeningTag(job.id));
         if (hit) return hit;

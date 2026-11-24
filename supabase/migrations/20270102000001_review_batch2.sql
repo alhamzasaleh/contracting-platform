@@ -449,8 +449,12 @@ alter table public.qoyod_settings
 grant insert (salary_account_id, cash_account_id, subcontract_account_id) on public.qoyod_settings to authenticated;
 grant update (salary_account_id, cash_account_id, subcontract_account_id) on public.qoyod_settings to authenticated;
 
--- the worker's last automatic setup run (optional accounts missing → retried at most daily); service role only
+-- the first automatic setup (on connect, or the worker's first run): only then are the optional
+-- accounts (salary, cash, subcontracting) picked automatically — an account the owner clears
+-- later stays empty. Required settings are filled whenever missing. Service role only.
 alter table public.qoyod_settings add column auto_setup_at timestamptz;
+-- organizations already connected had their first setup when they saved the key
+update public.qoyod_settings set auto_setup_at = key_set_at where key_set_at is not null;
 
 -- petty-cash top-ups / returns: bank ↔ cash journal entries
 alter table public.qoyod_sync_jobs drop constraint qoyod_sync_jobs_kind_check;
@@ -518,18 +522,46 @@ update public.qoyod_settings set cash_account_id = null where cash_account_id = 
 alter table public.qoyod_settings add constraint qoyod_settings_cash_not_bank
   check (cash_account_id is null or cash_account_id is distinct from receive_account_id);
 
+-- The settings row is read "for share": a petty job queued while a settings change is in flight
+-- waits for it to commit and is routed by the new settings (the change's reconcile, which ran
+-- before, didn't count it), and a settings change waits for a petty job being queued (its
+-- reconcile then counts it). Never routed to an account the reconcile left out.
 create or replace function private.qoyod_petty_route(p_org uuid)
 returns text
-language sql
-stable
+language plpgsql
+volatile
 security definer
 set search_path = ''
 as $$
-  select coalesce((
-    select case when s.cash_account_id is not null and s.cash_account_id is distinct from s.receive_account_id then 'cash' else 'bank' end
-    from public.qoyod_settings s where s.organization_id = p_org), 'bank');
+declare
+  v_cash int;
+begin
+  select case when s.cash_account_id is distinct from s.receive_account_id then s.cash_account_id end into v_cash
+  from public.qoyod_settings s where s.organization_id = p_org for share;
+  return case when v_cash is not null then 'cash' else 'bank' end;
+end;
 $$;
 revoke all on function private.qoyod_petty_route(uuid) from public;
+
+-- Queueing reads "enabled" the same way (for share): an entry recorded while sending is being
+-- switched on waits, then gets its job — the switch-on's catch-up (below) couldn't see it yet.
+create or replace function private.qoyod_enqueue(p_org uuid, p_kind text, p_entity_type text, p_entity uuid, p_ref text, p_amount numeric default null)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform 1 from public.qoyod_settings s where s.organization_id = p_org and s.enabled for share;
+  if not found then
+    return;
+  end if;
+  insert into public.qoyod_sync_jobs (organization_id, kind, entity_type, entity_id, ref, amount)
+  values (p_org, p_kind, p_entity_type, p_entity, p_ref, p_amount)
+  on conflict (organization_id, kind, ref) do nothing;
+end;
+$$;
+revoke all on function private.qoyod_enqueue(uuid, text, text, uuid, text, numeric) from public;
 
 -- set by the database for every insert (enqueue triggers, backfill, reconcile) — never by the
 -- caller; only the reconcile function chooses a reconcile job's from / to accounts.
@@ -547,12 +579,12 @@ begin
       raise exception 'invalid' using errcode = '22023';
     end if;
   elsif new.entity_type = 'petty_cash' and new.kind in ('transfer', 'bill_payment') then
-    new.route := private.qoyod_petty_route(new.organization_id);
+    -- one locked read (for share, see qoyod_petty_route): route and cash account from the same row
+    select case when s.cash_account_id is distinct from s.receive_account_id then s.cash_account_id end into new.cash_account_id
+    from public.qoyod_settings s where s.organization_id = new.organization_id for share;
+    new.route := case when new.cash_account_id is not null then 'cash' else 'bank' end;
     new.from_account_id := null;
     new.to_account_id := null;
-    if new.route = 'cash' then
-      select s.cash_account_id into new.cash_account_id from public.qoyod_settings s where s.organization_id = new.organization_id;
-    end if;
   else
     new.route := null;
     new.from_account_id := null;
@@ -580,7 +612,8 @@ alter table public.qoyod_sync_jobs add constraint qoyod_sync_jobs_petty_accounts
 
 -- Petty cash per Qoyod cash account, as it stands once every queued job has posted (any status:
 -- they all post): cash-routed petty jobs on the account they were queued with (top-ups in,
--- returns and expense payments out) + reconciles in − reconciles out.
+-- returns and expense payments out) + reconciles in − reconciles out. A reconcile that failed
+-- for good never posted: not counted (retrying it recomputes instead, see qoyod_retry).
 create or replace function private.qoyod_petty_holdings(p_org uuid)
 returns table (account_id int, amount numeric)
 language sql
@@ -596,10 +629,10 @@ as $$
     where j.organization_id = p_org and j.entity_type = 'petty_cash' and j.route = 'cash'
     union all
     select j.to_account_id, j.amount from public.qoyod_sync_jobs j
-    where j.organization_id = p_org and j.entity_type = 'petty_cash_opening' and j.to_account_id is not null
+    where j.organization_id = p_org and j.entity_type = 'petty_cash_opening' and j.to_account_id is not null and j.status <> 'failed'
     union all
     select j.from_account_id, -j.amount from public.qoyod_sync_jobs j
-    where j.organization_id = p_org and j.entity_type = 'petty_cash_opening' and j.from_account_id is not null
+    where j.organization_id = p_org and j.entity_type = 'petty_cash_opening' and j.from_account_id is not null and j.status <> 'failed'
   ) h
   group by h.account_id;
 $$;
@@ -695,7 +728,29 @@ end;
 $$;
 revoke all on function private.qoyod_petty_move(uuid, int, int, numeric) from public;
 
--- an AFTER trigger: the reconciliation reads the new settings row (incl. the new "enabled")
+-- Every petty-cash entry gets its jobs (from p_from when given): expense → bill + its payment,
+-- top-up / return → transfer. References dedupe, so entries that have them are left alone.
+create or replace function private.qoyod_enqueue_petty(p_org uuid, p_from date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform private.qoyod_enqueue(e.organization_id, 'bill', 'petty_cash', e.id, 'pc:' || e.id)
+  from public.petty_cash_entries e where e.organization_id = p_org and e.kind = 'expense' and (p_from is null or e.entry_date >= p_from);
+  perform private.qoyod_enqueue(e.organization_id, 'bill_payment', 'petty_cash', e.id, 'pcp:' || e.id, e.amount)
+  from public.petty_cash_entries e where e.organization_id = p_org and e.kind = 'expense' and (p_from is null or e.entry_date >= p_from);
+  perform private.qoyod_enqueue(e.organization_id, 'transfer', 'petty_cash', e.id, 'pct:' || e.id, e.amount)
+  from public.petty_cash_entries e where e.organization_id = p_org and e.kind in ('topup', 'return') and (p_from is null or e.entry_date >= p_from);
+end;
+$$;
+revoke all on function private.qoyod_enqueue_petty(uuid, date) from public;
+
+-- an AFTER trigger: the reconciliation reads the new settings row (incl. the new "enabled").
+-- Sending switched on (or the row created on): entries recorded while it was off got no job
+-- (qoyod_enqueue skips them) — they are queued first (from sync_from when set), so the
+-- reconcile's balance is the real one.
 create or replace function private.qoyod_settings_petty_reconcile()
 returns trigger
 language plpgsql
@@ -704,6 +759,9 @@ set search_path = ''
 as $$
 begin
   if new.enabled then
+    if tg_op = 'INSERT' or not old.enabled then
+      perform private.qoyod_enqueue_petty(new.organization_id, new.sync_from);
+    end if;
     perform private.qoyod_petty_reconcile(new.organization_id);
   end if;
   return null;
@@ -759,12 +817,7 @@ begin
   perform private.qoyod_enqueue(s.organization_id, 'bill_payment', 'subcontractor_payment', s.id, 'sp:' || s.id, s.amount)
   from public.subcontractor_payments s where s.organization_id = p_org and s.paid_on >= p_from;
 
-  perform private.qoyod_enqueue(e.organization_id, 'bill', 'petty_cash', e.id, 'pc:' || e.id)
-  from public.petty_cash_entries e where e.organization_id = p_org and e.kind = 'expense' and e.entry_date >= p_from;
-  perform private.qoyod_enqueue(e.organization_id, 'bill_payment', 'petty_cash', e.id, 'pcp:' || e.id, e.amount)
-  from public.petty_cash_entries e where e.organization_id = p_org and e.kind = 'expense' and e.entry_date >= p_from;
-  perform private.qoyod_enqueue(e.organization_id, 'transfer', 'petty_cash', e.id, 'pct:' || e.id, e.amount)
-  from public.petty_cash_entries e where e.organization_id = p_org and e.kind in ('topup', 'return') and e.entry_date >= p_from;
+  perform private.qoyod_enqueue_petty(p_org, p_from);
 
   select count(*) into v_after from public.qoyod_sync_jobs where organization_id = p_org;
   return v_after - v_before;
@@ -772,6 +825,82 @@ end;
 $$;
 revoke all on function public.qoyod_backfill(uuid, date) from public, anon;
 grant execute on function public.qoyod_backfill(uuid, date) to authenticated, service_role;
+
+-- Retry a failed job (finance), or all failed ones. A failed petty-cash reconcile is not sent
+-- again (the balance may have changed since): it is deleted and the reconciliation recomputed.
+create or replace function public.qoyod_retry(p_org uuid, p_job uuid default null)
+returns int
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count int;
+  v_reconciles int;
+begin
+  if not (private.has_permission(p_org, 'finance.manage') or private.has_permission(p_org, 'settings.manage')) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  delete from public.qoyod_sync_jobs
+  where organization_id = p_org and status = 'failed' and entity_type = 'petty_cash_opening' and (p_job is null or id = p_job);
+  get diagnostics v_reconciles = row_count;
+  update public.qoyod_sync_jobs set status = 'queued', attempts = 0, next_attempt_at = now(), last_error = null
+  where organization_id = p_org and status = 'failed' and (p_job is null or id = p_job);
+  get diagnostics v_count = row_count;
+  if v_reconciles > 0 then
+    perform private.qoyod_petty_reconcile(p_org);
+  end if;
+  return v_count + v_reconciles;
+end;
+$$;
+revoke all on function public.qoyod_retry(uuid, uuid) from public, anon;
+grant execute on function public.qoyod_retry(uuid, uuid) to authenticated, service_role;
+
+-- The worker's batch (as in 20261217000001_qoyod.sql), except that while an organization sends
+-- as "Draft" it doesn't claim the jobs that wait for "Approved" (payments on drafts and journal
+-- entries — the same list as NEEDS_APPROVED in src/lib/qoyod/payloads.ts, a unit test keeps them
+-- in sync): they stay untouched, so a petty-cash reconcile can still be withdrawn when the owner
+-- corrects his choice. Switching to "Approved" makes them claimable at once.
+create or replace function public.qoyod_claim_jobs(p_limit int)
+returns setof public.qoyod_sync_jobs
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.qoyod_sync_jobs set status = 'queued'
+  where status = 'running' and updated_at < now() - interval '10 minutes';
+  return query
+  with claimed as (
+  update public.qoyod_sync_jobs j set status = 'running', attempts = j.attempts + 1
+  where j.id in (
+    select q.id from public.qoyod_sync_jobs q
+    join public.qoyod_settings s on s.organization_id = q.organization_id and s.enabled
+    where q.status = 'queued' and q.next_attempt_at <= now()
+      and (s.invoice_status = 'Approved' or q.kind not in ('invoice_payment', 'bill_payment', 'payroll', 'transfer'))
+    order by case q.kind when 'customer' then 0 when 'vendor' then 0 when 'invoice' then 1 when 'bill' then 1 else 2 end, q.created_at
+    limit least(greatest(p_limit, 1), 50)
+    for update of q skip locked)
+  returning j.*)
+  select * from claimed c
+  order by case c.kind when 'customer' then 0 when 'vendor' then 0 when 'invoice' then 1 when 'bill' then 1 else 2 end, c.created_at;
+end;
+$$;
+revoke all on function public.qoyod_claim_jobs(int) from public, anon, authenticated;
+grant execute on function public.qoyod_claim_jobs(int) to service_role;
+
+-- Organizations already sending: entries recorded while sending was off (or before petty cash
+-- was sent at all) get their jobs now, then one reconciliation.
+do $$
+declare
+  r record;
+begin
+  for r in select s.organization_id, s.sync_from from public.qoyod_settings s where s.enabled loop
+    perform private.qoyod_enqueue_petty(r.organization_id, r.sync_from);
+    perform private.qoyod_petty_reconcile(r.organization_id);
+  end loop;
+end;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- Provisions (end-of-service, annual leave) are accruals, not cash: the cash-flow

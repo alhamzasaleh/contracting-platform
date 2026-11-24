@@ -5,8 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 
 export type QoyodJobItem = Pick<QoyodJobRow, "id" | "kind" | "status" | "attempts" | "last_error" | "qoyod_id" | "amount" | "created_at" | "done_at"> & {
   label: string;
-  /** the one-off bank → cash entry for the open petty-cash balance, when a cash account was chosen later */
+  /** a petty-cash reconcile (the database keeps Qoyod's cash account equal to the real petty-cash balance) */
   opening?: boolean;
+  /** a reconcile's accounts, fixed when it was queued (null = the bank account) */
+  from_account_id?: number | null;
+  to_account_id?: number | null;
 };
 export type QoyodPageData = {
   settings: Pick<QoyodSettingsRow, "enabled" | "invoice_status" | "inventory_id" | "receive_account_id" | "expense_account_id" | "salary_account_id" | "cash_account_id" | "subcontract_account_id" | "service_products" | "addendum_product_id" | "key_last4" | "key_set_at" | "sync_from">;
@@ -31,7 +34,7 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
   const org = session.organization.id;
   const [{ data: s }, { data: jobs }, ...counts] = await Promise.all([
     supabase.from("qoyod_settings").select("enabled, invoice_status, inventory_id, receive_account_id, expense_account_id, salary_account_id, cash_account_id, subcontract_account_id, service_products, addendum_product_id, key_last4, key_set_at, sync_from").eq("organization_id", org).maybeSingle(),
-    supabase.from("qoyod_sync_jobs").select("id, kind, status, attempts, last_error, qoyod_id, amount, created_at, done_at, entity_type, entity_id").eq("organization_id", org).in("kind", ["invoice", "invoice_payment", "bill", "bill_payment", "payroll", "transfer"]).order("created_at", { ascending: false }).limit(50),
+    supabase.from("qoyod_sync_jobs").select("id, kind, status, attempts, last_error, qoyod_id, amount, created_at, done_at, entity_type, entity_id, from_account_id, to_account_id").eq("organization_id", org).in("kind", ["invoice", "invoice_payment", "bill", "bill_payment", "payroll", "transfer"]).order("created_at", { ascending: false }).limit(50),
     ...(["queued", "done", "failed"] as const).map((st) =>
       supabase.from("qoyod_sync_jobs").select("id", { count: "exact", head: true }).eq("organization_id", org).in("kind", ["invoice", "invoice_payment", "bill", "bill_payment", "payroll", "transfer"]).in("status", st === "queued" ? ["queued", "running"] : [st]),
     ),
@@ -75,7 +78,7 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
   ]);
   return {
     settings: s ? { ...s, service_products: (s.service_products ?? {}) as Record<string, number> } : EMPTY,
-    jobs: rows.map((j) => ({ id: j.id, kind: j.kind, status: j.status, attempts: j.attempts, last_error: j.last_error, qoyod_id: j.qoyod_id, created_at: j.created_at, done_at: j.done_at, amount: j.amount == null ? null : Number(j.amount), label: label.get(j.entity_id) ?? "—", opening: j.entity_type === "petty_cash_opening" })),
+    jobs: rows.map((j) => ({ id: j.id, kind: j.kind, status: j.status, attempts: j.attempts, last_error: j.last_error, qoyod_id: j.qoyod_id, created_at: j.created_at, done_at: j.done_at, amount: j.amount == null ? null : Number(j.amount), label: label.get(j.entity_id) ?? "—", opening: j.entity_type === "petty_cash_opening", ...(j.entity_type === "petty_cash_opening" ? { from_account_id: j.from_account_id, to_account_id: j.to_account_id } : {}) })),
     counts: { queued: counts[0].count ?? 0, done: counts[1].count ?? 0, failed: counts[2].count ?? 0 },
     draftInvoices,
     draftCount: waitPay.length + waitAd.length,

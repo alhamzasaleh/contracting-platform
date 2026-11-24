@@ -10,7 +10,7 @@ const DATA: QoyodPageData = {
     enabled: true, invoice_status: "Draft", inventory_id: 1, receive_account_id: 8, expense_account_id: 52, service_products: { gypsum: 11, interior: 12 },
     salary_account_id: null, cash_account_id: 7, subcontract_account_id: null, addendum_product_id: null, key_last4: "7Q2X", key_set_at: ago(30), sync_from: null,
   },
-  counts: { queued: 2, done: 4, failed: 1 },
+  counts: { queued: 2, done: 5, failed: 1 },
   draftInvoices: ["INV-2026-004"],
   canViewInvoices: true,
   canManage: true,
@@ -23,8 +23,11 @@ const DATA: QoyodPageData = {
     { id: "j5", kind: "bill", status: "failed", attempts: 6, last_error: "HTTP 422: {\"reference\":[\"has already been taken\"]}", qoyod_id: null, amount: null, created_at: ago(26), done_at: null, label: `PO-${y}-003 · مصنع الجبس الوطني` },
     // a petty-cash top-up while no cash account was chosen: nothing to post (paid from the bank itself)
     { id: "j6", kind: "transfer", status: "done", attempts: 1, last_error: "skipped:same_account", qoyod_id: null, amount: 1000, created_at: ago(48), done_at: ago(48), label: "تعبئة عهدة المشرف" },
-    // the cash account chosen later: one entry moves the open petty-cash balance bank → cash
-    { id: "j7", kind: "transfer", status: "queued", attempts: 0, last_error: null, qoyod_id: null, amount: 715, created_at: ago(0.2), done_at: null, label: "—", opening: true },
+    // the cash account chosen later: one reconcile moves the petty-cash balance bank → cash (shown «البنك الأهلي ← النقدية في الخزينة»);
+    // sending is Draft, so the worker leaves it unclaimed until "Approved" (a corrected choice can still withdraw it)
+    { id: "j7", kind: "transfer", status: "queued", attempts: 0, last_error: null, qoyod_id: null, amount: 715, created_at: ago(0.2), done_at: null, label: "—", opening: true, from_account_id: null, to_account_id: 7 },
+    // an older reconcile 9 → bank whose cash account later became the bank account: nothing to post
+    { id: "j8", kind: "transfer", status: "done", attempts: 1, last_error: "skipped:same_account_reconcile", qoyod_id: null, amount: 120, created_at: ago(72), done_at: ago(72), label: "—", opening: true, from_account_id: 9, to_account_id: null },
   ],
 };
 
@@ -33,6 +36,7 @@ const OPTIONS: QoyodOptions = {
   accounts: [
     { id: 7, code: "110101", name: "النقدية في الخزينة", receive: true, type: "Asset" },
     { id: 8, code: "110102", name: "البنك الأهلي", receive: true, type: "Asset" },
+    { id: 9, code: "110103", name: "صندوق الموقع", receive: true, type: "Asset" },
     { id: 52, code: "510101", name: "تكلفة المواد", receive: false, type: "Expense" },
   ],
   products: [
