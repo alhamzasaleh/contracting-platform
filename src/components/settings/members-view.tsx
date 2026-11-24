@@ -1,5 +1,6 @@
 "use client";
-import { Clock, MoreHorizontal, ShieldCheck, UserPlus, UserRoundCheck, UserRoundX, X } from "lucide-react";
+import { BriefcaseBusiness, Clock, Link2, MoreHorizontal, ShieldCheck, Unlink, UserPlus, UserRoundCheck, UserRoundX, X } from "lucide-react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -33,6 +34,9 @@ import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import { PERMISSION_GROUPS, ROLE_PERMISSIONS, type Permission, type Role } from "@/lib/auth/permissions";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
+import { matchEmployee, type InviteRole, type LinkableEmployee } from "@/lib/hr/access";
 import { cn } from "@/lib/utils";
 
 export type MemberItem = {
@@ -47,6 +51,21 @@ export type MemberItem = {
   /** "assigned" = only the projects in projectIds */
   projectScope?: "all" | "assigned";
   projectIds?: string[];
+  /** the employee record linked to this account (employees.user_id) */
+  employee?: LinkedEmployee | null;
+  /** an employee without access whose number is this account's — offered for linking */
+  suggestEmployee?: LinkedEmployee | null;
+};
+
+/** An employee as the members page shows him: name + job, never hr data. */
+export type LinkedEmployee = {
+  id: string;
+  name: string;
+  job: string | null;
+  /** final exit while his account is still active → «أوقف الحساب» */
+  exited?: boolean;
+  /** the invitation goes to the number on his record (not editable here) */
+  phoneLocked?: boolean;
 };
 
 export type ProjectOption = { id: string; number: string; client: string };
@@ -57,12 +76,18 @@ export type InvitationItem = {
   name: string | null;
   role: Exclude<Role, "owner">;
   expiresAt: string;
+  /** the invitation was made for this employee */
+  employee?: LinkedEmployee | null;
 };
 
+export type InviteInput = { phone: string; full_name?: string; role: InviteRole; employee_id?: string };
+
 type Actions = {
-  invite: (i: { phone: string; full_name?: string; role: "supervisor" | "finance" | "viewer" }) => Promise<ActionResult>;
+  invite: (i: InviteInput) => Promise<ActionResult>;
   update: (i: { membershipId: string; role?: Role; status?: "active" | "suspended"; permissions?: Permission[]; project_scope?: "all" | "assigned"; contract_ids?: string[] }) => Promise<ActionResult>;
   revoke: (i: { invitationId: string }) => Promise<ActionResult>;
+  link?: (i: { employee_id: string; user_id: string }) => Promise<ActionResult>;
+  unlink?: (i: { employee_id: string }) => Promise<ActionResult>;
 };
 
 const ROLE_TONE: Record<Role, "primary" | "info" | "success" | "neutral"> = {
@@ -79,8 +104,17 @@ export function MembersView({
   isOwner,
   actions,
   projects = [],
+  employees = [],
+  canViewHr = false,
+  base = "",
 }: {
+  /** links go under this base (the design preview) */
+  base?: string;
   projects?: ProjectOption[];
+  /** employees (name, job, phone, account) to suggest linking a new invitation — members.manage only */
+  employees?: LinkableEmployee[];
+  /** hr.view: the employee's name links to his record */
+  canViewHr?: boolean;
   members: MemberItem[];
   invitations: InvitationItem[];
   canManage: boolean;
@@ -93,13 +127,13 @@ export function MembersView({
   const [editing, setEditing] = React.useState<MemberItem | null>(null);
   const [, startTransition] = React.useTransition();
 
-  const errorText = (e: string) =>
-    e === "noAccess" ? t("common.noAccess") : e === "lastOwner" ? t("settings.lastOwner") : e === "duplicate" ? t("settings.duplicateInvite") : t("common.error");
+  const failure = useFailureText();
+  const errorText = (e: string) => failure(e) ?? memberErrorText(t, e);
 
   const run = (fn?: () => Promise<ActionResult>, success?: string) => {
     if (!fn) return toast(t("preview.banner"));
     startTransition(async () => {
-      const r = await fn();
+      const r = await settle(fn);
       if (r.ok) toast.success(success ?? t("common.saved"));
       else toast.error(errorText(r.error));
     });
@@ -135,6 +169,29 @@ export function MembersView({
                     {m.isYou && <span className="text-xs font-normal text-subtle-foreground">({t("common.you")})</span>}
                   </p>
                   <p className="ltr-inline text-[13px] text-muted-foreground">{phone(m.phone)}</p>
+                  {m.employee && <EmployeeTag employee={m.employee} canViewHr={canViewHr} base={base} />}
+                  {canManage && (m.employee || m.suggestEmployee) && (
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {m.employee?.exited && m.status === "active" && <Badge tone="danger">{t("settings.exitActive")}</Badge>}
+                      {m.employee ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => run(actions?.unlink && (() => actions.unlink!({ employee_id: m.employee!.id })), t("settings.unlinked"))}
+                        >
+                          <Unlink /> {t("settings.unlinkEmployee")}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => run(actions?.link && (() => actions.link!({ employee_id: m.suggestEmployee!.id, user_id: m.userId })), t("settings.linkedDone"))}
+                        >
+                          <Link2 /> {t("settings.linkToEmployee", { name: m.suggestEmployee!.name })}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   <div className="mt-1 flex gap-1.5 sm:hidden">
                     <Badge tone={ROLE_TONE[m.role]}>{t(`roles.${m.role}`)}</Badge>
                     {m.status === "suspended" && <Badge tone="danger" dot>{t("settings.suspended")}</Badge>}
@@ -209,6 +266,7 @@ export function MembersView({
                     <p className="text-[13px] text-muted-foreground">
                       {t("settings.expires", { date: fmt.date(i.expiresAt) })}
                     </p>
+                    {i.employee && <EmployeeTag employee={i.employee} canViewHr={canViewHr} base={base} />}
                   </div>
                   <Badge tone={ROLE_TONE[i.role]}>{t(`roles.${i.role}`)}</Badge>
                   {canManage && (
@@ -228,7 +286,7 @@ export function MembersView({
         </Card>
       )}
 
-      <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} isOwner={isOwner} onInvite={actions?.invite} />
+      <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} isOwner={isOwner} onInvite={actions?.invite} employees={employees} base={base} />
       {editing && (
         <PermissionsDialog
           member={editing}
@@ -241,22 +299,97 @@ export function MembersView({
   );
 }
 
-function InviteDialog({
+/** The employee behind an account or invitation: name · job, a link to his record with hr.view, else text. */
+function EmployeeTag({ employee, canViewHr, base }: { employee: LinkedEmployee; canViewHr: boolean; base: string }) {
+  const t = useTranslations("settings");
+  const text = employee.job ? `${employee.name} · ${employee.job}` : employee.name;
+  return (
+    <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
+      <BriefcaseBusiness className="size-3.5 shrink-0" aria-hidden />
+      <span className="sr-only">{t("linkedEmployee")}</span>
+      {canViewHr ? (
+        <Link href={`${base}/team?employee=${employee.id}`} className="truncate underline-offset-2 hover:underline">
+          {text}
+        </Link>
+      ) : (
+        <span className="truncate">{text}</span>
+      )}
+    </p>
+  );
+}
+
+/** A refused or failed call in the reader's language (a failed connection keeps what was typed). */
+export function memberErrorText(t: ReturnType<typeof useTranslations>, e: string) {
+  if (e === "noAccess") return t("common.noAccess");
+  if (e === "lastOwner") return t("settings.lastOwner");
+  if (e === "duplicate") return t("settings.duplicateInvite");
+  if (e === "employeeLinked") return t("settings.employeeLinked");
+  if (e === "alreadyMember" || e === "memberLinkedElsewhere" || e === "notEmployeePhone") return t(`settings.${e}`);
+  return t.has(`errors.${e}`) ? t(`errors.${e}`) : t("common.error");
+}
+
+/**
+ * Invite a phone number to sign in. Used on the members page and from an employee's record
+ * (`employee` fixed, phone / name / role pre-filled). On the members page a typed number that
+ * belongs to an employee without access offers to link the invitation to him — never silently.
+ */
+export function InviteDialog({
   open,
   onOpenChange,
   isOwner,
   onInvite,
+  employees = [],
+  employee,
+  initial,
+  base = "",
 }: {
+  base?: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   isOwner: boolean;
   onInvite?: Actions["invite"];
+  employees?: LinkableEmployee[];
+  /** the invitation is for this employee (from his record) */
+  employee?: LinkedEmployee;
+  initial?: { phone?: string; name?: string; role?: InviteRole };
 }) {
   const t = useTranslations();
-  const [role, setRole] = React.useState<"supervisor" | "finance" | "viewer">("supervisor");
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent closeLabel={t("common.close")}>
+        {/* mounted only while open, so every opening starts from the record's values */}
+        <InviteForm onClose={() => onOpenChange(false)} isOwner={isOwner} onInvite={onInvite} employees={employees} employee={employee} initial={initial} base={base} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function InviteForm({
+  onClose,
+  isOwner,
+  onInvite,
+  employees,
+  employee,
+  initial,
+  base,
+}: {
+  base: string;
+  onClose: () => void;
+  isOwner: boolean;
+  onInvite?: Actions["invite"];
+  employees: LinkableEmployee[];
+  employee?: LinkedEmployee;
+  initial?: { phone?: string; name?: string; role?: InviteRole };
+}) {
+  const t = useTranslations();
+  const [role, setRole] = React.useState<InviteRole>(initial?.role ?? "supervisor");
+  const [phoneText, setPhoneText] = React.useState(initial?.phone ?? "");
+  const [linkMatch, setLinkMatch] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [pending, startTransition] = React.useTransition();
+  const failure = useFailureText();
 
+  const match = employee ? null : matchEmployee(phoneText, employees);
   const roles = (["supervisor", "finance", "viewer"] as const).filter((r) => isOwner || r !== "finance");
   const hint: Record<string, string> = {
     supervisor: t("settings.roleSupervisorHint"),
@@ -266,71 +399,109 @@ function InviteDialog({
 
   const submit = (fd: FormData) => {
     if (!onInvite) {
-      onOpenChange(false);
+      onClose();
       toast(t("preview.banner"));
       return;
     }
+    const employeeId = employee?.id ?? (match && linkMatch ? match.employee_id : undefined);
     startTransition(async () => {
-      const r = await onInvite({ phone: String(fd.get("phone") ?? ""), full_name: String(fd.get("full_name") ?? ""), role });
+      const r = await settle(() =>
+        onInvite({ phone: String(fd.get("phone") ?? ""), full_name: String(fd.get("full_name") ?? ""), role, ...(employeeId ? { employee_id: employeeId } : {}) }),
+      );
       if (r.ok) {
         toast.success(t("settings.inviteSent"));
         setErrors({});
-        onOpenChange(false);
+        onClose();
       } else {
         setErrors(r.fieldErrors ?? {});
-        if (!r.fieldErrors) toast.error(r.error === "duplicate" ? t("settings.duplicateInvite") : r.error === "noAccess" ? t("common.noAccess") : t("common.error"));
+        if (!r.fieldErrors) toast.error(failure(r.error) ?? memberErrorText(t, r.error));
       }
     });
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent closeLabel={t("common.close")}>
-        <form action={submit} noValidate>
-          <DialogHeader>
-            <DialogTitle>{t("settings.inviteTitle")}</DialogTitle>
-            <DialogDescription>{t("settings.inviteHint")}</DialogDescription>
-          </DialogHeader>
-          <DialogBody className="grid gap-5">
-            <Field id="invite-phone" label={t("auth.phone")} error={errors.phone ? t("auth.phoneInvalid") : undefined}>
-              <Input name="phone" inputMode="tel" dir="ltr" placeholder="05X XXX XXXX" className="font-latin rtl:text-right" autoComplete="off" />
-            </Field>
-            <Field id="invite-name" label={t("settings.fullName")} optional={t("common.optional")}>
-              <Input name="full_name" autoComplete="off" />
-            </Field>
-            <fieldset className="grid gap-2">
-              <legend className="mb-2 text-[13px] font-medium">{t("settings.role")}</legend>
-              {roles.map((r) => (
-                <label
-                  key={r}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-3 rounded-xl border p-3.5 transition-all",
-                    role === r ? "border-primary bg-primary-softer ring-4 ring-primary/10" : "border-border hover:border-border-strong",
-                  )}
-                >
-                  <input type="radio" name="role" value={r} checked={role === r} onChange={() => setRole(r)} className="sr-only" />
-                  <span className={cn("flex size-5 items-center justify-center rounded-full border-2", role === r ? "border-primary" : "border-border-strong")}>
-                    {role === r && <span className="size-2.5 rounded-full bg-primary" />}
-                  </span>
-                  <span className="flex-1">
-                    <span className="block text-[14px] font-medium">{t(`roles.${r}`)}</span>
-                    <span className="block text-[13px] text-muted-foreground">{hint[r]}</span>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-          </DialogBody>
-          <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" loading={pending}>
-              <UserPlus /> {t("settings.invite")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    // onSubmit, not a form action: React resets a form after its action, which would wipe the number on an error
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit(new FormData(e.currentTarget));
+      }}
+      noValidate
+    >
+      <DialogHeader>
+        <DialogTitle>{employee ? t("settings.giveAccessTitle", { name: employee.name }) : t("settings.inviteTitle")}</DialogTitle>
+        <DialogDescription>{employee ? t("settings.giveAccessHint") : t("settings.inviteHint")}</DialogDescription>
+      </DialogHeader>
+      <DialogBody className="grid gap-5">
+        <Field
+          id="invite-phone"
+          label={t("auth.phone")}
+          error={errors.phone ? t("auth.phoneInvalid") : undefined}
+          hint={employee?.phoneLocked ? t("settings.phoneFromRecord") : undefined}
+        >
+          <Input
+            readOnly={employee?.phoneLocked}
+            name="phone"
+            inputMode="tel"
+            dir="ltr"
+            placeholder="05X XXX XXXX"
+            className="font-latin rtl:text-right"
+            autoComplete="off"
+            value={phoneText}
+            onChange={(e) => setPhoneText(e.target.value)}
+          />
+        </Field>
+        {match && (
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-primary/40 bg-primary-softer p-3.5 text-[14px]">
+            <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]" checked={linkMatch} onChange={(e) => setLinkMatch(e.target.checked)} />
+            <span className="min-w-0">
+              <span className="block font-medium">{t("settings.linkEmployee", { name: match.full_name })}</span>
+              <span className="block text-[13px] text-muted-foreground">{match.job_title ?? t("settings.linkEmployeeHint")}</span>
+            </span>
+          </label>
+        )}
+        <Field id="invite-name" label={t("settings.fullName")} optional={t("common.optional")}>
+          <Input name="full_name" autoComplete="off" defaultValue={initial?.name ?? ""} />
+        </Field>
+        <fieldset className="grid gap-2">
+          <legend className="mb-2 text-[13px] font-medium">{t("settings.role")}</legend>
+          {roles.map((r) => (
+            <label
+              key={r}
+              className={cn(
+                "flex cursor-pointer items-center gap-3 rounded-xl border p-3.5 transition-all",
+                role === r ? "border-primary bg-primary-softer ring-4 ring-primary/10" : "border-border hover:border-border-strong",
+              )}
+            >
+              <input type="radio" name="role" value={r} checked={role === r} onChange={() => setRole(r)} className="sr-only" />
+              <span className={cn("flex size-5 items-center justify-center rounded-full border-2", role === r ? "border-primary" : "border-border-strong")}>
+                {role === r && <span className="size-2.5 rounded-full bg-primary" />}
+              </span>
+              <span className="flex-1">
+                <span className="block text-[14px] font-medium">{t(`roles.${r}`)}</span>
+                <span className="block text-[13px] text-muted-foreground">{hint[r]}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        {employee && (
+          <p className="text-[13px] text-muted-foreground">
+            {t("settings.customiseLater")}{" "}
+            <Link href={`${base}/settings/members`} className="font-medium text-foreground underline underline-offset-2">
+              {t("settings.editPermissions")}
+            </Link>
+          </p>
+        )}
+      </DialogBody>
+      <DialogFooter>
+        <Button type="button" variant="secondary" onClick={onClose}>
+          {t("common.cancel")}
+        </Button>
+        <Button type="submit" loading={pending}>
+          <UserPlus /> {employee ? t("settings.giveAccess") : t("settings.invite")}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 
@@ -351,6 +522,7 @@ function PermissionsDialog({
   const [assigned, setAssigned] = React.useState(new Set(member.projectIds ?? []));
   const scoped = member.role !== "owner";
   const [pending, startTransition] = React.useTransition();
+  const failure = useFailureText();
   const defaults = new Set(ROLE_PERMISSIONS[member.role]);
 
   const toggle = (p: Permission, on: boolean) =>
@@ -367,11 +539,11 @@ function PermissionsDialog({
       return toast(t("preview.banner"));
     }
     startTransition(async () => {
-      const r = await onSave([...selected], scoped ? { project_scope: scope, contract_ids: scope === "assigned" ? [...assigned] : [] } : undefined);
+      const r = await settle(() => onSave([...selected], scoped ? { project_scope: scope, contract_ids: scope === "assigned" ? [...assigned] : [] } : undefined));
       if (r.ok) {
         toast.success(t("common.saved"));
         onClose();
-      } else toast.error(r.error === "noAccess" ? t("common.noAccess") : t("common.error"));
+      } else toast.error(failure(r.error) ?? memberErrorText(t, r.error));
     });
   };
 

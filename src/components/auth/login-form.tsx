@@ -13,6 +13,8 @@ import { deviceName, useBiometricKind, usePasskeySupport } from "@/lib/client/de
 import { createClient } from "@/lib/supabase/client";
 import { normalizeSaudiMobile } from "@/lib/validation/phone";
 import { OtpInput } from "./otp-input";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 type Step = "phone" | "code" | "enroll";
 const OFFERED_KEY = "malmas-passkey-offered";
@@ -55,8 +57,10 @@ export function LoginForm({ next, demo }: { next?: string; demo?: boolean }) {
     return () => clearTimeout(id);
   }, [countdown]);
 
+  const failure = useFailureText();
   const errorText = (key: string) =>
-    key === "rateLimited" ? t("common.rateLimited") : key === "error" ? t("common.error") : t(`auth.${key}`);
+    failure(key) ??
+    (key === "rateLimited" ? t("common.rateLimited") : key === "error" ? t("common.error") : t.has(`auth.${key}`) ? t(`auth.${key}`) : t("common.error"));
 
   const send = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -70,7 +74,7 @@ export function LoginForm({ next, demo }: { next?: string; demo?: boolean }) {
       return;
     }
     startTransition(async () => {
-      const r = await requestOtp({ phone: n });
+      const r = await settle(() => requestOtp({ phone: n }));
       if (!r.ok) return setError(errorText(r.error));
       setNormalized(n);
       setStep("code");
@@ -82,7 +86,7 @@ export function LoginForm({ next, demo }: { next?: string; demo?: boolean }) {
     if (!normalized || value.length !== 6 || demo) return;
     setError(null);
     startTransition(async () => {
-      const r = await verifyOtp({ phone: normalized, code: value, next });
+      const r = await settle(() => verifyOtp({ phone: normalized, code: value, next }));
       if (!r.ok) {
         setCode("");
         return setError(errorText(r.error));
@@ -107,14 +111,17 @@ export function LoginForm({ next, demo }: { next?: string; demo?: boolean }) {
     if (demo) return;
     setError(null);
     startTransition(async () => {
-      const { error: err } = await createClient().auth.signInWithPasskey();
+      // a thrown error (browser without WebAuthn, connection lost) must not reach the error page
+      const { error: err } = await createClient()
+        .auth.signInWithPasskey()
+        .catch((e: unknown) => ({ error: e instanceof Error ? e : new Error(String(e)) }));
       if (err) {
         const code = (err as { code?: string }).code ?? "";
         if (code === "ERROR_CEREMONY_ABORTED" || /NotAllowed|abort/i.test(err.message)) return; // the user cancelled
         return setError(t(/not.?found|credential/i.test(`${code} ${err.message}`) ? "auth.passkeyNone" : "auth.passkeyFailed"));
       }
       markOffered();
-      const r = await finishPasskeySignIn({ next });
+      const r = await settle(() => finishPasskeySignIn({ next }));
       if (!r.ok) return setError(errorText(r.error));
       go(r.next ?? "/");
     });
@@ -123,7 +130,7 @@ export function LoginForm({ next, demo }: { next?: string; demo?: boolean }) {
   const enroll = () => {
     startTransition(async () => {
       const supabase = createClient();
-      const { data, error: err } = await supabase.auth.registerPasskey();
+      const { data, error: err } = await supabase.auth.registerPasskey().catch(() => ({ data: null, error: true as const }));
       markOffered();
       if (!err && data?.id) await supabase.auth.passkey.update({ passkeyId: data.id, friendlyName: deviceName() }).catch(() => undefined);
       go(target);

@@ -41,13 +41,14 @@ export const SAMPLE_SHELL: ShellData = {
 
 export const SAMPLE_MEMBERS: MemberItem[] = [
   { id: "1", userId: "u1", name: "صالح العتيبي", phone: "966500000001", role: "owner", status: "active", permissions: effectivePermissions("owner"), isYou: true },
-  { id: "2", userId: "u2", name: "محمد القحطاني", phone: "966551234567", role: "supervisor", status: "active", permissions: effectivePermissions("supervisor"), isYou: false },
-  { id: "3", userId: "u3", name: "نورة الشمري", phone: "966541112233", role: "finance", status: "active", permissions: effectivePermissions("finance"), isYou: false },
+  { id: "2", userId: "u2", name: "محمد القحطاني", phone: "966551234567", role: "supervisor", status: "active", permissions: effectivePermissions("supervisor"), isYou: false, employee: { id: "e2", name: "محمد القحطاني", job: "مشرف" } },
+  { id: "3", userId: "u3", name: "نورة الشمري", phone: "966541112233", role: "finance", status: "active", permissions: effectivePermissions("finance"), isYou: false, suggestEmployee: { id: "e4", name: "نورة الشمري", job: "محاسبة" } },
   { id: "4", userId: "u4", name: "خالد الدوسري", phone: "966532221100", role: "viewer", status: "suspended", permissions: effectivePermissions("viewer"), isYou: false },
 ];
 
 export const SAMPLE_INVITES: InvitationItem[] = [
   { id: "i1", phone: "966599887766", name: "عبدالله الحربي", role: "supervisor", expiresAt: new Date(Date.now() + 9 * 864e5).toISOString() },
+  { id: "i2", phone: "966537000003", name: "أنور حسين", role: "viewer", expiresAt: new Date(Date.now() + 12 * 864e5).toISOString(), employee: { id: "e3", name: "أنور حسين", job: "فني جبس" } },
 ];
 
 const ago = (mins: number) => new Date(Date.now() - mins * 60_000).toISOString();

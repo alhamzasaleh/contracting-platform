@@ -28,6 +28,8 @@ import { BrandLogo } from "@/components/brand-logo";
 import { currentPushSubscription } from "@/lib/client/device";
 import { SidebarBrand, SidebarNav } from "./sidebar";
 import type { ShellData } from "./types";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 export function Topbar({ data }: { data: ShellData }) {
   const t = useTranslations();
@@ -38,12 +40,14 @@ export function Topbar({ data }: { data: ShellData }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [cmdOpen, setCmdOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
+  const failure = useFailureText();
   const base = data.basePath ?? "";
   const preview = Boolean(data.basePath);
 
   const switchLocale = () =>
     startTransition(async () => {
-      await updatePreferences({ locale: locale === "ar" ? "en" : "ar" });
+      const r = await settle(() => updatePreferences({ locale: locale === "ar" ? "en" : "ar" }));
+      if (!r.ok) return void toast.error(failure(r.error) ?? t("common.error"));
       router.refresh();
     });
 
@@ -72,8 +76,15 @@ export function Topbar({ data }: { data: ShellData }) {
   };
 
   const changeTheme = (v: string) => {
+    const before = theme;
     setTheme(v);
-    if (!preview) void updatePreferences({ theme: v as "system" | "light" | "dark" });
+    if (preview) return;
+    // the theme applies at once; if it can't be saved, go back to the saved one and say so
+    void settle(() => updatePreferences({ theme: v as "system" | "light" | "dark" })).then((r) => {
+      if (r.ok) return;
+      if (before) setTheme(before);
+      toast.error(failure(r.error) ?? t("common.error"));
+    });
   };
 
   return (

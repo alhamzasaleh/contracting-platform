@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
 import type { QuoteDetail } from "@/lib/data/quotes";
 import { cn } from "@/lib/utils";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 type Opt = { version: number; label: string };
 
@@ -20,6 +22,7 @@ export function QuoteOptionsPanel({ detail, save, preview }: { detail: QuoteDeta
   const t = useTranslations("quotes");
   const tc = useTranslations("common");
   const te = useTranslations("errors");
+  const failure = useFailureText();
   const { fmt } = useFormatter();
   const locked = !detail.canManage || detail.quote.status === "accepted" || !!detail.contract;
   const [picked, setPicked] = React.useState<Opt[]>(detail.options ?? []);
@@ -38,9 +41,9 @@ export function QuoteOptionsPanel({ detail, save, preview }: { detail: QuoteDeta
   const submit = (options: Opt[] | null) =>
     start(async () => {
       if (preview || !save) return void toast(tc("saved"));
-      const r = await save({ quote_id: detail.quote.id, options });
+      const r = await settle(() => save({ quote_id: detail.quote.id, options }));
       if (r.ok) toast.success(options ? t("optionsSaved") : t("optionsCleared"));
-      else toast.error(r.error === "optionsMixedType" ? t("optionsMixedType") : r.error === "quoteLocked" ? t("optionsLocked") : r.error === "quoteContractSent" ? te("quoteContractSent") : tc("error"));
+      else toast.error(failure(r.error) ?? (r.error === "optionsMixedType" ? t("optionsMixedType") : r.error === "quoteLocked" ? t("optionsLocked") : r.error === "quoteContractSent" ? te("quoteContractSent") : tc("error")));
     });
 
   const valid = picked.length >= 2 && picked.length <= 3 && picked.every((p) => p.label.trim().length > 0);

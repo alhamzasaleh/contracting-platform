@@ -7,6 +7,7 @@ import { PERMISSIONS, ROLE_PERMISSIONS, type Permission, type Role } from "@/lib
 import { can, getSession } from "@/lib/auth/session";
 import type { MembershipRow } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
+import { inviteError } from "@/lib/hr/access";
 import { saudiMobileSchema } from "@/lib/validation/phone";
 
 const inviteSchema = z
@@ -14,6 +15,8 @@ const inviteSchema = z
     phone: saudiMobileSchema,
     full_name: z.string().trim().max(120).optional(),
     role: z.enum(["supervisor", "finance", "viewer"]),
+    /** the invitation is for this employee: the database links his record to the account on acceptance */
+    employee_id: z.uuid().optional(),
   })
   .strict();
 
@@ -29,9 +32,11 @@ export async function inviteMember(input: z.input<typeof inviteSchema>): Promise
     phone: parsed.data.phone,
     full_name: parsed.data.full_name || null,
     role: parsed.data.role,
+    employee_id: parsed.data.employee_id ?? null,
   });
-  if (error) return { ok: false, error: error.code === "23505" ? "duplicate" : error.code === "42501" ? "noAccess" : "error" };
+  if (error) return { ok: false, error: inviteError(error) };
   revalidatePath("/settings/members");
+  revalidatePath("/team");
   return { ok: true };
 }
 
@@ -131,5 +136,38 @@ export async function revokeInvitation(input: z.input<typeof revokeSchema>): Pro
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "error" };
   revalidatePath("/settings/members");
+  revalidatePath("/team");
+  return { ok: true };
+}
+
+const linkSchema = z.object({ employee_id: z.uuid(), user_id: z.uuid() }).strict();
+
+/** Link an existing member to the employee whose number is his account's (members.manage; the database checks it all). */
+export async function linkMemberEmployee(input: z.input<typeof linkSchema>): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "members.manage")) return { ok: false, error: "noAccess" };
+  const parsed = linkSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("link_member_employee", { p_employee: parsed.data.employee_id, p_user: parsed.data.user_id });
+  if (error) return { ok: false, error: inviteError(error) };
+  revalidatePath("/settings/members");
+  revalidatePath("/team");
+  return { ok: true };
+}
+
+const unlinkSchema = z.object({ employee_id: z.uuid() }).strict();
+
+/** Unlink an employee from his account (members.manage); he can be invited again. */
+export async function unlinkEmployee(input: z.input<typeof unlinkSchema>): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "members.manage")) return { ok: false, error: "noAccess" };
+  const parsed = unlinkSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("unlink_employee_account", { p_employee: parsed.data.employee_id });
+  if (error) return { ok: false, error: inviteError(error) };
+  revalidatePath("/settings/members");
+  revalidatePath("/team");
   return { ok: true };
 }

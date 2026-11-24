@@ -11,6 +11,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 type Prefs = { full_name: string | null; locale: "ar" | "en"; numerals: "latn" | "arab"; theme: "system" | "light" | "dark" };
 
@@ -21,8 +23,10 @@ export function PreferencesForm({ initial, preview }: { initial: Prefs; preview?
   const { setTheme } = useTheme();
   const [prefs, setPrefs] = React.useState(initial);
   const [pending, startTransition] = React.useTransition();
+  const failure = useFailureText();
 
   const apply = (patch: Partial<Prefs>) => {
+    const before = prefs;
     const next = { ...prefs, ...patch };
     setPrefs(next);
     if (patch.theme) setTheme(patch.theme);
@@ -30,7 +34,13 @@ export function PreferencesForm({ initial, preview }: { initial: Prefs; preview?
       startTransition(async () => {
         const { full_name: _ignored, ...rest } = patch;
         void _ignored;
-        await updatePreferences(preview ? { locale: rest.locale, numerals: rest.numerals } : rest);
+        const r = await settle(() => updatePreferences(preview ? { locale: rest.locale, numerals: rest.numerals } : rest));
+        if (!r.ok) {
+          // not saved: show the choice as it still is
+          setPrefs(before);
+          if (patch.theme) setTheme(before.theme);
+          return void toast.error(failure(r.error) ?? tc("error"));
+        }
         router.refresh();
       });
     }
@@ -39,11 +49,11 @@ export function PreferencesForm({ initial, preview }: { initial: Prefs; preview?
   const saveName = () => {
     if (preview) return toast(tc("saved"));
     startTransition(async () => {
-      const r = await updatePreferences({ full_name: prefs.full_name ?? "" });
+      const r = await settle(() => updatePreferences({ full_name: prefs.full_name ?? "" }));
       if (r.ok) {
         toast.success(tc("saved"));
         router.refresh();
-      } else toast.error(tc("error"));
+      } else toast.error(failure(r.error) ?? tc("error"));
     });
   };
 

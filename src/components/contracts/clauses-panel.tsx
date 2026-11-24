@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import type { ActionResult } from "@/lib/actions";
 import type { ContractTermsConfig } from "@/lib/contracts/terms";
 import { ClausesEditor } from "./clauses-editor";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 /** Settings → contract clauses (company template), or one contract's clauses before acceptance. */
 export function ClausesPanel({
@@ -21,6 +23,7 @@ export function ClausesPanel({
 }) {
   const t = useTranslations("clauses");
   const tc = useTranslations("common");
+  const failure = useFailureText();
   const router = useRouter();
   const [terms, setTerms] = React.useState<ContractTermsConfig>(initial);
   const [pending, start] = React.useTransition();
@@ -39,11 +42,11 @@ export function ClausesPanel({
           onClick={() =>
             start(async () => {
               if (!save) return void toast(t("saved"));
-              const r = await save(terms);
+              const r = await settle(() => save(terms));
               if (r.ok) {
                 toast.success(t("saved"));
                 router.refresh();
-              } else toast.error(tc("error"));
+              } else toast.error(failure(r.error) ?? tc("error"));
             })
           }
         >

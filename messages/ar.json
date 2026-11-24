@@ -252,7 +252,24 @@
     "pvStage2": "المعجون",
     "pvStage3": "الدهان النهائي",
     "pvInProgress": "جارٍ",
-    "pvConfirm": "تأكيد استلام المرحلة"
+    "pvConfirm": "تأكيد استلام المرحلة",
+    "linkedEmployee": "الموظف المرتبط:",
+    "employeeLinked": "هذا الموظف له دخول للنظام من قبل",
+    "giveAccessTitle": "اعطِ {name} دخول للنظام",
+    "giveAccessHint": "نرسل دعوة لجواله؛ أول ما يدخل برقمه يرتبط حسابه بملفه.",
+    "linkEmployee": "اربط الدعوة بالموظف «{name}»",
+    "linkEmployeeHint": "الرقم مسجّل لموظف ما عنده دخول",
+    "customiseLater": "تقدر تخصّص صلاحياته بعد ما يقبل الدعوة من صفحة الأعضاء:",
+    "giveAccess": "إرسال الدعوة",
+    "alreadyMember": "هذا الرقم عضو — عدّل دوره من صفحة الأعضاء",
+    "memberLinkedElsewhere": "هذا الرقم لعضو مرتبط بموظف آخر",
+    "notEmployeePhone": "رقم الدعوة لازم يكون رقم الموظف نفسه — عدّله من ملفه إن تغيّر",
+    "linkToEmployee": "ربط بالموظف «{name}»",
+    "unlinkEmployee": "فك الربط بالموظف",
+    "unlinked": "فكّينا الربط — تقدر تدعوه من جديد",
+    "linkedDone": "ربطنا الحساب بملف الموظف",
+    "phoneFromRecord": "الرقم من ملف الموظف — عدّله من ملفه إن تغيّر",
+    "exitActive": "خروج نهائي — أوقف الحساب"
   },
   "audit": {
     "insert": "إنشاء",
@@ -562,7 +579,19 @@
     "job_tiler": "مبلّط",
     "job_supervisor": "مشرف",
     "job_driver": "سائق",
-    "job_labourer": "عامل"
+    "job_labourer": "عامل",
+    "hasAccess": "له دخول للنظام ({role})",
+    "accessPending": "دعوة معلّقة ({role})",
+    "cancelInvite": "إلغاء الدعوة",
+    "accessCancelled": "ألغينا الدعوة",
+    "accessRemoved": "حسابه ما عاد عضواً",
+    "giveAccess": "اعطه دخول للنظام",
+    "suspendedAccess": "حسابه موقوف ({role})",
+    "exitActive": "خروج نهائي — أوقف الحساب",
+    "memberSamePhone": "عضو بنفس الرقم ({role})",
+    "linkMember": "اربطه بملفه",
+    "unlink": "فك الربط",
+    "pendingPhoneHint": "تغيير الجوال يلغي دعوة الدخول المعلّقة"
   },
   "errors": {
     "duplicate": "هذا العنصر موجود مسبقاً",
@@ -607,7 +636,10 @@
     "agreementClosed": "الاتفاقية مغلقة — لا يُسجَّل عليها عمل",
     "scheduleInvalid": "جدول الدفعات غير صحيح — راجع المسميات والنسب والمواعيد",
     "addendumNotAccepted": "الدفعة تُسجَّل بعد موافقة العميل على الملحق",
-    "noPaymentSchedule": "العقد ما له جدول دفعات — احفظ الدفعات أولاً"
+    "noPaymentSchedule": "العقد ما له جدول دفعات — احفظ الدفعات أولاً",
+    "connection": "ما وصل الطلب — تأكد من الاتصال وحاول مرة ثانية. اللي كتبته باقٍ ما راح.",
+    "appUpdated": "تحدّث التطبيق من فتحت الصفحة — حدّث الصفحة ثم أعد المحاولة.",
+    "sendLater": "تعذّر الإرسال الحين — اللي كتبته باقٍ، حاول مرة ثانية بعد قليل."
   },
   "engine": {
     "emptyTitle": "ابدأ كتالوج التسعير",

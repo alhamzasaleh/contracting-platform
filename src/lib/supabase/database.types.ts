@@ -68,6 +68,8 @@ export type InvitationRow = Timestamps & {
   accepted_by: string | null;
   revoked_at: string | null;
   created_by: string | null;
+  /** the invitation was made for this employee (linked to the account on acceptance) */
+  employee_id?: string | null;
 };
 
 export type AuditRow = Timestamps & {
@@ -222,6 +224,8 @@ export type EmployeeRow = OrgRow & Upd & {
   iban: string | null;
   status: "active" | "on_leave" | "final_exit";
   notes: string | null;
+  /** the employee's sign-in account — set only by the database when his invitation is accepted */
+  user_id?: string | null;
 };
 
 export type EmployeeCostItemRow = OrgRow & Upd & {
@@ -872,6 +876,12 @@ export type Database = {
       portal_add_note: { Args: { p_number: string; p_token: string; p_stage: string | null; p_body: string; p_photos: string[] }; Returns: string | null };
       submit_purchase: { Args: { p_id: string }; Returns: string };
       move_stock: { Args: { p_item: string; p_quantity: number; p_from: string | null; p_to: string | null; p_note?: string | null }; Returns: string };
+      member_employee_links: {
+        Args: { p_org: string };
+        Returns: { employee_id: string; full_name: string; job_title: string | null; phone: string | null; user_id: string | null; status: "active" | "on_leave" | "final_exit" }[];
+      };
+      link_member_employee: { Args: { p_employee: string; p_user: string }; Returns: undefined };
+      unlink_employee_account: { Args: { p_employee: string }; Returns: undefined };
       schedule_roster: { Args: { p_org: string }; Returns: { id: string; full_name: string; job_title: string | null }[] };
       portal_view: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_accept: { Args: { p_number: string; p_token: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string; p_version?: number | null }; Returns: boolean };

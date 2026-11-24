@@ -23,6 +23,7 @@ import type { PurchaseStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn, ltr } from "@/lib/utils";
 import { projectHref } from "@/lib/finance";
+import { settle } from "@/lib/client/action";
 
 const TONE: Record<PurchaseStatus, "neutral" | "primary" | "success" | "danger" | "warning"> = {
   draft: "neutral",
@@ -160,7 +161,7 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
     fd.set("file", small);
     fd.set("ai", form.aiEnabled ? "1" : "0");
     const local = small.type.startsWith("image/") ? URL.createObjectURL(small) : null;
-    const r = await actions.upload(fd);
+    const r = await settle(() => actions.upload(fd));
     setReading(false);
     if (!r.ok) return setAiNote(errorText(r.error));
     setAttachment({ path: r.data!.path, preview: local, pdf: small.type === "application/pdf" });

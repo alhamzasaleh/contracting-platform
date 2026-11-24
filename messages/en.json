@@ -252,7 +252,24 @@
     "pvStage2": "Putty",
     "pvStage3": "Final coat",
     "pvInProgress": "In progress",
-    "pvConfirm": "Confirm stage handover"
+    "pvConfirm": "Confirm stage handover",
+    "linkedEmployee": "Linked employee:",
+    "employeeLinked": "This employee already has access",
+    "giveAccessTitle": "Give {name} access",
+    "giveAccessHint": "We send an invitation to his phone; when he signs in with it, his account is linked to his record.",
+    "linkEmployee": "Link the invitation to employee “{name}”",
+    "linkEmployeeHint": "This number belongs to an employee without access",
+    "customiseLater": "Customise his permissions once he accepts, on the members page:",
+    "giveAccess": "Send invitation",
+    "alreadyMember": "This number is already a member — change his role on the members page",
+    "memberLinkedElsewhere": "This number belongs to a member linked to another employee",
+    "notEmployeePhone": "The invitation must go to the employee's own number — change it on his record if it changed",
+    "linkToEmployee": "Link to employee “{name}”",
+    "unlinkEmployee": "Unlink from employee",
+    "unlinked": "Unlinked — you can invite him again",
+    "linkedDone": "Account linked to the employee's record",
+    "phoneFromRecord": "The number comes from the employee's record — change it there if it changed",
+    "exitActive": "Final exit — suspend the account"
   },
   "audit": {
     "insert": "Created",
@@ -562,7 +579,19 @@
     "job_tiler": "Tiler",
     "job_supervisor": "Supervisor",
     "job_driver": "Driver",
-    "job_labourer": "Labourer"
+    "job_labourer": "Labourer",
+    "hasAccess": "Has access ({role})",
+    "accessPending": "Invitation pending ({role})",
+    "cancelInvite": "Cancel invitation",
+    "accessCancelled": "Invitation cancelled",
+    "accessRemoved": "His account is no longer a member",
+    "giveAccess": "Give access",
+    "suspendedAccess": "Account suspended ({role})",
+    "exitActive": "Final exit — suspend the account",
+    "memberSamePhone": "A member has this number ({role})",
+    "linkMember": "Link to his record",
+    "unlink": "Unlink",
+    "pendingPhoneHint": "Changing the phone cancels the pending sign-in invitation"
   },
   "errors": {
     "duplicate": "This item already exists",
@@ -607,7 +636,10 @@
     "agreementClosed": "The agreement is closed — no work can be recorded on it",
     "scheduleInvalid": "The payment schedule isn't valid — check the labels, percentages and due events",
     "addendumNotAccepted": "Payments are recorded once the client accepts the addendum",
-    "noPaymentSchedule": "The contract has no payment schedule — save the payments first"
+    "noPaymentSchedule": "The contract has no payment schedule — save the payments first",
+    "connection": "The request didn't get through — check your connection and try again. What you typed is still here.",
+    "appUpdated": "The app was updated since you opened this page — refresh the page, then try again.",
+    "sendLater": "Couldn't send right now — what you entered is still here; try again in a moment."
   },
   "engine": {
     "emptyTitle": "Start the pricing catalogue",

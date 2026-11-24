@@ -18,6 +18,8 @@ import { Switch } from "@/components/ui/switch";
 import type { QoyodPageData } from "@/lib/data/qoyod";
 import type { QoyodOptions } from "@/lib/qoyod/client";
 import { waitsForApproved } from "@/lib/qoyod/payloads";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 const SERVICES = ["gypsum", "interior", "exterior"] as const;
 const num = (v: string) => (v ? Number(v) : null);
@@ -27,6 +29,7 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
   const t = useTranslations("qoyod");
   const tc = useTranslations("common");
   const te = useTranslations("errors");
+  const failure = useFailureText();
   const router = useRouter();
   const { fmt } = useFormatter();
   const [pending, startTransition] = React.useTransition();
@@ -43,10 +46,10 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
   React.useEffect(() => {
     if (preview || !connected || options) return;
     let live = true;
-    void loadQoyodOptions().then((r) => {
+    void settle(loadQoyodOptions).then((r) => {
       if (!live) return;
       if (r.ok && r.data) setOptions(r.data);
-      else if (!r.ok) setOptionsError(err(r.error));
+      else if (!r.ok) setOptionsError(failure(r.error) ?? err(r.error));
     });
     return () => {
       live = false;
@@ -57,25 +60,25 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, okMsg?: string) => {
     if (preview) return void toast(tc("saved"));
     startTransition(async () => {
-      const r = await fn();
+      const r = await settle(fn);
       if (r.ok) {
         if (okMsg) toast.success(okMsg);
         router.refresh();
-      } else toast.error(err(r.error ?? "error"));
+      } else toast.error(failure(r.error ?? "error") ?? err(r.error ?? "error"));
     });
   };
 
   const connect = () => {
     if (preview) return void toast(tc("saved"));
     startTransition(async () => {
-      const r = await saveQoyodKey({ key });
+      const r = await settle(() => saveQoyodKey({ key }));
       if (r.ok) {
         toast.success(t("connected"));
         setOptions(r.data ?? null);
         setKey("");
         setChangingKey(false);
         router.refresh();
-      } else toast.error(err(r.error));
+      } else toast.error(failure(r.error) ?? err(r.error));
     });
   };
 

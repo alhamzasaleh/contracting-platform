@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { deviceName } from "@/lib/client/device";
 import { claimDevice, enableDevice } from "@/lib/client/push-device";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 type State = "loading" | "unsupported" | "ios" | "denied" | "off" | "on";
 
@@ -27,6 +29,7 @@ async function registration(): Promise<ServiceWorkerRegistration> {
 export function DevicePush({ publicKey, devices, preview }: { publicKey: string | null; devices: number; preview?: boolean }) {
   const t = useTranslations("notify");
   const tc = useTranslations("common");
+  const failure = useFailureText();
   const [state, setState] = React.useState<State>("loading");
   const [busy, setBusy] = React.useState(false);
 
@@ -105,10 +108,10 @@ export function DevicePush({ publicKey, devices, preview }: { publicKey: string 
   const test = async () => {
     if (preview) return toast(t("deviceTestSent"));
     setBusy(true);
-    const r = await sendPushTest({ text: t("testText") });
+    const r = await settle(() => sendPushTest({ text: t("testText") }));
     setBusy(false);
     if (r.ok) toast.success(t("deviceTestSent"));
-    else toast.error(tc("error"));
+    else toast.error(failure(r.error) ?? tc("error"));
   };
 
   return (

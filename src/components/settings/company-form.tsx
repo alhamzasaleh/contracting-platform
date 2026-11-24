@@ -8,6 +8,8 @@ import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
 import type { CompanyInput } from "@/lib/validation/company";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 export type CompanyValues = {
   name: string;
@@ -32,6 +34,7 @@ export function CompanyForm({
   onSave?: (input: CompanyInput) => Promise<ActionResult>;
 }) {
   const t = useTranslations();
+  const failure = useFailureText();
   const [pending, startTransition] = React.useTransition();
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [dirty, setDirty] = React.useState(false);
@@ -52,14 +55,14 @@ export function CompanyForm({
       ["name", "legal_name", "cr_number", "vat_number", "phone", "email", "city", "address", "signatory_name", "signatory_title"].map((k) => [k, String(fd.get(k) ?? "")]),
     ) as CompanyInput;
     startTransition(async () => {
-      const r = await onSave(input);
+      const r = await settle(() => onSave(input));
       if (r.ok) {
         setErrors({});
         setDirty(false);
         toast.success(t("common.saved"));
       } else {
         setErrors(r.fieldErrors ?? {});
-        if (!r.fieldErrors) toast.error(r.error === "noAccess" ? t("common.noAccess") : t("common.error"));
+        if (!r.fieldErrors) toast.error(failure(r.error) ?? (r.error === "noAccess" ? t("common.noAccess") : t.has(`errors.${r.error}`) ? t(`errors.${r.error}`) : t("common.error")));
       }
     });
   };
@@ -78,8 +81,16 @@ export function CompanyForm({
     </Field>
   );
 
+  // onSubmit, not a form action: React resets a form after its action, which would wipe what was typed when saving fails
   return (
-    <form action={submit} onChange={() => setDirty(true)} noValidate>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit(new FormData(e.currentTarget));
+      }}
+      onChange={() => setDirty(true)}
+      noValidate
+    >
       <Card className="@container">
         <CardHeader>
           <CardTitle>{t("settings.companyTitle")}</CardTitle>

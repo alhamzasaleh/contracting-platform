@@ -15,6 +15,8 @@ import { contrastRatio, deriveTheme, isHex } from "@/lib/brand/color";
 import { extractPalette } from "@/lib/brand/extract";
 import { LOGO_MAX_BYTES, LOGO_TYPES } from "@/lib/validation/company";
 import { cn } from "@/lib/utils";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 type Brand = { primary: string; accent: string | null; source: "logo" | "manual" | "default" };
 
@@ -56,6 +58,7 @@ export function BrandingEditor({
   onRemoveLogo?: () => Promise<ActionResult>;
 }) {
   const t = useTranslations();
+  const failure = useFailureText();
   const router = useRouter();
   const [brand, setBrand] = React.useState<Brand>(initialBrand);
   const [file, setFile] = React.useState<File | null>(null);
@@ -103,13 +106,13 @@ export function BrandingEditor({
     fd.set("source", brand.source);
     if (file) fd.set("logo", file);
     startTransition(async () => {
-      const r = await onSave(fd);
+      const r = await settle(() => onSave(fd));
       if (r.ok) {
         toast.success(t("common.saved"));
         setFile(null);
         router.refresh();
       } else {
-        toast.error(r.error === "noAccess" ? t("common.noAccess") : r.error === "badType" || r.error === "tooLarge" ? t("settings.logoTypes") : t("common.error"));
+        toast.error(failure(r.error) ?? (r.error === "noAccess" ? t("common.noAccess") : r.error === "badType" || r.error === "tooLarge" ? t("settings.logoTypes") : t("common.error")));
       }
     });
   };
@@ -117,12 +120,12 @@ export function BrandingEditor({
   const remove = () => {
     if (!onRemoveLogo) return toast(t("preview.banner"));
     startTransition(async () => {
-      const r = await onRemoveLogo();
+      const r = await settle(onRemoveLogo);
       if (r.ok) {
         setLogoUrl(null);
         setFile(null);
         router.refresh();
-      } else toast.error(t("common.error"));
+      } else toast.error(failure(r.error) ?? t("common.error"));
     });
   };
 

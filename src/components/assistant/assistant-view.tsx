@@ -8,6 +8,8 @@ import { Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
 import type { AssistantAnswer } from "@/lib/ai/assistant";
 import { cn } from "@/lib/utils";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 type Msg = { role: "user"; text: string } | { role: "assistant"; text: string; answer?: AssistantAnswer; error?: boolean };
 type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start(): void; stop(): void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
@@ -23,6 +25,7 @@ function speechRecognition(): (new () => Recognition) | null {
 /** Ask about your own numbers by text or voice; answers are read-only summaries with links to the details. */
 export function AssistantView({ ready, ask, base = "", sample, compact, onNavigate }: { ready: boolean; ask?: (i: unknown) => Promise<ActionResult<AssistantAnswer>>; base?: string; sample?: Msg[]; compact?: boolean; onNavigate?: () => void }) {
   const t = useTranslations("assistant");
+  const failure = useFailureText();
   const locale = useLocale();
   const [msgs, setMsgs] = React.useState<Msg[]>(sample ?? []);
   const [q, setQ] = React.useState("");
@@ -41,9 +44,9 @@ export function AssistantView({ ready, ask, base = "", sample, compact, onNaviga
     setMsgs((m) => [...m, { role: "user", text: question }]);
     setQ("");
     start(async () => {
-      const r = await ask({ question, history });
+      const r = await settle(() => ask({ question, history }));
       if (r.ok && r.data) setMsgs((m) => [...m, { role: "assistant", text: r.data!.answer, answer: r.data }]);
-      else setMsgs((m) => [...m, { role: "assistant", error: true, text: t.has(`e_${r.ok ? "aiFailed" : r.error}`) ? t(`e_${r.ok ? "aiFailed" : r.error}`) : t("e_aiFailed") }]);
+      else setMsgs((m) => [...m, { role: "assistant", error: true, text: (!r.ok && failure(r.error)) || (t.has(`e_${r.ok ? "aiFailed" : r.error}`) ? t(`e_${r.ok ? "aiFailed" : r.error}`) : t("e_aiFailed")) }]);
     });
   };
 

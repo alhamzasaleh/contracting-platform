@@ -20,6 +20,8 @@ import type { MaintenanceItem, MaintenancePageData } from "@/lib/data/maintenanc
 import { companyPaidRepairs } from "@/lib/finance";
 import type { MaintenanceStatus } from "@/lib/supabase/database.types";
 import { ltr } from "@/lib/utils";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 type Actions = { update: (i: unknown) => Promise<ActionResult>; create: (i: unknown) => Promise<ActionResult> };
 const STATUSES: MaintenanceStatus[] = ["open", "in_progress", "resolved", "closed", "rejected"];
@@ -119,6 +121,7 @@ function RequestCard({ r, data, open, actions, base }: { r: MaintenanceItem; dat
   const t = useTranslations("maintenance");
   const tw = useTranslations("wa");
   const tc = useTranslations("common");
+  const failure = useFailureText();
   const { fmt } = useFormatter();
   const router = useRouter();
   const [edit, setEdit] = React.useState(open);
@@ -127,12 +130,12 @@ function RequestCard({ r, data, open, actions, base }: { r: MaintenanceItem; dat
   const save = () =>
     start(async () => {
       if (!actions) return void toast(tc("saved"));
-      const res = await actions.update({ id: r.id, status: v.status, assigned_to: v.assigned_to, covered: v.covered, cost: Number(v.cost || 0), reply: v.reply || null, internal_note: v.internal_note || null });
+      const res = await settle(() => actions.update({ id: r.id, status: v.status, assigned_to: v.assigned_to, covered: v.covered, cost: Number(v.cost || 0), reply: v.reply || null, internal_note: v.internal_note || null }));
       if (res.ok) {
         toast.success(tc("saved"));
         setEdit(false);
         router.refresh();
-      } else toast.error(tc("error"));
+      } else toast.error(failure(res.error) ?? tc("error"));
     });
   const assignee = data.members.find((m) => m.id === r.assigned_to)?.name;
   return (
@@ -242,6 +245,7 @@ function RequestCard({ r, data, open, actions, base }: { r: MaintenanceItem; dat
 function NewRequest({ warranties, create }: { warranties: MaintenancePageData["warranties"]; create: Actions["create"] }) {
   const t = useTranslations("maintenance");
   const tc = useTranslations("common");
+  const failure = useFailureText();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [contract, setContract] = React.useState(warranties[0]?.number ?? "");
@@ -271,13 +275,13 @@ function NewRequest({ warranties, create }: { warranties: MaintenancePageData["w
           disabled={!body.trim() || !contract}
           onClick={() =>
             start(async () => {
-              const r = await create({ contract, body: body.trim() });
+              const r = await settle(() => create({ contract, body: body.trim() }));
               if (r.ok) {
                 toast.success(tc("saved"));
                 setBody("");
                 setOpen(false);
                 router.refresh();
-              } else toast.error(tc("error"));
+              } else toast.error(failure(r.error) ?? tc("error"));
             })
           }
         >

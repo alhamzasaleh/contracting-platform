@@ -17,6 +17,8 @@ import {
 import { Input } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
 import { cn } from "@/lib/utils";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 /**
  * Runs a server action with consistent feedback: success toast + refresh,
@@ -27,15 +29,18 @@ export function useActionRunner() {
   const t = useTranslations();
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
+  const failure = useFailureText();
 
   const errorText = React.useCallback(
     (key: string) => {
+      const lost = failure(key);
+      if (lost) return lost;
       if (key === "noAccess") return t("common.noAccess");
       if (key === "rateLimited") return t("common.rateLimited");
       if (t.has(`errors.${key}`)) return t(`errors.${key}`);
       return t("common.error");
     },
-    [t],
+    [t, failure],
   );
 
   const fieldText = React.useCallback(
@@ -59,7 +64,7 @@ export function useActionRunner() {
       return;
     }
     startTransition(async () => {
-      const r = await action();
+      const r = await settle(action);
       if (r.ok) {
         if (!opts.silent) toast.success(t("common.saved"));
         opts.onFieldErrors?.({});

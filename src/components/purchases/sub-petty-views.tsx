@@ -20,6 +20,7 @@ import type { InvoiceDraft, InvoiceFlag } from "@/lib/purchases";
 import { pettyBalance, subSummary, workAmount, workRemaining } from "@/lib/subcontractors";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn, ltr } from "@/lib/utils";
+import { settle } from "@/lib/client/action";
 
 type Act<T = undefined> = (i: Record<string, unknown>) => Promise<ActionResult<T>>;
 const num = (v: string) => (typeof toNumber(v) === "number" ? (toNumber(v) as number) : 0);
@@ -614,7 +615,7 @@ function EntryDialog({ account, kind, today, data, onClose, actions }: { account
     const fd = new FormData();
     fd.set("file", await shrinkImage(file));
     fd.set("ai", data.aiEnabled ? "1" : "0");
-    const r = await actions.upload(fd);
+    const r = await settle(() => actions.upload(fd));
     setReading(false);
     if (!r.ok) return setNote(errorText(r.error));
     setPath(r.data!.path);

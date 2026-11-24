@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import type { NotificationKind } from "@/lib/supabase/database.types";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 type Pref = { kind: NotificationKind; in_app: boolean; whatsapp: boolean; push: boolean };
 
@@ -15,6 +17,7 @@ type Pref = { kind: NotificationKind; in_app: boolean; whatsapp: boolean; push: 
 export function NotificationPrefsView({ prefs: initial, phone, whatsappReady, preview }: { prefs: Pref[]; phone: string | null; whatsappReady: boolean; preview?: boolean }) {
   const t = useTranslations("notify");
   const tc = useTranslations("common");
+  const failure = useFailureText();
   const { fmt } = useFormatter();
   const [prefs, setPrefs] = React.useState(initial);
   const [pending, startTransition] = React.useTransition();
@@ -23,9 +26,9 @@ export function NotificationPrefsView({ prefs: initial, phone, whatsappReady, pr
   const save = () => {
     if (preview) return toast(tc("saved"));
     startTransition(async () => {
-      const r = await saveNotificationPrefs({ prefs });
+      const r = await settle(() => saveNotificationPrefs({ prefs }));
       if (r.ok) toast.success(tc("saved"));
-      else toast.error(tc("error"));
+      else toast.error(failure(r.error) ?? tc("error"));
     });
   };
 

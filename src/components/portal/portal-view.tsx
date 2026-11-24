@@ -20,6 +20,8 @@ import { lastValidDay } from "@/lib/contracts";
 import { portalStep } from "@/lib/execution";
 import type { PortalData, PortalOption, PortalStage } from "@/lib/portal";
 import { cn } from "@/lib/utils";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 const STEPS = ["quote", "contract", "accepted", "work", "handover", "warranty"] as const;
 
@@ -111,6 +113,7 @@ export function PortalView({
   onConfirmMaintenance?: (i: Record<string, unknown>) => Promise<ActionResult>;
 }) {
   const t = useTranslations("portal");
+  const failure = useFailureText({ clientPage: true });
   const tc = useTranslations("common");
   const tp = useTranslations("pricing");
   const { fmt } = useFormatter();
@@ -140,11 +143,11 @@ export function PortalView({
       setError(null);
       if (!onAccept) return setDone(true);
       if (options.length && !picked) return setError(t("errChooseOption"));
-      const r = await onAccept({ number, token, name: name.trim(), agree, signature, ...(picked ? { version: picked.version } : {}) });
+      const r = await settle(() => onAccept({ number, token, name: name.trim(), agree, signature, ...(picked ? { version: picked.version } : {}) }));
       if (r.ok) {
         setDone(true);
         router.refresh();
-      } else setError(r.error === "rateLimited" ? t("errRate") : r.error === "chooseOption" ? t("errChooseOption") : r.error === "invalid" ? t("errInvalid") : t("errGeneric"));
+      } else setError(failure(r.error) ?? (r.error === "rateLimited" ? t("errRate") : r.error === "chooseOption" ? t("errChooseOption") : r.error === "invalid" ? t("errInvalid") : t("errGeneric")));
     });
 
   return (
@@ -361,6 +364,7 @@ function WorkProgress({ stages, clientName, number, token, onConfirm }: { stages
 
 function ConfirmStage({ stage, clientName, number, token, onConfirm }: { stage: PortalStage; clientName: string; number: string; token: string; onConfirm?: (i: Record<string, unknown>) => Promise<ActionResult> }) {
   const t = useTranslations("portal");
+  const failure = useFailureText({ clientPage: true });
   const router = useRouter();
   const [name, setName] = React.useState(clientName);
   const [signature, setSignature] = React.useState<string | null>(null);
@@ -382,9 +386,9 @@ function ConfirmStage({ stage, clientName, number, token, onConfirm }: { stage: 
           start(async () => {
             setError(null);
             if (!onConfirm) return;
-            const r = await onConfirm({ number, token, stage_id: stage.id, name: name.trim(), signature: needSig ? signature : null });
+            const r = await settle(() => onConfirm({ number, token, stage_id: stage.id, name: name.trim(), signature: needSig ? signature : null }));
             if (r.ok) router.refresh();
-            else setError(r.error === "rateLimited" ? t("errRate") : t("errGeneric"));
+            else setError(failure(r.error) ?? (r.error === "rateLimited" ? t("errRate") : t("errGeneric")));
           })
         }
       >
@@ -397,6 +401,7 @@ function ConfirmStage({ stage, clientName, number, token, onConfirm }: { stage: 
 /** The client's notes (with photos) during the work; the team's reply appears under each. */
 function ClientNotes({ data, number, token, onAdd }: { data: PortalData; number: string; token: string; onAdd?: (fd: FormData) => Promise<ActionResult> }) {
   const t = useTranslations("portal");
+  const failure = useFailureText({ clientPage: true });
   const { fmt } = useFormatter();
   const router = useRouter();
   const ex = data.execution!;
@@ -462,13 +467,13 @@ function ClientNotes({ data, number, token, onAdd }: { data: PortalData; number:
             fd.set("body", body.trim());
             if (stage) fd.set("stage_id", stage);
             files.forEach((f) => fd.append("photos", f.file));
-            const r = await onAdd(fd);
+            const r = await settle(() => onAdd(fd));
             if (r.ok) {
               setBody("");
               setFiles([]);
               setMsg({ ok: true, text: t("noteSent") });
               router.refresh();
-            } else setMsg({ ok: false, text: r.error === "rateLimited" ? t("errRate") : t("errGeneric") });
+            } else setMsg({ ok: false, text: failure(r.error) ?? (r.error === "rateLimited" ? t("errRate") : t("errGeneric")) });
           })
         }
       >
@@ -529,6 +534,7 @@ function Addenda({ list, clientName, number, token, onAccept }: { list: NonNulla
 
 function AcceptAddendum({ id, clientName, number, token, onAccept }: { id: string; clientName: string; number: string; token: string; onAccept?: (i: Record<string, unknown>) => Promise<ActionResult> }) {
   const t = useTranslations("portal");
+  const failure = useFailureText({ clientPage: true });
   const router = useRouter();
   const [name, setName] = React.useState(clientName);
   const [agree, setAgree] = React.useState(false);
@@ -554,9 +560,9 @@ function AcceptAddendum({ id, clientName, number, token, onAccept }: { id: strin
           start(async () => {
             setError(null);
             if (!onAccept) return;
-            const r = await onAccept({ number, token, addendum_id: id, name: name.trim(), agree, signature });
+            const r = await settle(() => onAccept({ number, token, addendum_id: id, name: name.trim(), agree, signature }));
             if (r.ok) router.refresh();
-            else setError(r.error === "rateLimited" ? t("errRate") : t("errGeneric"));
+            else setError(failure(r.error) ?? (r.error === "rateLimited" ? t("errRate") : t("errGeneric")));
           })
         }
       >

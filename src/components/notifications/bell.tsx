@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { NotificationItem } from "@/lib/notifications";
 import { cn, ltr } from "@/lib/utils";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 type Data = { items: NotificationItem[]; unread: number; canDecide: boolean };
 
@@ -19,6 +21,7 @@ type Data = { items: NotificationItem[]; unread: number; canDecide: boolean };
 export function NotificationBell({ data, base, preview }: { data: Data; base: string; preview: boolean }) {
   const t = useTranslations("notify");
   const tc = useTranslations("common");
+  const failure = useFailureText();
   const router = useRouter();
   const { fmt } = useFormatter();
   const [items, setItems] = React.useState(data.items);
@@ -34,19 +37,20 @@ export function NotificationBell({ data, base, preview }: { data: Data; base: st
   const markRead = (id?: string) => {
     setItems((xs) => xs.map((x) => (!id || x.id === id ? { ...x, read: true } : x)));
     setUnread((n) => (id ? Math.max(0, n - (items.find((x) => x.id === id && !x.read) ? 1 : 0)) : 0));
-    if (!preview) void markNotificationsRead(id ? { id } : {});
+    // best effort: the bell is already updated here; a failed call is retried with the next read
+    if (!preview) void settle(() => markNotificationsRead(id ? { id } : {}));
   };
 
   const decide = (n: NotificationItem, decision: "approved" | "rejected") => {
     const approval_id = String(n.params.approval_id ?? "");
     if (preview) return toast(tc("saved"));
     startTransition(async () => {
-      const r = await decideFromDashboard({ approval_id, decision });
+      const r = await settle(() => decideFromDashboard({ approval_id, decision }));
       if (r.ok) {
         toast.success(decision === "approved" ? t("approved") : t("rejected"));
         markRead(n.id);
         router.refresh();
-      } else toast.error(tc("error"));
+      } else toast.error(failure(r.error) ?? tc("error"));
     });
   };
 

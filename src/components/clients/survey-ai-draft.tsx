@@ -12,6 +12,8 @@ import { shrinkImage } from "@/lib/client/image";
 import type { DraftRoom, cleanDraft } from "@/lib/survey/ai-draft";
 import { cn } from "@/lib/utils";
 import { useListSep } from "@/components/forms/form-kit";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 type Draft = ReturnType<typeof cleanDraft>;
 type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start(): void; stop(): void; onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
@@ -46,6 +48,7 @@ export function SurveyAiDraft({
 }) {
   const sep = useListSep();
   const t = useTranslations("survey");
+  const failure = useFailureText();
   const locale = useLocale();
   const { fmt } = useFormatter();
   const [open, setOpen] = React.useState(false);
@@ -102,8 +105,9 @@ export function SurveyAiDraft({
     fd.set("survey_id", surveyId);
     fd.set("text", text);
     photos.forEach((p) => fd.append("photos", p));
-    const r = await draft(fd);
+    const r = await settle(() => draft(fd));
     setBusy(false);
+    if (!r.ok && failure(r.error)) return toast.error(failure(r.error)!);
     if (!r.ok || !r.data) return toast.error(t.has(`ai_${r.ok ? "aiFailed" : r.error}`) ? t(`ai_${r.ok ? "aiFailed" : r.error}`) : t("ai_aiFailed"));
     setResult(r.data);
     setRows(r.data.rooms.map((x) => ({ ...x, pick: x.missing.every((m) => m === "height") })));
@@ -119,17 +123,20 @@ export function SurveyAiDraft({
     }
     setBusy(true);
     let added = 0;
+    let lost: string | null = null;
     for (const r of chosen) {
-      const res = await addRoom({
+      const res = await settle(() => addRoom({
         survey_id: surveyId, name: r.name, unit_label: r.unit_label, length_m: String(r.length_m), width_m: String(r.width_m), height_m: String(r.height_m),
         openings_m2: String(r.openings_m2), gypsum_ceiling: r.gypsum_ceiling, ceiling_board: r.ceiling_board, paint_walls: r.paint_walls,
         paint_ceiling: r.paint_ceiling, wall_zone: r.wall_zone,
-      });
+      }));
       if (res.ok) added++;
+      else if ((lost = failure(res.error))) break; // the connection is gone: stop and say so
     }
     setBusy(false);
     if (added === chosen.length) toast.success(t("aiAdded", { n: added }));
-    else toast.error(t("aiAddedSome", { n: added, total: chosen.length }));
+    else toast.error(lost ? `${t("aiAddedSome", { n: added, total: chosen.length })} ${lost}` : t("aiAddedSome", { n: added, total: chosen.length }));
+    if (lost) return; // keep the dialog and its rows to try again
     setOpen(false);
     reset();
     setText("");

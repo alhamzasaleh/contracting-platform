@@ -5,13 +5,17 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import * as React from "react";
+import { toast } from "sonner";
 import * as D from "@radix-ui/react-dialog";
 import { updatePreferences } from "@/app/actions/preferences";
 import { NAV } from "./nav";
 import type { ShellData } from "./types";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 export function CommandMenu({ data, open, onOpenChange }: { data: ShellData; open: boolean; onOpenChange: (v: boolean) => void }) {
   const t = useTranslations();
+  const failure = useFailureText();
   const router = useRouter();
   const locale = useLocale();
   const { resolvedTheme, setTheme } = useTheme();
@@ -75,7 +79,8 @@ export function CommandMenu({ data, open, onOpenChange }: { data: ShellData; ope
                 <Item
                   onSelect={() =>
                     run(async () => {
-                      await updatePreferences({ locale: locale === "ar" ? "en" : "ar" });
+                      const r = await settle(() => updatePreferences({ locale: locale === "ar" ? "en" : "ar" }));
+                      if (!r.ok) return void toast.error(failure(r.error) ?? t("common.error"));
                       router.refresh();
                     })
                   }

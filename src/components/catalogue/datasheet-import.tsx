@@ -10,6 +10,8 @@ import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
 import type { cleanDatasheet } from "@/lib/catalogue/datasheet";
 import type { ProductCategory } from "@/lib/supabase/database.types";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 type Draft = ReturnType<typeof cleanDatasheet>;
 export type DatasheetPrefill = { name: string; category: ProductCategory; packSize: number | null; coveragePerUnit: number | null };
@@ -17,6 +19,7 @@ export type DatasheetPrefill = { name: string; category: ProductCategory; packSi
 /** Upload a datasheet → AI draft → review → open the "new product" form pre-filled. */
 export function DatasheetImport({ read, onUse, sample }: { read?: (fd: FormData) => Promise<ActionResult<Draft>>; onUse: (p: DatasheetPrefill) => void; sample?: Draft }) {
   const t = useTranslations("engine");
+  const failure = useFailureText();
   const { fmt } = useFormatter();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -29,8 +32,9 @@ export function DatasheetImport({ read, onUse, sample }: { read?: (fd: FormData)
     const file = f.type.startsWith("image/") ? await shrinkImage(f) : f;
     const fd = new FormData();
     fd.set("file", file);
-    const r = await read(fd);
+    const r = await settle(() => read(fd));
     setBusy(false);
+    if (!r.ok && failure(r.error)) return toast.error(failure(r.error)!);
     if (!r.ok || !r.data) return toast.error(t.has(`ds_${r.ok ? "aiFailed" : r.error}`) ? t(`ds_${r.ok ? "aiFailed" : r.error}`) : t("ds_aiFailed"));
     setDraft(r.data);
   };

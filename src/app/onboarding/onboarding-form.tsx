@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { createOrganization } from "./actions";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 export function OnboardingForm({ defaultName }: { defaultName?: string | null }) {
   const t = useTranslations();
+  const failure = useFailureText();
   const [pending, startTransition] = React.useTransition();
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [formError, setFormError] = React.useState<string | null>(null);
@@ -17,19 +20,27 @@ export function OnboardingForm({ defaultName }: { defaultName?: string | null })
     setErrors({});
     setFormError(null);
     startTransition(async () => {
-      const r = await createOrganization({
+      const r = await settle(() => createOrganization({
         companyName: String(fd.get("companyName") ?? ""),
         fullName: String(fd.get("fullName") ?? ""),
-      });
+      }));
       if (r && !r.ok) {
         setErrors(r.fieldErrors ?? {});
-        if (!r.fieldErrors) setFormError(r.error === "closed" ? t("onboarding.closedBody") : t("common.error"));
+        if (!r.fieldErrors) setFormError(failure(r.error) ?? (r.error === "closed" ? t("onboarding.closedBody") : t.has(`errors.${r.error}`) ? t(`errors.${r.error}`) : t("common.error")));
       }
     });
   };
 
+  // onSubmit, not a form action: React resets a form after its action, which would wipe what was typed when saving fails
   return (
-    <form action={submit} className="flex flex-col gap-5" noValidate>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit(new FormData(e.currentTarget));
+      }}
+      className="flex flex-col gap-5"
+      noValidate
+    >
       <div>
         <h1 className="text-[28px] font-extrabold">{t("onboarding.title")}</h1>
         <p className="mt-2 text-[15px] text-muted-foreground">{t("onboarding.subtitle")}</p>

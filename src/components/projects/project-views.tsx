@@ -21,6 +21,8 @@ import type { ProjectDetail, ProjectListItem, StageView } from "@/lib/data/proje
 import { coordsFromMapLink, currentStage, distanceMeters, overallProgress } from "@/lib/execution";
 import type { StageStatus } from "@/lib/supabase/database.types";
 import { cn, ltr } from "@/lib/utils";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 const TONE: Record<StageStatus, "neutral" | "primary" | "warning" | "success"> = { pending: "neutral", in_progress: "primary", awaiting_client: "warning", confirmed: "success" };
 
@@ -362,6 +364,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
 function StageCard({ stage: s, open, onToggle, data, actions }: { stage: StageView; open: boolean; onToggle: () => void; data: ProjectDetail; actions?: ProjectActions }) {
   const tw = useTranslations("wa");
   const t = useTranslations("projects");
+  const failure = useFailureText();
   const { fmt } = useFormatter();
   const { run, pending } = useActionRunner();
   const [progress, setProgress] = React.useState(s.progress);
@@ -504,12 +507,12 @@ function StageCard({ stage: s, open, onToggle, data, actions }: { stage: StageVi
                     onClick={async () => {
                       if (!actions) return;
                       setDrafting(true);
-                      const r = await actions.draftReport({ stage_id: s.id });
+                      const r = await settle(() => actions.draftReport({ stage_id: s.id }));
                       setDrafting(false);
                       if (r.ok && r.data) {
                         setReport(r.data.text);
                         setAiUsed(true);
-                      } else setErr(t("aiFailed"));
+                      } else setErr((!r.ok && failure(r.error)) || t("aiFailed"));
                     }}
                   >
                     <Sparkles /> {t("aiDraft")}

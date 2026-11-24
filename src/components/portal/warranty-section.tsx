@@ -10,6 +10,8 @@ import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
 import type { PortalWarranty } from "@/lib/portal";
 import { cn } from "@/lib/utils";
+import { settle } from "@/lib/client/action";
+import { useFailureText } from "@/lib/client/failure-text";
 
 const TONE: Record<string, string> = {
   open: "bg-warning-soft", in_progress: "bg-info-soft text-info", resolved: "bg-primary-soft text-primary", closed: "bg-success-soft text-success", rejected: "bg-surface-sunken text-muted-foreground",
@@ -21,6 +23,7 @@ export function WarrantySection({ w, number, token, onAdd, onConfirm }: {
   onAdd?: (fd: FormData) => Promise<ActionResult>; onConfirm?: (i: Record<string, unknown>) => Promise<ActionResult>;
 }) {
   const t = useTranslations("warranty");
+  const failure = useFailureText({ clientPage: true });
   const { fmt } = useFormatter();
   const router = useRouter();
   const [body, setBody] = React.useState("");
@@ -48,21 +51,21 @@ export function WarrantySection({ w, number, token, onAdd, onConfirm }: {
       fd.set("token", token);
       fd.set("body", body.trim());
       files.forEach((f) => fd.append("photos", f.file));
-      const r = await onAdd(fd);
+      const r = await settle(() => onAdd(fd));
       if (r.ok) {
         setBody("");
         setFiles([]);
         setMsg({ ok: true, text: t("sent", { number: r.message ?? "" }) });
         router.refresh();
-      } else setMsg({ ok: false, text: r.error === "rateLimited" ? t("errRate") : r.error === "warrantyEnded" ? t("ended") : t("errGeneric") });
+      } else setMsg({ ok: false, text: failure(r.error) ?? (r.error === "rateLimited" ? t("errRate") : r.error === "warrantyEnded" ? t("ended") : t("errGeneric")) });
     });
 
   const confirm = (id: string) =>
     start(async () => {
       if (!onConfirm) return;
-      const r = await onConfirm({ number, token, request_id: id });
+      const r = await settle(() => onConfirm({ number, token, request_id: id }));
       if (r.ok) router.refresh();
-      else setMsg({ ok: false, text: t("errGeneric") });
+      else setMsg({ ok: false, text: failure(r.error) ?? t("errGeneric") });
     });
 
   return (
