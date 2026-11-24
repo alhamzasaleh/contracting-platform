@@ -45,12 +45,19 @@ export function ClausesEditor({ value, onChange }: { value: ContractTermsConfig;
 
   return (
     <div className="grid gap-4">
-      <p className="text-[13px] text-muted-foreground">
-        {tc("hint")} {tc("placeholders")}{" "}
-        {PLACEHOLDERS.map((p) => (
-          <code key={p} className="mx-0.5 rounded bg-surface-2 px-1 font-latin text-[12px]" dir="ltr">{`{${p}}`}</code>
-        ))}
-      </p>
+      <div className="grid gap-1.5 text-[13px] text-muted-foreground">
+        <p>
+          {tc("hint")} {tc("placeholders")}
+        </p>
+        {/* a wrapping list, not inline chips: "}{" between chips is no line-break opportunity in every Chromium build */}
+        <ul className="flex flex-wrap gap-1">
+          {PLACEHOLDERS.map((p) => (
+            <li key={p}>
+              <code className="rounded bg-surface-2 px-1 font-latin text-[12px]" dir="ltr">{`{${p}}`}</code>
+            </li>
+          ))}
+        </ul>
+      </div>
       <ol className="grid gap-2">
         {EDITABLE.map((key, i) => {
           const o = overrides[key];
