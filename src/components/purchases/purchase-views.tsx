@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
 import type { InventoryData, ItemRef, ProjectCost, PurchaseDetail, PurchaseForm, PurchaseListItem } from "@/lib/data/purchases";
-import { costStatus, lineAmount, mergeRows, purchaseTotals, type InvoiceDraft, type InvoiceFlag } from "@/lib/purchases";
+import { costStatus, lineAmount, mergeRows, pickStockItem, purchaseTotals, stillToAdd, type InvoiceDraft, type InvoiceFlag } from "@/lib/purchases";
 import type { PurchaseStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn, ltr } from "@/lib/utils";
@@ -93,6 +93,8 @@ type Row = {
   unclear?: boolean;
   /** catalogue product for a new stock item (calibration) */
   product?: string;
+  /** the stock item and product suggested from the quote's purchase list (the product only belongs to that item) */
+  suggested?: { item: string; product: string };
 };
 
 export type PurchaseActions = {
@@ -138,6 +140,8 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
   );
   const camera = React.useRef<HTMLInputElement>(null);
   const picker = React.useRef<HTMLInputElement>(null);
+  // what the quote list still has to add after the rows already in the form
+  const toAdd = quoteList ? stillToAdd(quoteList, rows) : [];
   const setRow = (k: number, patch: Partial<Row>) => setRows((r) => r.map((x) => (x.key === k ? { ...x, ...patch } : x)));
   const totals = purchaseTotals(rows.map((r) => ({ kind: r.kind, quantity: num(r.quantity), unit_price: num(r.unit_price) })), num(vat));
   const isUnclear = (f: string) => unclear.some((u) => u === f || u.startsWith(`${f}.`) || u.startsWith(`${f}[`));
@@ -324,18 +328,18 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                 type="button"
                 variant="secondary"
                 size="sm"
-                disabled={!quoteList.some((l) => l.remaining > 0)}
+                disabled={toAdd.length === 0}
                 onClick={() =>
-                  // added to the lines already there (e.g. read from the invoice); what was bought before is left out
+                  // added to the lines already there (e.g. read from the invoice); what was bought before
+                  // and what the form already holds are left out — pressing twice never doubles
                   setRows((current) =>
                     mergeRows(
                       current,
-                      quoteList
-                        .filter((l) => l.remaining > 0)
-                        .map((l) => ({
-                          key: ++rowKey, kind: "material" as const, item: l.item, newName: l.description, newUnit: l.unit, general: l.general,
-                          description: l.description, colour: l.colour, quantity: String(l.remaining), unit: l.unit, unit_price: String(l.unit_price), product: l.product_id ?? "",
-                        })),
+                      stillToAdd(quoteList, current).map((l) => ({
+                        key: ++rowKey, kind: "material" as const, item: l.item, newName: l.description, newUnit: l.unit, general: l.general,
+                        description: l.description, colour: l.colour, quantity: String(l.remaining), unit: l.unit, unit_price: String(l.unit_price), product: l.product_id ?? "",
+                        suggested: { item: l.item, product: l.product_id ?? "" },
+                      })),
                       (r) => !r.description.trim() && !num(r.unit_price) && (r.item === "new" || !r.item),
                     ),
                   )
@@ -369,14 +373,8 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                   <Field id={`pl-i-${ri}`} label={t("stockItem")}>
                     <NativeSelect
                       value={r.kind === "expense" ? "__expense" : r.item}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (v === "__expense") setRow(r.key, { kind: "expense", item: "" });
-                        else {
-                          const it = form.items.find((x) => x.id === v);
-                          setRow(r.key, { kind: "material", item: v, ...(it ? { unit: it.unit } : {}) });
-                        }
-                      }}
+                      // another item than the suggested one drops the suggested catalogue product
+                      onChange={(e) => setRow(r.key, pickStockItem(r, e.target.value, form.items))}
                     >
                       <option value="new">{t("newItem")}</option>
                       {form.items.map((it) => (

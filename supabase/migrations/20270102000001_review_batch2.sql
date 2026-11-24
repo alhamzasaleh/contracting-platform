@@ -1,7 +1,8 @@
 -- =============================================================================
 -- Review batch 2 (Nov 2026): connections & consistent numbers.
---   #9  a client-page link (new or reissued) lasts at least until the real
---       warranty end (+1 day) and the planned end incl. accepted addenda days.
+--   #9  a client-page link (new or reissued): before handover it lasts at least until
+--       the planned end incl. accepted addenda days; once handed over it ends exactly at
+--       the warranty end (+1 day); after the warranty no link can be issued.
 --   #12 additional works get an estimated cost (addendum_costs, costs.view) used by
 --       the over-budget / profit alerts; accepting one flags the project's
 --       subcontractor agreements for review (the addendum has no area to add).
@@ -16,7 +17,11 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
--- #9 Client-page link expiry floor
+-- #9 Client-page link expiry: the real warranty end decides once handed over
+--   before handover: at least start + duration + accepted addenda days + 30 days + warranty;
+--   handed over: exactly warranty_end + 1 day (Riyadh midnight), whatever staff asked for;
+--   warranty ended (warranty_end < today, Riyadh): no link — the client page is closed.
+--   Decided here (security definer), not by what the caller may read.
 -- ---------------------------------------------------------------------------
 create or replace function private.portal_link_floor()
 returns trigger
@@ -34,16 +39,43 @@ begin
   if c.id is null then
     return new;
   end if;
-  select coalesce(sum(a.extra_days), 0)::int into v_days from public.addenda a where a.contract_id = c.id and a.status = 'accepted';
-  -- planned: start + duration + accepted addenda days + 30 days grace + warranty
-  v_planned := ((c.start_date + c.duration_days + v_days + 30 + make_interval(months => c.warranty_months))::date)::timestamp at time zone 'Asia/Riyadh';
   v_end := private.warranty_end(c.id);
-  new.expires_at := greatest(new.expires_at, v_planned,
-    case when v_end is not null then ((v_end + 1)::timestamp at time zone 'Asia/Riyadh') end);
+  if v_end is not null then
+    if v_end < (now() at time zone 'Asia/Riyadh')::date then
+      raise exception 'warranty_ended' using errcode = 'P0001', hint = 'the warranty has ended: the client page is closed';
+    end if;
+    new.expires_at := (v_end + 1)::timestamp at time zone 'Asia/Riyadh';
+    return new;
+  end if;
+  select coalesce(sum(a.extra_days), 0)::int into v_days from public.addenda a where a.contract_id = c.id and a.status = 'accepted';
+  v_planned := ((c.start_date + c.duration_days + v_days + 30 + make_interval(months => c.warranty_months))::date)::timestamp at time zone 'Asia/Riyadh';
+  new.expires_at := greatest(new.expires_at, v_planned);
   return new;
 end;
 $$;
 revoke all on function private.portal_link_floor() from public;
+-- On final handover the open links end exactly when the warranty does (a longer planned
+-- expiry must not keep the client page open after the warranty).
+create or replace function private.extend_link_on_handover()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_end date;
+begin
+  if new.is_final and new.status = 'confirmed' and old.status is distinct from 'confirmed' then
+    v_end := private.warranty_end(new.contract_id);
+    if v_end is not null then
+      update public.client_portal_links
+      set expires_at = ((v_end + 1)::timestamp at time zone 'Asia/Riyadh')
+      where contract_id = new.contract_id and revoked_at is null;
+    end if;
+  end if;
+  return null;
+end;
+$$;
 -- fires after client_portal_links_guard (alphabetical), so the guard sees what staff asked for
 create trigger client_portal_links_set_expiry before insert on public.client_portal_links
   for each row execute function private.portal_link_floor();

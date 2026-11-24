@@ -129,7 +129,7 @@ export async function sendContract(input: unknown): Promise<ActionResult<{ url: 
   const supabase = await createClient();
   const { data: c } = await supabase.from("contracts").select("id, number, status, start_date, duration_days, warranty_months").eq("id", parsed.data.id).eq("organization_id", session.organization.id).maybeSingle();
   if (!c || c.status === "cancelled") return { ok: false, error: "invalid" };
-  // the client page closes when the warranty ends: no new link after that
+  // the client page closes when the warranty ends: no new link after that (the database enforces it too)
   if (c.status === "accepted") {
     const end = await loadWarrantyEnd(session, c.id);
     if (portalLinkState(c.status, end, new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" })).warrantyEnded) return { ok: false, error: "warrantyEnded" };
@@ -138,13 +138,21 @@ export async function sendContract(input: unknown): Promise<ActionResult<{ url: 
   const token = randomBytes(32).toString("base64url");
   const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
   const now = new Date().toISOString();
-  const { error: e1 } = await supabase.from("client_portal_links").update({ revoked_at: now }).eq("contract_id", c.id).is("revoked_at", null);
+  // the new link first: if the database refuses it (warranty ended) the current link stays as it is
+  const { data: link, error: e2 } = await supabase
+    .from("client_portal_links")
+    .insert({
+      organization_id: session.organization.id, contract_id: c.id, token_hash: tokenHash,
+      expires_at: linkExpiry(c.start_date, c.duration_days, c.warranty_months).toISOString(),
+    })
+    .select("id")
+    .single();
+  // the database closes the client page once the warranty has ended, whatever the caller may see
+  if (e2?.message?.includes("warranty_ended")) return { ok: false, error: "warrantyEnded" };
+  if (e2 || !link) return fail(e2, "link");
+  // then the older links are revoked
+  const { error: e1 } = await supabase.from("client_portal_links").update({ revoked_at: now }).eq("contract_id", c.id).is("revoked_at", null).neq("id", link.id);
   if (e1) return fail(e1, "revoke");
-  const { error: e2 } = await supabase.from("client_portal_links").insert({
-    organization_id: session.organization.id, contract_id: c.id, token_hash: tokenHash,
-    expires_at: linkExpiry(c.start_date, c.duration_days, c.warranty_months).toISOString(),
-  });
-  if (e2) return fail(e2, "link");
   if (c.status === "draft") {
     const { error } = await supabase.from("contracts").update({ status: "sent" }).eq("id", c.id);
     if (error) return fail(error, "send");

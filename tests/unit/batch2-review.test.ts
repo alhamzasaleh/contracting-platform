@@ -132,13 +132,19 @@ describe("#9 the priced team drives the earliest start", () => {
 
 describe("G2 purchases from the quote's purchase list", () => {
   const line = (o: Partial<ListLine>): ListLine => ({ description: "x", colour: "", quantity: 4, unit: "pack", unit_price: 10, item: "new", product_id: null, general: true, ...o });
-  it("subtracts what was already bought for the project (by stock item, else by catalogue product, never twice)", () => {
-    const lines = [line({ description: "معجون", item: "i1", quantity: 10 }), line({ description: "دهان 18", product_id: "p1", quantity: 3 }), line({ description: "دهان 4", product_id: "p1", quantity: 2 }), line({ description: "شريط", quantity: 5 })];
-    const bought = [{ item_id: "i1", product_id: null, unit: "pack", quantity: 4 }, { item_id: "i9", product_id: "p1", unit: "pack", quantity: 4 }];
+  it("subtracts what was already bought for the project (by stock item, else by catalogue product of a single pack size, never twice)", () => {
+    const lines = [line({ description: "معجون", item: "i1", quantity: 10 }), line({ description: "دهان 18", product_id: "p1", quantity: 3 }), line({ description: "دهان 4", product_id: "p1", quantity: 2 }), line({ description: "برايمر", product_id: "p2", quantity: 3 }), line({ description: "شريط", quantity: 5 })];
+    const bought = [
+      { item_id: "i1", product_id: null, colour: null, unit: "pack", quantity: 4 },
+      { item_id: "i9", product_id: "p1", colour: null, unit: "pack", quantity: 4 },
+      { item_id: "i8", product_id: "p2", colour: null, unit: "pack", quantity: 4 },
+    ];
+    // two pack sizes of p1: a bought line can't tell which size it is → counted for neither (sizes never mix)
     expect(markBought(lines, bought).map((l) => [l.description, l.bought, l.remaining])).toEqual([
       ["معجون", 4, 6],
-      ["دهان 18", 3, 0],
-      ["دهان 4", 1, 1],
+      ["دهان 18", 0, 3],
+      ["دهان 4", 0, 2],
+      ["برايمر", 3, 0],
       ["شريط", 0, 5],
     ]);
   });

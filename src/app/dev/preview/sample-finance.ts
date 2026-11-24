@@ -45,4 +45,5 @@ export const SAMPLE_FINANCE: OwnerFinance = {
   teamCost: { monthly: 28500, allocated: 16200, toDate: 21900, unabsorbed: 5700 },
   canManage: true,
   canDecide: true,
+  links: { contracts: true, projects: true, costs: true },
 };

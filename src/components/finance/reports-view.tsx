@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import type { ActionResult } from "@/lib/actions";
 import type { OwnerFinance, PaymentRow } from "@/lib/data/finance";
+import { projectHref } from "@/lib/finance";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn, ltr } from "@/lib/utils";
 import { WhatsAppButton } from "@/components/whatsapp-button";
@@ -57,9 +58,9 @@ function Collections({ f, actions, base }: { f: OwnerFinance; actions?: ReportAc
       </div>
       {groups.map((g) => (
         <section key={g.contract} className="grid gap-2 rounded-3xl border border-border bg-surface p-5">
-          <Link href={`${base}/contracts/${g.contract}`} className="font-bold hover:text-primary">
+          <ProjectName href={projectHref(g.contract, f.links)} base={base} className="font-bold">
             {g.rows[0].client} · <DocNo>{g.contract}</DocNo>
-          </Link>
+          </ProjectName>
           <ul className="grid gap-2">
             {g.rows.map((p) => (
               <li key={p.id} className={cn("grid gap-2 rounded-2xl p-3 sm:grid-cols-[1fr_auto]", p.late ? "bg-danger-soft/60" : "bg-surface-sunken/50")}>
@@ -221,9 +222,9 @@ function ProfitTable({ f, base }: { f: OwnerFinance; base: string }) {
               {f.profits.map((p) => (
                 <tr key={p.id} className={cn("border-t border-border", p.losing && "bg-danger-soft/40")}>
                   <td className="px-2 py-2 font-sans">
-                    <Link href={`${base}/contracts/${p.number}`} className="font-bold hover:text-primary">
+                    <ProjectName href={projectHref(p.number, f.links)} base={base} className="font-bold">
                       {p.client}
-                    </Link>
+                    </ProjectName>
                     <p className="text-[11px] text-muted-foreground">
                       {tp(`kind_${p.service}`)} · <DocNo>{p.number}</DocNo> · {p.progress}%
                     </p>
@@ -262,5 +263,16 @@ function ProfitTable({ f, base }: { f: OwnerFinance; base: string }) {
         })}
       </section>
     </div>
+  );
+}
+
+/** A project's name: a link to the contract (quotes.view) or the project (projects.view), else plain text. */
+function ProjectName({ href, base, className, children }: { href: string | null; base: string; className?: string; children: React.ReactNode }) {
+  return href ? (
+    <Link href={`${base}${href}`} className={cn(className, "hover:text-primary")}>
+      {children}
+    </Link>
+  ) : (
+    <span className={className}>{children}</span>
   );
 }

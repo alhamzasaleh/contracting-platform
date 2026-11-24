@@ -541,9 +541,27 @@ test.describe("purchases from the quote's list (design preview)", () => {
     await expect(page.locator("#pl-q-0")).toHaveValue("90");
     await expect(page.getByTestId("quote-list-bought")).toBeVisible();
     await page.locator("#pl-d-0").fill("مقروء من الفاتورة");
-    await page.getByRole("button", { name: "من قائمة مشتريات العرض" }).click();
-    await expect(rows).toHaveCount(6);
+    // everything on the list is in the form already: pressing again would double it
+    const fromList = page.getByRole("button", { name: "من قائمة مشتريات العرض" });
+    await expect(fromList).toBeDisabled();
+    // remove the last row → only that one comes back
+    await page.getByRole("button", { name: "حذف السطر" }).last().click();
+    await expect(rows).toHaveCount(2);
+    await fromList.click();
+    await expect(rows).toHaveCount(3);
     await expect(page.locator("#pl-d-0")).toHaveValue("مقروء من الفاتورة");
+    await expect(fromList).toBeDisabled();
+  });
+
+  test("another stock item than the suggested one drops the suggested catalogue product", async ({ page }) => {
+    await page.goto("/dev/preview/purchases/new");
+    await page.getByRole("button", { name: "من قائمة مشتريات العرض" }).click();
+    await expect(page.locator("#pl-pr-0")).toHaveValue("pr1");
+    await page.locator("#pl-i-0").selectOption("i2");
+    await page.locator("#pl-i-0").selectOption("new");
+    await expect(page.locator("#pl-pr-0")).toHaveValue("pr1");
+    await page.locator("#pl-i-0").selectOption("i1");
+    await expect(page.locator("#pl-pr-0")).toHaveCount(0);
   });
 
   test("a stock item can be linked to a catalogue product", async ({ page }) => {

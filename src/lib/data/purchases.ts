@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { aiConfigured } from "@/lib/ai/invoice";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { Line } from "@/lib/engine";
-import { linesFromPurchaseList, markBought, stockBalances, type ListLine } from "@/lib/purchases";
+import { linesFromPurchaseList, markBought, projectBought, stockBalances, type ListLine } from "@/lib/purchases";
 import type { PurchaseItem } from "@/lib/quotes";
 import type { PurchaseStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -131,23 +131,34 @@ export async function loadPurchaseForm(session: SessionContext, number?: string,
     const { data: versions } = cons.length ? await supabase.from("quote_versions").select("id, quote_id, version").in("quote_id", [...new Set(cons.map((c) => c.quote_id))]) : { data: [] };
     const vid = new Map((versions ?? []).map((v) => [`${v.quote_id}|${v.version}`, v.id]));
     const ids = cons.map((c) => vid.get(`${c.quote_id}|${c.quote_version}`)).filter(Boolean) as string[];
-    const [{ data: costs }, { data: boughtRows }] = await Promise.all([
+    const projectIds = cons.map((c) => c.id);
+    // "already bought" = what the project holds now (its stock movements: recorded purchases,
+    // issues / transfers in, minus returns — the same movements as its cost) + waiting purchases
+    const [{ data: costs }, { data: moveRows }, { data: pendingRows }] = await Promise.all([
       ids.length ? supabase.from("quote_version_costs").select("quote_version_id, purchase_list").in("quote_version_id", ids) : Promise.resolve({ data: [] as { quote_version_id: string; purchase_list: unknown }[] }),
-      cons.length
-        ? supabase.from("purchase_lines").select("item_id, unit, quantity, purchases!inner(contract_id, status)").eq("organization_id", orgId).eq("kind", "material").in("purchases.contract_id", cons.map((c) => c.id)).in("purchases.status", ["recorded", "pending_approval"]).limit(20000)
+      projectIds.length
+        ? supabase.from("inventory_movements").select("item_id, contract_id, quantity, purchase_lines(colour)").eq("organization_id", orgId).in("contract_id", projectIds).limit(20000)
+        : Promise.resolve({ data: [] }),
+      projectIds.length
+        ? supabase.from("purchase_lines").select("item_id, colour, unit, quantity, purchases!inner(contract_id, status)").eq("organization_id", orgId).eq("kind", "material").in("purchases.contract_id", projectIds).eq("purchases.status", "pending_approval").limit(20000)
         : Promise.resolve({ data: [] }),
     ]);
     const listOf = new Map((costs ?? []).map((c) => [c.quote_version_id, (c.purchase_list ?? []) as unknown as PurchaseItem[]]));
     const itemRefs = (items ?? []).map((i) => ({ ...i, product_id: i.product_id ?? null }));
-    const productOf = new Map(itemRefs.map((i) => [i.id, i.product_id]));
-    type Bought = { item_id: string | null; unit: string; quantity: number; purchases: { contract_id: string | null } | { contract_id: string | null }[] };
+    const first = <T,>(x: T | T[] | null | undefined): T | null => (Array.isArray(x) ? (x[0] ?? null) : (x ?? null));
+    type Move = { item_id: string; contract_id: string | null; quantity: number; purchase_lines: { colour: string | null } | { colour: string | null }[] | null };
+    type Pending = { item_id: string | null; colour: string | null; unit: string; quantity: number; purchases: { contract_id: string | null } | { contract_id: string | null }[] };
     for (const c of cons) {
       const list = listOf.get(vid.get(`${c.quote_id}|${c.quote_version}`) ?? "") ?? [];
       if (!list.length) continue;
-      const bought = ((boughtRows ?? []) as unknown as Bought[])
-        .filter((b) => (Array.isArray(b.purchases) ? b.purchases[0]?.contract_id : b.purchases?.contract_id) === c.id)
-        .map((b) => ({ item_id: b.item_id, product_id: b.item_id ? (productOf.get(b.item_id) ?? null) : null, unit: b.unit, quantity: n(b.quantity) }));
-      quoteLists[c.id] = markBought(linesFromPurchaseList(list, itemRefs), bought);
+      const moves = ((moveRows ?? []) as unknown as Move[])
+        .filter((m) => m.contract_id === c.id)
+        // a movement from a purchase line carries its colour; issues / returns / transfers carry none (null)
+        .map((m) => { const pl = first(m.purchase_lines); return { item_id: m.item_id, quantity: n(m.quantity), colour: pl ? (pl.colour ?? "") : null }; });
+      const pending = ((pendingRows ?? []) as unknown as Pending[])
+        .filter((b) => first(b.purchases)?.contract_id === c.id)
+        .map((b) => ({ item_id: b.item_id, colour: b.colour, unit: b.unit, quantity: n(b.quantity) }));
+      quoteLists[c.id] = markBought(linesFromPurchaseList(list, itemRefs), projectBought(moves, pending, itemRefs));
     }
   }
   return {

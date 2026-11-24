@@ -17,10 +17,10 @@ export const SAMPLE_SCHEDULE: ScheduleData = {
     { id: "t3", name: "مؤسسة الإتقان (مقاول)", kind: "external", services: ["exterior"], color: "#6B4E71", contact_phone: "966551112222", is_active: true, notes: null, members: [] },
   ],
   projects: [
-    { id: "k0", number: "C-2026-003", client: "شركة البناء المتقن", service: "gypsum", status: "accepted", start: "2026-11-21", end: "2026-12-04", days: 14 },
-    { id: "k1", number: "C-2026-004", client: "أبو محمد العتيبي", service: "interior", status: "sent", start: "2026-12-01", end: "2026-12-09", days: 9 },
-    { id: "k2", number: "C-2026-005", client: "فيلا الياسمين", service: "exterior", status: "accepted", start: "2026-11-28", end: "2026-12-07", days: 10 },
-    { id: "k3", number: "C-2026-006", client: "عمارة الريان", service: "gypsum", status: "accepted", start: "2026-12-10", end: "2026-12-19", days: 10 },
+    { id: "k0", number: "C-2026-003", client: "شركة البناء المتقن", service: "gypsum", status: "accepted", start: "2026-11-21", end: "2026-12-04", delivery: "2026-12-05", days: 14 },
+    { id: "k1", number: "C-2026-004", client: "أبو محمد العتيبي", service: "interior", status: "sent", start: "2026-12-01", end: "2026-12-09", delivery: "2026-12-10", days: 9 },
+    { id: "k2", number: "C-2026-005", client: "فيلا الياسمين", service: "exterior", status: "accepted", start: "2026-11-28", end: "2026-12-07", delivery: "2026-12-08", days: 10 },
+    { id: "k3", number: "C-2026-006", client: "عمارة الريان", service: "gypsum", status: "accepted", start: "2026-12-10", end: "2026-12-19", delivery: "2026-12-20", days: 10 },
   ],
   entries: [
     { id: "s1", team_id: "t1", contract_id: "k0", kind: "work", title: null, notes: null, start: "2026-11-21", end: "2026-12-04" },

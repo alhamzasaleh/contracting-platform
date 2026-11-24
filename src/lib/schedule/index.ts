@@ -18,6 +18,11 @@ export const addDays = (d: Day, n: number): Day => fromTime(toTime(d) + n * MS);
 export const daysBetween = (a: Day, b: Day): number => Math.round((toTime(b) - toTime(a)) / MS);
 /** Inclusive end of a job that starts on `start` and lasts `days` calendar days. */
 export const spanOf = (start: Day, days: number): Span => ({ start, end: addDays(start, Math.max(1, Math.round(days)) - 1) });
+/**
+ * A project on the timeline: its bar ends on the last work day (start + days − 1); the
+ * delivery date is the day after (the same as deliveryDate() on the contract page).
+ */
+export const projectDates = (start: Day, days: number): { lastWorkDay: Day; delivery: Day } => ({ lastWorkDay: addDays(start, Math.max(1, days) - 1), delivery: addDays(start, Math.max(1, days)) });
 export const overlaps = (a: Span, b: Span): boolean => a.start <= b.end && b.start <= a.end;
 export const maxDay = (a: Day, b: Day): Day => (a >= b ? a : b);
 

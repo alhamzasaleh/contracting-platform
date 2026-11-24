@@ -319,6 +319,7 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
                         {j.amount != null && `${fmt.money(j.amount)} · `}
                         {fmt.dateTime(j.done_at ?? j.created_at)}
                         {j.last_error && j.status !== "done" && <span className="text-danger"> · {explain(t, j.last_error)}</span>}
+                        {j.last_error?.startsWith("skipped:") && j.status === "done" && <span> · {explain(t, j.last_error)}</span>}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -354,7 +355,7 @@ function setProduct(map: Record<string, number>, service: string, id: number | n
 
 function explain(t: ReturnType<typeof useTranslations>, e: string): string {
   const [kind, what] = e.split(":");
-  if ((kind === "missing" || kind === "waiting") && t.has(`${kind}_${what}`)) return t(`${kind}_${what}`);
+  if ((kind === "missing" || kind === "waiting" || kind === "skipped") && t.has(`${kind}_${what}`)) return t(`${kind}_${what}`);
   if (e === "network") return t("e_network");
   if (e.startsWith("HTTP 401")) return t("e_qoyodKey");
   return e;

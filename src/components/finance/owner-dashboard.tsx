@@ -13,7 +13,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
 import type { OwnerFinance } from "@/lib/data/finance";
-import type { AgeBucket } from "@/lib/finance";
+import { projectHref, type AgeBucket } from "@/lib/finance";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn } from "@/lib/utils";
 
@@ -267,17 +267,7 @@ function Profit({ f, base }: { f: OwnerFinance; base: string }) {
       ) : (
         <>
           <EChart option={option} height={240} onPick={setPicked} label={t("profit")} />
-          {p && (
-            <Link href={`${base}/contracts/${p.number}`} className="mt-1 flex flex-wrap justify-between gap-2 rounded-xl bg-surface-sunken/60 p-3 text-[13px] hover:bg-surface-sunken">
-              <span className="font-bold">
-                {p.client} · <DocNo>{p.number}</DocNo>
-              </span>
-              <span>
-                {t("revenue")}: {fmt.money(p.revenue)} · {t("actualProfit")}: {fmt.money(p.actual)}
-                {p.actualMargin != null && ` (${fmt.number(p.actualMargin, 1)}%)`}
-              </span>
-            </Link>
-          )}
+          {p && <PickedProfit p={p} href={projectHref(p.number, f.links)} base={base} />}
           {f.profits.some((r) => r.losing) && (
             <p className="mt-2 flex gap-2 text-[13px] text-danger">
               <TrendingDown className="size-4 shrink-0" /> {t("losing", { list: f.profits.filter((r) => r.losing).map((r) => r.client).join("، ") })}
@@ -370,16 +360,51 @@ function Attention({ f, base }: { f: OwnerFinance; base: string }) {
   if (!f.delayed.length && !f.overBudget.length) return null;
   return (
     <motion.section variants={item} className="grid gap-2 rounded-2xl border border-warning/40 bg-warning-soft/50 p-5 text-[13px]">
+      {/* a line opens its page only when the viewer may open it (projects.view / costs.view + purchases.view) */}
       {f.delayed.map((d) => (
-        <Link key={d.number} href={`${base}/projects/${d.number}`} className="flex items-center gap-2 hover:underline">
-          <Clock className="size-4 shrink-0" /> {t("delayed", { client: d.client, days: d.days, progress: d.progress })} <ArrowUpLeft className="ms-auto size-3.5 ltr:-scale-x-100" />
-        </Link>
+        <MaybeLink key={d.number} href={f.links.projects ? `${base}/projects/${d.number}` : null}>
+          <Clock className="size-4 shrink-0" /> {t("delayed", { client: d.client, days: d.days, progress: d.progress })}
+        </MaybeLink>
       ))}
       {f.overBudget.map((o) => (
-        <Link key={o.number} href={`${base}/purchases/costs`} className="flex items-center gap-2 hover:underline">
-          <AlertTriangle className="size-4 shrink-0" /> {t("overBudget", { client: o.client, n: fmt.number((o.ratio - 1) * 100, 0) })} <ArrowUpLeft className="ms-auto size-3.5 ltr:-scale-x-100" />
-        </Link>
+        <MaybeLink key={o.number} href={f.links.costs ? `${base}/purchases/costs` : null}>
+          <AlertTriangle className="size-4 shrink-0" /> {t("overBudget", { client: o.client, n: fmt.number((o.ratio - 1) * 100, 0) })}
+        </MaybeLink>
       ))}
     </motion.section>
+  );
+}
+
+function MaybeLink({ href, children }: { href: string | null; children: React.ReactNode }) {
+  if (!href) return <p className="flex items-center gap-2">{children}</p>;
+  return (
+    <Link href={href} className="flex items-center gap-2 hover:underline">
+      {children} <ArrowUpLeft className="ms-auto size-3.5 ltr:-scale-x-100" />
+    </Link>
+  );
+}
+
+/** The project picked on the profit chart: opens the contract (quotes.view) or the project (projects.view), else plain. */
+function PickedProfit({ p, href, base }: { p: OwnerFinance["profits"][number]; href: string | null; base: string }) {
+  const t = useTranslations("finance");
+  const { fmt } = useFormatter();
+  const body = (
+    <>
+      <span className="font-bold">
+        {p.client} · <DocNo>{p.number}</DocNo>
+      </span>
+      <span>
+        {t("revenue")}: {fmt.money(p.revenue)} · {t("actualProfit")}: {fmt.money(p.actual)}
+        {p.actualMargin != null && ` (${fmt.number(p.actualMargin, 1)}%)`}
+      </span>
+    </>
+  );
+  const cls = "mt-1 flex flex-wrap justify-between gap-2 rounded-xl bg-surface-sunken/60 p-3 text-[13px]";
+  return href ? (
+    <Link href={`${base}${href}`} className={cn(cls, "hover:bg-surface-sunken")}>
+      {body}
+    </Link>
+  ) : (
+    <div className={cls}>{body}</div>
   );
 }

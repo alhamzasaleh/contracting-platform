@@ -67,13 +67,42 @@ beforeAll(async () => {
 afterAll(closePool);
 
 describe("#9 the client-page link lasts until the real end of the warranty", () => {
-  it("a link reissued after a late handover is valid until the warranty ends (+1 day)", async () => {
+  it("a link reissued after a late handover is valid until the warranty ends + 1 day, exactly", async () => {
     // planned long ago: the app's planned expiry would already be over
     const c = await makeContract(5000, { start: "2025-01-01", days: 10, warranty: 6 });
     await asAdmin((q) => q("update public.project_stages set status = 'confirmed', confirmed_at = now() where contract_id = $1 and is_final", [c.id]));
     const end = (await asAdmin((q) => q<{ d: string }>("select (private.warranty_end($1) + 1)::text as d", [c.id]))).rows[0].d;
-    const got = await newLink(owner, c.id, new Date(Date.now() + 90 * 86_400_000).toISOString());
-    expect(new Date(got).getTime()).toBeGreaterThanOrEqual(new Date(`${end}T00:00:00+03:00`).getTime());
+    const exact = new Date(`${end}T00:00:00+03:00`).getTime();
+    // whatever staff ask for (90 days, or longer than the warranty): the warranty end decides
+    expect(new Date(await newLink(owner, c.id, new Date(Date.now() + 90 * 86_400_000).toISOString())).getTime()).toBe(exact);
+    expect(new Date(await newLink(owner, c.id, new Date(Date.now() + 900 * 86_400_000).toISOString())).getTime()).toBe(exact);
+  });
+
+  it("on handover the open link is set to the warranty end + 1 day (a longer planned expiry doesn't outlive the warranty)", async () => {
+    // planned far ahead (long duration), handed over early
+    const c = await makeContract(5000, { days: 400, warranty: 6 });
+    const before = await newLink(owner, c.id, new Date(Date.now() + 30 * 86_400_000).toISOString());
+    await asAdmin((q) => q("update public.project_stages set status = 'confirmed', confirmed_at = now() where contract_id = $1 and is_final", [c.id]));
+    const end = (await asAdmin((q) => q<{ d: string }>("select (private.warranty_end($1) + 1)::text as d", [c.id]))).rows[0].d;
+    const exact = new Date(`${end}T00:00:00+03:00`).getTime();
+    expect(new Date(before).getTime()).toBeGreaterThan(exact);
+    const open = await asAdmin((q) => q<{ expires_at: Date }>("select expires_at from public.client_portal_links where contract_id = $1 and revoked_at is null", [c.id]));
+    expect(open.rows.length).toBeGreaterThan(0);
+    for (const r of open.rows) expect(new Date(r.expires_at).getTime()).toBe(exact);
+  });
+
+  it("after the warranty has ended no link can be issued — whoever asks (quotes.manage without projects.view too)", async () => {
+    const c = await makeContract(5000, { start: "2025-01-01", days: 10, warranty: 1 });
+    await asAdmin((q) => q("update public.project_stages set status = 'confirmed', confirmed_at = now() - interval '3 months' where contract_id = $1 and is_final", [c.id]));
+    const quoter = await createUser("966500029006");
+    await asAdmin((q) => q(`insert into public.memberships (organization_id, user_id, role, permission_overrides) values ($1,$2,'viewer','{"grant":["quotes.view","quotes.manage"],"deny":["projects.view"]}')`, [org, quoter]));
+    for (const user of [owner, quoter]) {
+      await expect(newLink(user, c.id, new Date(Date.now() + 30 * 86_400_000).toISOString())).rejects.toThrow(/warranty_ended/);
+    }
+    // the last day of the warranty still counts (Riyadh date)
+    await asAdmin((q) => q("update public.project_stages set confirmed_at = now() - interval '1 month' where contract_id = $1 and is_final", [c.id]));
+    const today = (await asAdmin((q) => q<{ d: string; w: string }>("select (now() at time zone 'Asia/Riyadh')::date::text as d, private.warranty_end($1)::text as w", [c.id]))).rows[0];
+    if (today.w >= today.d) await expect(newLink(owner, c.id, new Date(Date.now() + 30 * 86_400_000).toISOString())).resolves.toBeTruthy();
   });
 
   it("accepted additional works' days push the planned expiry", async () => {

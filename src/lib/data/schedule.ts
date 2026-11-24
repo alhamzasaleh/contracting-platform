@@ -1,13 +1,14 @@
 import "server-only";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { ServiceKind } from "@/lib/pricing";
-import { addDays, type Entry, type TeamInfo } from "@/lib/schedule";
+import { addDays, projectDates, type Entry, type TeamInfo } from "@/lib/schedule";
 import type { ContractStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
 export type ScheduleTeam = TeamInfo & { kind: "inhouse" | "external"; color: string; contact_phone: string | null; notes: string | null; members: string[]; subcontractor_id?: string | null };
 export type ScheduleEntry = Entry & { id: string; kind: "work" | "leave" | "other"; title: string | null; notes: string | null };
-export type ScheduleProject = { id: string; number: string; client: string; service: ServiceKind; status: ContractStatus; start: string; end: string; days: number };
+/** `end` = the last work day (the bar's last day); `delivery` = the delivery date (the day after, as on the contract page) */
+export type ScheduleProject = { id: string; number: string; client: string; service: ServiceKind; status: ContractStatus; start: string; end: string; delivery: string; days: number };
 
 export type ScheduleData = {
   teams: ScheduleTeam[];
@@ -45,7 +46,11 @@ export async function loadSchedule(session: SessionContext): Promise<ScheduleDat
     roster: (roster ?? []) as ScheduleData["roster"],
     entries: (entries ?? []).map((e) => ({ id: e.id, team_id: e.team_id, contract_id: e.contract_id, kind: e.kind, title: e.title, notes: e.notes, start: e.start_date, end: e.end_date })),
     projects: ((contracts.data ?? []) as { id: string; number: string; client_id: string; service: ServiceKind; status: ContractStatus; start_date: string; duration_days: number }[])
-      .map((c) => ({ id: c.id, number: c.number, client: clientName.get(c.client_id) ?? "—", service: c.service, status: c.status, start: c.start_date, days: c.duration_days + (extra.get(c.id) ?? 0), end: addDays(c.start_date, c.duration_days + (extra.get(c.id) ?? 0) - 1) }))
+      .map((c) => {
+        const days = c.duration_days + (extra.get(c.id) ?? 0);
+        const { lastWorkDay, delivery } = projectDates(c.start_date, days);
+        return { id: c.id, number: c.number, client: clientName.get(c.client_id) ?? "—", service: c.service, status: c.status, start: c.start_date, days, end: lastWorkDay, delivery };
+      })
       .filter((p) => p.end >= since),
     canManage: can(session, "schedule.manage"),
   };

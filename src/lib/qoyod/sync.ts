@@ -4,7 +4,7 @@ import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.type
 import { qoyod, QoyodError } from "./client";
 import { qoyodAutoSetup } from "./setup";
 import { effectiveVatPercent } from "@/lib/costing";
-import { approveSimpleBillBody, autoSetupDue, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyTag, pettyTransferBody, simpleBillBody, simpleBillPaymentBody, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
+import { approveSimpleBillBody, autoSetupDue, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyTag, pettyTransferBody, pettyTransferSkip, simpleBillBody, simpleBillPaymentBody, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Ctx = { admin: Admin; key: string; s: QoyodSettingsRow };
@@ -48,7 +48,9 @@ export async function runQoyodSync(limit = 20): Promise<{ done: number; failed: 
     try {
       if (!ctx) throw new Blocked("missing:key");
       const id = await runJob(ctx, job);
-      await admin.from("qoyod_sync_jobs").update({ status: "done", qoyod_id: id, done_at: new Date().toISOString(), last_error: null }).eq("id", job.id);
+      // a job with nothing to post (e.g. a petty-cash transfer within one account) is done with its reason
+      const skipped = typeof id === "object" ? id.skipped : null;
+      await admin.from("qoyod_sync_jobs").update({ status: "done", qoyod_id: skipped ? null : (id as number), done_at: new Date().toISOString(), last_error: skipped ? `skipped:${skipped}` : null }).eq("id", job.id);
       result.done++;
     } catch (e) {
       if (e instanceof Deferred) {
@@ -296,7 +298,10 @@ async function invoiceSource(ctx: Ctx, job: QoyodJobRow): Promise<InvoiceSource>
   };
 }
 
-async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number> {
+/** Journal entries we posted earlier, found by their tag; a failed lookup throws (retried later, never a duplicate). */
+const journalEntry = (ctx: Ctx, tag: string) => findJournalEntry((path) => qoyod<unknown>(ctx.key, "GET", path), tag);
+
+async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number | { skipped: string }> {
   const { s } = ctx;
   // payments on draft invoices/bills and journal entries wait until sending is "Approved"
   if (waitsForApproved(job.kind, s.invoice_status)) throw new Deferred("waiting:approved");
@@ -359,9 +364,8 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number> {
       const month = r.month.slice(0, 7);
       const tag = payrollTag(month);
       // found again by its month tag if an earlier try reached Qoyod
-      const existing = await qoyod<{ journal_entries?: { id: number; description?: string }[] }>(ctx.key, "GET", `/journal_entries?q[description_cont]=${encodeURIComponent(tag)}`).catch(() => null);
-      const hit = existing?.journal_entries?.find((x) => x.description?.startsWith(tag));
-      if (hit) return hit.id;
+      const hit = await journalEntry(ctx, tag);
+      if (hit) return hit;
       const body = payrollJournalBody({ month, date: r.paid_on ?? today(), net: Number(job.amount ?? 0), employees: count ?? 0, salaryAccountId, bankAccountId });
       const created = await qoyod<{ id?: number; journal_entry?: { id?: number } }>(ctx.key, "POST", "/journal_entries", body);
       const id = Number(created.id ?? created.journal_entry?.id);
@@ -371,15 +375,17 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number> {
     case "transfer": {
       // petty cash top-up (bank → cash) or return (cash → bank)
       const bankAccountId = need(s.receive_account_id, "receive_account");
-      const cashAccountId = need(s.cash_account_id, "cash_account");
       const { data: e } = await ctx.admin.from("petty_cash_entries").select("id, kind, entry_date, amount, account_id").eq("id", job.entity_id).single();
       const entry = need(e, "petty_cash");
       if (entry.kind === "expense") throw new Blocked("unsupported");
+      // no cash account: petty cash is paid from the bank account, so there is nothing to move
+      const skip = pettyTransferSkip(s);
+      if (skip) return { skipped: skip };
+      const cashAccountId = need(s.cash_account_id, "cash_account");
       const { data: acc } = await ctx.admin.from("petty_cash_accounts").select("name").eq("id", entry.account_id).maybeSingle();
       const tag = pettyTag(entry.id);
-      const existing = await qoyod<{ journal_entries?: { id: number; description?: string }[] }>(ctx.key, "GET", `/journal_entries?q[description_cont]=${encodeURIComponent(tag)}`).catch(() => null);
-      const hit = existing?.journal_entries?.find((x) => x.description?.startsWith(tag));
-      if (hit) return hit.id;
+      const hit = await journalEntry(ctx, tag);
+      if (hit) return hit;
       const body = pettyTransferBody({ entryId: entry.id, kind: entry.kind, date: entry.entry_date, amount: Number(job.amount ?? entry.amount), holder: acc?.name ?? "", bankAccountId, cashAccountId });
       const created = await qoyod<{ id?: number; journal_entry?: { id?: number } }>(ctx.key, "POST", "/journal_entries", body);
       const id = Number(created.id ?? created.journal_entry?.id);

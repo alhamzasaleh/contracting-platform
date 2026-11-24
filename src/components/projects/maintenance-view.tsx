@@ -17,6 +17,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import type { MaintenanceItem, MaintenancePageData } from "@/lib/data/maintenance";
+import { companyPaidRepairs } from "@/lib/finance";
 import type { MaintenanceStatus } from "@/lib/supabase/database.types";
 import { ltr } from "@/lib/utils";
 
@@ -36,7 +37,8 @@ export function MaintenanceView({ data, focus, contract = null, actions, base = 
   const list = scoped.filter((r) => filter === "all" || active(r.status) || r.number === focus);
   const year = new Date().getFullYear().toString();
   // the numbers follow the ?contract= filter too
-  const cost = scoped.filter((r) => r.created_at.startsWith(year)).reduce((s, r) => s + r.cost, 0);
+  // what the company pays (covered by the warranty); repairs charged to the client are not our cost
+  const cost = companyPaidRepairs(scoped.filter((r) => r.created_at.startsWith(year))).reduce((s, r) => s + r.cost, 0);
   const kpis = [
     { label: t("kOpen"), value: scoped.filter((r) => r.status === "open").length },
     { label: t("kProgress"), value: scoped.filter((r) => r.status === "in_progress").length },

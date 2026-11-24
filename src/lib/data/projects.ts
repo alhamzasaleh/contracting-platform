@@ -70,6 +70,8 @@ export type ProjectDetail = {
   canPurchase: boolean;
   /** may open the contract page (quotes.view) */
   canViewContract: boolean;
+  /** may open the project costs page (costs.view + purchases.view: it sits in the purchases section) */
+  canOpenCosts: boolean;
   aiEnabled: boolean;
 };
 
@@ -127,6 +129,7 @@ export async function loadProject(session: SessionContext, number: string): Prom
     canManage: can(session, "projects.manage"),
     canPurchase: can(session, "purchases.manage") && can(session, "quotes.view"),
     canViewContract: can(session, "quotes.view"),
+    canOpenCosts: can(session, "costs.view") && can(session, "purchases.view"),
     aiEnabled: aiConfigured(),
   };
 }

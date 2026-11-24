@@ -146,7 +146,7 @@ function Timeline({ data, today, onEntry, onNeedTeams }: { data: ScheduleData; t
                   onClick={() => onEntry?.({ kind: "work", contract_id: p.id, start: p.start, end: p.end })}
                   className="rounded-full bg-surface px-3 py-1.5 text-[13px] ring-1 ring-border hover:ring-primary disabled:cursor-default"
                 >
-                  <DocNo>{p.number}</DocNo> · {p.client} · {fmt.dayMonth(p.start)}
+                  <DocNo>{p.number}</DocNo> · {p.client} · {fmt.dayMonth(p.start)} · {t("deliveryShort", { date: fmt.dayMonth(p.delivery) })}
                 </button>
               </li>
             ))}
@@ -206,7 +206,7 @@ function Timeline({ data, today, onEntry, onNeedTeams }: { data: ScheduleData; t
                 <button
                   key={p.id}
                   type="button"
-                  title={`${ltr(p.number)} · ${p.client}`}
+                  title={`${ltr(p.number)} · ${p.client} · ${t("barDates", { last: fmt.date(p.end), delivery: fmt.date(p.delivery) })}`}
                   disabled={!onEntry || !data.teams.length}
                   onClick={() => onEntry?.({ kind: "work", contract_id: p.id, start: p.start, end: p.end })}
                   style={{ ...place(p), top: lane * LANE + 4 }}
@@ -364,7 +364,12 @@ function EntryDialog({ data, today, initial, onClose, actions }: { data: Schedul
         options={(["work", "leave", "other"] as const).map((k) => ({ value: k, label: t(`kind_${k}`) }))}
       />
       {kind === "work" ? (
-        <Field id="se-contract" label={t("project")} error={errors.contract_id ? t("contractRequired") : undefined}>
+        <Field
+          id="se-contract"
+          label={t("project")}
+          hint={project ? t("projectDates", { start: fmt.date(project.start), last: fmt.date(project.end), delivery: fmt.date(project.delivery) }) : undefined}
+          error={errors.contract_id ? t("contractRequired") : undefined}
+        >
           <NativeSelect
             value={contractId}
             onChange={(e) => {

@@ -14,6 +14,7 @@ export type AssistantFacts = {
   kpis: OwnerFinance["kpis"];
   collectedByMonth: MonthTotals;
   purchasesByMonth: MonthTotals;
+  /** repairs the company pays (covered by the warranty); repairs charged to clients are not a cost */
   maintenanceCostByMonth: MonthTotals;
   receivables: OwnerFinance["receivables"];
   ageing: OwnerFinance["ageing"];
@@ -75,17 +76,18 @@ export function buildFacts(
 export const SAFE_LINK =
   /^\/(?:reports|schedule|team\/payroll|purchases\/costs|(?:purchases|projects|contracts|invoices|clients|quotations)(?:\/[A-Z]{1,3}-\d{4}-\d{3,6})?|maintenance(?:\?r=MR-\d{4}-\d{3,6})?)$/;
 
-/** The permission each page the assistant can link to needs (the same as the page's own guard). */
-const LINK_PERMISSION: [RegExp, string][] = [
-  [/^\/reports$/, "finance.view"],
-  [/^\/invoices(?:\/|$)/, "finance.view"],
-  [/^\/schedule$/, "schedule.view"],
-  [/^\/team\/payroll$/, "hr.view"],
-  [/^\/purchases\/costs$/, "costs.view"],
-  [/^\/purchases(?:\/|$)/, "purchases.view"],
-  [/^\/(?:projects|maintenance)(?:[/?]|$)/, "projects.view"],
-  [/^\/(?:contracts|quotations)(?:\/|$)/, "quotes.view"],
-  [/^\/clients(?:\/|$)/, "clients.view"],
+/** The permissions each page the assistant can link to needs (the same as the page's own guards). */
+const LINK_PERMISSION: [RegExp, string[]][] = [
+  [/^\/reports$/, ["finance.view"]],
+  [/^\/invoices(?:\/|$)/, ["finance.view"]],
+  [/^\/schedule$/, ["schedule.view"]],
+  [/^\/team\/payroll$/, ["hr.view"]],
+  // the costs page sits inside the purchases section (its layout needs purchases.view)
+  [/^\/purchases\/costs$/, ["costs.view", "purchases.view"]],
+  [/^\/purchases(?:\/|$)/, ["purchases.view"]],
+  [/^\/(?:projects|maintenance)(?:[/?]|$)/, ["projects.view"]],
+  [/^\/(?:contracts|quotations)(?:\/|$)/, ["quotes.view"]],
+  [/^\/clients(?:\/|$)/, ["clients.view"]],
 ];
 const DOC_NO = /[A-Z]{1,3}-\d{4}-\d{3,6}/g;
 
@@ -98,7 +100,7 @@ export function assistantLinks<L extends { href: string }>(links: L[], permissio
   return links.filter((l) => {
     if (!SAFE_LINK.test(l.href)) return false;
     const need = LINK_PERMISSION.find(([re]) => re.test(l.href))?.[1];
-    if (!need || !permissions.includes(need)) return false;
+    if (!need || !need.every((p) => permissions.includes(p))) return false;
     return (l.href.match(DOC_NO) ?? []).every((n) => known.has(n));
   });
 }

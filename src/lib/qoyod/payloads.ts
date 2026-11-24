@@ -169,6 +169,24 @@ export function pettyTransferBody(j: { entryId: string; kind: "topup" | "return"
 }
 export const pettyTag = (entryId: string) => `[PETTY-${entryId}]`;
 
+/**
+ * Without a cash account petty cash is paid from the bank account (expenses too), so a top-up
+ * or a return moves money within one account: nothing to post ("same_account").
+ */
+export function pettyTransferSkip(s: { receive_account_id: number | null; cash_account_id: number | null }): "same_account" | null {
+  return s.cash_account_id == null || s.cash_account_id === s.receive_account_id ? "same_account" : null;
+}
+
+/**
+ * A journal entry we posted earlier, found again by the tag in its description (journal entries
+ * have no reference). A failed lookup throws (the job retries later) — posting without knowing
+ * could create a duplicate.
+ */
+export async function findJournalEntry(get: (path: string) => Promise<unknown>, tag: string): Promise<number | null> {
+  const r = (await get(`/journal_entries?q[description_cont]=${encodeURIComponent(tag)}`)) as { journal_entries?: { id: number; description?: string }[] } | null;
+  return r?.journal_entries?.find((x) => x.description?.startsWith(tag))?.id ?? null;
+}
+
 /** A subcontractor bill's account: subcontracting expense when chosen, else the general expense account. */
 export function subcontractExpenseAccount(s: { subcontract_account_id: number | null; expense_account_id: number | null }): number | null {
   return s.subcontract_account_id ?? s.expense_account_id ?? null;

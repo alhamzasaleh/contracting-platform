@@ -116,23 +116,31 @@ export function linesFromPurchaseList(list: ListItem[], items: { id: string; nam
   return out;
 }
 
+/** What is already on (or on its way to) the project, compared with each suggested line. */
+export type BoughtRow = { item_id: string | null; product_id: string | null; colour: string | null; unit: string; quantity: number; name?: string | null };
+
 /**
- * G2: what is already bought for the project (recorded or waiting purchases) against each
- * suggested line — by its stock item, else by its catalogue product (and unit). One purchase
- * line is counted once even when several suggested lines share the product (e.g. two pack sizes).
+ * G2: what is already bought for the project against each suggested line — by its stock item
+ * and colour; a line without a stock item falls back to its catalogue product + unit + colour,
+ * only when no other suggested line shares that product (another pack size) and never from a
+ * stock item that is another suggested line's own item — so pack sizes and colours never mix.
+ * Each bought quantity is counted once. `name` (a new item's name in the form) matches the
+ * line's description.
  */
-export function markBought(
-  lines: ListLine[],
-  bought: { item_id: string | null; product_id: string | null; unit: string; quantity: number }[],
-): (ListLine & { bought: number; remaining: number })[] {
-  const pool = bought.map((b) => ({ ...b, left: b.quantity }));
+export function markBought(lines: ListLine[], bought: BoughtRow[]): (ListLine & { bought: number; remaining: number })[] {
+  const pool = bought.map((b) => ({ ...b, colour: b.colour ?? "", left: b.quantity }));
+  const lineItems = new Set(lines.filter((l) => l.item !== "new").map((l) => l.item));
+  const key = (p: string, unit: string, colour: string) => `${p}|${unit}|${colour}`;
+  const sameProduct = new Map<string, number>();
+  for (const l of lines) if (l.product_id) sameProduct.set(key(l.product_id, l.unit, l.colour ?? ""), (sameProduct.get(key(l.product_id, l.unit, l.colour ?? "")) ?? 0) + 1);
   return lines.map((l) => {
+    const colour = l.colour ?? "";
     let need = l.quantity;
     let got = 0;
     const take = (match: (b: (typeof pool)[number]) => boolean) => {
       for (const b of pool) {
         if (need <= 0) break;
-        if (b.left <= 0 || !match(b)) continue;
+        if (b.left <= 0 || b.colour !== colour || !match(b)) continue;
         const q = Math.min(b.left, need);
         b.left -= q;
         need -= q;
@@ -140,9 +148,91 @@ export function markBought(
       }
     };
     if (l.item !== "new") take((b) => b.item_id === l.item);
-    if (l.product_id) take((b) => b.product_id === l.product_id && b.unit === l.unit);
+    else {
+      take((b) => !b.item_id && !!b.name && b.name === l.description && b.unit === l.unit);
+      if (l.product_id && sameProduct.get(key(l.product_id, l.unit, colour)) === 1) {
+        take((b) => b.product_id === l.product_id && b.unit === l.unit && !(b.item_id && lineItems.has(b.item_id)));
+      }
+    }
     return { ...l, bought: r2(got), remaining: r2(Math.max(0, l.quantity - got)) };
   });
+}
+
+/**
+ * What the project holds per stock item and colour: its stock movements (recorded purchases,
+ * issues and transfers in, minus returns and transfers out — the same movements as the
+ * project's cost) plus the lines of purchases waiting for approval. A movement that didn't come
+ * from a purchase line (`colour` null) counts for the item's colour on this project when it has
+ * only one, else for "no colour". Never negative.
+ */
+export function projectBought(
+  moves: { item_id: string; quantity: number; colour: string | null }[],
+  pending: { item_id: string | null; colour: string | null; unit: string; quantity: number }[],
+  items: { id: string; unit: string; product_id: string | null }[],
+): BoughtRow[] {
+  const item = new Map(items.map((i) => [i.id, i]));
+  const colours = new Map<string, Set<string>>();
+  for (const m of moves) if (m.colour != null) colours.set(m.item_id, (colours.get(m.item_id) ?? new Set()).add(m.colour));
+  const net = new Map<string, { item_id: string; colour: string; quantity: number }>();
+  for (const m of moves) {
+    const seen = colours.get(m.item_id);
+    const colour = m.colour ?? (seen?.size === 1 ? [...seen][0] : "");
+    const k = `${m.item_id}|${colour}`;
+    const b = net.get(k) ?? { item_id: m.item_id, colour, quantity: 0 };
+    b.quantity += m.quantity;
+    net.set(k, b);
+  }
+  const out: BoughtRow[] = [];
+  for (const b of net.values()) {
+    const q = Math.round(b.quantity * 1000) / 1000;
+    if (q <= 0) continue;
+    const it = item.get(b.item_id);
+    out.push({ item_id: b.item_id, product_id: it?.product_id ?? null, colour: b.colour, unit: it?.unit ?? "", quantity: q });
+  }
+  for (const p of pending) {
+    if (!(p.quantity > 0)) continue;
+    out.push({ item_id: p.item_id, product_id: p.item_id ? (item.get(p.item_id)?.product_id ?? null) : null, colour: p.colour ?? "", unit: p.unit, quantity: p.quantity });
+  }
+  return out;
+}
+
+/**
+ * «من قائمة مشتريات العرض» pressed again: what is still to add after the rows already in the
+ * form (same item, or the same new item's name / product, and colour) — never doubled.
+ */
+export function stillToAdd<L extends ListLine & { remaining: number }>(
+  list: L[],
+  rows: { kind: "material" | "expense"; item: string; newName?: string; description: string; product?: string; colour: string; unit: string; quantity: string | number }[],
+): (L & { bought: number; remaining: number })[] {
+  const held: BoughtRow[] = rows
+    .filter((r) => r.kind === "material")
+    .map((r) => ({
+      item_id: r.item && r.item !== "new" ? r.item : null,
+      name: r.item === "new" ? (r.newName || r.description).trim() || null : null,
+      product_id: r.item === "new" && r.product ? r.product : null,
+      colour: r.colour.trim(),
+      unit: r.unit.trim(),
+      quantity: Number(r.quantity) || 0,
+    }));
+  const open = list.filter((l) => l.remaining > 0);
+  const marked = markBought(open.map((l) => ({ ...l, quantity: l.remaining })), held);
+  return marked.map((m, i) => ({ ...open[i], bought: m.bought, remaining: m.remaining })).filter((l) => l.remaining > 0);
+}
+
+/**
+ * The stock-item select of a purchase row changed: an item other than the one suggested from
+ * the quote list loses the suggested catalogue product (a hidden product_id must never be sent
+ * for another item); back to the suggested item restores it.
+ */
+export function pickStockItem(
+  row: { kind: "material" | "expense"; item: string; unit: string; product?: string; suggested?: { item: string; product: string } },
+  value: string,
+  items: { id: string; unit: string }[],
+): { kind: "material" | "expense"; item: string; unit?: string; product: string } {
+  if (value === "__expense") return { kind: "expense", item: "", product: "" };
+  const it = items.find((x) => x.id === value);
+  const product = row.suggested && value === row.suggested.item ? row.suggested.product : "";
+  return { kind: "material", item: value, ...(it ? { unit: it.unit } : {}), product };
 }
 
 /** Add suggested lines to the form without wiping what is there (AI-read lines); blank rows give way. */

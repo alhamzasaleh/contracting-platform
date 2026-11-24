@@ -21,6 +21,7 @@ export const SAMPLE_PROJECT: ProjectDetail = {
   canManage: true,
   canPurchase: true,
   canViewContract: true,
+  canOpenCosts: true,
   aiEnabled: true,
   stages: [
     stage(1, "تجهيز الموقع وتحديد المناسيب", "confirmed", 100, { confirmed_at: "2026-11-21T15:00:00Z", confirmed_name: "م. خالد", report: "تم تجهيز الموقع وتحديد المناسيب في جميع الغرف." }),

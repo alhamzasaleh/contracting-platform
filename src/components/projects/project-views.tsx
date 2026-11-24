@@ -307,7 +307,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
 
           {/* cost (costs.view) */}
           {data.cost && (
-            <Link href={`${base}/purchases/costs`} className="grid gap-1 rounded-3xl border border-border bg-surface p-5 text-[13px] hover:border-primary/40">
+            <CostCard href={data.canOpenCosts ? `${base}/purchases/costs` : null}>
               <span className="flex items-center gap-2 text-[15px] font-bold">
                 <Wallet className="size-4" /> {t("costTitle")}
               </span>
@@ -322,7 +322,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
                 <span className="text-muted-foreground">{t("costActualTotal")}</span>
                 <span className="font-latin font-bold tabular-nums">{fmt.money(data.cost.actual)}</span>
               </span>
-            </Link>
+            </CostCard>
           )}
 
           <div className="flex flex-wrap gap-2">
@@ -598,5 +598,17 @@ function NoteCard({ note: n, stages, canManage, update }: { note: ProjectDetail[
         n.reply && <p className="rounded-xl bg-surface px-3 py-2">↳ {n.reply}</p>
       )}
     </div>
+  );
+}
+
+/** The project's cost card: opens the costs page only for those who may (costs.view + purchases.view). */
+function CostCard({ href, children }: { href: string | null; children: React.ReactNode }) {
+  const cls = "grid gap-1 rounded-3xl border border-border bg-surface p-5 text-[13px]";
+  return href ? (
+    <Link href={href} className={cn(cls, "hover:border-primary/40")}>
+      {children}
+    </Link>
+  ) : (
+    <section className={cls}>{children}</section>
   );
 }

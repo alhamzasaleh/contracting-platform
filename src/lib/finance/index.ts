@@ -154,3 +154,16 @@ export function projectProfit(revenue: number, estimatedCost: number | null, act
     losing: actual < 0 || (expected != null && actual < expected * 0.5),
   };
 }
+
+/**
+ * Repairs the company pays: covered by the warranty (`covered = true`) with a cost. Repairs
+ * charged to the client are not our cost (the same rule as a project's actual cost).
+ */
+export function companyPaidRepairs<T extends { covered: boolean; cost: number }>(rows: T[]): T[] {
+  return rows.filter((r) => r.covered && r.cost > 0);
+}
+
+/** A project's page for the viewer: the contract with quotes.view, else the project with projects.view, else none. */
+export function projectHref(number: string, links: { contracts: boolean; projects: boolean }): string | null {
+  return links.contracts ? `/contracts/${number}` : links.projects ? `/projects/${number}` : null;
+}
