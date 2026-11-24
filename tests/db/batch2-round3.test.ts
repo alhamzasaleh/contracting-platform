@@ -373,13 +373,44 @@ describe("#4 Qoyod petty cash: routed when queued; one reconciliation keeps Qoyo
     expect(await t.real()).toBe(915);
   });
 
-  it("R3: a reconcile that failed for good isn't counted; retrying it recomputes instead of re-sending", async () => {
+  it("R2b: an entry saved while sending is off, still uncommitted when sending is switched on, isn't lost", async () => {
+    const t = await setup("Org R4 petty race on", null);
+    await t.set("enabled = false");
+    const begin = async (userId: string) => {
+      const c = await getPool().connect();
+      await c.query("begin");
+      await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: userId, role: "authenticated" })]);
+      await c.query("set local role authenticated");
+      return c;
+    };
+    const a = await begin(owner);
+    const b = await begin(owner);
+    try {
+      const acc = (await asAdmin((q) => q<{ id: string }>("select id from public.petty_cash_accounts where organization_id = $1", [t.o]))).rows[0].id;
+      await a.query("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,'topup',500,'x')", [t.o, acc]);
+      let switched = false;
+      const pending = b.query("update public.qoyod_settings set enabled = true where organization_id = $1", [t.o]).then(() => { switched = true; });
+      await new Promise((r) => setTimeout(r, 300));
+      // the switch-on waits for the entry (its queueing locked the settings row), then its catch-up sees it
+      expect(switched).toBe(false);
+      await a.query("commit");
+      await pending;
+      await b.query("commit");
+    } finally {
+      a.release();
+      b.release();
+    }
+    expect((await t.jobs()).filter((j) => j.entity_type === "petty_cash").map((j) => j.kind)).toEqual(["transfer"]);
+    expect(await t.real()).toBe(500);
+  });
+
+  it("R3: a reconcile stopped before reaching Qoyod (missing:…) isn't counted and is recomputed on retry; any other failure stays counted and is retried as is", async () => {
     const t = await setup("Org R4 petty failed", null);
     await t.entry("topup", 300);
     await t.setCash(7);
     const [r1] = await t.reconciles();
     await asAdmin((q) => q("update public.qoyod_sync_jobs set status = 'running', attempts = 6 where id = $1", [r1.id]));
-    await asAdmin((q) => q("update public.qoyod_sync_jobs set status = 'failed', last_error = 'HTTP 422' where id = $1", [r1.id]));
+    await asAdmin((q) => q("update public.qoyod_sync_jobs set status = 'failed', last_error = 'missing:cash_account' where id = $1", [r1.id]));
     // a settings change meanwhile: the failed one moved nothing, so 300 goes bank → 9 (not 7 → 9)
     await t.setCash(9);
     expect((await t.reconciles()).filter((j) => j.status !== "failed").map(move)).toEqual([{ from: null, to: 9, amount: "300.00" }]);
@@ -391,13 +422,31 @@ describe("#4 Qoyod petty cash: routed when queued; one reconciliation keeps Qoyo
     expect((await t.reconciles()).map(move)).toEqual([{ from: null, to: 9, amount: "300.00" }]);
     // a failed reconcile retried with "retry all" too, and another failed job is simply retried
     const [r2] = await t.reconciles();
-    await asAdmin((q) => q("update public.qoyod_sync_jobs set status = 'failed' where organization_id = $1", [t.o]));
+    await asAdmin((q) => q("update public.qoyod_sync_jobs set status = 'failed', last_error = 'missing:receive_account' where organization_id = $1", [t.o]));
     await as({ userId: owner }, (q) => q("select public.qoyod_retry($1, null)", [t.o]));
     const after = await t.jobs();
     expect(after.filter((j) => j.entity_type === "petty_cash").every((j) => j.status === "queued")).toBe(true);
     expect(after.map((j) => j.id)).not.toContain(r2.id);
     expect((await t.reconciles()).map(move)).toEqual([{ from: null, to: 9, amount: "300.00" }]);
     expect(await t.qoyodCash()).toEqual({ 9: 300 });
+  });
+
+  it("R3b: a reconcile that failed after it may have reached Qoyod stays counted and is retried as is (its tag finds it)", async () => {
+    const t = await setup("Org R4 petty failed net", null);
+    await t.entry("topup", 300);
+    await t.setCash(7);
+    const [r1] = await t.reconciles();
+    await asAdmin((q) => q("update public.qoyod_sync_jobs set status = 'running', attempts = 6 where id = $1", [r1.id]));
+    await asAdmin((q) => q("update public.qoyod_sync_jobs set status = 'failed', last_error = 'network' where id = $1", [r1.id]));
+    // still counted: changing to 9 moves 7 → 9
+    await t.setCash(9);
+    expect((await t.reconciles()).map(move)).toEqual([{ from: null, to: 7, amount: "300.00" }, { from: 7, to: 9, amount: "300.00" }]);
+    // retry keeps the same job (re-queued), nothing new
+    await as({ userId: owner }, (q) => q("select public.qoyod_retry($1, $2)", [t.o, r1.id]));
+    const rs = await t.reconciles();
+    expect(rs.map((j) => j.id)).toContain(r1.id);
+    expect(rs.find((j) => j.id === r1.id)?.status).toBe("queued");
+    expect(rs).toHaveLength(2);
   });
 
   it("R5: in Draft the worker doesn't claim jobs that wait for Approved, so a corrected choice can still withdraw them", async () => {

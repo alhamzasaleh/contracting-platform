@@ -551,9 +551,13 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_on boolean;
 begin
-  perform 1 from public.qoyod_settings s where s.organization_id = p_org and s.enabled for share;
-  if not found then
+  -- lock the row whatever its value: an entry queued while sending is off holds it, so a
+  -- concurrent switch-on waits and its catch-up then sees the entry
+  select s.enabled into v_on from public.qoyod_settings s where s.organization_id = p_org for share;
+  if not coalesce(v_on, false) then
     return;
   end if;
   insert into public.qoyod_sync_jobs (organization_id, kind, entity_type, entity_id, ref, amount)
@@ -629,10 +633,10 @@ as $$
     where j.organization_id = p_org and j.entity_type = 'petty_cash' and j.route = 'cash'
     union all
     select j.to_account_id, j.amount from public.qoyod_sync_jobs j
-    where j.organization_id = p_org and j.entity_type = 'petty_cash_opening' and j.to_account_id is not null and j.status <> 'failed'
+    where j.organization_id = p_org and j.entity_type = 'petty_cash_opening' and j.to_account_id is not null and not (j.status = 'failed' and coalesce(j.last_error, '') like 'missing:%')
     union all
     select j.from_account_id, -j.amount from public.qoyod_sync_jobs j
-    where j.organization_id = p_org and j.entity_type = 'petty_cash_opening' and j.from_account_id is not null and j.status <> 'failed'
+    where j.organization_id = p_org and j.entity_type = 'petty_cash_opening' and j.from_account_id is not null and not (j.status = 'failed' and coalesce(j.last_error, '') like 'missing:%')
   ) h
   group by h.account_id;
 $$;
@@ -842,7 +846,7 @@ begin
     raise exception 'not allowed' using errcode = '42501';
   end if;
   delete from public.qoyod_sync_jobs
-  where organization_id = p_org and status = 'failed' and entity_type = 'petty_cash_opening' and (p_job is null or id = p_job);
+  where organization_id = p_org and status = 'failed' and entity_type = 'petty_cash_opening' and coalesce(last_error, '') like 'missing:%' and (p_job is null or id = p_job);
   get diagnostics v_reconciles = row_count;
   update public.qoyod_sync_jobs set status = 'queued', attempts = 0, next_attempt_at = now(), last_error = null
   where organization_id = p_org and status = 'failed' and (p_job is null or id = p_job);
