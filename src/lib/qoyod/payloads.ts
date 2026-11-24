@@ -170,6 +170,25 @@ export function pettyTransferBody(j: { entryId: string; kind: "topup" | "return"
 export const pettyTag = (entryId: string) => `[PETTY-${entryId}]`;
 
 /**
+ * A cash account chosen after petty cash was already in use: the open petty-cash balance sat in
+ * the bank account (earlier top-ups were skipped as "same account"), so one opening entry moves
+ * it bank → cash. Tagged with its job id so a retry finds it instead of posting it twice.
+ */
+export function pettyOpeningBody(j: { jobId: string; date: string; amount: number; bankAccountId: number; cashAccountId: number }) {
+  const amount = r2(j.amount);
+  const what = "رصيد العهد الافتتاحي";
+  return {
+    journal_entry: {
+      description: `${pettyOpeningTag(j.jobId)} — ${what}`.slice(0, 250),
+      date: j.date,
+      debit_amounts: [{ account_id: j.cashAccountId, amount, comment: what }],
+      credit_amounts: [{ account_id: j.bankAccountId, amount, comment: what }],
+    },
+  };
+}
+export const pettyOpeningTag = (jobId: string) => `[PETTY-OPEN-${jobId}]`;
+
+/**
  * Without a cash account petty cash is paid from the bank account (expenses too), so a top-up
  * or a return moves money within one account: nothing to post ("same_account").
  */
@@ -183,7 +202,14 @@ export function pettyTransferSkip(s: { receive_account_id: number | null; cash_a
  * could create a duplicate.
  */
 export async function findJournalEntry(get: (path: string) => Promise<unknown>, tag: string): Promise<number | null> {
-  const r = (await get(`/journal_entries?q[description_cont]=${encodeURIComponent(tag)}`)) as { journal_entries?: { id: number; description?: string }[] } | null;
+  let r: { journal_entries?: { id: number; description?: string }[] } | null;
+  try {
+    r = (await get(`/journal_entries?q[description_cont]=${encodeURIComponent(tag)}`)) as typeof r;
+  } catch (e) {
+    // Qoyod answers a search with no match with 404: that is "not found", not a failure
+    if ((e as { status?: unknown } | null)?.status === 404) return null;
+    throw e;
+  }
   return r?.journal_entries?.find((x) => x.description?.startsWith(tag))?.id ?? null;
 }
 

@@ -22,6 +22,7 @@ import { costStatus, lineAmount, mergeRows, pickStockItem, purchaseTotals, still
 import type { PurchaseStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn, ltr } from "@/lib/utils";
+import { projectHref } from "@/lib/finance";
 
 const TONE: Record<PurchaseStatus, "neutral" | "primary" | "success" | "danger" | "warning"> = {
   draft: "neutral",
@@ -65,7 +66,7 @@ export function PurchasesList({ purchases, canManage, base = "" }: { purchases: 
                 </p>
                 <p className="font-latin text-end text-[15px] font-bold tabular-nums">{fmt.money(p.total)}</p>
                 <p className="col-span-full text-[13px] text-muted-foreground">
-                  {[p.supplier, p.project ? `${p.project.client} · ${ltr(p.project.number)}` : t("toStock"), p.invoice_date && fmt.date(p.invoice_date)].filter(Boolean).join(" · ")}
+                  {[p.supplier, p.charge.kind === "project" ? `${p.charge.client} · ${ltr(p.charge.number)}` : p.charge.kind === "hidden" ? t("toProject") : t("toStock"), p.invoice_date && fmt.date(p.invoice_date)].filter(Boolean).join(" · ")}
                 </p>
               </Link>
             </li>
@@ -504,12 +505,21 @@ export function PurchaseView({
             {[d.supplier, d.invoice_number && t("invoiceNo", { n: ltr(d.invoice_number) }), d.invoice_date && fmt.date(d.invoice_date)].filter(Boolean).join(" · ")}
           </p>
           <p className="text-[13px]">
-            {d.project ? (
+            {/* the project as this viewer may open it: contract, else project page, else plain text */}
+            {d.charge.kind === "project" ? (
               <>
-                {t("chargeTo")}: {d.project.client} ·{" "}
-                <Link href={`${base}/contracts/${d.project.number}`} className="text-primary hover:underline">
-                  <DocNo>{d.project.number}</DocNo>
-                </Link>
+                {t("chargeTo")}: {d.charge.client} ·{" "}
+                {d.charge.href ? (
+                  <Link href={`${base}${d.charge.href}`} className="text-primary hover:underline">
+                    <DocNo>{d.charge.number}</DocNo>
+                  </Link>
+                ) : (
+                  <DocNo>{d.charge.number}</DocNo>
+                )}
+              </>
+            ) : d.charge.kind === "hidden" ? (
+              <>
+                {t("chargeTo")}: {t("toProject")}
               </>
             ) : (
               t("toStock")
@@ -826,7 +836,7 @@ function ItemDialog({ item, onClose, save, products }: { item?: ItemRef; onClose
 // --- Estimated vs actual ------------------------------------------------------------
 
 /** labourHidden: costs are shown but in-house labour isn't because the user lacks hr.view (salaries). */
-export function ProjectCostsView({ rows, base = "", labourHidden = false }: { rows: ProjectCost[]; base?: string; labourHidden?: boolean }) {
+export function ProjectCostsView({ rows, links, base = "", labourHidden = false }: { rows: ProjectCost[]; links: { contracts: boolean; projects: boolean }; base?: string; labourHidden?: boolean }) {
   const t = useTranslations("purchases");
   const { fmt } = useFormatter();
   if (!rows.length) return <EmptyState icon={<ShoppingCart />} title={t("noProjectsTitle")} description={t("noProjectsBody")} />;
@@ -841,9 +851,15 @@ export function ProjectCostsView({ rows, base = "", labourHidden = false }: { ro
           return (
             <li key={r.id} className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <Link href={`${base}/contracts/${r.number}`} className="font-bold hover:text-primary">
-                  {r.client} · <DocNo>{r.number}</DocNo>
-                </Link>
+                {projectHref(r.number, links) ? (
+                  <Link href={`${base}${projectHref(r.number, links)}`} className="font-bold hover:text-primary">
+                    {r.client} · <DocNo>{r.number}</DocNo>
+                  </Link>
+                ) : (
+                  <p className="font-bold">
+                    {r.client} · <DocNo>{r.number}</DocNo>
+                  </p>
+                )}
                 {s.level === "over" && (
                   <Badge tone="danger">
                     <AlertTriangle className="size-3" /> {t("over", { n: fmt.number(((s.ratio ?? 1) - 1) * 100, 0) })}

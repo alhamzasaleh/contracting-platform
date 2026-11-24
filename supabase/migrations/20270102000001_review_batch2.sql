@@ -10,7 +10,10 @@
 --   #17 maintenance covered by the warranty (we pay for it) is part of a project's actual
 --       cost; the profit alert also watches handed-over projects during the warranty.
 --   G4  subcontractor payments and petty-cash expenses reach Qoyod (simple bill +
---       its payment), like supplier purchases; subcontracting expense account.
+--       its payment), like supplier purchases; subcontracting expense account; a cash
+--       account chosen later moves the open petty-cash balance bank → cash once.
+--   A new client-page link and the revocation of the older ones in one locked step
+--       (public.issue_portal_link).
 --   Qoyod account choices added after the first release (salary, cash) were not
 --       writable by the settings screen (column grants) — granted with the new one.
 -- Non-destructive: new table/columns, wider checks, new triggers, redefined functions.
@@ -79,6 +82,40 @@ $$;
 -- fires after client_portal_links_guard (alphabetical), so the guard sees what staff asked for
 create trigger client_portal_links_set_expiry before insert on public.client_portal_links
   for each row execute function private.portal_link_floor();
+
+-- Issuing a new client-page link and revoking the older ones is one step: the contract row is
+-- locked, so two "send" presses at once can't leave two active links. quotes.manage + access to
+-- the project. The floor trigger above still sets the expiry (and refuses after the warranty —
+-- then nothing changes, the current link stays). As a definer function the invoker link guard
+-- doesn't see a user, so its insert checks are repeated here.
+create or replace function public.issue_portal_link(p_contract uuid, p_token_hash text, p_expires timestamptz)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  c public.contracts;
+  v_id uuid;
+begin
+  select * into c from public.contracts where id = p_contract for update;
+  if c.id is null or not private.has_permission(c.organization_id, 'quotes.manage') or not private.can_access_contract(c.organization_id, c.id) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  if c.status = 'cancelled' or p_token_hash is null or p_token_hash !~ '^[0-9a-f]{64}$'
+     or p_expires is null or p_expires <= now() or p_expires > now() + interval '3 years' then
+    raise exception 'invalid link' using errcode = '22023';
+  end if;
+  insert into public.client_portal_links (organization_id, contract_id, token_hash, expires_at)
+  values (c.organization_id, c.id, p_token_hash, p_expires)
+  returning id into v_id;
+  update public.client_portal_links set revoked_at = now()
+  where contract_id = c.id and revoked_at is null and id <> v_id;
+  return v_id;
+end;
+$$;
+revoke all on function public.issue_portal_link(uuid, text, timestamptz) from public, anon;
+grant execute on function public.issue_portal_link(uuid, text, timestamptz) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- #12 Additional works: estimated cost (costs.view)
@@ -420,7 +457,7 @@ alter table public.qoyod_sync_jobs add constraint qoyod_sync_jobs_kind_check
 
 alter table public.qoyod_sync_jobs drop constraint qoyod_sync_jobs_entity_type_check;
 alter table public.qoyod_sync_jobs add constraint qoyod_sync_jobs_entity_type_check
-  check (entity_type in ('client', 'supplier', 'subcontractor', 'contract_payment', 'addendum', 'purchase', 'payroll_run', 'subcontractor_payment', 'petty_cash'));
+  check (entity_type in ('client', 'supplier', 'subcontractor', 'contract_payment', 'addendum', 'purchase', 'payroll_run', 'subcontractor_payment', 'petty_cash', 'petty_cash_opening'));
 
 -- A payment to a subcontractor = a simple bill (subcontracting expense) + its payment.
 create or replace function private.qoyod_on_subcontractor_payment()
@@ -460,6 +497,40 @@ $$;
 revoke all on function private.qoyod_on_petty_cash() from public;
 create trigger petty_cash_entries_qoyod after insert on public.petty_cash_entries
   for each row execute function private.qoyod_on_petty_cash();
+
+-- A cash account chosen later (Settings, or the automatic setup): until then petty cash was paid
+-- from the bank account (top-ups / returns were skipped as "same account"), so the open balance
+-- sits in the bank. One opening transfer bank → cash moves it — the sum of the active holders'
+-- balances, once per switch (null → an account other than the bank). Earlier skipped top-ups
+-- stay skipped: their expenses were paid from the bank. entity_id = the organization; the
+-- worker tags the journal entry with the job id so a retry finds it.
+create or replace function private.qoyod_petty_opening()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_balance numeric;
+begin
+  if old.cash_account_id is not null or new.cash_account_id is null or new.cash_account_id is not distinct from new.receive_account_id then
+    return null;
+  end if;
+  select coalesce(sum(case e.kind when 'topup' then e.amount else -e.amount end), 0) into v_balance
+  from public.petty_cash_entries e
+  join public.petty_cash_accounts a on a.id = e.account_id
+  where e.organization_id = new.organization_id and a.is_active;
+  if v_balance <= 0 then
+    return null;
+  end if;
+  perform private.qoyod_enqueue(new.organization_id, 'transfer', 'petty_cash_opening', new.organization_id,
+    'pco:' || new.organization_id || ':' || to_char(clock_timestamp() at time zone 'Asia/Riyadh', 'YYYYMMDD"T"HH24MISS.US'), round(v_balance, 2));
+  return null;
+end;
+$$;
+revoke all on function private.qoyod_petty_opening() from public;
+create trigger qoyod_settings_petty_opening after update of cash_account_id on public.qoyod_settings
+  for each row execute function private.qoyod_petty_opening();
 
 -- Backfill: also supplier payments, subcontractor payments and petty-cash expenses.
 create or replace function public.qoyod_backfill(p_org uuid, p_from date)

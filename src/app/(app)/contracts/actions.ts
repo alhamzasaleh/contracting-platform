@@ -137,22 +137,14 @@ export async function sendContract(input: unknown): Promise<ActionResult<{ url: 
 
   const token = randomBytes(32).toString("base64url");
   const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
-  const now = new Date().toISOString();
-  // the new link first: if the database refuses it (warranty ended) the current link stays as it is
-  const { data: link, error: e2 } = await supabase
-    .from("client_portal_links")
-    .insert({
-      organization_id: session.organization.id, contract_id: c.id, token_hash: tokenHash,
-      expires_at: linkExpiry(c.start_date, c.duration_days, c.warranty_months).toISOString(),
-    })
-    .select("id")
-    .single();
+  // one locked step in the database: the new link is inserted, then the older ones revoked — two
+  // presses at once can't leave two active links; if it is refused (warranty ended) nothing changes
+  const { error: e2 } = await supabase.rpc("issue_portal_link", {
+    p_contract: c.id, p_token_hash: tokenHash, p_expires: linkExpiry(c.start_date, c.duration_days, c.warranty_months).toISOString(),
+  });
   // the database closes the client page once the warranty has ended, whatever the caller may see
   if (e2?.message?.includes("warranty_ended")) return { ok: false, error: "warrantyEnded" };
-  if (e2 || !link) return fail(e2, "link");
-  // then the older links are revoked
-  const { error: e1 } = await supabase.from("client_portal_links").update({ revoked_at: now }).eq("contract_id", c.id).is("revoked_at", null).neq("id", link.id);
-  if (e1) return fail(e1, "revoke");
+  if (e2) return fail(e2, "link");
   if (c.status === "draft") {
     const { error } = await supabase.from("contracts").update({ status: "sent" }).eq("id", c.id);
     if (error) return fail(error, "send");

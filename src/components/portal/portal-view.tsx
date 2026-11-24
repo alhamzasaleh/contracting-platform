@@ -16,6 +16,7 @@ import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
+import { lastValidDay } from "@/lib/contracts";
 import { portalStep } from "@/lib/execution";
 import type { PortalData, PortalOption, PortalStage } from "@/lib/portal";
 import { cn } from "@/lib/utils";
@@ -296,7 +297,7 @@ export function PortalView({
           notes={shown ? shown.notes : data.quote.notes}
           warrantyMonths={c.warranty_months}
         />
-        <p className="text-center text-[12px] text-subtle-foreground">{t("footer", { date: fmt.date(data.expires_at) })}</p>
+        <p className="text-center text-[12px] text-subtle-foreground">{t("footer", { date: fmt.date(lastValidDay(data.expires_at)) })}</p>
         <p className="text-center text-[12px] text-subtle-foreground">{tc("rights", { year: new Date().getFullYear(), name: org.legal_name ?? org.name })}</p>
       </main>
     </div>

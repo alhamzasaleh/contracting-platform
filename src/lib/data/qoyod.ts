@@ -3,7 +3,11 @@ import { can, type SessionContext } from "@/lib/auth/session";
 import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
-export type QoyodJobItem = Pick<QoyodJobRow, "id" | "kind" | "status" | "attempts" | "last_error" | "qoyod_id" | "amount" | "created_at" | "done_at"> & { label: string };
+export type QoyodJobItem = Pick<QoyodJobRow, "id" | "kind" | "status" | "attempts" | "last_error" | "qoyod_id" | "amount" | "created_at" | "done_at"> & {
+  label: string;
+  /** the one-off bank → cash entry for the open petty-cash balance, when a cash account was chosen later */
+  opening?: boolean;
+};
 export type QoyodPageData = {
   settings: Pick<QoyodSettingsRow, "enabled" | "invoice_status" | "inventory_id" | "receive_account_id" | "expense_account_id" | "salary_account_id" | "cash_account_id" | "subcontract_account_id" | "service_products" | "addendum_product_id" | "key_last4" | "key_set_at" | "sync_from">;
   jobs: QoyodJobItem[];
@@ -71,7 +75,7 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
   ]);
   return {
     settings: s ? { ...s, service_products: (s.service_products ?? {}) as Record<string, number> } : EMPTY,
-    jobs: rows.map((j) => ({ id: j.id, kind: j.kind, status: j.status, attempts: j.attempts, last_error: j.last_error, qoyod_id: j.qoyod_id, created_at: j.created_at, done_at: j.done_at, amount: j.amount == null ? null : Number(j.amount), label: label.get(j.entity_id) ?? "—" })),
+    jobs: rows.map((j) => ({ id: j.id, kind: j.kind, status: j.status, attempts: j.attempts, last_error: j.last_error, qoyod_id: j.qoyod_id, created_at: j.created_at, done_at: j.done_at, amount: j.amount == null ? null : Number(j.amount), label: label.get(j.entity_id) ?? "—", opening: j.entity_type === "petty_cash_opening" })),
     counts: { queued: counts[0].count ?? 0, done: counts[1].count ?? 0, failed: counts[2].count ?? 0 },
     draftInvoices,
     draftCount: waitPay.length + waitAd.length,

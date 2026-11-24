@@ -15,7 +15,7 @@ import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { ActionResult } from "@/lib/actions";
-import { capPercent, firstPaymentWarning, percentSum, portalLinkState, scheduleAmounts, type DueEvent } from "@/lib/contracts";
+import { capPercent, firstPaymentWarning, lastValidDay, percentSum, portalLinkState, scheduleAmounts, type DueEvent } from "@/lib/contracts";
 import type { ContractDetail, ContractDraft, ContractListItem } from "@/lib/data/contracts";
 import type { ContractStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
@@ -393,7 +393,7 @@ export function ContractView({
           </p>
           <p className="text-[13px] text-muted-foreground">
             {link.active
-              ? t("linkActive", { date: fmt.date(link.expires_at!), n: link.open_count })
+              ? t("linkActive", { date: fmt.date(lastValidDay(link.expires_at!)), n: link.open_count })
               : t("linkNone")}
           </p>
           {url && (

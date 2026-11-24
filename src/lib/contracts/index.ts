@@ -52,6 +52,14 @@ export function linkExpiry(startDate: string, durationDays: number, warrantyMont
   return end > min ? end : min;
 }
 
+/**
+ * The last moment a client-page link is valid: it expires at Riyadh midnight after the last day
+ * (warranty end + 1 day), so "valid until" shows expires_at − 1 ms — the same day as the warranty end.
+ */
+export function lastValidDay(expiresAt: string | Date): string {
+  return new Date(new Date(expiresAt).getTime() - 1).toISOString();
+}
+
 /** Planned delivery: start + duration + accepted additional works' days (contract page, project page, alerts). */
 export function deliveryDate(start: string, days: number, extraDays: number): string {
   const d = new Date(`${start}T00:00:00Z`);

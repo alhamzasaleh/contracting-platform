@@ -3,6 +3,7 @@
  * returns), totals, review flags and estimated-vs-actual cost status.
  */
 import { z } from "zod";
+import { projectHref } from "@/lib/finance";
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
@@ -159,11 +160,29 @@ export function markBought(lines: ListLine[], bought: BoughtRow[]): (ListLine & 
 }
 
 /**
+ * What a purchase is charged to, as the viewer may see it: general stock, a project they can
+ * open (contract with quotes.view, else project with projects.view, else plain text), or a
+ * project they can't see at all — never shown as general stock.
+ */
+export type PurchaseCharge = { kind: "stock" } | { kind: "hidden" } | { kind: "project"; number: string; client: string; href: string | null };
+export function purchaseCharge(
+  contractId: string | null,
+  projects: Map<string, { number: string; client: string }>,
+  links: { contracts: boolean; projects: boolean },
+): PurchaseCharge {
+  if (!contractId) return { kind: "stock" };
+  const p = projects.get(contractId);
+  if (!p) return { kind: "hidden" };
+  return { kind: "project", number: p.number, client: p.client, href: projectHref(p.number, links) };
+}
+
+/**
  * What the project holds per stock item and colour: its stock movements (recorded purchases,
  * issues and transfers in, minus returns and transfers out — the same movements as the
  * project's cost) plus the lines of purchases waiting for approval. A movement that didn't come
- * from a purchase line (`colour` null) counts for the item's colour on this project when it has
- * only one, else for "no colour". Never negative.
+ * from a purchase line (`colour` null: issue, return, transfer) is shared between the item's colours
+ * on this project in proportion to their positive balances (one colour → all of it; colours all
+ * used up → equally; no colours → "no colour") — never dropped. Never negative.
  */
 export function projectBought(
   moves: { item_id: string; quantity: number; colour: string | null }[],
@@ -171,16 +190,37 @@ export function projectBought(
   items: { id: string; unit: string; product_id: string | null }[],
 ): BoughtRow[] {
   const item = new Map(items.map((i) => [i.id, i]));
-  const colours = new Map<string, Set<string>>();
-  for (const m of moves) if (m.colour != null) colours.set(m.item_id, (colours.get(m.item_id) ?? new Set()).add(m.colour));
-  const net = new Map<string, { item_id: string; colour: string; quantity: number }>();
+  // per item: the coloured balances (movements from purchase lines) and the colourless total
+  const coloured = new Map<string, Map<string, number>>();
+  const plain = new Map<string, number>();
   for (const m of moves) {
-    const seen = colours.get(m.item_id);
-    const colour = m.colour ?? (seen?.size === 1 ? [...seen][0] : "");
-    const k = `${m.item_id}|${colour}`;
-    const b = net.get(k) ?? { item_id: m.item_id, colour, quantity: 0 };
-    b.quantity += m.quantity;
+    if (m.colour == null) plain.set(m.item_id, (plain.get(m.item_id) ?? 0) + m.quantity);
+    else {
+      const c = coloured.get(m.item_id) ?? new Map<string, number>();
+      c.set(m.colour, (c.get(m.colour) ?? 0) + m.quantity);
+      coloured.set(m.item_id, c);
+    }
+  }
+  const net = new Map<string, { item_id: string; colour: string; quantity: number }>();
+  const add = (item_id: string, colour: string, quantity: number) => {
+    const k = `${item_id}|${colour}`;
+    const b = net.get(k) ?? { item_id, colour, quantity: 0 };
+    b.quantity += quantity;
     net.set(k, b);
+  };
+  for (const [id, c] of coloured) for (const [colour, q] of c) add(id, colour, q);
+  // a colourless movement (issue, return, transfer) is shared between the item's colours in
+  // proportion to their positive balances; all used up → equally; no colours → "no colour"
+  for (const [id, q] of plain) {
+    const c = coloured.get(id);
+    if (!c?.size) {
+      add(id, "", q);
+      continue;
+    }
+    const positive = [...c].filter(([, b]) => b > 0);
+    const total = positive.reduce((s, [, b]) => s + b, 0);
+    const shares = total > 0 ? positive.map(([colour, b]) => [colour, b / total] as const) : [...c.keys()].map((colour) => [colour, 1 / c.size] as const);
+    for (const [colour, share] of shares) add(id, colour, q * share);
   }
   const out: BoughtRow[] = [];
   for (const b of net.values()) {

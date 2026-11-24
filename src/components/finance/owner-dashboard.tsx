@@ -46,13 +46,26 @@ export function OwnerFinanceSections({ f, actions, base = "" }: { f: OwnerFinanc
           </motion.div>
         ))}
         <motion.div variants={item}>
-          <Link href={`${base}/projects`} className="block rounded-2xl bg-ink p-4 text-ink-foreground sm:p-5">
-            <p className="text-[13px] opacity-80">{t("activeProjects")}</p>
-            <p className="num mt-2 text-[28px] font-extrabold text-gypsum">{fmt.number(f.kpis.activeProjects)}</p>
-            {(f.delayed.length > 0 || f.overBudget.length > 0) && (
-              <p className="mt-1 text-[12px] text-ink-muted">{t("attention", { delayed: f.delayed.length, over: f.overBudget.length })}</p>
-            )}
-          </Link>
+          {/* opens the projects page only for projects.view */}
+          {(() => {
+            const body = (
+              <>
+                <p className="text-[13px] opacity-80">{t("activeProjects")}</p>
+                <p className="num mt-2 text-[28px] font-extrabold text-gypsum">{fmt.number(f.kpis.activeProjects)}</p>
+                {(f.delayed.length > 0 || f.overBudget.length > 0) && (
+                  <p className="mt-1 text-[12px] text-ink-muted">{t("attention", { delayed: f.delayed.length, over: f.overBudget.length })}</p>
+                )}
+              </>
+            );
+            const cls = "block rounded-2xl bg-ink p-4 text-ink-foreground sm:p-5";
+            return f.links.projects ? (
+              <Link href={`${base}/projects`} className={cls}>
+                {body}
+              </Link>
+            ) : (
+              <div className={cls}>{body}</div>
+            );
+          })()}
         </motion.div>
       </div>
 
@@ -344,9 +357,13 @@ function TeamCost({ f, base }: { f: OwnerFinance; base: string }) {
   if (!f.teamCost) return null;
   return (
     <motion.section variants={item} className="grid gap-1 rounded-2xl border border-border bg-surface p-5 text-[13px]">
-      <Link href={`${base}/schedule`} className="text-[14px] font-bold hover:text-primary">
-        {t("teamIdleTitle")}
-      </Link>
+      {f.links.schedule ? (
+        <Link href={`${base}/schedule`} className="text-[14px] font-bold hover:text-primary">
+          {t("teamIdleTitle")}
+        </Link>
+      ) : (
+        <p className="text-[14px] font-bold">{t("teamIdleTitle")}</p>
+      )}
       <p className="num text-[22px] font-extrabold tabular-nums">{fmt.money(f.teamCost.unabsorbed)}</p>
       <p className="text-muted-foreground">{t("teamIdleOf", { allocated: fmt.money(f.teamCost.allocated), monthly: fmt.money(f.teamCost.toDate) })}</p>
       <p className="text-[12px] text-subtle-foreground">{t("teamIdleHint")}</p>

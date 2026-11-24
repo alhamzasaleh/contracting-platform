@@ -8,9 +8,9 @@ const ago = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
 const DATA: QoyodPageData = {
   settings: {
     enabled: true, invoice_status: "Draft", inventory_id: 1, receive_account_id: 8, expense_account_id: 52, service_products: { gypsum: 11, interior: 12 },
-    salary_account_id: null, cash_account_id: null, subcontract_account_id: null, addendum_product_id: null, key_last4: "7Q2X", key_set_at: ago(30), sync_from: null,
+    salary_account_id: null, cash_account_id: 7, subcontract_account_id: null, addendum_product_id: null, key_last4: "7Q2X", key_set_at: ago(30), sync_from: null,
   },
-  counts: { queued: 1, done: 3, failed: 1 },
+  counts: { queued: 2, done: 4, failed: 1 },
   draftInvoices: ["INV-2026-004"],
   canViewInvoices: true,
   canManage: true,
@@ -21,6 +21,10 @@ const DATA: QoyodPageData = {
     { id: "j3", kind: "bill", status: "done", attempts: 1, last_error: null, qoyod_id: 77, amount: null, created_at: ago(5), done_at: ago(5), label: `PO-${y}-006 · مؤسسة الأفق للمواد` },
     { id: "j4", kind: "invoice", status: "queued", attempts: 1, last_error: "network", qoyod_id: null, amount: null, created_at: ago(0.5), done_at: null, label: `C-${y}-005/1 · عند التوقيع` },
     { id: "j5", kind: "bill", status: "failed", attempts: 6, last_error: "HTTP 422: {\"reference\":[\"has already been taken\"]}", qoyod_id: null, amount: null, created_at: ago(26), done_at: null, label: `PO-${y}-003 · مصنع الجبس الوطني` },
+    // a petty-cash top-up while no cash account was chosen: nothing to post (paid from the bank itself)
+    { id: "j6", kind: "transfer", status: "done", attempts: 1, last_error: "skipped:same_account", qoyod_id: null, amount: 1000, created_at: ago(48), done_at: ago(48), label: "تعبئة عهدة المشرف" },
+    // the cash account chosen later: one entry moves the open petty-cash balance bank → cash
+    { id: "j7", kind: "transfer", status: "queued", attempts: 0, last_error: null, qoyod_id: null, amount: 715, created_at: ago(0.2), done_at: null, label: "—", opening: true },
   ],
 };
 

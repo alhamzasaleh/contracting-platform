@@ -50,8 +50,8 @@ export type OwnerFinance = {
   labourHidden?: boolean;
   canManage: boolean;
   canDecide: boolean;
-  /** which pages the viewer may open from here: contracts (quotes.view), projects (projects.view), costs (costs.view + purchases.view) */
-  links: { contracts: boolean; projects: boolean; costs: boolean };
+  /** which pages the viewer may open from here: contracts (quotes.view), projects (projects.view), costs (costs.view + purchases.view), schedule (schedule.view) */
+  links: { contracts: boolean; projects: boolean; costs: boolean; schedule: boolean };
 };
 
 type ApprovalDbRow = { id: string; kind: string; entity: string; entity_id: string; details: unknown; created_at: string };
@@ -260,6 +260,6 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     labourHidden: can(session, "costs.view") && !can(session, "hr.view"),
     canManage: can(session, "finance.manage"),
     canDecide: can(session, "approvals.decide"),
-    links: { contracts: can(session, "quotes.view"), projects: can(session, "projects.view"), costs: can(session, "costs.view") && can(session, "purchases.view") },
+    links: { contracts: can(session, "quotes.view"), projects: can(session, "projects.view"), costs: can(session, "costs.view") && can(session, "purchases.view"), schedule: can(session, "schedule.view") },
   };
 }

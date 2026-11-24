@@ -4,7 +4,7 @@ import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.type
 import { qoyod, QoyodError } from "./client";
 import { qoyodAutoSetup } from "./setup";
 import { effectiveVatPercent } from "@/lib/costing";
-import { approveSimpleBillBody, autoSetupDue, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyTag, pettyTransferBody, pettyTransferSkip, simpleBillBody, simpleBillPaymentBody, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
+import { approveSimpleBillBody, autoSetupDue, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyOpeningBody, pettyOpeningTag, pettyTag, pettyTransferBody, pettyTransferSkip, simpleBillBody, simpleBillPaymentBody, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Ctx = { admin: Admin; key: string; s: QoyodSettingsRow };
@@ -375,6 +375,19 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number | { skipped: s
     case "transfer": {
       // petty cash top-up (bank → cash) or return (cash → bank)
       const bankAccountId = need(s.receive_account_id, "receive_account");
+      if (job.entity_type === "petty_cash_opening") {
+        // a cash account chosen later: the open petty-cash balance moves bank → cash once
+        const skip = pettyTransferSkip(s);
+        if (skip) return { skipped: skip };
+        const cashAccountId = need(s.cash_account_id, "cash_account");
+        const hit = await journalEntry(ctx, pettyOpeningTag(job.id));
+        if (hit) return hit;
+        const body = pettyOpeningBody({ jobId: job.id, date: day(job.created_at), amount: Number(job.amount ?? 0), bankAccountId, cashAccountId });
+        const created = await qoyod<{ id?: number; journal_entry?: { id?: number } }>(ctx.key, "POST", "/journal_entries", body);
+        const id = Number(created.id ?? created.journal_entry?.id);
+        if (!id) throw new QoyodError(500, "no id returned");
+        return id;
+      }
       const { data: e } = await ctx.admin.from("petty_cash_entries").select("id, kind, entry_date, amount, account_id").eq("id", job.entity_id).single();
       const entry = need(e, "petty_cash");
       if (entry.kind === "expense") throw new Blocked("unsupported");

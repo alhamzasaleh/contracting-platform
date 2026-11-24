@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { aiConfigured } from "@/lib/ai/invoice";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { Line } from "@/lib/engine";
-import { linesFromPurchaseList, markBought, projectBought, stockBalances, type ListLine } from "@/lib/purchases";
+import { linesFromPurchaseList, markBought, projectBought, purchaseCharge, stockBalances, type ListLine, type PurchaseCharge } from "@/lib/purchases";
 import type { PurchaseItem } from "@/lib/quotes";
 import type { PurchaseStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -14,6 +14,8 @@ export type ProjectRef = { id: string; number: string; client: string; status: s
 export type PurchaseListItem = {
   id: string; number: string; status: PurchaseStatus; supplier: string | null; invoice_number: string | null; invoice_date: string | null;
   project: ProjectRef | null; total: number; created_at: string;
+  /** what it is charged to, as this viewer may see and open it (never "general stock" for a project purchase) */
+  charge: PurchaseCharge;
 };
 export type PurchaseLineView = { seq: number; kind: "material" | "expense"; item_id: string | null; description: string; colour: string | null; quantity: number; unit: string; unit_price: number; amount: number };
 export type ItemRef = { id: string; name: string; unit: string; is_general: boolean; product_id?: string | null };
@@ -53,14 +55,22 @@ async function projectsMap(supabase: Awaited<ReturnType<typeof createClient>>, o
   return new Map((contracts ?? []).map((c) => [c.id, { id: c.id, number: c.number, client: names.get(c.client_id) ?? "—", status: c.status }]));
 }
 
+/** Which project pages the viewer may open: the contract (quotes.view), else the project (projects.view). */
+const projectLinks = (session: SessionContext) => ({ contracts: can(session, "quotes.view"), projects: can(session, "projects.view") });
+
 export async function loadPurchases(session: SessionContext): Promise<PurchaseListItem[]> {
   const supabase = await createClient();
   const orgId = session.organization.id;
+  const links = projectLinks(session);
   const [{ data }, projects] = await Promise.all([
     supabase.from("purchases").select("id, number, status, supplier_name, invoice_number, invoice_date, contract_id, total, created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500),
-    projectsMap(supabase, orgId, can(session, "quotes.view")),
+    projectsMap(supabase, orgId, links.contracts || links.projects),
   ]);
-  return (data ?? []).map((p) => ({ ...p, supplier: p.supplier_name, total: n(p.total), project: p.contract_id ? (projects.get(p.contract_id) ?? { id: p.contract_id, number: "—", client: "—", status: "" }) : null }));
+  return (data ?? []).map((p) => ({
+    ...p, supplier: p.supplier_name, total: n(p.total),
+    project: p.contract_id ? (projects.get(p.contract_id) ?? { id: p.contract_id, number: "—", client: "—", status: "" }) : null,
+    charge: purchaseCharge(p.contract_id, projects, links),
+  }));
 }
 
 async function detail(session: SessionContext, number: string): Promise<PurchaseDetail> {
@@ -68,16 +78,18 @@ async function detail(session: SessionContext, number: string): Promise<Purchase
   const orgId = session.organization.id;
   const { data: p } = await supabase.from("purchases").select("*").eq("organization_id", orgId).eq("number", number).maybeSingle();
   if (!p) notFound();
+  const links = projectLinks(session);
   const [{ data: lines }, { data: approval }, projects, signed] = await Promise.all([
     supabase.from("purchase_lines").select("seq, kind, item_id, description, colour, quantity, unit, unit_price, amount").eq("purchase_id", p.id).order("seq"),
     supabase.from("approvals").select("id, status, details").eq("entity", "purchase").eq("entity_id", p.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    projectsMap(supabase, orgId, can(session, "quotes.view")),
+    projectsMap(supabase, orgId, links.contracts || links.projects),
     p.attachment_path ? supabase.storage.from("purchase-docs").createSignedUrl(p.attachment_path, 300) : Promise.resolve({ data: null }),
   ]);
   return {
     id: p.id, number: p.number, status: p.status, supplier: p.supplier_name, supplier_id: p.supplier_id, supplier_vat: p.supplier_vat,
     invoice_number: p.invoice_number, invoice_date: p.invoice_date, created_at: p.created_at, notes: p.notes,
     project: p.contract_id ? (projects.get(p.contract_id) ?? null) : null,
+    charge: purchaseCharge(p.contract_id, projects, links),
     subtotal: n(p.subtotal), vat: n(p.vat), total: n(p.total), ai_extracted: p.ai_extracted, ai_flags: (p.ai_flags ?? {}) as Record<string, unknown>,
     lines: (lines ?? []).map((l) => ({ ...l, quantity: n(l.quantity), unit_price: n(l.unit_price), amount: n(l.amount) })),
     attachment_path: p.attachment_path,

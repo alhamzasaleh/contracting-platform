@@ -720,7 +720,7 @@ export type AddendumCostRow = {
 };
 export type QoyodJobKind = "customer" | "vendor" | "invoice" | "invoice_payment" | "bill" | "bill_payment" | "payroll" | "transfer";
 export type QoyodJobRow = {
-  id: string; organization_id: string; kind: QoyodJobKind; entity_type: "client" | "supplier" | "subcontractor" | "contract_payment" | "addendum" | "purchase" | "payroll_run" | "subcontractor_payment" | "petty_cash"; entity_id: string; ref: string;
+  id: string; organization_id: string; kind: QoyodJobKind; entity_type: "client" | "supplier" | "subcontractor" | "contract_payment" | "addendum" | "purchase" | "payroll_run" | "subcontractor_payment" | "petty_cash" | "petty_cash_opening"; entity_id: string; ref: string;
   amount: number | null; status: "queued" | "running" | "done" | "failed"; attempts: number; next_attempt_at: string; last_error: string | null; qoyod_id: number | null; done_at: string | null; created_at: string; updated_at: string;
 };
 
@@ -843,6 +843,7 @@ export type Database = {
       requestable_payments: { Args: { p_org: string; p_contract?: string | null }; Returns: { payment_id: string }[] };
       save_quote_version: { Args: { p_user: string; p_quote: string; p_payload: Json }; Returns: { id: string; version: number }[] };
       qoyod_wake_waiting: { Args: { p_org: string }; Returns: number };
+      issue_portal_link: { Args: { p_contract: string; p_token_hash: string; p_expires: string }; Returns: string };
       issue_quote: { Args: { p_quote: string; p_valid_until: string | null }; Returns: undefined };
       project_labour_costs: { Args: { p_org: string }; Returns: { contract_id: string; labour: number }[] };
       team_cost_month: { Args: { p_org: string }; Returns: { monthly: number; allocated: number; to_date: number }[] };

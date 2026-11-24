@@ -313,7 +313,13 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
                   <li key={j.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3">
                     <div className="min-w-0">
                       <p className="text-sm font-medium">
-                        {t(`kind_${j.kind}`)} · <bdi dir="ltr" className="font-latin">{j.label}</bdi>
+                        {j.opening ? (
+                          t("kind_pettyOpening")
+                        ) : (
+                          <>
+                            {t(`kind_${j.kind}`)} · <bdi dir="ltr" className="font-latin">{j.label}</bdi>
+                          </>
+                        )}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {j.amount != null && `${fmt.money(j.amount)} · `}

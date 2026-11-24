@@ -11,9 +11,9 @@ const items = [
 ];
 
 export const SAMPLE_PURCHASES: PurchaseListItem[] = [
-  { id: "p3", number: "PO-2026-003", status: "pending_approval", supplier: "مؤسسة مواد البناء الحديثة", invoice_number: "88412", invoice_date: "2026-11-22", project: projects[0], total: 7245, created_at: "2026-11-22T10:00:00Z" },
-  { id: "p2", number: "PO-2026-002", status: "recorded", supplier: "معرض الألوان", invoice_number: "A-5521", invoice_date: "2026-11-20", project: projects[1], total: 2070, created_at: "2026-11-20T10:00:00Z" },
-  { id: "p1", number: "PO-2026-001", status: "recorded", supplier: "مؤسسة مواد البناء الحديثة", invoice_number: "88200", invoice_date: "2026-11-18", project: null, total: 3105, created_at: "2026-11-18T10:00:00Z" },
+  { id: "p3", number: "PO-2026-003", status: "pending_approval", supplier: "مؤسسة مواد البناء الحديثة", invoice_number: "88412", invoice_date: "2026-11-22", project: projects[0], charge: { kind: "project", number: projects[0].number, client: projects[0].client, href: `/contracts/${projects[0].number}` }, total: 7245, created_at: "2026-11-22T10:00:00Z" },
+  { id: "p2", number: "PO-2026-002", status: "recorded", supplier: "معرض الألوان", invoice_number: "A-5521", invoice_date: "2026-11-20", project: projects[1], charge: { kind: "project", number: projects[1].number, client: projects[1].client, href: `/contracts/${projects[1].number}` }, total: 2070, created_at: "2026-11-20T10:00:00Z" },
+  { id: "p1", number: "PO-2026-001", status: "recorded", supplier: "مؤسسة مواد البناء الحديثة", invoice_number: "88200", invoice_date: "2026-11-18", project: null, charge: { kind: "stock" }, total: 3105, created_at: "2026-11-18T10:00:00Z" },
 ];
 
 const detail = {
