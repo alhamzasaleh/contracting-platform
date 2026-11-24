@@ -344,6 +344,10 @@ begin
       new.closed_at := null;
       new.closed_by := null;
     elsif new.status in ('closed', 'rejected') then
+      -- leaving a closed request (any way) drops the client's earlier confirmation
+      if old.status = 'closed' then
+        new.client_confirmed_at := null;
+      end if;
       new.closed_at := now();
       -- staff closing (the client's own close comes through portal_confirm_maintenance)
       new.closed_by := case when v_user then auth.uid() end;
@@ -353,6 +357,9 @@ begin
       new.resolved_at := null;
       new.closed_at := null;
       new.closed_by := null;
+      new.client_confirmed_at := null;
+    end if;
+    if old.status = 'closed' and new.status = 'resolved' then
       new.client_confirmed_at := null;
     end if;
   end if;

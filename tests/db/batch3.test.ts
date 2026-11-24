@@ -245,6 +245,16 @@ describe("#23 maintenance closed by staff or the client", () => {
     expect(w.rows[0].w.requests.find((x) => x.id === id)).toMatchObject({ closed_by_staff: true, client_confirmed_at: null });
   });
 
+  it("client confirms → staff move it to resolved → staff close: the old confirmation no longer counts", async () => {
+    const id = await open();
+    await as({ userId: sup }, (q) => q("update public.maintenance_requests set status = 'resolved' where id = $1", [id]));
+    await as("service_role", (q) => q("select public.portal_confirm_maintenance($1,$2,$3)", [c.number, c.token, id]));
+    await as({ userId: sup }, (q) => q("update public.maintenance_requests set status = 'resolved' where id = $1", [id]));
+    await as({ userId: sup }, (q) => q("update public.maintenance_requests set status = 'closed' where id = $1", [id]));
+    const r = await asAdmin((q) => q<{ client_confirmed_at: string | null; closed_by: string | null }>("select client_confirmed_at, closed_by from public.maintenance_requests where id = $1", [id]));
+    expect(r.rows[0]).toEqual({ client_confirmed_at: null, closed_by: sup });
+  });
+
   it("rejected by staff reads as closed by staff on the client page", async () => {
     const id = await open();
     await as({ userId: sup }, (q) => q("update public.maintenance_requests set status = 'rejected', reply = 'غير مشمول' where id = $1", [id]));
