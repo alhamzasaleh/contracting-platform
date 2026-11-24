@@ -78,7 +78,8 @@ export const STEPS: Record<ServiceKind, StepDef[]> = {
     { key: "primer", roles: ["ext_primer"], coats: [{ key: "facades", rateKey: "exterior.coats.primer", fallback: 1, max: 3 }] },
     { key: "putty", roles: ["ext_putty"], coats: [{ key: "facades", rateKey: "exterior.coats.putty", fallback: 1, max: 3 }], when: (o) => o.method !== "profile" },
     { key: "finish_roller", roles: ["acrylic"], coats: [{ key: "facades", rateKey: "exterior.coats.finish", fallback: 2, max: 3 }], when: (o) => o.method === "roller" },
-    { key: "finish_profile", roles: ["profile"], coats: [{ key: "facades", rateKey: "exterior.coats.finish", fallback: 1, max: 3 }], when: (o) => o.method === "profile" },
+    // profile is applied as a single coat (owner) — not the acrylic finish rate (2)
+    { key: "finish_profile", roles: ["profile"], coats: [{ key: "facades", fallback: 1, max: 3 }], when: (o) => o.method === "profile" },
     { key: "finish_spray", roles: ["spray_acrylic"], coats: [{ key: "facades", rateKey: "exterior.coats.finish", fallback: 2, max: 3 }], when: (o) => o.method === "spray" },
   ],
   gypsum: [

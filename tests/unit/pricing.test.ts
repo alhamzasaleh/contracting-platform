@@ -79,6 +79,14 @@ describe("exterior — the owner's profile case", () => {
     expect(keys(o)).not.toContain("labour_sanding_putty");
   });
 
+  it("profile is one coat by default even when the acrylic finish rate says 2 (owner: profile is a single coat)", () => {
+    const c = ctx();
+    expect(c.catalogue.rates["exterior.coats.finish"]).toBe(2);
+    const sel = defaultSelection("exterior", c.catalogue);
+    expect(sel.steps.finish_profile.coats).toEqual({ facades: 1 });
+    expect(sel.steps.finish_roller.coats).toEqual({ facades: 2 });
+  });
+
   it("an incomplete chosen product is reported, never silently dropped", () => {
     const c = ctx(); // seeded generic profile has no price
     const sel = defaultSelection("exterior", c.catalogue);
