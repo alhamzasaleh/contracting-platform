@@ -724,6 +724,8 @@ export type QoyodJobRow = {
   amount: number | null; status: "queued" | "running" | "done" | "failed"; attempts: number; next_attempt_at: string; last_error: string | null; qoyod_id: number | null; done_at: string | null; created_at: string; updated_at: string;
   /** petty-cash jobs only: the account fixed when queued */
   route: "bank" | "cash" | null;
+  /** petty cash routed "cash": the cash account it posts to; reconcile jobs: from / to (null = the bank) */
+  cash_account_id: number | null; from_account_id: number | null; to_account_id: number | null;
 };
 
 export type Database = {

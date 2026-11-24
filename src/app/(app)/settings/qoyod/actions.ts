@@ -7,6 +7,7 @@ import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
 import { runBackground } from "@/lib/background";
 import { qoyodOptions, type QoyodOptions } from "@/lib/qoyod/client";
+import { cashAccountOrNull } from "@/lib/qoyod/payloads";
 import { qoyodAutoSetup } from "@/lib/qoyod/setup";
 import { runQoyodSync } from "@/lib/qoyod/sync";
 import { rateLimit } from "@/lib/rate-limit";
@@ -56,7 +57,7 @@ async function applyAutoSetup(session: Awaited<ReturnType<typeof getSession>>, k
       .from("qoyod_settings")
       .update({
         inventory_id, receive_account_id, expense_account_id: cur?.expense_account_id ?? auto.expense_account_id,
-        salary_account_id: cur?.salary_account_id ?? auto.salary_account_id, cash_account_id: cur?.cash_account_id ?? auto.cash_account_id,
+        salary_account_id: cur?.salary_account_id ?? auto.salary_account_id, cash_account_id: cashAccountOrNull(cur?.cash_account_id ?? auto.cash_account_id, receive_account_id),
         subcontract_account_id: cur?.subcontract_account_id ?? auto.subcontract_account_id,
         service_products: products, addendum_product_id: cur?.addendum_product_id ?? auto.addendum_product_id,
         enabled: cur?.enabled || !!(inventory_id && receive_account_id), updated_by: session.userId,
@@ -135,11 +136,15 @@ export async function saveQoyodSettings(input: unknown): Promise<ActionResult> {
   }
   const products = Object.fromEntries(Object.entries(v.service_products).filter(([, x]) => x != null)) as Record<string, number>;
   const row = { ...v, service_products: products, updated_by: session.userId };
-  const { data: existing } = await supabase.from("qoyod_settings").select("organization_id").eq("organization_id", session.organization.id).maybeSingle();
+  const { data: existing } = await supabase.from("qoyod_settings").select("organization_id, cash_account_id").eq("organization_id", session.organization.id).maybeSingle();
+  // the cash account is never the bank account (petty cash would be counted in both; the DB refuses it too)
+  const cash = v.cash_account_id === undefined ? (existing?.cash_account_id ?? null) : v.cash_account_id;
+  if (cash != null && cash === v.receive_account_id) return { ok: false, error: "qoyodCashIsBank" };
   const { error } = existing
     ? await supabase.from("qoyod_settings").update(row).eq("organization_id", session.organization.id)
     : await supabase.from("qoyod_settings").insert({ ...v, service_products: products, organization_id: session.organization.id });
   if (error) {
+    if (error.code === "23514" && error.message.includes("qoyod_settings_cash_not_bank")) return { ok: false, error: "qoyodCashIsBank" };
     console.error("[qoyod] settings failed", { code: error.code });
     return { ok: false, error: "error" };
   }

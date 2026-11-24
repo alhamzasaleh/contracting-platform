@@ -4,7 +4,7 @@ import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.type
 import { qoyod, QoyodError } from "./client";
 import { qoyodAutoSetup } from "./setup";
 import { effectiveVatPercent } from "@/lib/costing";
-import { approveSimpleBillBody, autoSetupDue, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyOpeningBody, pettyOpeningTag, pettyPlan, pettyTag, pettyTransferBody, simpleBillBody, simpleBillPaymentBody, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
+import { approveSimpleBillBody, autoSetupDue, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, cashAccountOrNull, pettyOpeningBody, pettyOpeningTag, pettyPlan, pettyReconcileAccounts, pettyTag, pettyTransferBody, simpleBillBody, simpleBillPaymentBody, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Ctx = { admin: Admin; key: string; s: QoyodSettingsRow };
@@ -86,7 +86,7 @@ async function fillMissing(admin: Admin, key: string, s: QoyodSettingsRow): Prom
     const auto = await qoyodAutoSetup(key, !!org?.vat_number);
     const next = {
       inventory_id: s.inventory_id ?? auto.inventory_id, receive_account_id: s.receive_account_id ?? auto.receive_account_id, expense_account_id: s.expense_account_id ?? auto.expense_account_id,
-      salary_account_id: s.salary_account_id ?? auto.salary_account_id, cash_account_id: s.cash_account_id ?? auto.cash_account_id,
+      salary_account_id: s.salary_account_id ?? auto.salary_account_id, cash_account_id: cashAccountOrNull(s.cash_account_id ?? auto.cash_account_id, s.receive_account_id ?? auto.receive_account_id),
       subcontract_account_id: s.subcontract_account_id ?? auto.subcontract_account_id,
       service_products: { ...auto.service_products, ...products }, addendum_product_id: s.addendum_product_id ?? auto.addendum_product_id,
     };
@@ -247,7 +247,7 @@ async function billPayment(ctx: Ctx, job: QoyodJobRow): Promise<{ billRef: strin
     const entry = need(e, "petty_cash");
     const ref = pettyBillRef(entry.id);
     // paid from the account the job was routed to when queued (cash in the holder's hands, or the bank without a cash account)
-    const plan = pettyPlan(job.route, ctx.s);
+    const plan = pettyPlan(job.route, ctx.s, job.cash_account_id);
     if ("wait" in plan) throw new Deferred(`waiting:${plan.wait}`);
     return { billRef: `pc:${entry.id}`, reference: billPaymentRef(ref), from: plan.post, cashAccountId: plan.post === "cash" ? plan.cashAccountId : undefined, date: entry.entry_date, amount: Number(job.amount ?? entry.amount), description: ref };
   }
@@ -376,17 +376,15 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number | { skipped: s
     }
     case "transfer": {
       // petty cash top-up (bank → cash) or return (cash → bank)
-      const bankAccountId = need(s.receive_account_id, "receive_account");
       if (job.entity_type === "petty_cash_opening") {
-        // a cash account chosen later: the open petty-cash balance moves bank → cash once
-        // always routed "cash"; a cash account cleared since → wait (the opening was counted when queued)
-        const plan = pettyPlan(job.route ?? "cash", s);
-        if ("wait" in plan) throw new Deferred(`waiting:${plan.wait}`);
-        if (plan.post === "bank") return { skipped: "same_account" };
-        const cashAccountId = plan.cashAccountId;
+        // a reconcile: from → to as fixed when it was queued (null = the bank account)
+        const acc = pettyReconcileAccounts(job, s.receive_account_id);
+        if ("missing" in acc) throw new Blocked(`missing:${acc.missing}`);
+        if ("skip" in acc) return { skipped: "same_account" };
+        const { fromAccountId, toAccountId } = acc;
         const hit = await journalEntry(ctx, pettyOpeningTag(job.id));
         if (hit) return hit;
-        const body = pettyOpeningBody({ jobId: job.id, date: day(job.created_at), amount: Number(job.amount ?? 0), bankAccountId, cashAccountId });
+        const body = pettyOpeningBody({ jobId: job.id, date: day(job.created_at), amount: Number(job.amount ?? 0), fromAccountId, toAccountId });
         const created = await qoyod<{ id?: number; journal_entry?: { id?: number } }>(ctx.key, "POST", "/journal_entries", body);
         const id = Number(created.id ?? created.journal_entry?.id);
         if (!id) throw new QoyodError(500, "no id returned");
@@ -395,8 +393,9 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number | { skipped: s
       const { data: e } = await ctx.admin.from("petty_cash_entries").select("id, kind, entry_date, amount, account_id").eq("id", job.entity_id).single();
       const entry = need(e, "petty_cash");
       if (entry.kind === "expense") throw new Blocked("unsupported");
+      const bankAccountId = need(s.receive_account_id, "receive_account");
       // routed "bank" when queued (no cash account then): petty cash lived in the bank account, nothing to move
-      const plan = pettyPlan(job.route, s);
+      const plan = pettyPlan(job.route, s, job.cash_account_id);
       if ("wait" in plan) throw new Deferred(`waiting:${plan.wait}`);
       if (plan.post === "bank") return { skipped: "same_account" };
       const cashAccountId = plan.cashAccountId;

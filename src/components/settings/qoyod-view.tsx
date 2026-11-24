@@ -171,7 +171,7 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
               {select("q-inventory", s.inventory_id, (v) => setS({ ...s, inventory_id: v }), options?.inventories ?? [])}
             </Field>
             <Field id="q-receive" label={t("receiveAccount")} hint={t("receiveHint")}>
-              {select("q-receive", s.receive_account_id, (v) => setS({ ...s, receive_account_id: v }), receiveAccounts)}
+              {select("q-receive", s.receive_account_id, (v) => setS({ ...s, receive_account_id: v, cash_account_id: s.cash_account_id === v ? null : s.cash_account_id }), receiveAccounts)}
             </Field>
             <Field id="q-expense" label={t("expenseAccount")} hint={t("expenseHint")}>
               {select("q-expense", s.expense_account_id, (v) => setS({ ...s, expense_account_id: v }), expenseAccounts.length ? expenseAccounts : accounts)}
@@ -180,7 +180,7 @@ export function QoyodSettingsView({ data, preview, sampleOptions, base = "" }: {
               {select("q-salary", s.salary_account_id ?? null, (v) => setS({ ...s, salary_account_id: v }), expenseAccounts.length ? expenseAccounts : accounts)}
             </Field>
             <Field id="q-cash" label={t("cashAccount")} hint={t("cashHint")} optional={tc("optional")}>
-              {select("q-cash", s.cash_account_id ?? null, (v) => setS({ ...s, cash_account_id: v }), receiveAccounts)}
+              {select("q-cash", s.cash_account_id ?? null, (v) => setS({ ...s, cash_account_id: v }), receiveAccounts.filter((a) => a.id !== s.receive_account_id))}
             </Field>
             <Field id="q-subcontract" label={t("subcontractAccount")} hint={t("subcontractHint")} optional={tc("optional")}>
               {select("q-subcontract", s.subcontract_account_id ?? null, (v) => setS({ ...s, subcontract_account_id: v }), expenseAccounts.length ? expenseAccounts : accounts)}

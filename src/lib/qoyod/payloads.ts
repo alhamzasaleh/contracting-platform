@@ -170,41 +170,66 @@ export function pettyTransferBody(j: { entryId: string; kind: "topup" | "return"
 export const pettyTag = (entryId: string) => `[PETTY-${entryId}]`;
 
 /**
- * A cash account chosen after petty cash was already in use: the open petty-cash balance sat in
- * the bank account (earlier top-ups were skipped as "same account"), so one opening entry moves
- * it bank → cash. Tagged with its job id so a retry finds it instead of posting it twice.
+ * A petty-cash reconcile (the database's `qoyod_petty_reconcile`): moves petty cash between the
+ * bank and a cash account, or from an older cash account to the new one — debit the account it
+ * goes to, credit the one it leaves. Tagged with its job id so a retry finds it instead of posting
+ * it twice.
  */
-export function pettyOpeningBody(j: { jobId: string; date: string; amount: number; bankAccountId: number; cashAccountId: number }) {
+export function pettyOpeningBody(j: { jobId: string; date: string; amount: number; fromAccountId: number; toAccountId: number }) {
   const amount = r2(j.amount);
-  const what = "رصيد العهد الافتتاحي";
+  const what = "تسوية رصيد العهد";
   return {
     journal_entry: {
       description: `${pettyOpeningTag(j.jobId)} — ${what}`.slice(0, 250),
       date: j.date,
-      debit_amounts: [{ account_id: j.cashAccountId, amount, comment: what }],
-      credit_amounts: [{ account_id: j.bankAccountId, amount, comment: what }],
+      debit_amounts: [{ account_id: j.toAccountId, amount, comment: what }],
+      credit_amounts: [{ account_id: j.fromAccountId, amount, comment: what }],
     },
   };
 }
 export const pettyOpeningTag = (jobId: string) => `[PETTY-OPEN-${jobId}]`;
 
 /**
+ * A reconcile job's two accounts, fixed by the database when it was queued (null = the bank
+ * account, resolved now). Both the same (an older cash account that has since become the bank
+ * account) → nothing to post.
+ */
+export function pettyReconcileAccounts(
+  job: { from_account_id: number | null; to_account_id: number | null },
+  bankAccountId: number | null,
+): { fromAccountId: number; toAccountId: number } | { skip: true } | { missing: "receive_account" } {
+  const from = job.from_account_id ?? bankAccountId;
+  const to = job.to_account_id ?? bankAccountId;
+  if (from == null || to == null) return { missing: "receive_account" };
+  if (from === to) return { skip: true };
+  return { fromAccountId: from, toAccountId: to };
+}
+
+/** The cash account is never the bank account (the database refuses it): the automatic setup leaves it empty instead. */
+export function cashAccountOrNull(cash: number | null, bank: number | null): number | null {
+  return cash != null && cash !== bank ? cash : null;
+}
+
+/**
  * Which account a petty-cash job posts against — fixed by the database when the job was queued
- * (`qoyod_sync_jobs.route`), never re-decided from the settings when the worker runs:
- * - "bank": no cash account then (or the same as the bank) — petty cash lived in the bank
- *   account, so a top-up / return is a no-op and an expense is paid from the bank. A cash account
- *   chosen later doesn't change it; the opening transfer moves that balance.
- * - "cash": the cash account; if it was cleared since (or is now the bank), wait for it rather
- *   than quietly post somewhere else.
+ * (`qoyod_sync_jobs.route` + `cash_account_id`), never re-decided from the settings when the
+ * worker runs:
+ * - "bank": no cash account then — petty cash lived in the bank account, so a top-up / return is
+ *   a no-op and an expense is paid from the bank. A cash account chosen later doesn't change it;
+ *   the reconcile job moves that balance.
+ * - "cash": the cash account stored on the job (the reconcile moved it if the settings changed
+ *   since). Older rows without one: the current cash account, else wait.
  * A job without a route (older rows) follows the current settings.
  */
 export function pettyPlan(
   route: "bank" | "cash" | null,
   s: { receive_account_id: number | null; cash_account_id: number | null },
+  jobCashAccountId: number | null = null,
 ): { post: "bank" } | { post: "cash"; cashAccountId: number } | { wait: "cash_account" } {
   const cashSet = s.cash_account_id != null && s.cash_account_id !== s.receive_account_id;
   const r = route ?? (cashSet ? "cash" : "bank");
   if (r === "bank") return { post: "bank" };
+  if (route === "cash" && jobCashAccountId != null) return { post: "cash", cashAccountId: jobCashAccountId };
   return cashSet ? { post: "cash", cashAccountId: s.cash_account_id as number } : { wait: "cash_account" };
 }
 

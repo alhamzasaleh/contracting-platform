@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { hrefs, render } from "./helpers/render";
 import { lastValidDay } from "@/lib/contracts";
 import { projectBought, purchaseCharge } from "@/lib/purchases";
-import { findJournalEntry, pettyOpeningBody, pettyOpeningTag, pettyPlan } from "@/lib/qoyod/payloads";
+import { cashAccountOrNull, findJournalEntry, pettyOpeningBody, pettyOpeningTag, pettyPlan, pettyReconcileAccounts } from "@/lib/qoyod/payloads";
 import { OwnerFinanceSections } from "@/components/finance/owner-dashboard";
 import { PortalView } from "@/components/portal/portal-view";
 import { ProjectCostsView, PurchasesList, PurchaseView } from "@/components/purchases/purchase-views";
@@ -82,25 +82,54 @@ describe("#3 Qoyod journal lookup: 404 = not found", () => {
   });
 });
 
-describe("#4 petty cash opening transfer when a cash account is chosen later", () => {
-  it("bank → cash for the open balance, tagged with the job so a retry finds it", () => {
+describe("#4 petty cash reconcile journal (bank ↔ cash, or one cash account to another)", () => {
+  it("bank → cash: debit the cash account, credit the bank; tagged with the job so a retry finds it", () => {
     expect(pettyOpeningTag("j-1")).toBe("[PETTY-OPEN-j-1]");
-    const b = pettyOpeningBody({ jobId: "j-1", date: "2026-11-24", amount: 715.004, bankAccountId: 8, cashAccountId: 7 });
+    const b = pettyOpeningBody({ jobId: "j-1", date: "2026-11-24", amount: 715.004, fromAccountId: 8, toAccountId: 7 });
     expect(b.journal_entry.description.startsWith("[PETTY-OPEN-j-1]")).toBe(true);
+    expect(b.journal_entry.description).toContain("تسوية رصيد العهد");
     expect(b.journal_entry.date).toBe("2026-11-24");
     expect(b.journal_entry.debit_amounts).toEqual([{ account_id: 7, amount: 715, comment: expect.any(String) }]);
     expect(b.journal_entry.credit_amounts).toEqual([{ account_id: 8, amount: 715, comment: expect.any(String) }]);
   });
+  it("cash → bank: debit the bank, credit the cash account", () => {
+    const b = pettyOpeningBody({ jobId: "j-2", date: "2026-11-24", amount: 700, fromAccountId: 7, toAccountId: 8 });
+    expect(b.journal_entry.debit_amounts[0].account_id).toBe(8);
+    expect(b.journal_entry.credit_amounts[0].account_id).toBe(7);
+  });
+  it("cash 7 → cash 9: one entry between the two cash accounts", () => {
+    const b = pettyOpeningBody({ jobId: "j-3", date: "2026-11-24", amount: 715, fromAccountId: 7, toAccountId: 9 });
+    expect(b.journal_entry.debit_amounts).toEqual([{ account_id: 9, amount: 715, comment: expect.any(String) }]);
+    expect(b.journal_entry.credit_amounts).toEqual([{ account_id: 7, amount: 715, comment: expect.any(String) }]);
+  });
+  it("the job's accounts: null = the bank account; same account on both sides → nothing to post", () => {
+    expect(pettyReconcileAccounts({ from_account_id: null, to_account_id: 7 }, 8)).toEqual({ fromAccountId: 8, toAccountId: 7 });
+    expect(pettyReconcileAccounts({ from_account_id: 7, to_account_id: null }, 8)).toEqual({ fromAccountId: 7, toAccountId: 8 });
+    expect(pettyReconcileAccounts({ from_account_id: 7, to_account_id: 9 }, null)).toEqual({ fromAccountId: 7, toAccountId: 9 });
+    expect(pettyReconcileAccounts({ from_account_id: 7, to_account_id: null }, 7)).toEqual({ skip: true });
+    expect(pettyReconcileAccounts({ from_account_id: null, to_account_id: 7 }, null)).toEqual({ missing: "receive_account" });
+  });
+  it("the cash account is never the bank account (automatic setup keeps it empty instead)", () => {
+    expect(cashAccountOrNull(7, 8)).toBe(7);
+    expect(cashAccountOrNull(8, 8)).toBeNull();
+    expect(cashAccountOrNull(null, 8)).toBeNull();
+    expect(cashAccountOrNull(7, null)).toBe(7);
+  });
 });
 
-describe("#4 petty cash posts by the route fixed when its job was queued", () => {
+describe("#4 petty cash posts by the route (and cash account) fixed when its job was queued", () => {
   const noCash = { receive_account_id: 8, cash_account_id: null };
   const cash = { receive_account_id: 8, cash_account_id: 7 };
   it("route 'bank' stays bank even after a cash account is chosen (top-up/return = no-op, expense paid from the bank)", () => {
     expect(pettyPlan("bank", noCash)).toEqual({ post: "bank" });
     expect(pettyPlan("bank", cash)).toEqual({ post: "bank" });
   });
-  it("route 'cash' uses the cash account; if it was cleared (or is now the bank), waits instead of switching", () => {
+  it("route 'cash' posts to the account stored on the job, whatever the settings say now", () => {
+    expect(pettyPlan("cash", cash, 7)).toEqual({ post: "cash", cashAccountId: 7 });
+    expect(pettyPlan("cash", { receive_account_id: 8, cash_account_id: 9 }, 7)).toEqual({ post: "cash", cashAccountId: 7 });
+    expect(pettyPlan("cash", noCash, 7)).toEqual({ post: "cash", cashAccountId: 7 });
+  });
+  it("route 'cash' without a stored account (older rows): the current cash account, else wait", () => {
     expect(pettyPlan("cash", cash)).toEqual({ post: "cash", cashAccountId: 7 });
     expect(pettyPlan("cash", noCash)).toEqual({ wait: "cash_account" });
     expect(pettyPlan("cash", { receive_account_id: 8, cash_account_id: 8 })).toEqual({ wait: "cash_account" });
