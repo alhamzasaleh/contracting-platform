@@ -806,9 +806,7 @@
     "linesHint": "Tap any line to see how it was calculated",
     "buy": "Buy",
     "formula": "Formula",
-    "leftover": "Expected leftover: {n}",
     "offcuts": "{n} offcuts, {m} m in total",
-    "barsBuy": "{n} bars × {len} m",
     "group_material": "Materials",
     "group_labour": "Labour",
     "group_hatch": "Maintenance hatches",
@@ -992,7 +990,11 @@
     "calSuggest": "Suggestion: change “{line}” coverage from {from} to {to} m² per unit per coat — so future pricing matches reality.",
     "calApprove": "Approve the change",
     "calApplied": "New coverage approved — applies to new quotes only.",
-    "calReviewRate": "The gap repeats — review this item's consumption rate in the template numbers."
+    "calReviewRate": "The gap repeats — review this item's consumption rate in the template numbers.",
+    "buyPart": "{count} {unit} × {size} {sizeUnit}",
+    "buyCount": "{count} {unit}",
+    "needShort": "actually needed {n} {unit}",
+    "leftoverUnit": "Expected leftover after use: {n} {unit}"
   },
   "pricing": {
     "service": "Service",
@@ -1313,7 +1315,8 @@
     "optionsCleared": "Back to a single quote",
     "optionsMixedType": "All options must be the same project type (supply & install / install only / supply only).",
     "optionsLocked": "Options can't change once a contract exists.",
-    "optionsActive": "Offered with {n} options — the client picks one"
+    "optionsActive": "Offered with {n} options — the client picks one",
+    "materialsTable": "Bill of quantities"
   },
   "doc": {
     "title": "Quotation",
@@ -1599,7 +1602,8 @@
     "openProject": "Execution",
     "recordPurchase": "Record purchase for project",
     "requestTitle": "Payments waiting for your request",
-    "requestHint": "No stage confirmation requests these payments. Request one to issue its invoice and add it to collections."
+    "requestHint": "No stage confirmation requests these payments. Request one to issue its invoice and add it to collections.",
+    "materialsTable": "Bill of quantities"
   },
   "portal": {
     "hello": "Hello {name}",
@@ -1864,7 +1868,8 @@
     "actualMaterials": "Actual (materials)",
     "actualNote": "Total actual = materials, expenses, petty cash, subcontractors earned, warranty maintenance (our cost) and our team’s scheduled days. The estimate (quote + additional works) is compared with materials only.",
     "actualNoteNoLabour": "Total actual = materials, expenses, petty cash, subcontractors' earnings and warranty maintenance (our cost). The estimate (quote + additional works) is compared with materials only.",
-    "actualNoteHidden": "Total actual = materials, expenses, petty cash, subcontractors earned and warranty maintenance (our cost). In-house labour is hidden because it is built from salaries (needs the HR permission). The estimate (quote + additional works) is compared with materials only."
+    "actualNoteHidden": "Total actual = materials, expenses, petty cash, subcontractors earned and warranty maintenance (our cost). In-house labour is hidden because it is built from salaries (needs the HR permission). The estimate (quote + additional works) is compared with materials only.",
+    "materialsTable": "Bill of quantities"
   },
   "projects": {
     "startDate": "Start",
@@ -1948,7 +1953,8 @@
     "certSigned": "Signed electronically: {name} — {date}",
     "certSignature": "Client signature",
     "savedOffline": "Saved on this device — it will be sent when you are back online",
-    "recordPurchase": "Record purchase for project"
+    "recordPurchase": "Record purchase for project",
+    "materialsTable": "Bill of quantities"
   },
   "addenda": {
     "estimate": "Estimated cost",
@@ -2673,5 +2679,39 @@
     "maintenanceClosed": "Hello {name}, we have closed maintenance request {number}.{reply} If you have any remark, message us. Thank you — {org}",
     "maintenanceRejected": "Hello {name}, about maintenance request {number}: we're sorry, it isn't covered by the warranty.{reply} For any question, message us. — {org}",
     "maintenanceReply": " Our reply: \"{reply}\""
+  },
+  "materials": {
+    "title": "Bill of quantities",
+    "subtitleQuote": "Purchase list of quotation",
+    "subtitleProject": "Purchase list of project",
+    "quote": "Quotation",
+    "contract": "Contract",
+    "version": "Version {n}",
+    "date": "Priced on",
+    "client": "Client",
+    "service": "Service",
+    "colMaterial": "Material",
+    "colBrand": "Brand",
+    "colSize": "Size",
+    "colColour": "Colour",
+    "colNeed": "Quantity needed",
+    "colBuy": "Packs to buy",
+    "colLeftover": "Expected leftover",
+    "colUnitPrice": "Est. price per pack",
+    "colCost": "Estimated cost",
+    "colBought": "Bought",
+    "colRemaining": "Still to buy",
+    "total": "Estimated materials total",
+    "modeQuantities": "Quantities only",
+    "modePriced": "With estimated prices",
+    "empty": "Nothing to buy in this version.",
+    "note": "Quantities come from the saved quote version. Packs are the cheapest combination that covers the need, per colour; the leftover is what remains after the expected use.",
+    "noteBought": "“Bought” = what reached the project from purchases and stock (after returns), plus purchases awaiting approval.",
+    "notePriced": "Prices are estimates from pricing time and may differ when buying.",
+    "sizeValue": "{size} {unit}",
+    "option": "Option: {label}",
+    "noPrice": "No price",
+    "totalIncomplete": "Incomplete total: {n} materials had no price at pricing time.",
+    "recordPurchase": "Record a purchase for the project"
   }
 }

@@ -74,6 +74,9 @@ export const EXTERIOR_PARAMS: ExteriorParams = {
   protection: { perM2: 0 },
 };
 
+/** Brand of the A.6 fallback paint products (shown as «عام», GENERIC_BRAND, in labels). */
+export const GENERIC_DEFAULT_BRAND = "Generic";
+
 /** Generic interior/exterior products from A.6 (brand "Generic"). */
 export const PAINT_PRODUCTS: PaintProduct[] = [
   { id: "putty", brand: "Generic", role: "putty", name: "Wall putty 20 kg", unit: "kg", refPackSize: 20, coveragePerPack: 25, packs: [{ size: 20, price: 45 }], colourSpecific: false },

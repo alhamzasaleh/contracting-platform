@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { AlertTriangle, ArrowLeftRight, Camera, Check, FileText, Package, Paperclip, Pencil, Plus, ShoppingCart, Sparkles, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Camera, Check, ClipboardList, FileText, Package, Paperclip, Pencil, Plus, ShoppingCart, Sparkles, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -132,6 +132,7 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
   const [project, setProject] = React.useState(p?.project?.id ?? initialProject ?? "");
   // G2: the picked project's quote purchase list (any accepted project, also when picked here)
   const quoteList = project ? (form.quoteLists?.[project] ?? null) : null;
+  const projectNumber = form.projects.find((x) => x.id === project)?.number ?? null;
   const [vat, setVat] = React.useState(p ? String(p.vat) : "");
   const [notes, setNotes] = React.useState(p?.notes ?? "");
   const [rows, setRows] = React.useState<Row[]>(
@@ -350,6 +351,13 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                 }
               >
                 <ShoppingCart /> {t("fromQuoteList")}
+              </Button>
+            )}
+            {quoteList && projectNumber && (
+              <Button asChild variant="ghost" size="sm">
+                <Link href={`${base}/print/contracts/${projectNumber}/materials`} target="_blank">
+                  <ClipboardList /> {t("materialsTable")}
+                </Link>
               </Button>
             )}
           </div>

@@ -50,6 +50,8 @@ export type QuoteSnapshot = {
 };
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
+/** per-m² allowances priced as a cost per m² (engine keys) — never a purchase line */
+const ALLOWANCES = new Set(["consumables", "protection"]);
 
 export function buildSnapshot(
   sel: Selection,
@@ -73,8 +75,10 @@ export function buildSnapshot(
   }
   const brandOf = new Map(opts.catalogue.products.map((x) => [x.id, x.brand]));
   const purchaseList: PurchaseItem[] = o.result.lines
-    // things to buy: priced materials, except per-m² allowances (consumables, protection)
-    .filter((l) => l.group === "material" && l.cost > 0 && !(l.purchase.kind === "units" && l.unit === "m2"))
+    // things to buy: materials and maintenance hatches with a quantity (also a product without a
+    // price yet — its packs still have to be bought); not lines with no product and not the per-m²
+    // allowances (consumables, protection — a cost per m², nothing to count and buy)
+    .filter((l) => (l.group === "material" || l.group === "hatch") && l.qty > 0 && (l.cost > 0 || !!l.productId) && !l.key.startsWith("missing_") && !ALLOWANCES.has(l.key))
     .map((l) => ({
       key: l.key,
       label: l.label,

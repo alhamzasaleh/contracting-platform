@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { AlertTriangle, CalendarClock, CalendarDays, Check, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, Send, ShoppingCart, Trash2, Wrench, XCircle } from "lucide-react";
+import { AlertTriangle, CalendarClock, CalendarDays, Check, ClipboardList, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, Send, ShoppingCart, Trash2, Wrench, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -344,6 +344,12 @@ export function ContractView({
               </Link>
             </Button>
           )}
+          {/* every status: the contract's version quantities; bought columns once accepted */}
+          <Button asChild variant="secondary" size="sm">
+            <Link href={`${base}/print/contracts/${c.number}/materials`} target="_blank">
+              <ClipboardList /> {t("materialsTable")}
+            </Link>
+          </Button>
           {c.status === "accepted" && detail.canPurchase && (
             <Button asChild variant="secondary" size="sm">
               <Link href={`${base}/purchases/new?project=${c.number}`}>

@@ -6,6 +6,9 @@ import { useFormatter } from "@/components/formatter-provider";
 import { Badge } from "@/components/ui/badge";
 import type { Line } from "@/lib/engine";
 import { FORMULA_KEYS } from "@/lib/engine/formula-keys";
+import { buyParts } from "@/lib/quotes/materials";
+import { useUnitText } from "@/components/forms/form-kit";
+import { useBuyText } from "@/components/quotes/buy-text";
 import { cn } from "@/lib/utils";
 
 /** Result panels shared by the pricing screen: KPI tiles and the traceable lines list. */
@@ -72,14 +75,15 @@ export function LinesTable({ lines, explain }: { lines: Line[]; explain: (role: 
   const qn = (x: number) =>
     fmt.number(x, Number.isInteger(x) ? 0 : Number.isInteger(x * 10) ? 1 : 2);
 
+  const buyText = useBuyText();
+  const unitText = useUnitText();
+  /** materials: «2 عبوة × 18 لتر + 1 عبوة × 4 لتر» (count per pack size, with units); labour: quantity */
   function purchase(l: Line) {
-    const p = l.purchase;
-    if (p.kind === "packs")
-      return p.packs.map((k) => `${k.count} × ${qn(k.size)}`).join(" + ");
-    if (p.kind === "bars")
-      return t("barsBuy", { n: p.bars, len: qn(p.stockLength) });
+    if (l.group === "material") return buyText(buyParts(l.purchase, l.needUnit || null, l.unit, l.qty));
     return `${qn(l.qty)} ${t.has(`lineUnit_${l.unit}`) ? t(`lineUnit_${l.unit}`) : l.unit}`;
   }
+  /** a bought pack / bar / box covers more than needed: say how much is actually needed */
+  const showsNeed = (l: Line) => l.group === "material" && l.need > 0 && !!l.needUnit;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-surface">
@@ -118,7 +122,10 @@ export function LinesTable({ lines, explain }: { lines: Line[]; explain: (role: 
                         </span>
                         <span className="block text-[12px] text-muted-foreground">
                           {l.group === "labour" ? t("qty") : t("buy")}:{" "}
-                          <span className="font-latin">{purchase(l)}</span>
+                          <span>{purchase(l)}</span>
+                          {showsNeed(l) && !l.key.startsWith("missing_") && (
+                            <span> · {t("needShort", { n: trim(l.need), unit: unitText(l.needUnit) })}</span>
+                          )}
                           {l.zone && <Badge className="ms-2">{zoneName(l.zone)}</Badge>}
                           {l.cost === 0 && !l.key.startsWith("missing_") && (
                             <Badge tone="warning" className="ms-2">
@@ -175,8 +182,9 @@ export function LinesTable({ lines, explain }: { lines: Line[]; explain: (role: 
                         {l.purchase.kind === "packs" &&
                           l.purchase.leftover > 0 && (
                             <p className="text-muted-foreground">
-                              {t("leftover", {
-                                n: fmt.number(l.purchase.leftover, 2),
+                              {t("leftoverUnit", {
+                                n: trim(l.purchase.leftover),
+                                unit: unitText(l.needUnit),
                               })}
                             </p>
                           )}

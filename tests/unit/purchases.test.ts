@@ -56,3 +56,12 @@ describe("purchases", () => {
     ]);
   });
 });
+
+describe("quote list → purchase lines (review #3)", async () => {
+  const { linesFromPurchaseList, markBought } = await import("@/lib/purchases");
+  it("bars from the engine (unit «bar») stay bars, so bought bars are counted", () => {
+    const lines = linesFromPurchaseList([{ label: "قطاع C رئيسي", brand: null, colour: null, packs: [{ size: 3, count: 12 }], qty: 12, unit: "bar", cost: 132, productId: "c" }], [{ id: "i1", name: "قطاع C", unit: "bar", product_id: "c" }]);
+    expect(lines[0]).toMatchObject({ unit: "bar", quantity: 12, item: "i1" });
+    expect(markBought(lines, [{ item_id: "i1", product_id: "c", colour: "", unit: "bar", quantity: 5 }])[0]).toMatchObject({ bought: 5, remaining: 7 });
+  });
+});

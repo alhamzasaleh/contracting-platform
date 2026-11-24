@@ -121,6 +121,41 @@ export async function loadProductOptions(session: SessionContext): Promise<{ id:
     .sort((a, b) => a.label.localeCompare(b.label, "ar"));
 }
 
+type Supa = Awaited<ReturnType<typeof createClient>>;
+
+/** Stock items as every "bought" comparison sees them (same order everywhere: the first match wins). */
+export async function loadStockItems(supabase: Supa, orgId: string): Promise<(ItemRef & { product_id: string | null })[]> {
+  const items = await rows(supabase.from("inventory_items").select("id, name, unit, is_general, product_id").eq("organization_id", orgId).order("name").order("id"));
+  return items.map((i) => ({ ...i, product_id: i.product_id ?? null }));
+}
+
+type HeldMove = { item_id: string; contract_id: string | null; quantity: number; purchase_lines: { colour: string | null } | { colour: string | null }[] | null };
+type HeldPending = { item_id: string | null; colour: string | null; unit: string; quantity: number; purchases: { contract_id: string | null } | { contract_id: string | null }[] };
+export type ProjectHoldings = { moves: HeldMove[]; pending: HeldPending[] };
+
+/** What the projects hold: their stock movements and the material lines of purchases waiting for approval. */
+export async function loadProjectHoldings(supabase: Supa, orgId: string, projectIds: string[]): Promise<ProjectHoldings> {
+  if (!projectIds.length) return { moves: [], pending: [] };
+  const [moves, pending] = await Promise.all([
+    rows(supabase.from("inventory_movements").select("item_id, contract_id, quantity, purchase_lines(colour)").eq("organization_id", orgId).in("contract_id", projectIds).limit(20000)),
+    rows(supabase.from("purchase_lines").select("item_id, colour, unit, quantity, purchases!inner(contract_id, status)").eq("organization_id", orgId).eq("kind", "material").in("purchases.contract_id", projectIds).eq("purchases.status", "pending_approval").limit(20000)),
+  ]);
+  return { moves: moves as unknown as HeldMove[], pending: pending as unknown as HeldPending[] };
+}
+
+/** One project's "already bought" rows (projectBought) — the purchase form and the bill of quantities share it. */
+export function projectBoughtRows(held: ProjectHoldings, contractId: string, items: { id: string; unit: string; product_id: string | null }[]) {
+  const first = <T,>(x: T | T[] | null | undefined): T | null => (Array.isArray(x) ? (x[0] ?? null) : (x ?? null));
+  const moves = held.moves
+    .filter((m) => m.contract_id === contractId)
+    // a movement from a purchase line carries its colour; issues / returns / transfers carry none (null)
+    .map((m) => { const pl = first(m.purchase_lines); return { item_id: m.item_id, quantity: n(m.quantity), colour: pl ? (pl.colour ?? "") : null }; });
+  const pending = held.pending
+    .filter((b) => first(b.purchases)?.contract_id === contractId)
+    .map((b) => ({ item_id: b.item_id, colour: b.colour, unit: b.unit, quantity: n(b.quantity) }));
+  return projectBought(moves, pending, items);
+}
+
 export async function loadPurchaseForm(session: SessionContext, number?: string, projectNumber?: string): Promise<PurchaseForm> {
   const supabase = await createClient();
   const orgId = session.organization.id;
@@ -142,7 +177,7 @@ export async function loadPurchaseForm(session: SessionContext, number?: string,
         const projectIds = cons.map((c) => c.id);
         // "already bought" = what the project holds now (its stock movements: recorded purchases,
         // issues / transfers in, minus returns — the same movements as its cost) + waiting purchases
-        const [{ vid, costs }, moveRows, pendingRows] = await Promise.all([
+        const [{ vid, costs }, held] = await Promise.all([
           (async () => {
             const versions = cons.length ? await rows(supabase.from("quote_versions").select("id, quote_id, version").in("quote_id", [...new Set(cons.map((c) => c.quote_id))])) : [];
             const vid = new Map(versions.map((v) => [`${v.quote_id}|${v.version}`, v.id]));
@@ -150,43 +185,27 @@ export async function loadPurchaseForm(session: SessionContext, number?: string,
             const costs = ids.length ? await rows(supabase.from("quote_version_costs").select("quote_version_id, purchase_list").in("quote_version_id", ids)) : [];
             return { vid, costs };
           })(),
-          projectIds.length
-            ? rows(supabase.from("inventory_movements").select("item_id, contract_id, quantity, purchase_lines(colour)").eq("organization_id", orgId).in("contract_id", projectIds).limit(20000))
-            : Promise.resolve([]),
-          projectIds.length
-            ? rows(supabase.from("purchase_lines").select("item_id, colour, unit, quantity, purchases!inner(contract_id, status)").eq("organization_id", orgId).eq("kind", "material").in("purchases.contract_id", projectIds).eq("purchases.status", "pending_approval").limit(20000))
-            : Promise.resolve([]),
+          loadProjectHoldings(supabase, orgId, projectIds),
         ]);
-        return { cons, vid, costs, moveRows, pendingRows };
+        return { cons, vid, costs, held };
       })()
     : Promise.resolve(null);
-  const [purchase, { data: suppliers }, { data: items }, projects, products, lists] = await Promise.all([
+  const [purchase, { data: suppliers }, items, projects, products, lists] = await Promise.all([
     number ? detail(session, number) : Promise.resolve(null),
     supabase.from("suppliers").select("id, name, vat_number").eq("organization_id", orgId).eq("is_active", true).order("name"),
-    supabase.from("inventory_items").select("id, name, unit, is_general, product_id").eq("organization_id", orgId).order("name"),
+    loadStockItems(supabase, orgId),
     projectsMap(supabase, orgId, can(session, "quotes.view")),
     loadProductOptions(session),
     listsP,
   ]);
   const quoteLists: Record<string, QuoteListLine[]> = {};
   if (lists) {
-    const { cons, vid, costs, moveRows, pendingRows } = lists;
+    const { cons, vid, costs, held } = lists;
     const listOf = new Map((costs ?? []).map((c) => [c.quote_version_id, (c.purchase_list ?? []) as unknown as PurchaseItem[]]));
-    const itemRefs = (items ?? []).map((i) => ({ ...i, product_id: i.product_id ?? null }));
-    const first = <T,>(x: T | T[] | null | undefined): T | null => (Array.isArray(x) ? (x[0] ?? null) : (x ?? null));
-    type Move = { item_id: string; contract_id: string | null; quantity: number; purchase_lines: { colour: string | null } | { colour: string | null }[] | null };
-    type Pending = { item_id: string | null; colour: string | null; unit: string; quantity: number; purchases: { contract_id: string | null } | { contract_id: string | null }[] };
     for (const c of cons) {
       const list = listOf.get(vid.get(`${c.quote_id}|${c.quote_version}`) ?? "") ?? [];
       if (!list.length) continue;
-      const moves = ((moveRows ?? []) as unknown as Move[])
-        .filter((m) => m.contract_id === c.id)
-        // a movement from a purchase line carries its colour; issues / returns / transfers carry none (null)
-        .map((m) => { const pl = first(m.purchase_lines); return { item_id: m.item_id, quantity: n(m.quantity), colour: pl ? (pl.colour ?? "") : null }; });
-      const pending = ((pendingRows ?? []) as unknown as Pending[])
-        .filter((b) => first(b.purchases)?.contract_id === c.id)
-        .map((b) => ({ item_id: b.item_id, colour: b.colour, unit: b.unit, quantity: n(b.quantity) }));
-      quoteLists[c.id] = markBought(linesFromPurchaseList(list, itemRefs), projectBought(moves, pending, itemRefs));
+      quoteLists[c.id] = markBought(linesFromPurchaseList(list, items), projectBoughtRows(held, c.id, items));
     }
   }
   return {
@@ -194,7 +213,7 @@ export async function loadPurchaseForm(session: SessionContext, number?: string,
     products,
     purchase,
     suppliers: suppliers ?? [],
-    items: items ?? [],
+    items,
     projects: [...projects.values()].filter((p) => p.status !== "cancelled"),
     aiEnabled: aiConfigured(),
     vatRegistered: Boolean(session.organization.vat_number),

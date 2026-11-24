@@ -1,6 +1,8 @@
 import { ceilInt, sum } from "./math";
 import { optimisePacks, type PackOption } from "./packs";
 import type { EngineResult, Line } from "./types";
+import { GENERIC_BRAND } from "./catalogue";
+import { GENERIC_DEFAULT_BRAND } from "./defaults";
 
 /**
  * Paint engine (Appendix A.4): interior (new / repaint) and exterior
@@ -89,7 +91,8 @@ function productLine(
   return {
     key,
     group: "material",
-    label: `${ROLE_LABEL[product.role]} — ${product.brand}${opts.colour ? ` (${opts.colour})` : ""}`,
+    // the A.6 fallback products' "Generic" reads «عام» like any unbranded product (labels are Arabic)
+    label: `${ROLE_LABEL[product.role]} — ${product.brand === GENERIC_DEFAULT_BRAND ? GENERIC_BRAND : product.brand}${opts.colour ? ` (${opts.colour})` : ""}`,
     productId: product.id,
     colour: opts.colour,
     zone: opts.zone,

@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { CalendarDays, Camera, Check, CheckCircle2, ExternalLink, FileBadge, FileText, HardHat, MapPin, MessageSquare, Phone, Send, ShoppingCart, Sparkles, Wallet, Wrench, X } from "lucide-react";
+import { CalendarDays, Camera, Check, CheckCircle2, ClipboardList, ExternalLink, FileBadge, FileText, HardHat, MapPin, MessageSquare, Phone, Send, ShoppingCart, Sparkles, Wallet, Wrench, X } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -168,6 +168,13 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
               <Button asChild variant="secondary" size="sm">
                 <Link href={`${base}/contracts/${data.contract.number}`}>
                   <FileText /> {t("openContract")}
+                </Link>
+              </Button>
+            )}
+            {data.canViewContract && (
+              <Button asChild variant="secondary" size="sm">
+                <Link href={`${base}/print/contracts/${data.contract.number}/materials`} target="_blank">
+                  <ClipboardList /> {t("materialsTable")}
                 </Link>
               </Button>
             )}

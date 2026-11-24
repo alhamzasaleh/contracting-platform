@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { LOCALE_COOKIE, NUMERALS_COOKIE } from "@/i18n/config";
 import { getSession } from "@/lib/auth/session";
 import { pdfFileName, renderPdf, STAFF_DOCS } from "@/lib/pdf";
+import { pdfDocName } from "@/lib/pdf-docs";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -27,7 +28,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ doc: str
     return new NextResponse(Buffer.from(pdf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${pdfFileName(path.split("/")[1])}"`,
+        "Content-Disposition": `attachment; filename="${pdfFileName(pdfDocName(path))}"`,
         "Cache-Control": "private, no-store",
       },
     });

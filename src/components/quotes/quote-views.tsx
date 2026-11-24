@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { CheckCircle2, Copy, FileSignature, FileText, Pencil, Printer, Send, ShieldAlert, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardList, Copy, FileSignature, FileText, Pencil, Printer, Send, ShieldAlert, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -20,6 +20,8 @@ import type { QuoteStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn } from "@/lib/utils";
 import { LinesTable } from "@/components/pricing/results";
+import { useBuyText } from "./buy-text";
+import { itemParts, needsFromLines } from "@/lib/quotes/materials";
 import { QuoteDocument, type DocOrg } from "./quote-document";
 import { QuoteOptionsPanel } from "./quote-options";
 import type { PastStats } from "@/lib/pricing/history";
@@ -242,6 +244,8 @@ export function QuoteView({
   const { quote, client, current, internal, approvals } = detail;
   const open = approvals.filter((a) => a.status === "pending" && (a.details.version as number) === quote.version);
   const rejected = approvals.filter((a) => a.status === "rejected" && (a.details.version as number) === quote.version);
+  const buyText = useBuyText();
+  const needOf = React.useMemo(() => new Map(needsFromLines(internal?.lines ?? []).map((x) => [x.key, x])), [internal]);
 
   return (
     <div className="grid gap-6">
@@ -288,6 +292,13 @@ export function QuoteView({
             <Button asChild variant="secondary" size="sm">
               <Link href={`/print/quotations/${quote.number}`} target="_blank">
                 <Printer /> {t("print")}
+              </Link>
+            </Button>
+          )}
+          {current && (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`${base}/print/quotations/${quote.number}/materials`} target="_blank">
+                <ClipboardList /> {t("materialsTable")}
               </Link>
             </Button>
           )}
@@ -379,6 +390,9 @@ export function QuoteView({
                   <Copy className="size-4 text-muted-foreground" />
                 )}
               </p>
+              <Link href={`${base}/print/quotations/${quote.number}/materials`} target="_blank" className="flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline">
+                <ClipboardList className="size-4" /> {t("materialsTable")}
+              </Link>
               <ul className="grid gap-1.5 text-[13px]">
                 {internal.purchaseList.map((p) => (
                   <li key={p.key} className="flex justify-between gap-2 border-b border-border pb-1.5 last:border-0">
@@ -386,11 +400,7 @@ export function QuoteView({
                       <span className="block truncate">{p.label}</span>
                       {p.colour && <span className="text-[11px] text-muted-foreground">{p.colour}</span>}
                     </span>
-                    <span className="shrink-0 text-end font-latin tabular-nums" dir="ltr">
-                      {p.packs.length
-                        ? p.packs.map((k) => `${k.count} × ${fmt.number(k.size, Number.isInteger(k.size) ? 0 : 2)}`).join(" + ")
-                        : fmt.number(p.qty, 0)}
-                    </span>
+                    <span className="shrink-0 text-end tabular-nums">{buyText(itemParts(p, needOf.get(p.key)))}</span>
                   </li>
                 ))}
               </ul>

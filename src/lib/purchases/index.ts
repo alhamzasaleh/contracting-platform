@@ -99,7 +99,8 @@ export function linesFromPurchaseList(list: ListItem[], items: { id: string; nam
     const general = !it.colour;
     const product = it.productId ?? null;
     const packs = it.packs.filter((p) => p.count > 0 && p.size > 0);
-    const unit = it.unit === "m" ? "bar" : "pack";
+    // the engine buys metal by the bar (unit "bar"; older lists may say "m")
+    const unit = it.unit === "bar" || it.unit === "m" ? "bar" : "pack";
     if (!packs.length) {
       const qty = it.qty > 0 ? Math.ceil(it.qty * 100) / 100 : 1;
       const match = items.find((x) => (product && x.product_id === product && x.unit === it.unit) || (x.name === base && x.unit === it.unit));
