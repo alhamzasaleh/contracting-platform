@@ -645,7 +645,8 @@
     "appUpdated": "The app was updated since you opened this page — refresh the page, then try again.",
     "sendLater": "Couldn't send right now — what you entered is still here; try again in a moment.",
     "quoteClientAccepted": "The client accepted this quotation — it can't change.",
-    "quoteHasContract": "A contract was made from this quotation — send it from the contract page."
+    "quoteHasContract": "A contract was made from this quotation — send it from the contract page.",
+    "invalid": "Not saved: a number or field isn't valid — check what you entered and try again"
   },
   "engine": {
     "emptyTitle": "Start the pricing catalogue",

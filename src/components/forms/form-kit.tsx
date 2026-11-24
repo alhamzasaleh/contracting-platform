@@ -1,5 +1,6 @@
 "use client";
 import { Trash2 } from "lucide-react";
+import { actionFailureToast } from "@/lib/client/action-failure";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -72,7 +73,8 @@ export function useActionRunner() {
         router.refresh();
       } else {
         if (r.fieldErrors && Object.keys(r.fieldErrors).length) opts.onFieldErrors?.(r.fieldErrors);
-        else toast.error(errorText(r.error));
+        // a form that doesn't show field errors still says the save was refused
+        if (actionFailureToast(r, !!opts.onFieldErrors)) toast.error(errorText(r.error));
       }
     });
   }

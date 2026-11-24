@@ -10,6 +10,7 @@ import { num, optionalDate, optionalText } from "@/lib/validation/numbers";
 import { draftSurvey, type SurveyPhoto } from "@/lib/ai/survey";
 import { rateLimit } from "@/lib/rate-limit";
 import { cleanDraft } from "@/lib/survey/ai-draft";
+import { surveyTotalsSchema } from "@/lib/survey/schema";
 
 type Ctx = { orgId: string; supabase: Awaited<ReturnType<typeof createClient>> };
 async function authorize(perm: Permission): Promise<Ctx | ActionResult> {
@@ -83,18 +84,6 @@ export async function createSurvey(input: unknown): Promise<ActionResult<{ numbe
   return dbError(error) ?? done({ number: data!.number });
 }
 
-const area = z.number().min(0).max(1_000_000);
-const totalsSchema = z
-  .object({
-    ceilNormal: area, ceilMoisture: area, ceilFire: area, partitions: area, troughM: area, shadowM: area,
-    hatches: z.record(z.enum(["30x30", "40x40", "50x50", "60x60", "60x120"]), z.number().int().min(0).max(1000)),
-    walls: area, ceilings: area, wet: area, decorative: area,
-    colours: z.number().int().min(1).max(30), ceilingColours: z.number().int().min(1).max(30), crackM: area,
-    facade: area, extColours: z.number().int().min(1).max(30), scaffoldDays: z.number().min(0).max(1000),
-  })
-  .partial()
-  .strict();
-
 const surveySchema = z
   .object({
     id,
@@ -102,7 +91,7 @@ const surveySchema = z
     mode: z.enum(["total", "rooms"]),
     visit_date: optionalDate,
     notes: optionalText(4000),
-    totals: totalsSchema,
+    totals: surveyTotalsSchema,
   })
   .strict();
 
