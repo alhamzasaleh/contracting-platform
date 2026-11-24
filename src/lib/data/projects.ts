@@ -6,6 +6,7 @@ import { loadProjectCosts } from "@/lib/data/purchases";
 import { currentStage, overallProgress } from "@/lib/execution";
 import { deliveryDate } from "@/lib/contracts";
 import { loadBookingTeam, loadWarrantyEnd } from "@/lib/data/contracts";
+import { loadStaffNames } from "@/lib/data/staff";
 import type { ServiceKind } from "@/lib/pricing";
 import type { StageStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -82,18 +83,20 @@ export async function loadProject(session: SessionContext, number: string): Prom
   if (!c || c.status !== "accepted") notFound();
   // Promise.resolve: a query builder runs again on every .then(); a real promise runs it once and can be shared
   const updatesP = Promise.resolve(supabase.from("progress_updates").select("id, stage_id, progress, note, photos, created_at, visible_to_client").eq("contract_id", c.id).order("created_at", { ascending: false }).limit(300));
+  const visitsP = Promise.resolve(supabase.from("site_visits").select("id, checked_in_at, latitude, longitude, accuracy_m, note, created_by").eq("contract_id", c.id).order("checked_in_at", { ascending: false }).limit(30));
   const notesP = Promise.resolve(supabase.from("client_notes").select("id, body, photos, status, reply, stage_id, created_at").eq("contract_id", c.id).order("created_at", { ascending: false }));
   const [
-    { data: client }, { data: stages }, { data: updates }, { data: visits }, { data: notes }, { data: payments }, { data: members },
+    { data: client }, { data: stages }, { data: updates }, { data: visits }, { data: notes }, { data: payments }, who,
     { data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam, signed,
   ] = await Promise.all([
     supabase.from("clients").select("name, phone, city, district, location_url").eq("id", c.client_id).maybeSingle(),
     supabase.from("project_stages").select("*").eq("contract_id", c.id).order("seq"),
     updatesP,
-    supabase.from("site_visits").select("id, checked_in_at, latitude, longitude, accuracy_m, note, created_by").eq("contract_id", c.id).order("checked_in_at", { ascending: false }).limit(30),
+    visitsP,
     notesP,
     supabase.from("contract_payments").select("seq, label, amount, due_event, status").eq("contract_id", c.id).order("seq"),
-    supabase.from("profiles").select("id, full_name"),
+    // the visitors' names only (linked employees: «name · job», no hr data)
+    visitsP.then(({ data }) => loadStaffNames(supabase, orgId, (data ?? []).map((v) => v.created_by))),
     supabase.from("addenda").select("number, title, total, payment_status, extra_days").eq("contract_id", c.id).eq("status", "accepted").order("created_at"),
     supabase.from("maintenance_requests").select("id", { count: "exact", head: true }).eq("contract_id", c.id).in("status", ["open", "in_progress", "resolved"]),
     // this project's costs only (filtered in the database; the same figures as the costs page)
@@ -112,7 +115,6 @@ export async function loadProject(session: SessionContext, number: string): Prom
   const own = costs?.find((x) => x.id === c.id);
   const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
   const photo = (p: string) => ({ path: p, url: url.get(p) ?? null });
-  const who = new Map((members ?? []).map((m) => [m.id, m.full_name]));
   return {
     contract: { id: c.id, number: c.number, service: c.service, start_date: c.start_date, duration_days: c.duration_days, warranty_months: c.warranty_months, accepted_at: c.accepted_at },
     client: client ?? { name: "—", phone: null, city: null, district: null, location_url: null },

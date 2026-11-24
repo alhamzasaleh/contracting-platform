@@ -2,6 +2,7 @@ import "server-only";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { MaintenanceStatus } from "@/lib/supabase/database.types";
 import { once, rows } from "@/lib/data/query";
+import { loadStaffNames } from "@/lib/data/staff";
 import { createClient } from "@/lib/supabase/server";
 
 export type MaintenanceItem = {
@@ -15,7 +16,10 @@ export type WarrantyItem = { number: string; client: string; handover_at: string
 export type MaintenancePageData = {
   requests: MaintenanceItem[];
   warranties: WarrantyItem[];
+  /** who can be assigned: active members only */
   members: { id: string; name: string }[];
+  /** names of every member (a suspended assignee / closer keeps his name) */
+  names?: Record<string, string>;
   canManage: boolean;
   /** signs the ready WhatsApp messages */
   orgName?: string;
@@ -27,13 +31,13 @@ export async function loadMaintenance(session: SessionContext): Promise<Maintena
   const supabase = await createClient();
   const orgId = session.organization.id;
   const rowsP = once(supabase.from("maintenance_requests").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(300));
-  const membershipsP = once(supabase.from("memberships").select("user_id").eq("organization_id", orgId).eq("status", "active"));
+  const membershipsP = once(supabase.from("memberships").select("user_id, status").eq("organization_id", orgId));
   // chained onto the requests (their contracts → clients, photo links) and the members (names): ~3 round trips in all
   const contractsP = rowsP.then(({ data }) => {
     const contractIds = [...new Set((data ?? []).map((r) => r.contract_id))];
     return contractIds.length ? rows(supabase.from("contracts").select("id, number, client_id").in("id", contractIds)) : [];
   });
-  const [{ data: list0 }, { data: warranties }, contracts, clients, signed, profiles] = await Promise.all([
+  const [{ data: list0 }, { data: warranties }, contracts, clients, signed, staff, { data: memberships }] = await Promise.all([
     rowsP,
     supabase.rpc("contract_warranties", { p_org: orgId }),
     contractsP,
@@ -45,10 +49,9 @@ export async function loadMaintenance(session: SessionContext): Promise<Maintena
       const paths = [...new Set((data ?? []).flatMap((r) => r.photos))];
       return paths.length ? ((await supabase.storage.from("project-photos").createSignedUrls(paths, 600)).data ?? []) : [];
     }),
-    membershipsP.then(({ data }) => {
-      const ids = (data ?? []).map((m) => m.user_id);
-      return ids.length ? rows(supabase.from("profiles").select("id, full_name, phone").in("id", ids)) : [];
-    }),
+    // every member's name (linked employees: «name · job», projects.view — no hr data)
+    membershipsP.then(({ data }) => loadStaffNames(supabase, orgId, (data ?? []).map((m) => m.user_id))),
+    membershipsP,
   ]);
   const list = list0 ?? [];
   const contract = new Map(contracts.map((c) => [c.id, c]));
@@ -71,7 +74,8 @@ export async function loadMaintenance(session: SessionContext): Promise<Maintena
       .filter((w) => w.handover_at && w.warranty_end)
       .map((w) => ({ number: w.number, client: w.client_name, handover_at: w.handover_at!, warranty_end: w.warranty_end!, active: w.warranty_end! >= d }))
       .sort((a, b) => Number(b.active) - Number(a.active) || a.warranty_end.localeCompare(b.warranty_end)),
-    members: (profiles ?? []).map((p) => ({ id: p.id, name: p.full_name || (p.phone ? `0${p.phone.slice(3)}` : "—") })),
+    members: (memberships ?? []).filter((m) => m.status === "active").map((m) => ({ id: m.user_id, name: staff.get(m.user_id) ?? "—" })),
+    names: Object.fromEntries(staff),
     canManage: can(session, "projects.manage"),
     orgName: session.organization.name,
   };

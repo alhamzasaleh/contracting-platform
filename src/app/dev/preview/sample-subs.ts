@@ -32,8 +32,8 @@ export const SAMPLE_PETTY: PettyCashData = {
   canManage: true,
   aiEnabled: true,
   projects,
-  members: [{ id: "u1", name: "صالح العتيبي" }, { id: "u2", name: "أحمد (مشرف)" }],
-  accounts: [{ id: "a1", name: "عهدة المشرف أحمد", holder_id: "u2", holder: "أحمد (مشرف)", is_active: true }],
+  members: [{ id: "u1", name: "صالح العتيبي" }, { id: "u2", name: "أحمد سالم · مشرف" }],
+  accounts: [{ id: "a1", name: "عهدة المشرف أحمد", holder_id: "u2", holder: "أحمد سالم · مشرف", is_active: true }],
   entries: [
     { id: "e3", account_id: "a1", kind: "expense", entry_date: "2026-11-22", amount: 85, contract_id: "k0", description: "شريط لاصق ونايلون حماية", supplier_name: "محل العمران", has_receipt: true, ai_extracted: true },
     { id: "e2", account_id: "a1", kind: "expense", entry_date: "2026-11-21", amount: 240, contract_id: "k0", description: "نقل ألواح بالونيت", supplier_name: null, has_receipt: true, ai_extracted: false },

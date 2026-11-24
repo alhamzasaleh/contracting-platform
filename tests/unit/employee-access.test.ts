@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { employeeAccess, inviteError, matchEmployee, suggestRole } from "@/lib/hr/access";
+import { employeeAccess, inviteError, matchEmployee, staffName, staffNames, suggestRole } from "@/lib/hr/access";
 
 describe("suggestRole: from the job title, editable in the dialog", () => {
   it("supervisor / finance / everything else → viewer", () => {
@@ -85,5 +85,28 @@ describe("home «ادعُ فريقك»", () => {
     expect(teamSetupStep({ members: 1, pendingInvites: 1, employeesWithoutAccess: 0 })).toEqual({ done: true, href: "/settings/members" });
     expect(teamSetupStep({ members: 2, pendingInvites: 0, employeesWithoutAccess: 0 }).done).toBe(true);
     expect(teamSetupStep({ members: 1, pendingInvites: 0, employeesWithoutAccess: 1 })).toEqual({ done: false, href: "/team" });
+  });
+});
+
+describe("staffName: an account's name on staff pages (maintenance assignee, petty-cash holder)", () => {
+  it("linked → «employee name · job»; without a job → the employee's name", () => {
+    expect(staffName({ id: "u1", full_name: "حساب", phone: "966500000001" }, { user_id: "u1", full_name: "احمد سالم", job_title: "مشرف" })).toBe("احمد سالم · مشرف");
+    expect(staffName({ id: "u1", full_name: "حساب", phone: null }, { user_id: "u1", full_name: "احمد سالم", job_title: null })).toBe("احمد سالم");
+  });
+  it("not linked → his current name, else the local phone, else —", () => {
+    expect(staffName({ id: "u2", full_name: "سالم", phone: "966500000002" })).toBe("سالم");
+    expect(staffName({ id: "u2", full_name: null, phone: "966500000002" })).toBe("0500000002");
+    expect(staffName(undefined)).toBe("—");
+  });
+  it("staffNames maps every account id, the linked ones from the employee record", () => {
+    const m = staffNames(
+      [
+        { id: "u1", full_name: "حساب", phone: null },
+        { id: "u2", full_name: "سالم", phone: null },
+      ],
+      [{ user_id: "u1", full_name: "احمد", job_title: "دهان" }],
+    );
+    expect(m.get("u1")).toBe("احمد · دهان");
+    expect(m.get("u2")).toBe("سالم");
   });
 });

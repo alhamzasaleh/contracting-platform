@@ -139,7 +139,7 @@ export function MembersView({
     });
   };
 
-  const phone = (p: string | null) => (p ? fmt.digits(`+${p.slice(0, 3)} ${p.slice(3, 5)} ${p.slice(5, 8)} ${p.slice(8)}`) : "—");
+  const phone = (p: string | null) => phoneText(fmt, p);
 
   return (
     <div className="grid gap-6">
@@ -291,6 +291,8 @@ export function MembersView({
         <PermissionsDialog
           member={editing}
           projects={projects}
+          canViewHr={canViewHr}
+          base={base}
           onClose={() => setEditing(null)}
           onSave={actions ? (permissions, access) => actions.update({ membershipId: editing.id, permissions, ...access }) : undefined}
         />
@@ -505,14 +507,37 @@ function InviteForm({
   );
 }
 
+/** A Saudi number as the members page shows it (+966 5x xxx xxxx). */
+function phoneText(fmt: ReturnType<typeof useFormatter>["fmt"], p: string | null) {
+  return p ? fmt.digits(`+${p.slice(0, 3)} ${p.slice(3, 5)} ${p.slice(5, 8)} ${p.slice(8)}`) : "—";
+}
+
+/** The permissions dialog's heading: the account's name (else its phone) · role, and the employee linked to it. */
+export function MemberSummary({ member, canViewHr, base }: { member: MemberItem; canViewHr: boolean; base: string }) {
+  const t = useTranslations();
+  const { fmt } = useFormatter();
+  return (
+    <div className="grid min-w-0 gap-0.5">
+      <p>
+        {member.name || <bdi dir="ltr">{phoneText(fmt, member.phone)}</bdi>} · {t(`roles.${member.role}`)}
+      </p>
+      {member.employee && <EmployeeTag employee={member.employee} canViewHr={canViewHr} base={base} />}
+    </div>
+  );
+}
+
 function PermissionsDialog({
   member,
   onClose,
   onSave,
   projects,
+  canViewHr,
+  base,
 }: {
   member: MemberItem;
   projects: ProjectOption[];
+  canViewHr: boolean;
+  base: string;
   onClose: () => void;
   onSave?: (p: Permission[], access?: { project_scope: "all" | "assigned"; contract_ids: string[] }) => Promise<ActionResult>;
 }) {
@@ -552,8 +577,10 @@ function PermissionsDialog({
       <DialogContent side="end" closeLabel={t("common.close")} className="flex flex-col">
         <DialogHeader className="border-b border-border pb-4">
           <DialogTitle>{t("settings.editPermissions")}</DialogTitle>
-          <DialogDescription>
-            {member.name} · {t(`roles.${member.role}`)}
+          <DialogDescription asChild>
+            <div>
+              <MemberSummary member={member} canViewHr={canViewHr} base={base} />
+            </div>
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto px-6 py-4">

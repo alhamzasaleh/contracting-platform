@@ -8,7 +8,8 @@ const inDays = (d: number) => new Date(Date.now() + d * 864e5).toISOString().sli
 
 const DATA: MaintenancePageData = {
   canManage: true,
-  members: [{ id: "u1", name: "صالح العتيبي" }, { id: "u2", name: "محمد القحطاني" }],
+  members: [{ id: "u1", name: "صالح العتيبي" }, { id: "u2", name: "محمد القحطاني · مشرف" }],
+  names: { u1: "صالح العتيبي", u2: "محمد القحطاني · مشرف" },
   requests: [
     { id: "m1", number: "MR-2026-003", contract: "C-2026-002", client: "أبو فهد", client_phone: "966551112233", body: "ظهر شق بسيط في سقف المجلس جهة الشباك.", photos: [], source: "client", status: "open", assigned_to: null, covered: true, cost: 0, reply: null, internal_note: null, created_at: ago(0.2), resolved_at: null, client_confirmed_at: null },
     { id: "m2", number: "MR-2026-002", contract: "C-2026-001", client: "أم خالد", client_phone: null, body: "تقشر في دهان دورة المياه.", photos: [], source: "client", status: "in_progress", assigned_to: "u2", covered: true, cost: 180, reply: "بنمر الأحد الصبح", internal_note: "رطوبة من السباكة — نتأكد قبل الدهان", created_at: ago(3), resolved_at: null, client_confirmed_at: null },

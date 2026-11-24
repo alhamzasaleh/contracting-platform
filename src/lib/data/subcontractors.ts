@@ -3,6 +3,7 @@ import { aiConfigured } from "@/lib/ai/invoice";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { ServiceKind } from "@/lib/pricing";
 import { once, rows } from "@/lib/data/query";
+import { loadStaffNames } from "@/lib/data/staff";
 import { createClient } from "@/lib/supabase/server";
 
 const n = (v: unknown) => Number(v ?? 0);
@@ -95,19 +96,17 @@ export type PettyCashData = {
 export async function loadPettyCash(session: SessionContext): Promise<PettyCashData> {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const membershipsP = once(supabase.from("memberships").select("user_id").eq("organization_id", orgId));
-  const [{ data: accounts }, { data: entries }, { data: memberships }, projectList, profiles] = await Promise.all([
+  const membershipsP = once(supabase.from("memberships").select("user_id, status").eq("organization_id", orgId));
+  const [{ data: accounts }, { data: entries }, { data: memberships }, projectList, name] = await Promise.all([
     supabase.from("petty_cash_accounts").select("id, name, holder_id, is_active").eq("organization_id", orgId).order("name"),
     supabase.from("petty_cash_entries").select("id, account_id, kind, entry_date, amount, contract_id, description, supplier_name, attachment_path, ai_extracted").eq("organization_id", orgId).order("entry_date", { ascending: false }).limit(2000),
     membershipsP,
     projects(supabase, orgId, can(session, "quotes.view") || can(session, "projects.view")),
-    membershipsP.then(({ data }) => {
-      const ids = (data ?? []).map((m) => m.user_id);
-      return ids.length ? rows(supabase.from("profiles").select("id, full_name, phone").in("id", ids)) : [];
-    }),
+    // every member's name (a suspended holder keeps his); linked employees: «name · job» (purchases.view) — no hr data
+    membershipsP.then(({ data }) => loadStaffNames(supabase, orgId, (data ?? []).map((m) => m.user_id))),
   ]);
-  const ids = (memberships ?? []).map((m) => m.user_id);
-  const name = new Map((profiles ?? []).map((p) => [p.id, p.full_name || (p.phone ? `0${p.phone.slice(3)}` : "—")]));
+  // a new account goes to an active member only
+  const ids = (memberships ?? []).filter((m) => m.status === "active").map((m) => m.user_id);
   return {
     accounts: (accounts ?? []).map((a) => ({ ...a, holder: name.get(a.holder_id) ?? "—" })),
     entries: (entries ?? []).map(({ attachment_path, ...e }) => ({ ...e, amount: n(e.amount), has_receipt: !!attachment_path })),

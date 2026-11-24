@@ -35,7 +35,7 @@ export const SAMPLE_PROJECT: ProjectDetail = {
   ],
   visits: [
     { id: "v1", checked_in_at: "2026-11-22T07:30:00Z", latitude: 24.8032, longitude: 46.6107, accuracy_m: 9, note: null, by: "صالح العتيبي" },
-    { id: "v2", checked_in_at: "2026-11-21T07:10:00Z", latitude: null, longitude: null, accuracy_m: null, note: null, by: "صالح العتيبي" },
+    { id: "v2", checked_in_at: "2026-11-21T07:10:00Z", latitude: null, longitude: null, accuracy_m: null, note: null, by: "محمد القحطاني · مشرف" },
   ],
   notes: [{ id: "n1", body: "نبي فتحة التكييف في المجلس أكبر شوي لو سمحتوا.", photos: [{ path: "c", url: ph("#b8b1a3") }], status: "new", reply: null, stage_id: "s3", created_at: "2026-11-22T16:00:00Z" }],
   payments: [

@@ -137,7 +137,10 @@ function RequestCard({ r, data, open, actions, base }: { r: MaintenanceItem; dat
         router.refresh();
       } else toast.error(failure(res.error) ?? tc("error"));
     });
-  const assignee = data.members.find((m) => m.id === r.assigned_to)?.name;
+  // names of every member (a suspended one keeps his); the pick list = active members + the current assignee
+  const nameOf = (id: string | null | undefined) => (id ? (data.names?.[id] ?? data.members.find((m) => m.id === id)?.name) : undefined);
+  const assignee = nameOf(r.assigned_to);
+  const choices = r.assigned_to && !data.members.some((m) => m.id === r.assigned_to) ? [...data.members, { id: r.assigned_to, name: assignee ?? "—" }] : data.members;
   return (
     <article id={r.number} className="grid gap-3 rounded-3xl border border-border bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -191,7 +194,7 @@ function RequestCard({ r, data, open, actions, base }: { r: MaintenanceItem; dat
       {r.client_confirmed_at && <p className="text-[12px] text-success">{t("confirmed", { date: fmt.dateTime(r.client_confirmed_at) })}</p>}
       {(r.status === "closed" || r.status === "rejected") && r.closed_by && r.closed_at && (
         <p className="text-[12px] text-muted-foreground">
-          {t(r.status === "rejected" ? "rejectedBy" : "closedBy", { name: data.members.find((m) => m.id === r.closed_by)?.name ?? t("ourTeam"), date: fmt.dateTime(r.closed_at) })}
+          {t(r.status === "rejected" ? "rejectedBy" : "closedBy", { name: nameOf(r.closed_by) ?? t("ourTeam"), date: fmt.dateTime(r.closed_at) })}
         </p>
       )}
 
@@ -208,7 +211,7 @@ function RequestCard({ r, data, open, actions, base }: { r: MaintenanceItem; dat
             <Field id={`as-${r.id}`} label={t("assign")}>
               <NativeSelect value={v.assigned_to ?? ""} onChange={(e) => setV({ ...v, assigned_to: e.target.value || null })}>
                 <option value="">{t("nobody")}</option>
-                {data.members.map((m) => (
+                {choices.map((m) => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
               </NativeSelect>

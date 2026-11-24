@@ -79,3 +79,19 @@ export function inviteError(error: { code?: string; message?: string }): string 
 export function teamSetupStep(c: { members: number; pendingInvites: number; employeesWithoutAccess: number }): { done: boolean; href: string } {
   return { done: c.members > 1 || c.pendingInvites > 0, href: c.employeesWithoutAccess > 0 ? "/team" : "/settings/members" };
 }
+
+/** A linked employee as staff pages see him (public.staff_employee_names): name + job, nothing else. */
+export type StaffEmployee = { user_id: string; full_name: string; job_title: string | null };
+type StaffProfile = { id: string; full_name: string | null; phone: string | null };
+
+/** An account's name on staff pages: the linked employee's «name · job», else the account's name / local phone. */
+export function staffName(profile: StaffProfile | undefined, employee?: StaffEmployee): string {
+  if (employee) return employee.job_title ? `${employee.full_name} · ${employee.job_title}` : employee.full_name;
+  return profile?.full_name || (profile?.phone ? `0${profile.phone.slice(3)}` : "—");
+}
+
+/** account id → name for staff pages (maintenance assignee, petty-cash holder). */
+export function staffNames(profiles: StaffProfile[], employees: StaffEmployee[]): Map<string, string> {
+  const byUser = new Map(employees.map((e) => [e.user_id, e]));
+  return new Map(profiles.map((p) => [p.id, staffName(p, byUser.get(p.id))]));
+}
