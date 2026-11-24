@@ -121,6 +121,29 @@ test.describe("contracts and client page (design preview)", () => {
     expect(width).toBeLessThanOrEqual(1);
   });
 
+  test("the quote stage: accept needs an option, a name and the agreement; changes and decline are one tap away", async ({ page }) => {
+    await page.goto("/dev/preview/portal/quote");
+    await expect(page.getByRole("heading", { name: /أهلاً/ })).toBeVisible();
+    const accept = page.getByRole("button", { name: /أوافق على العرض/ });
+    await page.getByRole("checkbox").check();
+    // three options: nothing is accepted before one is chosen
+    await expect(accept).toBeDisabled();
+    await page.getByRole("radio").first().click();
+    await expect(accept).toBeEnabled();
+    await page.getByRole("button", { name: "أطلب تعديل" }).click();
+    await expect(page.getByLabel("التعديل المطلوب")).toBeVisible();
+    await page.getByRole("button", { name: "أعتذر عن العرض" }).click();
+    await expect(page.getByRole("button", { name: "تأكيد الاعتذار" })).toBeVisible();
+    const width = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(width).toBeLessThanOrEqual(1);
+  });
+
+  test("the quote stage after acceptance waits for the contract (no buttons)", async ({ page }) => {
+    await page.goto("/dev/preview/portal/quote-accepted");
+    await expect(page.getByText("وافقت على العرض", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /أوافق على العرض/ })).toHaveCount(0);
+  });
+
   test("a malformed client link is refused before any lookup", async ({ page }) => {
     await page.goto("/p/C-2026-001/short");
     await expect(page.getByText("الرابط غير صالح")).toBeVisible();

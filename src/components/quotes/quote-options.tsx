@@ -24,7 +24,9 @@ export function QuoteOptionsPanel({ detail, save, preview }: { detail: QuoteDeta
   const te = useTranslations("errors");
   const failure = useFailureText();
   const { fmt } = useFormatter();
-  const locked = !detail.canManage || detail.quote.status === "accepted" || !!detail.contract;
+  // the client accepted one option on his page: the offer is frozen (the database refuses too)
+  const clientAccepted = detail.clientDecision?.decision === "accepted";
+  const locked = !detail.canManage || detail.quote.status === "accepted" || !!detail.contract || clientAccepted;
   const [picked, setPicked] = React.useState<Opt[]>(detail.options ?? []);
   const [pending, start] = React.useTransition();
   if (detail.versions.length < 2 && !detail.options) return null;
@@ -43,7 +45,7 @@ export function QuoteOptionsPanel({ detail, save, preview }: { detail: QuoteDeta
       if (preview || !save) return void toast(tc("saved"));
       const r = await settle(() => save({ quote_id: detail.quote.id, options }));
       if (r.ok) toast.success(options ? t("optionsSaved") : t("optionsCleared"));
-      else toast.error(failure(r.error) ?? (r.error === "optionsMixedType" ? t("optionsMixedType") : r.error === "quoteLocked" ? t("optionsLocked") : r.error === "quoteContractSent" ? te("quoteContractSent") : tc("error")));
+      else toast.error(failure(r.error) ?? (r.error === "optionsMixedType" ? t("optionsMixedType") : r.error === "quoteLocked" ? t("optionsLocked") : r.error === "quoteContractSent" ? te("quoteContractSent") : r.error === "quoteClientAccepted" ? te("quoteClientAccepted") : tc("error")));
     });
 
   const valid = picked.length >= 2 && picked.length <= 3 && picked.every((p) => p.label.trim().length > 0);
@@ -103,6 +105,7 @@ export function QuoteOptionsPanel({ detail, save, preview }: { detail: QuoteDeta
         </div>
       )}
       {detail.options && <p className="text-[12px] font-semibold text-primary">{t("optionsActive", { n: detail.options.length })}</p>}
+      {clientAccepted && <p className="text-[12px] text-muted-foreground" data-testid="options-client-accepted">{t("optionsClientAccepted")}</p>}
     </section>
   );
 }

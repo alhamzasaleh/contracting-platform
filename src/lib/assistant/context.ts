@@ -1,4 +1,5 @@
 import type { OwnerFinance } from "@/lib/data/finance";
+import type { QuoteMonthStats } from "@/lib/portal-flow";
 
 /**
  * The facts the assistant may use — built on the server from the owner's own data
@@ -16,6 +17,8 @@ export type AssistantFacts = {
   purchasesByMonth: MonthTotals;
   /** repairs the company pays (covered by the warranty); repairs charged to clients are not a cost */
   maintenanceCostByMonth: MonthTotals;
+  /** quotes per month: made, and the client's answers on his page (accepted / changes requested / declined), with numbers (quotes.view) */
+  quotesByMonth: QuoteMonthStats;
   receivables: OwnerFinance["receivables"];
   ageing: OwnerFinance["ageing"];
   latePayments: { contract: string; client: string; label: string; outstanding: number; expected: string }[];
@@ -43,7 +46,7 @@ export function monthTotals(rows: { date: string | null; amount: number }[]): Mo
 
 export function buildFacts(
   f: OwnerFinance,
-  extra: { company: string; vatRegistered: boolean; collected: MonthTotals; purchases: MonthTotals; maintenance: MonthTotals },
+  extra: { company: string; vatRegistered: boolean; collected: MonthTotals; purchases: MonthTotals; maintenance: MonthTotals; quotes?: QuoteMonthStats },
 ): AssistantFacts {
   const open = f.payments.filter((p) => p.outstanding > 0.005 && p.status !== "pending");
   const pick = (p: OwnerFinance["payments"][number]) => ({ contract: p.contract, client: p.client, label: p.label, outstanding: r2(p.outstanding), expected: p.expected });
@@ -56,6 +59,7 @@ export function buildFacts(
     collectedByMonth: extra.collected,
     purchasesByMonth: extra.purchases,
     maintenanceCostByMonth: extra.maintenance,
+    quotesByMonth: extra.quotes ?? {},
     receivables: f.receivables.slice(0, 40),
     ageing: f.ageing,
     latePayments: open.filter((p) => p.late).slice(0, 40).map(pick),

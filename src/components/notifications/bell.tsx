@@ -86,6 +86,12 @@ export function NotificationBell({ data, base, preview }: { data: Data; base: st
         return t("missed_visit", { number, client: s("client"), days: fmt.number(Number(p.days ?? 0)) });
       case "agreement_review":
         return t("agreement_review", { number, addendum: ltr(s("addendum")), count: fmt.number(Number(p.count ?? 0)) });
+      case "quote_accepted":
+        return t("quote_accepted", { number, name: s("name") });
+      case "quote_changes_requested":
+        return t("quote_changes_requested", { number, note: s("note") });
+      case "quote_rejected":
+        return s("note") ? t("quote_rejected_reason", { number, note: s("note") }) : t("quote_rejected", { number });
       case "doc_expiry":
         return Number(p.days) <= 0
           ? t("doc_expired", { doc: t(`doc_${s("doc")}`), name: s("name") })

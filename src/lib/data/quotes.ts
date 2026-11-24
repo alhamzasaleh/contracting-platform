@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { surveyGaps, surveyQuantities, type SurveyRoom, type SurveyTotals } from "@/lib/survey";
 import type { Line } from "@/lib/engine";
 import { pastStats, type PastStats } from "@/lib/pricing/history";
+import { quoteOutcome, quotesWaiting, type QuoteDecision, type QuoteWaiting } from "@/lib/portal-flow";
 
 const n = (v: unknown) => Number(v ?? 0);
 
@@ -23,13 +24,15 @@ export type QuoteListItem = {
   version: number;
   total: number | null;
   created_at: string;
+  /** the client's answer on his page */
+  clientDecision?: QuoteDecision | null;
 };
 
 export async function loadQuotes(session: SessionContext): Promise<QuoteListItem[]> {
   const supabase = await createClient();
   const orgId = session.organization.id;
   const [{ data: quotes }, { data: clients }, { data: versions }] = await Promise.all([
-    supabase.from("quotes").select("id, number, client_id, service, status, current_version, created_at").eq("organization_id", orgId).order("created_at", { ascending: false }),
+    supabase.from("quotes").select("id, number, client_id, service, status, current_version, created_at, client_decision").eq("organization_id", orgId).order("created_at", { ascending: false }),
     supabase.from("clients").select("id, name, number").eq("organization_id", orgId),
     supabase.from("quote_versions").select("quote_id, version, total").eq("organization_id", orgId),
   ]);
@@ -41,6 +44,7 @@ export async function loadQuotes(session: SessionContext): Promise<QuoteListItem
     clientNumber: client.get(q.client_id)?.number ?? "",
     service: q.service,
     status: q.status,
+    clientDecision: q.client_decision ?? null,
     version: q.current_version,
     total: (() => {
       const v = (versions ?? []).find((x) => x.quote_id === q.id && x.version === q.current_version);
@@ -103,7 +107,8 @@ export async function loadQuoteEditor(session: SessionContext, args: { surveyNum
 
 /**
  * The company's past quotes for this service (costs.view): won = the client accepted
- * the contract; lost = rejected/expired, or issued more than 30 days ago with no contract.
+ * the contract; lost = declined by the client (his page) / rejected / expired, or issued more
+ * than 30 days ago with no contract (`quoteOutcome()`).
  */
 export async function loadPastStats(session: SessionContext, kind: ServiceKind, exclude: string | null): Promise<PastStats | null> {
   if (!can(session, "costs.view")) return null;
@@ -111,7 +116,7 @@ export async function loadPastStats(session: SessionContext, kind: ServiceKind, 
   const orgId = session.organization.id;
   const { data: qs } = await supabase
     .from("quotes")
-    .select("id, status, current_version, valid_until, updated_at")
+    .select("id, status, current_version, valid_until, updated_at, client_decision")
     .eq("organization_id", orgId)
     .eq("service", kind)
     .in("status", ["issued", "accepted", "rejected", "expired"])
@@ -134,13 +139,13 @@ export async function loadPastStats(session: SessionContext, kind: ServiceKind, 
   const picked = list
     .map((q) => {
       const c = (contracts ?? []).find((x) => x.quote_id === q.id);
-      const won = c?.status === "accepted" || q.status === "accepted";
-      const lost = !c && (q.status === "rejected" || q.status === "expired" || (q.status === "issued" && (q.valid_until ?? q.updated_at.slice(0, 10)) < monthAgo));
-      if (!won && !lost) return null;
+      const outcome = quoteOutcome(q, c ?? null, monthAgo);
+      if (!outcome) return null;
+      const won = outcome === "won";
       const version = won && c ? c.quote_version : q.current_version;
       const v = (versions ?? []).find((x) => x.quote_id === q.id && x.version === version);
       if (!v) return null;
-      return { q, v, c, outcome: (won ? "won" : "lost") as "won" | "lost", plannedDays: c?.duration_days ?? null };
+      return { q, v, c, outcome, plannedDays: c?.duration_days ?? null };
     })
     .filter((x): x is NonNullable<typeof x> => !!x);
   const [costs, finals] = await Promise.all([
@@ -181,6 +186,10 @@ export type QuoteDetail = {
   canPurchase?: boolean;
   canDecide: boolean;
   contract: { number: string; status: string } | null;
+  /** the client's answer on his page (one link for every stage) */
+  clientDecision?: { decision: QuoteDecision; at: string; name: string | null; note: string | null; version: number | null; ip: string | null } | null;
+  /** the quote's client-page link (issued from the quote; then it follows the contract made from it) */
+  link?: { active: boolean; expires_at: string | null; open_count: number; last_opened_at: string | null; onContract: boolean };
 };
 
 export async function loadQuote(session: SessionContext, number: string): Promise<QuoteDetail> {
@@ -188,13 +197,15 @@ export async function loadQuote(session: SessionContext, number: string): Promis
   const orgId = session.organization.id;
   const { data: q } = await supabase.from("quotes").select("*").eq("organization_id", orgId).eq("number", number).maybeSingle();
   if (!q) notFound();
-  const [{ data: client }, { data: survey }, { data: versions }, { data: approvals }, { data: contract }] = await Promise.all([
+  const [{ data: client }, { data: survey }, { data: versions }, { data: approvals }, { data: contract }, { data: links }] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city").eq("id", q.client_id).maybeSingle(),
     q.survey_id ? supabase.from("surveys").select("number").eq("id", q.survey_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("quote_versions").select("id, version, total, created_at, client_view, notes, estimated, quantities").eq("quote_id", q.id).order("version", { ascending: false }),
     supabase.from("approvals").select("id, kind, status, details, decided_at, decision_note").eq("entity", "quote").eq("entity_id", q.id).order("created_at", { ascending: false }),
     supabase.from("contracts").select("number, status").eq("quote_id", q.id).neq("status", "cancelled").maybeSingle(),
+    supabase.from("client_portal_links").select("contract_id, expires_at, revoked_at, open_count, last_opened_at").eq("quote_id", q.id).order("created_at", { ascending: false }),
   ]);
+  const activeLink = (links ?? []).find((l) => !l.revoked_at && new Date(l.expires_at) > new Date());
   const cur = (versions ?? []).find((v) => v.version === q.current_version) ?? null;
   let internal: QuoteDetail["internal"] = null;
   if (cur && can(session, "costs.view")) {
@@ -217,5 +228,32 @@ export async function loadQuote(session: SessionContext, number: string): Promis
     canPurchase: can(session, "purchases.manage"),
     canDecide: can(session, "approvals.decide"),
     contract: contract ?? null,
+    clientDecision: q.client_decision && q.client_decided_at
+      ? { decision: q.client_decision, at: q.client_decided_at, name: q.client_name ?? null, note: q.client_note ?? null, version: q.client_version ?? null, ip: q.client_ip ?? null }
+      : null,
+    link: { active: !!activeLink, expires_at: activeLink?.expires_at ?? null, open_count: activeLink?.open_count ?? 0, last_opened_at: activeLink?.last_opened_at ?? null, onContract: !!activeLink?.contract_id },
   };
+}
+
+/** Home «عروض تنتظرك»: quotes the client answered on his page that wait for us (quotes.view). */
+export async function loadQuotesWaiting(session: SessionContext): Promise<QuoteWaiting[]> {
+  const supabase = await createClient();
+  const orgId = session.organization.id;
+  const { data: qs } = await supabase
+    .from("quotes")
+    .select("id, number, status, client_id, client_decision, client_decided_at")
+    .eq("organization_id", orgId)
+    .in("client_decision", ["accepted", "changes_requested"])
+    .order("client_decided_at")
+    .limit(50);
+  if (!qs?.length) return [];
+  const [clients, contracts] = await Promise.all([
+    rows(supabase.from("clients").select("id, name").in("id", [...new Set(qs.map((q) => q.client_id))])),
+    rows(supabase.from("contracts").select("quote_id").in("quote_id", qs.map((q) => q.id)).neq("status", "cancelled")),
+  ]);
+  const name = new Map(clients.map((c) => [c.id, c.name]));
+  const withContract = new Set(contracts.map((c) => c.quote_id));
+  return quotesWaiting(qs.map((q) => ({
+    number: q.number, client: name.get(q.client_id) ?? "—", decision: q.client_decision ?? null, decided_at: q.client_decided_at ?? null, status: q.status, hasContract: withContract.has(q.id),
+  })));
 }

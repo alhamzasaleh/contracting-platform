@@ -1,6 +1,6 @@
 "use client";
 import { DocNo } from "@/components/doc-no";
-import { CheckCircle2, ClipboardList, Copy, FileSignature, FileText, Pencil, Printer, Send, ShieldAlert, XCircle } from "lucide-react";
+import { Check, CheckCircle2, ClipboardList, Copy, FileSignature, FileText, Link2, MessageSquare, Pencil, Printer, Send, ShieldAlert, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -18,7 +18,10 @@ import type { QuoteDetail, QuoteListItem } from "@/lib/data/quotes";
 import type { PricingContext, Quantities, Selection, ServiceKind } from "@/lib/pricing";
 import type { QuoteStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
-import { cn } from "@/lib/utils";
+import { cn, ltr } from "@/lib/utils";
+import { lastValidDay } from "@/lib/contracts";
+import { DECISION_TONE, portalWaKey } from "@/lib/portal-flow";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import { LinesTable } from "@/components/pricing/results";
 import { useBuyText } from "./buy-text";
 import { itemParts, needsFromLines } from "@/lib/quotes/materials";
@@ -49,6 +52,7 @@ export function QuotesView({ quotes, base = "" }: { quotes: QuoteListItem[]; bas
                 <span className="text-[15px] font-bold">{q.client}</span>
                 <Badge>{t(`service_${q.service}`)}</Badge>
                 <Badge tone={STATUS_TONE[q.status]}>{t(`status_${q.status}`)}</Badge>
+                {q.clientDecision && <Badge tone={DECISION_TONE[q.clientDecision]}>{t(`decision_${q.clientDecision}`)}</Badge>}
               </span>
               <span className="text-[12px] text-muted-foreground">
                 <DocNo>{q.number}</DocNo> · {t("versionN", { n: q.version })} · {fmt.date(q.created_at)}
@@ -235,6 +239,9 @@ export function QuoteView({
     issue: (i: Record<string, unknown>) => Promise<ActionResult>;
     decide: (i: Record<string, unknown>) => Promise<ActionResult>;
     options?: (i: Record<string, unknown>) => Promise<ActionResult>;
+    /** «إرسال للعميل»: the quote's client-page link (shown once) */
+    send?: (i: Record<string, unknown>) => Promise<ActionResult<{ url: string }>>;
+    revokeLink?: (i: Record<string, unknown>) => Promise<ActionResult>;
   };
   base?: string;
 }) {
@@ -274,14 +281,14 @@ export function QuoteView({
           ) : (
             detail.canManage &&
             quote.status === "issued" && (
-              <Button asChild size="sm">
+              <Button asChild size="sm" variant={detail.clientDecision?.decision === "accepted" ? "primary" : "secondary"}>
                 <Link href={`${base}/contracts/new?quote=${quote.number}`}>
                   <FileSignature /> {t("createContract")}
                 </Link>
               </Button>
             )
           )}
-          {detail.canManage && quote.status !== "accepted" && !detail.contract && (
+          {detail.canManage && quote.status !== "accepted" && !detail.contract && detail.clientDecision?.decision !== "accepted" && (
             <Button asChild variant="secondary" size="sm">
               <Link href={`${base}/quotations/${quote.number}/edit`}>
                 <Pencil /> {t("editNewVersion")}
@@ -302,13 +309,26 @@ export function QuoteView({
               </Link>
             </Button>
           )}
-          {detail.canManage && (quote.status === "draft" || quote.status === "issued") && current && (
+          {detail.canManage && (quote.status === "draft" || quote.status === "issued" || quote.status === "rejected") && current && (
             <Button size="sm" loading={pending} onClick={() => run(actions && (() => actions.issue({ id: quote.id })))}>
-              <Send /> {quote.status === "issued" ? t("reissue") : t("issue")}
+              <Send /> {quote.status === "issued" || quote.status === "rejected" ? t("reissue") : t("issue")}
             </Button>
           )}
         </div>
       </section>
+
+      <ClientDecisionCard detail={detail} />
+      {detail.canManage && quote.status === "issued" && !detail.contract && detail.link?.active && detail.clientDecision?.decision !== "accepted" && (
+        <p className="flex items-start gap-2 rounded-2xl bg-warning-soft px-4 py-3 text-[13px]" data-testid="contract-without-acceptance">
+          <ShieldAlert className="mt-0.5 size-4 shrink-0" /> {t("contractWithoutAcceptance")}
+        </p>
+      )}
+      {detail.contract && detail.link?.onContract && (
+        <p className="flex items-center gap-2 rounded-2xl bg-surface-sunken px-4 py-3 text-[13px]">
+          <Link2 className="size-4 shrink-0" /> {t("linkOnContract", { number: ltr(detail.contract.number) })}
+        </p>
+      )}
+      {detail.canManage && !detail.contract && <QuoteClientPage detail={detail} orgName={org.name} send={actions?.send} revoke={actions?.revokeLink} />}
 
       {(open.length > 0 || rejected.length > 0) && (
         <section className="grid gap-3 rounded-3xl border border-warning/40 bg-warning-soft/40 p-5">
@@ -432,5 +452,119 @@ export function QuoteView({
         </details>
       )}
     </div>
+  );
+}
+
+/** The client's answer on his page: accepted (→ create the contract), changes requested (→ new version), declined. */
+function ClientDecisionCard({ detail }: { detail: QuoteDetail }) {
+  const t = useTranslations("quotes");
+  const { fmt } = useFormatter();
+  const d = detail.clientDecision;
+  if (!d) return null;
+  const label = d.version != null ? detail.options?.find((o) => o.version === d.version)?.label : undefined;
+  const tone = d.decision === "accepted" ? "border-success/40 bg-success-soft/40" : d.decision === "rejected" ? "border-danger/40 bg-danger-soft/40" : "border-warning/40 bg-warning-soft/40";
+  return (
+    <section className={cn("grid gap-1.5 rounded-3xl border p-5 text-[14px]", tone)} data-testid="client-decision">
+      <p className="flex items-center gap-2 font-bold">
+        {d.decision === "accepted" ? <CheckCircle2 className="size-5 text-success" /> : d.decision === "rejected" ? <XCircle className="size-5 text-danger" /> : <MessageSquare className="size-5" />}
+        {d.decision === "accepted"
+          ? t("decisionAccepted", { name: d.name ?? "", date: fmt.dateTime(d.at) })
+          : d.decision === "rejected"
+            ? t("decisionRejected", { date: fmt.dateTime(d.at) })
+            : t("decisionChanges", { date: fmt.dateTime(d.at) })}
+      </p>
+      {label && <p>{t("decisionAcceptedOption", { label })}</p>}
+      {d.note && <p className="whitespace-pre-line">{d.decision === "rejected" ? t("decisionReason", { reason: d.note }) : d.note}</p>}
+      {d.decision === "accepted" && !detail.contract && <p className="text-[13px] text-muted-foreground">{t("decisionAcceptedNext")}</p>}
+      {d.decision === "changes_requested" && <p className="text-[13px] text-muted-foreground">{t("decisionChangesNext")}</p>}
+      {d.ip && <p className="text-[12px] text-subtle-foreground">{t("decisionEvidence", { ip: d.ip })}</p>}
+    </section>
+  );
+}
+
+/**
+ * «إرسال للعميل»: one client-page link for the quote, then (same link) the contract, project and
+ * warranty. The address is shown once; afterwards WhatsApp reminders point to the earlier message.
+ */
+function QuoteClientPage({
+  detail,
+  orgName,
+  send,
+  revoke,
+}: {
+  detail: QuoteDetail;
+  orgName: string;
+  send?: (i: Record<string, unknown>) => Promise<ActionResult<{ url: string }>>;
+  revoke?: (i: Record<string, unknown>) => Promise<ActionResult>;
+}) {
+  const t = useTranslations("quotes");
+  const tw = useTranslations("wa");
+  const { fmt } = useFormatter();
+  const { run, pending } = useActionRunner();
+  const [url, setUrl] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+  const { quote, client } = detail;
+  const link = detail.link ?? { active: false, expires_at: null, open_count: 0, last_opened_at: null, onContract: false };
+  const issued = quote.status === "issued";
+  const answered = detail.clientDecision?.decision === "accepted" || detail.clientDecision?.decision === "rejected";
+  const text = tw(portalWaKey("quote", !!url), { name: client.name, org: orgName, url: url ?? "", number: ltr(quote.number) });
+  return (
+    <section className="grid gap-3 rounded-3xl border-2 border-primary/30 bg-surface p-5" data-testid="quote-client-page">
+      <p className="flex items-center gap-2 text-[15px] font-bold">
+        <Link2 className="size-5" /> {t("clientPageTitle")}
+      </p>
+      <p className="text-[13px] text-muted-foreground">{t("sendToClientHint")}</p>
+      <p className="text-[13px]">{link.active ? t("linkActive", { date: fmt.date(lastValidDay(link.expires_at!)), n: link.open_count }) : t("linkNone")}</p>
+      {!issued && !answered && <p className="text-[13px] text-warning">{t("sendNeedsIssue")}</p>}
+      {url && (
+        <div className="grid gap-2 rounded-2xl bg-surface-sunken p-3">
+          <p className="text-[12px] text-warning">{t("linkOnce")}</p>
+          <p className="break-all font-latin text-[12px]" dir="ltr">
+            {url}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={async () => {
+                await navigator.clipboard.writeText(url);
+                setCopied(true);
+              }}
+            >
+              {copied ? <Check /> : <Copy />} {copied ? t("copied") : t("copy")}
+            </Button>
+            <WhatsAppButton phone={client.phone} text={text} label={t("sendWhatsapp")} variant="primary" />
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {issued && (
+          <Button
+            size="sm"
+            loading={pending}
+            variant={link.active ? "secondary" : "primary"}
+            onClick={() =>
+              run(send && (() => send({ id: quote.id })), {
+                silent: true,
+                onSuccess: (r) => {
+                  if (r.ok && r.data) {
+                    setUrl(r.data.url);
+                    setCopied(false);
+                  }
+                },
+              })
+            }
+          >
+            <Send /> {link.active ? t("newLink") : t("sendToClient")}
+          </Button>
+        )}
+        {link.active && !url && issued && !answered && <WhatsAppButton phone={client.phone} text={text} label={t("remindWhatsapp")} />}
+        {link.active && (
+          <Button size="sm" variant="ghost" loading={pending} onClick={() => run(revoke && (() => revoke({ id: quote.id })), { onSuccess: () => setUrl(null) })}>
+            <XCircle /> {t("revokeLink")}
+          </Button>
+        )}
+      </div>
+    </section>
   );
 }

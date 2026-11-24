@@ -33,7 +33,7 @@ export async function loadClients(session: SessionContext): Promise<ClientListIt
 export type ClientDetail = {
   client: { id: string; number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null; location_url: string | null; notes: string | null };
   surveys: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; rooms: number }[];
-  quotes: { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; version: number; total: number | null; created_at: string }[];
+  quotes: { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; version: number; total: number | null; created_at: string; clientDecision?: "accepted" | "changes_requested" | "rejected" | null }[];
   /** contracts (quotes.view) — accepted ones are projects; openMaintenance = open requests */
   contracts?: { number: string; service: "gypsum" | "interior" | "exterior"; status: string; total: number; openMaintenance: number }[];
   /** what he owes (finance.view): accepted contracts + accepted additional works vs receipt vouchers */
@@ -55,7 +55,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
   if (!client) notFound();
   const finance = can(session, "finance.view");
   const surveysP = once(supabase.from("surveys").select("id, number, title, mode, visit_date").eq("client_id", client.id).order("created_at", { ascending: false }));
-  const quotesP = once(supabase.from("quotes").select("id, number, service, status, current_version, created_at").eq("client_id", client.id).order("created_at", { ascending: false }));
+  const quotesP = once(supabase.from("quotes").select("id, number, service, status, current_version, created_at, client_decision").eq("client_id", client.id).order("created_at", { ascending: false }));
   const contractsP: Promise<{ data: { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; total: number }[] | null }> = can(session, "quotes.view")
     ? once(supabase.from("contracts").select("id, number, service, status, total").eq("client_id", client.id).neq("status", "cancelled").order("created_at", { ascending: false }))
     : Promise.resolve({ data: [] });
@@ -96,6 +96,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
       number: q.number,
       service: q.service,
       status: q.status,
+      clientDecision: q.client_decision ?? null,
       version: q.current_version,
       total: (() => {
         const v = (versions ?? []).find((x) => x.quote_id === q.id && x.version === q.current_version);

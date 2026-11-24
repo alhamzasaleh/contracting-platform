@@ -103,10 +103,10 @@ describe("#7 one delivery date everywhere", () => {
 
 describe("#8 reissuing the client-page link", () => {
   it("before acceptance: the quote/contract message; after: follow the project; after the warranty: no reissue", () => {
-    expect(portalLinkState("sent", null, "2026-11-23")).toEqual({ canIssue: true, message: "waMessage", warrantyEnded: false });
-    expect(portalLinkState("accepted", null, "2026-11-23")).toEqual({ canIssue: true, message: "waMessageProject", warrantyEnded: false });
-    expect(portalLinkState("accepted", "2026-11-23", "2026-11-23")).toEqual({ canIssue: true, message: "waMessageProject", warrantyEnded: false });
-    expect(portalLinkState("accepted", "2026-11-22", "2026-11-23")).toEqual({ canIssue: false, message: "waMessageProject", warrantyEnded: true });
+    expect(portalLinkState("sent", null, "2026-11-23")).toEqual({ canIssue: true, message: "contractLink", warrantyEnded: false });
+    expect(portalLinkState("accepted", null, "2026-11-23")).toEqual({ canIssue: true, message: "projectLink", warrantyEnded: false });
+    expect(portalLinkState("accepted", "2026-11-23", "2026-11-23")).toEqual({ canIssue: true, message: "projectLink", warrantyEnded: false });
+    expect(portalLinkState("accepted", "2026-11-22", "2026-11-23")).toEqual({ canIssue: false, message: "projectLink", warrantyEnded: true });
     expect(portalLinkState("cancelled", null, "2026-11-23").canIssue).toBe(false);
   });
 });

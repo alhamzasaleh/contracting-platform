@@ -1,6 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { publicEnv } from "@/env";
+import { hashPortalToken, newPortalToken } from "@/lib/portal-token";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
@@ -21,6 +24,7 @@ function fail(error: { code?: string; message?: string } | null, what: string): 
   console.error(`[quotes] ${what} failed`, { code: error?.code });
   if (error?.code === "42501") return { ok: false, error: /accepted quote/.test(error.message ?? "") ? "quoteLocked" : "noAccess" };
   if (error?.code === "22023" && /sent to the client/.test(error.message ?? "")) return { ok: false, error: "quoteContractSent" };
+  if (error?.code === "22023" && /client accepted this quote/.test(error.message ?? "")) return { ok: false, error: "quoteClientAccepted" };
   return { ok: false, error: "error" };
 }
 
@@ -88,9 +92,11 @@ export async function saveQuoteVersion(input: unknown): Promise<ActionResult<{ n
   let quoteId = v.quote_id;
   let number: string;
   if (quoteId) {
-    const { data: existing } = await supabase.from("quotes").select("id, number, service, survey_id, status").eq("id", quoteId).eq("organization_id", orgId).maybeSingle();
+    const { data: existing } = await supabase.from("quotes").select("id, number, service, survey_id, status, client_decision").eq("id", quoteId).eq("organization_id", orgId).maybeSingle();
     if (!existing || existing.service !== sel.kind || existing.survey_id !== v.survey_id) return { ok: false, error: "invalid" };
     if (existing.status === "accepted") return { ok: false, error: "quoteLocked" };
+    // what the client accepted on his page stays (the database refuses too)
+    if (existing.client_decision === "accepted") return { ok: false, error: "quoteClientAccepted" };
     if (await contractSent(supabase, existing.id)) return { ok: false, error: "quoteContractSent" };
     number = existing.number;
   } else {
@@ -267,6 +273,54 @@ export async function setQuoteOptions(input: unknown): Promise<ActionResult> {
   const versions = options ? options.map((o) => o.version) : [q.current_version];
   const waiting = (left ?? []).some((a) => versions.includes(Number((a.details as { version?: number } | null)?.version)));
   await supabase.from("quotes").update({ status: waiting ? "pending_approval" : "draft" }).eq("id", q.id);
+  revalidatePath("/quotations", "layout");
+  return { ok: true };
+}
+
+// --- The client page from the quote (one link for every stage; owner, Nov 2026) ---------------
+
+/**
+ * «إرسال للعميل»: a client-page link for an issued quote, shown ONCE (only its hash is stored);
+ * the quote's earlier links are revoked. When a contract is made from the quote the same link
+ * follows the contract (database trigger), so the client keeps one address.
+ */
+export async function sendQuote(input: unknown): Promise<ActionResult<{ url: string }>> {
+  const session = await getSession();
+  if (!can(session, "quotes.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ id }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { data: q } = await supabase.from("quotes").select("id, number, status").eq("id", parsed.data.id).eq("organization_id", session.organization.id).maybeSingle();
+  if (!q) return { ok: false, error: "invalid" };
+  if (q.status !== "issued") return { ok: false, error: "quoteNotIssued" };
+  const token = newPortalToken();
+  const { error } = await supabase.rpc("issue_quote_link", { p_quote: q.id, p_token_hash: hashPortalToken(token) });
+  if (error) {
+    if (/contract exists/.test(error.message ?? "")) return { ok: false, error: "quoteHasContract" };
+    if (/quote not issued/.test(error.message ?? "")) return { ok: false, error: "quoteNotIssued" };
+    return fail(error, "link");
+  }
+  const h = await headers();
+  const base = publicEnv().NEXT_PUBLIC_SITE_URL ?? `https://${h.get("host")}`;
+  revalidatePath(`/quotations/${q.number}`);
+  return { ok: true, data: { url: `${base}/p/${q.number}/${token}` } };
+}
+
+/** Revokes the quote's open client-page link (before a contract takes it over). */
+export async function revokeQuoteLink(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "quotes.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ id }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("client_portal_links")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("quote_id", parsed.data.id)
+    .eq("organization_id", session.organization.id)
+    .is("contract_id", null)
+    .is("revoked_at", null);
+  if (error) return fail(error, "revoke");
   revalidatePath("/quotations", "layout");
   return { ok: true };
 }

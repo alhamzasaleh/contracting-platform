@@ -98,13 +98,16 @@ export async function saveContract(input: unknown): Promise<ActionResult<{ numbe
 }
 
 /**
- * Creates the client page link: a long random token shown ONCE (only its hash
- * is stored); older links are revoked. Marks the contract as sent.
+ * Sends the contract to the client. One link for every stage: when the client already has an
+ * open link (issued from the quote, taken over by this contract) the contract simply goes to
+ * that page — no new address (url null; the WhatsApp text points to the earlier message).
+ * Otherwise, or with `renew`, a new link is issued: a random token shown ONCE (only its hash is
+ * stored), older links revoked. Marks a draft contract as sent.
  */
-export async function sendContract(input: unknown): Promise<ActionResult<{ url: string }>> {
+export async function sendContract(input: unknown): Promise<ActionResult<{ url: string | null }>> {
   const session = await getSession();
   if (!can(session, "quotes.manage")) return { ok: false, error: "noAccess" };
-  const parsed = z.object({ id }).strict().safeParse(input);
+  const parsed = z.object({ id, renew: z.boolean().optional() }).strict().safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
   const supabase = await createClient();
   const { data: c } = await supabase.from("contracts").select("id, number, status, start_date, duration_days, warranty_months").eq("id", parsed.data.id).eq("organization_id", session.organization.id).maybeSingle();
@@ -113,6 +116,19 @@ export async function sendContract(input: unknown): Promise<ActionResult<{ url: 
   if (c.status === "accepted") {
     const end = await loadWarrantyEnd(session, c.id);
     if (portalLinkState(c.status, end, new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" })).warrantyEnded) return { ok: false, error: "warrantyEnded" };
+  }
+
+  if (!parsed.data.renew) {
+    const { data: open } = await supabase.from("client_portal_links").select("id").eq("contract_id", c.id).is("revoked_at", null).gt("expires_at", new Date().toISOString()).limit(1);
+    if (open?.length) {
+      if (c.status === "draft") {
+        const { count } = await supabase.from("contract_payments").select("id", { count: "exact", head: true }).eq("contract_id", c.id);
+        if (!count) return { ok: false, error: "noPaymentSchedule" };
+        const { error } = await supabase.from("contracts").update({ status: "sent" }).eq("id", c.id);
+        if (error) return fail(error, "send");
+      }
+      return done({ url: null });
+    }
   }
 
   const token = newPortalToken();
@@ -155,6 +171,8 @@ export async function cancelContract(input: unknown): Promise<ActionResult> {
   const { data: c } = await supabase.from("contracts").select("status").eq("id", parsed.data.id).maybeSingle();
   if (!c || c.status === "accepted") return { ok: false, error: "contractLocked" };
   const { error } = await supabase.from("contracts").update({ status: "cancelled" }).eq("id", parsed.data.id);
+  // a link issued from the quote has already gone back to the quote (database trigger: the client keeps
+  // his page for the revised offer); older contract-only links are closed
   if (!error) await supabase.from("client_portal_links").update({ revoked_at: new Date().toISOString() }).eq("contract_id", parsed.data.id).is("revoked_at", null);
   return error ? fail(error, "cancel") : done();
 }

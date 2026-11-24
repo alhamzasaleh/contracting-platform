@@ -8,6 +8,8 @@ import type { Brand } from "@/lib/supabase/database.types";
 import { blobToDataUrl } from "@/lib/org";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TOKEN_RE } from "@/lib/portal-token";
+import type { QuoteDecision } from "@/lib/portal-flow";
+import type { QuoteStatus } from "@/lib/supabase/database.types";
 
 /**
  * The public client page. Reads go through the server only: rate limited
@@ -21,7 +23,8 @@ export type PortalData = {
     number: string; status: "draft" | "sent" | "accepted" | "cancelled"; service: "gypsum" | "interior" | "exterior"; project_type: "full" | "labour" | "supply";
     start_date: string; duration_days: number; warranty_months: number; total: number; notes: string | null; accepted_at: string | null; accepted_name: string | null; created_at: string;
   };
-  quote: { number: string; version: number; date: string; valid_until: string | null; client_view: ClientView; notes: string | null };
+  /** client_accepted_at: the client accepted the quote on his page before the contract (one link for every stage) */
+  quote: { number: string; version: number; date: string; valid_until: string | null; client_view: ClientView; notes: string | null; client_accepted_at?: string | null };
   payments: { seq: number; label: string; percent: number; amount: number; due_event: string; status: string }[];
   expires_at: string;
   execution?: PortalExecution | null;
@@ -34,6 +37,26 @@ export type PortalData = {
   warranty?: PortalWarranty | null;
   /** 2–3 options offered side by side; the client picks one while accepting (empty = single quote) */
   options?: PortalOption[];
+};
+
+/**
+ * The quote stage of the same link (issued from the quote, before a contract — or while the
+ * contract made from it is still being prepared). The document shows only an issued offer.
+ */
+export type PortalQuoteData = {
+  stage: "quote";
+  org: PortalData["org"];
+  client: PortalData["client"];
+  quote: {
+    /** version / date / total / document: only for an issued (or answered) offer */
+    number: string; status: QuoteStatus; service: "gypsum" | "interior" | "exterior"; version: number | null; date: string | null; valid_until: string | null;
+    total: number | null; client_view: ClientView | null; notes: string | null; warranty_months: number;
+    decision: QuoteDecision | null; decided_at: string | null; decided_name: string | null; decision_note: string | null; chosen_version: number | null;
+  };
+  options: PortalOption[];
+  /** a contract made from the quote, still being prepared (draft) */
+  contract: { number: string; status: string } | null;
+  expires_at: string;
 };
 
 export type PortalOption = { version: number; label: string; subtotal: number; vat: number; total: number; date: string; notes: string | null; client_view: ClientView };
@@ -68,7 +91,33 @@ export type PortalExecution = { stages: PortalStage[]; notes: PortalNote[] };
 export { TOKEN_RE };
 export const NUMBER_RE = /^[A-Z]{1,3}-\d{4}-\d{3,6}$/;
 
-export async function loadPortal(number: string, token: string): Promise<{ data: PortalData | null; logoUrl: string | null; limited: boolean; unavailable?: boolean }> {
+type Loaded = { data: PortalData | null; logoUrl: string | null; limited: boolean; unavailable?: boolean; quoteStage?: PortalQuoteData | null };
+
+/** The company logo for the page: the approved SVG when stored, else the uploaded file (org found through the token-checked link). */
+async function portalLogo(admin: ReturnType<typeof createAdminClient>, orgId: string | null | undefined, logoPath: string | null): Promise<string | null> {
+  if (orgId) {
+    const { data: o } = await admin.from("organizations").select("logo_svg").eq("id", orgId).maybeSingle();
+    if (o?.logo_svg) return `data:image/svg+xml;base64,${Buffer.from(o.logo_svg, "utf8").toString("base64")}`;
+  }
+  if (!logoPath) return null;
+  // embedded (same origin) so the page can colour it with a CSS mask; signed URL only for large files
+  const { data: file } = await admin.storage.from("org-assets").download(logoPath);
+  const inline = await blobToDataUrl(file);
+  if (inline) return inline;
+  const { data: su } = await admin.storage.from("org-assets").createSignedUrl(logoPath, 600);
+  return su?.signedUrl ?? null;
+}
+
+/** Numbers from the database come as strings in JSON: the quote stage's amounts as numbers. */
+export function normalizeQuoteStage(q: PortalQuoteData): PortalQuoteData {
+  return {
+    ...q,
+    quote: { ...q.quote, total: q.quote.total == null ? null : Number(q.quote.total) },
+    options: (q.options ?? []).map((o) => ({ ...o, subtotal: Number(o.subtotal), vat: Number(o.vat), total: Number(o.total) })),
+  };
+}
+
+export async function loadPortal(number: string, token: string): Promise<Loaded> {
   if (!NUMBER_RE.test(number) || !TOKEN_RE.test(token)) return { data: null, logoUrl: null, limited: false };
   const ip = await clientIp();
   const rl = await rateLimit(`portal:view:${ip}`, 60, 60);
@@ -81,8 +130,15 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
     console.error("[portal] view failed", { code: error.code });
     return { data: null, logoUrl: null, limited: false };
   }
-  const d = data as unknown as PortalData | null;
-  if (!d) return { data: null, logoUrl: null, limited: false };
+  const raw = data as unknown as (PortalData & { stage?: "contract" }) | PortalQuoteData | null;
+  if (!raw) return { data: null, logoUrl: null, limited: false };
+  if (raw.stage === "quote") {
+    // the quote stage: the org is found through the same token-checked link (portal_warranty → org_id)
+    const { data: w } = await admin.rpc("portal_warranty", { p_number: number, p_token: token });
+    const orgId = (w as unknown as { org_id?: string } | null)?.org_id;
+    return { data: null, quoteStage: normalizeQuoteStage(raw), logoUrl: await portalLogo(admin, orgId, raw.org.logo_path), limited: false };
+  }
+  const d = raw;
   // Everything below needs only the token-checked view: one parallel round, each part chained only
   // where it needs another's answer (the warranty call is shared: logo + warranty section).
   const accepted = d.contract.status === "accepted";
@@ -93,21 +149,7 @@ export async function loadPortal(number: string, token: string): Promise<{ data:
   };
   const warrantyP = call<PortalWarranty & { org_id?: string; contract_id: string }>("portal_warranty");
   const [logoUrl, execution, addenda, invoices, receipts, options, rawTerms, invoiceDocs, warranty] = await Promise.all([
-    (async (): Promise<string | null> => {
-      // the approved SVG logo when stored (organization found through the token-checked link)
-      const orgId = (await warrantyP)?.org_id;
-      if (orgId) {
-        const { data: o } = await admin.from("organizations").select("logo_svg").eq("id", orgId).maybeSingle();
-        if (o?.logo_svg) return `data:image/svg+xml;base64,${Buffer.from(o.logo_svg, "utf8").toString("base64")}`;
-      }
-      if (!d.org.logo_path) return null;
-      // embedded (same origin) so the page can colour it with a CSS mask; signed URL only for large files
-      const { data: file } = await admin.storage.from("org-assets").download(d.org.logo_path);
-      const inline = await blobToDataUrl(file);
-      if (inline) return inline;
-      const { data: su } = await admin.storage.from("org-assets").createSignedUrl(d.org.logo_path, 600);
-      return su?.signedUrl ?? null;
-    })(),
+    warrantyP.then((w) => portalLogo(admin, w?.org_id, d.org.logo_path)),
     // execution: stages, the client's notes, and 10-minute signed photo URLs (this contract's files only)
     (async (): Promise<PortalExecution | null> => {
       if (!accepted) return null;

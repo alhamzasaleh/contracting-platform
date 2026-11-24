@@ -3,7 +3,8 @@ import { getTranslations } from "next-intl/server";
 import { BrandStyle } from "@/components/brand-style";
 import { PortalView } from "@/components/portal/portal-view";
 import { loadPortal } from "@/lib/portal";
-import { acceptAddendumPortal, acceptPortal, addMaintenancePortal, addNotePortal, confirmMaintenancePortal, confirmStagePortal } from "../../actions";
+import { QuoteStageView } from "@/components/portal/quote-stage";
+import { acceptAddendumPortal, acceptPortal, acceptQuotePortal, addMaintenancePortal, addNotePortal, confirmMaintenancePortal, confirmStagePortal, rejectQuotePortal, requestQuoteChangesPortal } from "../../actions";
 
 // Private link: never indexed, never leaked to other sites through the Referer header.
 export const metadata: Metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" };
@@ -12,7 +13,16 @@ export default async function ClientPage({ params }: { params: Promise<{ number:
   const { number, token } = await params;
   const t = await getTranslations("portal");
   const n = decodeURIComponent(number);
-  const { data, logoUrl, limited, unavailable } = await loadPortal(n, token);
+  const { data, logoUrl, limited, unavailable, quoteStage } = await loadPortal(n, token);
+  // the same link, quote stage (issued from the quote, before the contract is sent)
+  if (quoteStage) {
+    return (
+      <>
+        <BrandStyle primary={quoteStage.org.brand.primary} accent={quoteStage.org.brand.accent} />
+        <QuoteStageView data={quoteStage} logoUrl={logoUrl} number={n} token={token} onAccept={acceptQuotePortal} onRequestChanges={requestQuoteChangesPortal} onReject={rejectQuotePortal} />
+      </>
+    );
+  }
   if (!data) {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-background p-6">

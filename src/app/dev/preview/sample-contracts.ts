@@ -1,5 +1,5 @@
 import type { ContractDetail, ContractDraft, ContractListItem } from "@/lib/data/contracts";
-import type { PortalData } from "@/lib/portal";
+import type { PortalData, PortalQuoteData } from "@/lib/portal";
 import { scheduleAmounts } from "@/lib/contracts";
 import { SAMPLE_QUOTE } from "./sample-quotes";
 
@@ -83,4 +83,58 @@ export const SAMPLE_PORTAL_OPTIONS: PortalData = {
     { version: 3, label: "الجزيرة", subtotal: Math.round(total * 0.9), vat: 0, total: Math.round(total * 0.9), date: "2026-11-22T09:10:00Z", notes: null, client_view: optionView(0.9, "Al-Jazeera") },
     { version: 4, label: "عسيب", subtotal: Math.round(total * 0.82), vat: 0, total: Math.round(total * 0.82), date: "2026-11-22T09:20:00Z", notes: null, client_view: optionView(0.82, "Asib") },
   ],
+};
+
+/**
+ * The client page on the quote (one link for every stage): the offer with three options,
+ * before the client answers. Variants below: after a change request, accepted (waiting for
+ * the contract), declined.
+ */
+export const SAMPLE_QUOTE_STAGE: PortalQuoteData = {
+  stage: "quote",
+  org: SAMPLE_PORTAL.org,
+  client: SAMPLE_PORTAL.client,
+  quote: {
+    number: "Q-2026-007", status: "issued", service: "interior", version: 2, date: "2026-11-22T09:00:00Z", valid_until: "2027-12-31",
+    total: Math.round(total), client_view: view, notes: SAMPLE_QUOTE.current!.notes, warranty_months: 6,
+    decision: null, decided_at: null, decided_name: null, decision_note: null, chosen_version: null,
+  },
+  options: SAMPLE_PORTAL_OPTIONS.options!,
+  contract: null,
+  expires_at: "2028-01-31T21:00:00Z",
+};
+export const SAMPLE_QUOTE_STAGE_CHANGES: PortalQuoteData = {
+  ...SAMPLE_QUOTE_STAGE,
+  options: [],
+  quote: { ...SAMPLE_QUOTE_STAGE.quote, decision: "changes_requested", decided_at: "2026-11-23T10:15:00Z", decision_note: "نبي لون الصالة أفتح، ونشيل دهان السقف في المجلس." },
+};
+export const SAMPLE_QUOTE_STAGE_ACCEPTED: PortalQuoteData = {
+  ...SAMPLE_QUOTE_STAGE,
+  quote: { ...SAMPLE_QUOTE_STAGE.quote, decision: "accepted", decided_at: "2026-11-23T18:40:00Z", decided_name: SAMPLE_PORTAL.client.name, chosen_version: 3 },
+};
+export const SAMPLE_QUOTE_STAGE_REJECTED: PortalQuoteData = {
+  ...SAMPLE_QUOTE_STAGE,
+  options: [],
+  quote: { ...SAMPLE_QUOTE_STAGE.quote, status: "rejected", decision: "rejected", decided_at: "2026-11-23T18:40:00Z", decision_note: "السعر أعلى من الميزانية." },
+};
+export const SAMPLE_QUOTE_STAGE_EXPIRED: PortalQuoteData = {
+  ...SAMPLE_QUOTE_STAGE,
+  options: [],
+  quote: { ...SAMPLE_QUOTE_STAGE.quote, valid_until: "2026-11-01" },
+};
+/** a new version is being prepared: nothing of it reaches the client */
+export const SAMPLE_QUOTE_STAGE_REVISING: PortalQuoteData = {
+  ...SAMPLE_QUOTE_STAGE,
+  options: [],
+  quote: { ...SAMPLE_QUOTE_STAGE.quote, status: "draft", version: null, date: null, total: null, client_view: null, notes: null },
+};
+/** a contract made from the quote (verbal agreement) is being prepared */
+export const SAMPLE_QUOTE_STAGE_CONTRACT_DRAFT: PortalQuoteData = {
+  ...SAMPLE_QUOTE_STAGE,
+  options: [],
+  contract: { number: "C-2026-004", status: "draft" },
+};
+export const SAMPLE_CONTRACT_DRAFT_ACCEPTED: ContractDraft = {
+  ...SAMPLE_CONTRACT_DRAFT,
+  quoteAccepted: { at: "2026-11-23T18:40:00Z", name: SAMPLE_QUOTE.client.name, label: "الجزيرة" },
 };

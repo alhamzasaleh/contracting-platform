@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
- * Client page → PDF of one document: contract | handover | RV-… | INV-….
+ * Client page → PDF of one document: quote-<version> | contract | handover | RV-… | INV-….
  * The token in the URL is checked again by the page being rendered; this route
  * only maps the document to that page and rate-limits per visitor.
  */
@@ -17,8 +17,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ number: 
   const d = decodeURIComponent(doc);
   if (!NUMBER_RE.test(n) || !TOKEN_RE.test(token)) return new NextResponse("Not found", { status: 404 });
   const base = `/p/${encodeURIComponent(n)}/${token}`;
+  const quoteVersion = /^quote-(\d{1,4})$/.exec(d)?.[1];
   const path =
-    d === "contract" ? `${base}/contract`
+    quoteVersion ? `${base}/quote?v=${quoteVersion}`
+    : d === "contract" ? `${base}/contract`
     : d === "handover" ? `${base}/handover`
     : /^RV-\d{4}-\d{3,6}$/.test(d) ? `${base}/receipt/${d}`
     : /^INV-\d{4}-\d{3,6}$/.test(d) ? `${base}/bill/${d}`
@@ -30,7 +32,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ number: 
     return new NextResponse(Buffer.from(pdf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${pdfFileName(d === "contract" || d === "handover" ? `${n}-${d}` : d)}"`,
+        "Content-Disposition": `attachment; filename="${pdfFileName(quoteVersion ? `${n}-v${quoteVersion}` : d === "contract" || d === "handover" ? `${n}-${d}` : d)}"`,
         "Cache-Control": "private, no-store",
         "Referrer-Policy": "no-referrer",
       },

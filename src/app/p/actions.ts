@@ -6,6 +6,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/actions";
 import { NUMBER_RE, TOKEN_RE } from "@/lib/portal";
+import { quoteDecisionError } from "@/lib/portal-flow";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { runBackground } from "@/lib/background";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -196,5 +197,75 @@ export async function confirmMaintenancePortal(input: unknown): Promise<ActionRe
     console.error("[portal] maintenance confirm failed", { code: error.code });
     return { ok: false, error: "error" };
   }
+  return data ? { ok: true } : { ok: false, error: "linkInvalid" };
+}
+
+// --- The quote stage (one link for every stage; owner, Nov 2026) -------------------------------
+
+const quoteRef = { number: z.string().regex(NUMBER_RE), token: z.string().regex(TOKEN_RE) };
+
+/** A refused answer → the client's message (never the database text). */
+function quoteRefused(error: { code?: string; message?: string }, what: string): ActionResult {
+  const why = quoteDecisionError(error);
+  if (why) return { ok: false, error: why };
+  console.error(`[portal] quote ${what} failed`, { code: error.code });
+  return { ok: false, error: "error" };
+}
+
+const acceptQuoteSchema = z
+  .object({
+    ...quoteRef,
+    name: z.string().trim().min(2, "required").max(160),
+    agree: z.literal(true),
+    /** the option the client chose (quotes offered with options) */
+    version: z.number().int().min(1).max(1000).nullable().optional(),
+  })
+  .strict();
+
+/** The client accepts the quote (name; the option when several are offered). Prices don't change. */
+export async function acceptQuotePortal(input: unknown): Promise<ActionResult> {
+  const parsed = acceptQuoteSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const ip = await clientIp();
+  if ((await rateLimit(`portal:quote:${ip}`, 10, 600)) !== "ok") return { ok: false, error: "rateLimited" };
+  const ua = (await headers()).get("user-agent") ?? "";
+  const v = parsed.data;
+  const { data, error } = await createAdminClient().rpc("portal_accept_quote", {
+    p_number: v.number, p_token: v.token, p_name: v.name, p_ip: ip, p_user_agent: ua, p_version: v.version ?? null,
+  });
+  if (error) return quoteRefused(error, "accept");
+  if (data) after(runBackground);
+  return data ? { ok: true } : { ok: false, error: "linkInvalid" };
+}
+
+const changesSchema = z.object({ ...quoteRef, note: z.string().trim().min(1, "required").max(2000) }).strict();
+
+/** The client asks for changes (a note); a new version of the quote clears it. */
+export async function requestQuoteChangesPortal(input: unknown): Promise<ActionResult> {
+  const parsed = changesSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const ip = await clientIp();
+  if ((await rateLimit(`portal:quote:${ip}`, 10, 600)) !== "ok") return { ok: false, error: "rateLimited" };
+  const ua = (await headers()).get("user-agent") ?? "";
+  const v = parsed.data;
+  const { data, error } = await createAdminClient().rpc("portal_request_quote_changes", { p_number: v.number, p_token: v.token, p_note: v.note, p_ip: ip, p_user_agent: ua });
+  if (error) return quoteRefused(error, "changes");
+  if (data) after(runBackground);
+  return data ? { ok: true } : { ok: false, error: "linkInvalid" };
+}
+
+const rejectSchema = z.object({ ...quoteRef, reason: z.string().trim().max(2000).nullable() }).strict();
+
+/** The client declines the quote (optional reason). Final. */
+export async function rejectQuotePortal(input: unknown): Promise<ActionResult> {
+  const parsed = rejectSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const ip = await clientIp();
+  if ((await rateLimit(`portal:quote:${ip}`, 10, 600)) !== "ok") return { ok: false, error: "rateLimited" };
+  const ua = (await headers()).get("user-agent") ?? "";
+  const v = parsed.data;
+  const { data, error } = await createAdminClient().rpc("portal_reject_quote", { p_number: v.number, p_token: v.token, p_reason: v.reason || null, p_ip: ip, p_user_agent: ua });
+  if (error) return quoteRefused(error, "reject");
+  if (data) after(runBackground);
   return data ? { ok: true } : { ok: false, error: "linkInvalid" };
 }

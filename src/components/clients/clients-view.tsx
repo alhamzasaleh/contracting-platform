@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
+import { DECISION_TONE } from "@/lib/portal-flow";
 import { useFormatter } from "@/components/formatter-provider";
 import { FormDialog, str, useActionRunner } from "@/components/forms/form-kit";
 import { Badge } from "@/components/ui/badge";
@@ -288,8 +289,9 @@ export function ClientDetailView({
                 <Link href={`${base}/quotations/${q.number}`} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3 hover:border-primary/40">
                   <span>
                     <span className="block text-[15px] font-bold">{tq(`service_${q.service}`)}</span>
-                    <span className="text-[12px] text-muted-foreground">
+                    <span className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted-foreground">
                       {tq(`status_${q.status}`)} · {tq("versionN", { n: q.version })}
+                      {q.clientDecision && <Badge tone={DECISION_TONE[q.clientDecision]}>{tq(`decision_${q.clientDecision}`)}</Badge>}
                     </span>
                   </span>
                   <span className="text-end">

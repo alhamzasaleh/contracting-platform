@@ -415,6 +415,16 @@ export type QuoteRow = OrgRow & Upd & {
   status: QuoteStatus;
   current_version: number;
   valid_until: string | null;
+  /** the client's answer on his page (written only by the portal functions) */
+  client_decision?: "accepted" | "changes_requested" | "rejected" | null;
+  client_decided_at?: string | null;
+  /** the version (option) the client accepted */
+  client_version?: number | null;
+  client_name?: string | null;
+  /** change request / reason for declining */
+  client_note?: string | null;
+  client_ip?: string | null;
+  client_user_agent?: string | null;
 };
 export type QuoteVersionRow = OrgRow & {
   quote_id: string;
@@ -496,7 +506,9 @@ export type ContractPaymentRow = OrgRow & Upd & {
   paid_reference: string | null;
 };
 export type PortalLinkRow = OrgRow & {
-  contract_id: string;
+  /** null while the link belongs to the quote only (issued from the quote, before a contract) */
+  contract_id: string | null;
+  quote_id?: string | null;
   token_hash: string;
   expires_at: string;
   revoked_at: string | null;
@@ -685,7 +697,8 @@ export type PayrollLineRow = OrgRow & Upd & {
 };
 
 export type NotificationKind = "approval" | "client_note" | "stage_confirmed" | "contract_accepted" | "addendum_accepted" | "payment_received" | "payment_late" | "doc_expiry" | "approval_reminder" | "maintenance_request"
-  | "project_delay" | "project_over_budget" | "project_losing" | "missed_visit" | "agreement_review";
+  | "project_delay" | "project_over_budget" | "project_losing" | "missed_visit" | "agreement_review"
+  | "quote_accepted" | "quote_changes_requested" | "quote_rejected";
 export type NotificationRow = { id: string; organization_id: string; user_id: string; kind: NotificationKind; params: Json; link: string | null; dedupe_key: string | null; read_at: string | null; created_at: string };
 export type NotificationPrefRow = { organization_id: string; user_id: string; kind: NotificationKind; in_app: boolean; whatsapp: boolean; push: boolean; updated_at: string };
 export type PushSubscriptionRow = { id: string; organization_id: string; user_id: string; endpoint: string; p256dh: string; auth: string; device: string | null; failures: number; last_success_at: string | null; created_at: string; created_by: string | null };
@@ -887,6 +900,10 @@ export type Database = {
       portal_view: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_accept: { Args: { p_number: string; p_token: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string; p_version?: number | null }; Returns: boolean };
       portal_options: { Args: { p_number: string; p_token: string }; Returns: Json };
+      issue_quote_link: { Args: { p_quote: string; p_token_hash: string }; Returns: string };
+      portal_accept_quote: { Args: { p_number: string; p_token: string; p_name: string; p_ip: string; p_user_agent: string; p_version?: number | null }; Returns: boolean };
+      portal_request_quote_changes: { Args: { p_number: string; p_token: string; p_note: string; p_ip: string; p_user_agent: string }; Returns: boolean };
+      portal_reject_quote: { Args: { p_number: string; p_token: string; p_reason: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };
       seed_pricing_engine: { Args: { p_org: string }; Returns: { products: number; rates: number } };
       seed_employee_cost_items: { Args: { p_org: string }; Returns: number };
       log_event: {

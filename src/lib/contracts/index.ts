@@ -74,13 +74,13 @@ export function deliveryWithAddenda(start: string, days: number, addenda: { stat
 }
 
 /**
- * The client-page link on the contract page: before acceptance it carries the quote and
- * contract; after acceptance the client follows the project, payments and warranty. Once
+ * The client-page link on the contract page (messages → wa): before acceptance the contract
+ * is ready to sign; after acceptance the client follows the project, payments and warranty. Once
  * the warranty has ended (warranty end < today, Riyadh) the page closes — no reissue.
  */
-export function portalLinkState(status: string, warrantyEnd: string | null, today: string): { canIssue: boolean; message: "waMessage" | "waMessageProject"; warrantyEnded: boolean } {
+export function portalLinkState(status: string, warrantyEnd: string | null, today: string): { canIssue: boolean; message: "contractLink" | "projectLink"; warrantyEnded: boolean } {
   const warrantyEnded = !!warrantyEnd && warrantyEnd < today;
-  return { canIssue: status !== "cancelled" && !warrantyEnded, message: status === "accepted" ? "waMessageProject" : "waMessage", warrantyEnded };
+  return { canIssue: status !== "cancelled" && !warrantyEnded, message: status === "accepted" ? "projectLink" : "contractLink", warrantyEnded };
 }
 
 /**

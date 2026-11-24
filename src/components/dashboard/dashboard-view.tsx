@@ -11,6 +11,8 @@ import {
 } from "@/components/finance/owner-dashboard";
 import { Button } from "@/components/ui/button";
 import type { OwnerFinance } from "@/lib/data/finance";
+import type { QuoteWaiting } from "@/lib/portal-flow";
+import { DocNo } from "@/components/doc-no";
 import { cn } from "@/lib/utils";
 
 export type SetupStep = {
@@ -30,6 +32,8 @@ export type DashboardData = {
   approvals?: OwnerFinance["approvals"] | null;
   /** hr.view: documents expiring within 60 days (count, expired) */
   expiring?: { total: number; expired: number } | null;
+  /** quotes.view: the clients' answers waiting for us (accepted → contract, changes → revise) */
+  quotesWaiting?: QuoteWaiting[] | null;
 };
 
 const ease = [0.16, 1, 0.3, 1] as const;
@@ -103,6 +107,29 @@ export function DashboardView({ data }: { data: DashboardData }) {
             <ArrowUpLeft className="ms-auto size-4 ltr:-scale-x-100" />
           </Link>
         </motion.div>
+      )}
+
+      {!!data.quotesWaiting?.length && (
+        <motion.section variants={item} className="grid gap-3 rounded-3xl border border-border bg-surface p-5" aria-labelledby="quotes-waiting" data-testid="quotes-waiting">
+          <div>
+            <h2 id="quotes-waiting" className="text-[17px] font-bold">{t("quotesWaitingTitle")}</h2>
+            <p className="text-[13px] text-muted-foreground">{t("quotesWaitingHint")}</p>
+          </div>
+          <ul className="grid gap-2">
+            {data.quotesWaiting.slice(0, 8).map((q) => (
+              <li key={`${q.kind}-${q.number}`}>
+                <Link href={`${base}${q.href}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-2xl border border-border px-4 py-3 text-[14px] hover:border-primary/40">
+                  <span className="min-w-0">
+                    <span className="font-bold">{q.client}</span> · <DocNo>{q.number}</DocNo>
+                  </span>
+                  <span className={cn("text-[13px] font-semibold", q.kind === "contract" ? "text-success" : "text-warning")}>
+                    {q.kind === "contract" ? t("quoteWaitingContract") : t("quoteWaitingChanges")} · {fmt.date(q.since)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </motion.section>
       )}
 
       {data.finance ? (

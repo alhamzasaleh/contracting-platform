@@ -21,6 +21,7 @@ import type { ContractStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { anyTeamFree, spanOf, suggestStart, type Entry, type TeamInfo } from "@/lib/schedule";
 import { cn, ltr } from "@/lib/utils";
+import { portalWaKey } from "@/lib/portal-flow";
 import { remainingAmount } from "@/lib/finance";
 import { ReceiptsList } from "@/components/finance/receipts-list";
 import { WhatsAppButton } from "@/components/whatsapp-button";
@@ -77,6 +78,7 @@ export function ContractEditor({
 }) {
   const t = useTranslations("contract");
   const tp = useTranslations("pricing");
+  const tq = useTranslations("quotes");
   const ts = useTranslations("schedule");
   const { fmt } = useFormatter();
   const router = useRouter();
@@ -130,6 +132,17 @@ export function ContractEditor({
             </p>
             <Badge>{tp(`pt_${draft.quote.projectType}`)}</Badge>
           </div>
+          {!draft.contract && (
+            <p className={cn("flex items-start gap-2 rounded-2xl px-3 py-2 text-[13px]", draft.quoteAccepted ? "bg-success-soft/50" : "bg-warning-soft")} data-testid="quote-accepted-note">
+              {draft.quoteAccepted ? <Check className="mt-0.5 size-4 shrink-0 text-success" /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" />}
+              <span>
+                {draft.quoteAccepted
+                  ? t("quoteAcceptedOnPage", { name: draft.quoteAccepted.name ?? draft.client.name, date: fmt.dateTime(draft.quoteAccepted.at) })
+                  : t("quoteNotAcceptedOnPage")}
+                {draft.quoteAccepted?.label && <> · {tq("decisionAcceptedOption", { label: draft.quoteAccepted.label })}</>}
+              </span>
+            </p>
+          )}
           {/* sized by the card, not the screen: the card is narrow next to the side panel on an iPad */}
           <div className="field-row grid grid-cols-2 items-start gap-4 @lg:grid-cols-3">
             <Field id="ct-start" className="col-span-2 @lg:col-span-1" label={t("start")}>
@@ -270,7 +283,7 @@ export function ContractView({
   detail: ContractDetail;
   org: DocOrg & ContractOrg;
   actions?: {
-    send: (i: Record<string, unknown>) => Promise<ActionResult<{ url: string }>>;
+    send: (i: Record<string, unknown>) => Promise<ActionResult<{ url: string | null }>>;
     revoke: (i: Record<string, unknown>) => Promise<ActionResult>;
     cancel: (i: Record<string, unknown>) => Promise<ActionResult>;
   };
@@ -284,6 +297,7 @@ export function ContractView({
   const t = useTranslations("contract");
   const tq = useTranslations("quotes");
   const { fmt } = useFormatter();
+  const tw = useTranslations("wa");
   const { run, pending } = useActionRunner();
   const [url, setUrl] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
@@ -295,7 +309,9 @@ export function ContractView({
   const [today] = React.useState(() => detail.today ?? new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }));
   // before acceptance the link carries the quote/contract; after it the client follows the project
   const linkState = portalLinkState(c.status, detail.warrantyEnd ?? null, today);
-  const message = url ? t(linkState.message, { name: client.name, org: org.name, url }) : "";
+  const message = url ? tw(linkState.message, { name: client.name, org: org.name, url }) : "";
+  // one link for every stage: without a fresh address, the text points to the link already in the chat
+  const sameLinkText = tw(portalWaKey(c.status === "accepted" ? "project" : "contract", false), { name: client.name, org: org.name, contract: ltr(c.number) });
 
   return (
     <div className="grid gap-6">
@@ -400,6 +416,18 @@ export function ContractView({
         </section>
       )}
 
+      {(c.status === "draft" || (c.status === "sent" && detail.quoteAccepted)) && (
+        <p className={cn("flex items-start gap-2 rounded-2xl px-4 py-3 text-[13px]", detail.quoteAccepted ? "bg-success-soft/50" : "bg-warning-soft")} data-testid="quote-accepted-note">
+          {detail.quoteAccepted ? <Check className="mt-0.5 size-4 shrink-0 text-success" /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" />}
+          {detail.quoteAccepted
+            ? t("quoteAcceptedOnPage", { name: detail.quoteAccepted.name ?? client.name, date: fmt.dateTime(detail.quoteAccepted.at) })
+            : t("quoteNotAcceptedOnPage")}
+        </p>
+      )}
+      {c.status !== "draft" && c.status !== "sent" && detail.quoteAccepted && (
+        <p className="text-[13px] text-muted-foreground">{t("quoteAcceptedOnPage", { name: detail.quoteAccepted.name ?? client.name, date: fmt.dateTime(detail.quoteAccepted.at) })}</p>
+      )}
+
       {detail.canManage && c.status !== "cancelled" && (
         <section className="grid gap-3 rounded-3xl border-2 border-primary/30 bg-surface p-5">
           <p className="flex items-center gap-2 text-[15px] font-bold">
@@ -437,7 +465,15 @@ export function ContractView({
               </div>
             </div>
           )}
+          {link.active && c.status === "draft" && <p className="text-[13px] text-muted-foreground">{t("sendContractHint")}</p>}
           <div className="flex flex-wrap gap-2">
+            {/* the client already has the link (from the quote): the contract simply goes to that page */}
+            {link.active && c.status === "draft" && linkState.canIssue && (
+              <Button size="sm" loading={pending} onClick={() => run(actions && (() => actions.send({ id: c.id })))}>
+                <Send /> {t("sendContract")}
+              </Button>
+            )}
+            {link.active && !url && c.status !== "draft" && <WhatsAppButton phone={phone} text={sameLinkText} label={t("sendWhatsapp")} />}
             {/* reissue any time (also after acceptance, e.g. a lost or expired link) — the database keeps it valid until the warranty ends; not once it has ended */}
             {linkState.warrantyEnded && detail.warrantyEnd && (
               <p className="text-[13px] text-muted-foreground" data-testid="link-warranty-ended">
@@ -447,12 +483,13 @@ export function ContractView({
             {linkState.canIssue && (
               <Button
                 size="sm"
+                variant={link.active ? "secondary" : "primary"}
                 loading={pending}
                 onClick={() =>
-                  run(actions && (() => actions.send({ id: c.id })), {
+                  run(actions && (() => actions.send({ id: c.id, renew: link.active })), {
                     silent: true,
                     onSuccess: (r) => {
-                      if (r.ok && r.data) {
+                      if (r.ok && r.data?.url) {
                         setUrl(r.data.url);
                         setCopied(false);
                       }

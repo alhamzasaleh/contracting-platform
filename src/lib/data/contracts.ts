@@ -10,7 +10,7 @@ import type { ClientView } from "@/lib/quotes";
 import { effectiveVatPercent } from "@/lib/costing";
 import { lateDays } from "@/lib/finance";
 import { bookingTeam } from "@/lib/schedule";
-import type { AddendumStatus, ContractStatus } from "@/lib/supabase/database.types";
+import type { AddendumStatus, ContractStatus, QuoteRow } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
 const n = (v: unknown) => Number(v ?? 0);
@@ -49,6 +49,8 @@ export type ContractDraft = {
   materialCost: number | null;
   /** the team priced on the quote (G1) — the earliest-start suggestion uses it when known */
   bookTeam?: string | null;
+  /** the client accepted the quote on his page (his option, when several were offered); null = not on the page (verbal) */
+  quoteAccepted?: { at: string; name: string | null; label: string | null } | null;
 };
 
 /** Data for creating a contract from a quote, or editing a draft/sent one. */
@@ -57,14 +59,16 @@ export async function loadContractDraft(session: SessionContext, by: { quoteNumb
   const orgId = session.organization.id;
   let contract: ContractDraft["contract"] = null;
   let payments: ContractDraft["payments"] = [];
-  const quoteCols = "id, number, service, current_version, client_id";
+  let contractVersion: number | null = null;
+  const quoteCols = "id, number, service, current_version, client_id, options, client_decision, client_version, client_decided_at, client_name";
   const settingsP = loadPricingSettings(session);
   settingsP.catch(() => {}); // awaited below; never an unhandled rejection if notFound() comes first
-  let q: { id: string; number: string; service: ServiceKind; current_version: number; client_id: string } | null;
+  let q: Pick<QuoteRow, "id" | "number" | "service" | "current_version" | "client_id" | "options" | "client_decision" | "client_version" | "client_decided_at" | "client_name"> | null;
   if (by.contractNumber) {
-    const { data: c } = await supabase.from("contracts").select("id, number, start_date, duration_days, warranty_months, notes, quote_id").eq("organization_id", orgId).eq("number", by.contractNumber).maybeSingle();
+    const { data: c } = await supabase.from("contracts").select("id, number, start_date, duration_days, warranty_months, notes, quote_id, quote_version").eq("organization_id", orgId).eq("number", by.contractNumber).maybeSingle();
     if (!c) notFound();
     contract = { id: c.id, number: c.number, start_date: c.start_date, duration_days: c.duration_days, warranty_months: c.warranty_months, notes: c.notes };
+    contractVersion = c.quote_version;
     const [{ data: p }, { data: quote }] = await Promise.all([
       supabase.from("contract_payments").select("label, percent, due_event").eq("contract_id", c.id).order("seq"),
       supabase.from("quotes").select(quoteCols).eq("id", c.quote_id).maybeSingle(),
@@ -76,13 +80,17 @@ export async function loadContractDraft(session: SessionContext, by: { quoteNumb
     q = quote;
   }
   if (!q) notFound();
-  const verP = Promise.resolve(supabase.from("quote_versions").select("total, selection, client_view").eq("quote_id", q.id).eq("version", q.current_version).maybeSingle());
+  // a new contract from a quote the client accepted on his page = the version (option) he accepted
+  const accepted = q.client_decision === "accepted" && q.client_version != null && q.client_decided_at ? q : null;
+  // editing: the contract's own version (its option); new: the accepted one, else the current one
+  const version = contractVersion ?? (accepted ? accepted.client_version! : q.current_version);
+  const verP = Promise.resolve(supabase.from("quote_versions").select("total, selection, client_view").eq("quote_id", q.id).eq("version", version).maybeSingle());
   const [{ data: ver }, { data: client }, settings, { data: rate }, materialCostValue, bookTeam] = await Promise.all([
     verP,
     supabase.from("clients").select("name").eq("id", q.client_id).maybeSingle(),
     settingsP,
     supabase.from("consumption_rates").select("value").eq("organization_id", orgId).eq("key", `${q.service}.productivity`).maybeSingle(),
-    can(session, "costs.view") ? materialCost(supabase, q.id, q.current_version) : Promise.resolve(null),
+    can(session, "costs.view") ? materialCost(supabase, q.id, version) : Promise.resolve(null),
     verP.then(({ data }) => loadBookingTeam(session, data?.selection)),
   ]);
   const view = ver?.client_view as unknown as ClientView | undefined;
@@ -90,7 +98,7 @@ export async function loadContractDraft(session: SessionContext, by: { quoteNumb
   const stages = defaultStages(q.service).map((s) => s.key);
   return {
     quote: {
-      id: q.id, number: q.number, service: q.service, version: q.current_version, total: n(ver?.total),
+      id: q.id, number: q.number, service: q.service, version, total: n(ver?.total),
       projectType: ((ver?.selection as { options?: { projectType?: "full" | "labour" | "supply" } } | null)?.options?.projectType ?? "full"),
     },
     client: { name: client?.name ?? "—" },
@@ -101,6 +109,9 @@ export async function loadContractDraft(session: SessionContext, by: { quoteNumb
     defaultWarranty: Number(settings?.default_warranty_months ?? 6),
     materialCost: materialCostValue,
     bookTeam,
+    quoteAccepted: accepted
+      ? { at: accepted.client_decided_at!, name: accepted.client_name ?? null, label: accepted.options?.find((o) => o.version === accepted.client_version)?.label ?? null }
+      : null,
   };
 }
 
@@ -123,6 +134,8 @@ export type ContractDetail = {
     late_days?: number | null;
   }[];
   link: { active: boolean; expires_at: string | null; last_opened_at: string | null; open_count: number };
+  /** the client accepted the quote on his page before this contract (one link for every stage) */
+  quoteAccepted?: { at: string; name: string | null } | null;
   materialCost: number | null;
   canManage: boolean;
   canPurchase: boolean;
@@ -210,7 +223,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
     adCosts, approvals, { data: optRows }, materialCostValue,
   ] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city, district, id_number").eq("id", c.client_id).maybeSingle(),
-    supabase.from("quotes").select("number, valid_until").eq("id", c.quote_id).maybeSingle(),
+    supabase.from("quotes").select("number, valid_until, client_decision, client_decided_at, client_name").eq("id", c.quote_id).maybeSingle(),
     verP,
     supabase.from("contract_payments").select("id, seq, label, percent, amount, due_event, status, paid_amount, requested_at").eq("contract_id", c.id).order("seq"),
     supabase.from("client_portal_links").select("expires_at, revoked_at, last_opened_at, open_count").eq("contract_id", c.id).order("created_at", { ascending: false }),
@@ -263,6 +276,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
       late_days: p.status === "requested" ? lateDays(p.requested_at, today) : null,
     })),
     link: { active: !!active, expires_at: active?.expires_at ?? null, last_opened_at: active?.last_opened_at ?? null, open_count: active?.open_count ?? 0 },
+    quoteAccepted: q?.client_decision === "accepted" && q.client_decided_at ? { at: q.client_decided_at, name: q.client_name ?? null } : null,
     materialCost: materialCostValue,
     canManage: can(session, "quotes.manage"),
     canPurchase: can(session, "purchases.manage"),

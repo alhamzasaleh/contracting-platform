@@ -152,39 +152,10 @@ export function PortalView({
 
   return (
     <div className="min-h-dvh bg-background">
-      {/* Hero with the arch motif */}
-      <header className="relative overflow-hidden bg-ink text-ink-foreground">
-        <div className="mx-auto grid max-w-[880px] gap-6 px-5 pt-10 pb-14 text-gypsum sm:grid-cols-[auto_1fr] sm:items-end [&>*]:min-w-0">
-          {logoUrl && <BrandLogo src={logoUrl} label={org.name} className="text-gypsum" fit="h-auto w-[min(160px,45vw)] max-h-20 sm:max-h-24" />}
-          <div className="grid gap-1.5">
-            <p className="text-[14px] opacity-75">{org.legal_name ?? org.name}</p>
-            <h1 className="text-[28px] leading-tight font-extrabold sm:text-[34px]">{t("hello", { name: data.client.name })}</h1>
-            <p className="text-[15px] opacity-85">
-              {t("intro", { service: tp(`kind_${c.service}`) })} · <DocNo>{c.number}</DocNo>
-            </p>
-          </div>
-        </div>
-      </header>
+      <PortalHero org={org} logoUrl={logoUrl} clientName={data.client.name} intro={t("intro", { service: tp(`kind_${c.service}`) })} number={c.number} />
 
       <main className="relative z-10 mx-auto -mt-8 grid max-w-[880px] gap-6 px-4 pb-16 [&>*]:min-w-0">
-        {/* Timeline */}
-        <section className="rounded-3xl border border-border bg-surface p-5 shadow-sm">
-          <ol className="grid grid-cols-3 gap-y-4 sm:grid-cols-6">
-            {STEPS.map((s, i) => (
-              <li key={s} className="flex flex-col items-center gap-1.5 text-center">
-                <span
-                  className={cn(
-                    "flex size-9 items-center justify-center rounded-full border-2 text-[13px] font-bold",
-                    i < current ? "border-clay bg-clay text-gypsum" : i === current ? "border-clay text-primary" : "border-border text-subtle-foreground",
-                  )}
-                >
-                  {i < current ? <Check className="size-4" /> : i + 1}
-                </span>
-                <span className={cn("text-[12px]", i <= current ? "font-bold" : "text-muted-foreground")}>{t(`step_${s}`)}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
+        <PortalTimeline current={current} />
 
         <section className="grid gap-3 rounded-3xl border border-border bg-surface p-5 sm:grid-cols-3">
           <Kpi label={t("total")} value={fmt.money(c.total)} strong />
@@ -193,7 +164,7 @@ export function PortalView({
         </section>
 
         {finalStage && (
-          <a href={`/p/${encodeURIComponent(number)}/${token}/pdf/handover`} className="flex items-center justify-center gap-2 text-[14px] font-semibold text-primary hover:underline print:hidden">
+          <a href={`/p/${encodeURIComponent(c.number)}/${token}/pdf/handover`} className="flex items-center justify-center gap-2 text-[14px] font-semibold text-primary hover:underline print:hidden">
             <Download className="size-4" /> {t("handoverPdf")}
           </a>
         )}
@@ -226,6 +197,7 @@ export function PortalView({
                 <PenLine className="size-5 text-primary" /> {t("acceptTitle")}
               </p>
               <p className="text-[13px] text-muted-foreground">{t("acceptHint")}</p>
+              {data.quote.client_accepted_at && <p className="text-[13px] text-success">{t("quoteAcceptedOn", { date: fmt.dateTime(data.quote.client_accepted_at) })}</p>}
               <Field id="pa-name" label={t("yourName")}>
                 <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
               </Field>
@@ -276,7 +248,7 @@ export function PortalView({
           </section>
         )}
 
-        <a href={`/p/${encodeURIComponent(number)}/${token}/pdf/contract`} className="flex items-center justify-center gap-2 text-[14px] font-semibold text-primary hover:underline print:hidden">
+        <a href={`/p/${encodeURIComponent(c.number)}/${token}/pdf/contract`} className="flex items-center justify-center gap-2 text-[14px] font-semibold text-primary hover:underline print:hidden">
           <Download className="size-4" /> {t("contractPdf")}
         </a>
         <ContractTerms
@@ -307,7 +279,50 @@ export function PortalView({
   );
 }
 
-function Kpi({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+/** The page's header: logo, company, greeting, and what this page is about (quote or contract number). */
+export function PortalHero({ org, logoUrl, clientName, intro, number }: { org: PortalData["org"]; logoUrl: string | null; clientName: string; intro: string; number: string }) {
+  const t = useTranslations("portal");
+  return (
+    <header className="relative overflow-hidden bg-ink text-ink-foreground">
+      <div className="mx-auto grid max-w-[880px] gap-6 px-5 pt-10 pb-14 text-gypsum sm:grid-cols-[auto_1fr] sm:items-end [&>*]:min-w-0">
+        {logoUrl && <BrandLogo src={logoUrl} label={org.name} className="text-gypsum" fit="h-auto w-[min(160px,45vw)] max-h-20 sm:max-h-24" />}
+        <div className="grid gap-1.5">
+          <p className="text-[14px] opacity-75">{org.legal_name ?? org.name}</p>
+          <h1 className="text-[28px] leading-tight font-extrabold sm:text-[34px]">{t("hello", { name: clientName })}</h1>
+          <p className="text-[15px] opacity-85">
+            {intro} · <DocNo>{number}</DocNo>
+          </p>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/** Quote → contract → accepted → work → handover → warranty, with the current step highlighted. */
+export function PortalTimeline({ current }: { current: number }) {
+  const t = useTranslations("portal");
+  return (
+    <section className="rounded-3xl border border-border bg-surface p-5 shadow-sm">
+      <ol className="grid grid-cols-3 gap-y-4 sm:grid-cols-6">
+        {STEPS.map((s, i) => (
+          <li key={s} className="flex flex-col items-center gap-1.5 text-center">
+            <span
+              className={cn(
+                "flex size-9 items-center justify-center rounded-full border-2 text-[13px] font-bold",
+                i < current ? "border-clay bg-clay text-gypsum" : i === current ? "border-clay text-primary" : "border-border text-subtle-foreground",
+              )}
+            >
+              {i < current ? <Check className="size-4" /> : i + 1}
+            </span>
+            <span className={cn("text-[12px]", i <= current ? "font-bold" : "text-muted-foreground")}>{t(`step_${s}`)}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+export function Kpi({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <div>
       <p className="text-[12px] text-muted-foreground">{label}</p>
@@ -581,7 +596,7 @@ function scalePayments(list: PortalData["payments"], total: number): PortalData[
 }
 
 /** 2–3 options side by side; the client taps one, then accepts. */
-function OptionsPicker({ options, chosen, onChoose }: { options: PortalOption[]; chosen: number | null; onChoose: (v: number) => void }) {
+export function OptionsPicker({ options, chosen, onChoose }: { options: PortalOption[]; chosen: number | null; onChoose: (v: number) => void }) {
   const t = useTranslations("portal");
   const td = useTranslations("doc");
   const { fmt } = useFormatter();
