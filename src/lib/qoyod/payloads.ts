@@ -189,11 +189,23 @@ export function pettyOpeningBody(j: { jobId: string; date: string; amount: numbe
 export const pettyOpeningTag = (jobId: string) => `[PETTY-OPEN-${jobId}]`;
 
 /**
- * Without a cash account petty cash is paid from the bank account (expenses too), so a top-up
- * or a return moves money within one account: nothing to post ("same_account").
+ * Which account a petty-cash job posts against — fixed by the database when the job was queued
+ * (`qoyod_sync_jobs.route`), never re-decided from the settings when the worker runs:
+ * - "bank": no cash account then (or the same as the bank) — petty cash lived in the bank
+ *   account, so a top-up / return is a no-op and an expense is paid from the bank. A cash account
+ *   chosen later doesn't change it; the opening transfer moves that balance.
+ * - "cash": the cash account; if it was cleared since (or is now the bank), wait for it rather
+ *   than quietly post somewhere else.
+ * A job without a route (older rows) follows the current settings.
  */
-export function pettyTransferSkip(s: { receive_account_id: number | null; cash_account_id: number | null }): "same_account" | null {
-  return s.cash_account_id == null || s.cash_account_id === s.receive_account_id ? "same_account" : null;
+export function pettyPlan(
+  route: "bank" | "cash" | null,
+  s: { receive_account_id: number | null; cash_account_id: number | null },
+): { post: "bank" } | { post: "cash"; cashAccountId: number } | { wait: "cash_account" } {
+  const cashSet = s.cash_account_id != null && s.cash_account_id !== s.receive_account_id;
+  const r = route ?? (cashSet ? "cash" : "bank");
+  if (r === "bank") return { post: "bank" };
+  return cashSet ? { post: "cash", cashAccountId: s.cash_account_id as number } : { wait: "cash_account" };
 }
 
 /**

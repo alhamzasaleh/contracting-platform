@@ -4,7 +4,7 @@ import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.type
 import { qoyod, QoyodError } from "./client";
 import { qoyodAutoSetup } from "./setup";
 import { effectiveVatPercent } from "@/lib/costing";
-import { approveSimpleBillBody, autoSetupDue, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyOpeningBody, pettyOpeningTag, pettyTag, pettyTransferBody, pettyTransferSkip, simpleBillBody, simpleBillPaymentBody, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
+import { approveSimpleBillBody, autoSetupDue, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyOpeningBody, pettyOpeningTag, pettyPlan, pettyTag, pettyTransferBody, simpleBillBody, simpleBillPaymentBody, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Ctx = { admin: Admin; key: string; s: QoyodSettingsRow };
@@ -234,7 +234,7 @@ async function billSource(ctx: Ctx, job: QoyodJobRow): Promise<BillSource> {
 }
 
 /** The bill job a payment belongs to, and how/when it was paid. */
-async function billPayment(ctx: Ctx, job: QoyodJobRow): Promise<{ billRef: string; reference: string; from: "bank" | "cash"; date: string; amount: number; description: string }> {
+async function billPayment(ctx: Ctx, job: QoyodJobRow): Promise<{ billRef: string; reference: string; from: "bank" | "cash"; cashAccountId?: number; date: string; amount: number; description: string }> {
   const { admin } = ctx;
   if (job.entity_type === "subcontractor_payment") {
     const { data: p } = await admin.from("subcontractor_payments").select("id, paid_on, amount, method, reference").eq("id", job.entity_id).single();
@@ -246,8 +246,10 @@ async function billPayment(ctx: Ctx, job: QoyodJobRow): Promise<{ billRef: strin
     const { data: e } = await admin.from("petty_cash_entries").select("id, entry_date, amount").eq("id", job.entity_id).single();
     const entry = need(e, "petty_cash");
     const ref = pettyBillRef(entry.id);
-    // petty cash is cash in the holder's hands
-    return { billRef: `pc:${entry.id}`, reference: billPaymentRef(ref), from: "cash", date: entry.entry_date, amount: Number(job.amount ?? entry.amount), description: ref };
+    // paid from the account the job was routed to when queued (cash in the holder's hands, or the bank without a cash account)
+    const plan = pettyPlan(job.route, ctx.s);
+    if ("wait" in plan) throw new Deferred(`waiting:${plan.wait}`);
+    return { billRef: `pc:${entry.id}`, reference: billPaymentRef(ref), from: plan.post, cashAccountId: plan.post === "cash" ? plan.cashAccountId : undefined, date: entry.entry_date, amount: Number(job.amount ?? entry.amount), description: ref };
   }
   const { data: p } = await admin.from("purchases").select("number, paid_on, paid_from, paid_reference, total").eq("id", job.entity_id).single();
   const pur = need(p, "purchase");
@@ -351,7 +353,7 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number | { skipped: s
       if (paymentStep("bill_payment", documentStatus(bill, "simple_bill")) === "approve") {
         await qoyod(ctx.key, "PATCH", `/simple_bills/${billId}`, approveSimpleBillBody());
       }
-      const accountId = pay.from === "cash" ? need(s.cash_account_id ?? s.receive_account_id, "cash_account") : need(s.receive_account_id, "receive_account");
+      const accountId = pay.from === "cash" ? (pay.cashAccountId ?? need(s.cash_account_id ?? s.receive_account_id, "cash_account")) : need(s.receive_account_id, "receive_account");
       const body = simpleBillPaymentBody({ reference: pay.reference, billId, accountId, date: pay.date, amount: pay.amount, description: pay.description });
       return createOrFind(ctx, "/simple_bill_payments", "simple_bill_payments", pay.reference, body, (r) => (r.payment as { id?: number } | undefined)?.id ?? (r.simple_bill_payment as { id?: number } | undefined)?.id);
     }
@@ -377,9 +379,11 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number | { skipped: s
       const bankAccountId = need(s.receive_account_id, "receive_account");
       if (job.entity_type === "petty_cash_opening") {
         // a cash account chosen later: the open petty-cash balance moves bank → cash once
-        const skip = pettyTransferSkip(s);
-        if (skip) return { skipped: skip };
-        const cashAccountId = need(s.cash_account_id, "cash_account");
+        // always routed "cash"; a cash account cleared since → wait (the opening was counted when queued)
+        const plan = pettyPlan(job.route ?? "cash", s);
+        if ("wait" in plan) throw new Deferred(`waiting:${plan.wait}`);
+        if (plan.post === "bank") return { skipped: "same_account" };
+        const cashAccountId = plan.cashAccountId;
         const hit = await journalEntry(ctx, pettyOpeningTag(job.id));
         if (hit) return hit;
         const body = pettyOpeningBody({ jobId: job.id, date: day(job.created_at), amount: Number(job.amount ?? 0), bankAccountId, cashAccountId });
@@ -391,10 +395,11 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number | { skipped: s
       const { data: e } = await ctx.admin.from("petty_cash_entries").select("id, kind, entry_date, amount, account_id").eq("id", job.entity_id).single();
       const entry = need(e, "petty_cash");
       if (entry.kind === "expense") throw new Blocked("unsupported");
-      // no cash account: petty cash is paid from the bank account, so there is nothing to move
-      const skip = pettyTransferSkip(s);
-      if (skip) return { skipped: skip };
-      const cashAccountId = need(s.cash_account_id, "cash_account");
+      // routed "bank" when queued (no cash account then): petty cash lived in the bank account, nothing to move
+      const plan = pettyPlan(job.route, s);
+      if ("wait" in plan) throw new Deferred(`waiting:${plan.wait}`);
+      if (plan.post === "bank") return { skipped: "same_account" };
+      const cashAccountId = plan.cashAccountId;
       const { data: acc } = await ctx.admin.from("petty_cash_accounts").select("name").eq("id", entry.account_id).maybeSingle();
       const tag = pettyTag(entry.id);
       const hit = await journalEntry(ctx, tag);

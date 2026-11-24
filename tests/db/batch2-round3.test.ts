@@ -94,60 +94,120 @@ describe("#5 issue_portal_link: one step, one active link", () => {
   });
 });
 
-describe("#4 Qoyod: a cash account chosen later moves the open petty-cash balance once", () => {
-  it("one opening transfer bank → cash for the open balance; skipped top-ups stay; idempotent per switch", async () => {
-    const accounts = await as({ userId: owner }, async (q) => {
-      const a = (await q<{ id: string }>("insert into public.petty_cash_accounts (organization_id, holder_id, name) values ($1,$2,'عهدة المشرف') returning id", [org, sup])).rows[0].id;
-      const b = (await q<{ id: string }>("insert into public.petty_cash_accounts (organization_id, holder_id, name) values ($1,$2,'عهدة المالك') returning id", [org, owner])).rows[0].id;
-      return { a, b };
+describe("#4 Qoyod: petty cash routed when queued; a cash account chosen later moves only what sat in the bank", () => {
+  // each scenario in its own organization: one holder, Qoyod on, bank (receive) account 8
+  async function setup(name: string, cash: number | null) {
+    await asAdmin((q) => q("update private.platform_settings set allow_self_signup = true"));
+    const o = await as({ userId: owner }, async (q) => (await q<{ id: string }>("select public.create_organization($1) as id", [name])).rows[0].id);
+    await asAdmin((q) => q("update private.platform_settings set allow_self_signup = false"));
+    const acc = await as({ userId: owner }, async (q) => {
+      await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'supervisor')", [o, sup]);
+      await q("insert into public.qoyod_settings (organization_id, enabled, receive_account_id, cash_account_id) values ($1, true, 8, $2)", [o, cash]);
+      return (await q<{ id: string }>("insert into public.petty_cash_accounts (organization_id, holder_id, name) values ($1,$2,'عهدة المشرف') returning id", [o, sup])).rows[0].id;
     });
-    await as({ userId: owner }, (q) => q("insert into public.qoyod_settings (organization_id, enabled, receive_account_id) values ($1, true, 8)", [org]));
-    await as({ userId: owner }, async (q) => {
-      await q("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,'topup',1000,'تعبئة')", [org, accounts.a]);
-      await q("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,'return',200,'استرجاع')", [org, accounts.a]);
-      await q("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,'topup',300,'تعبئة')", [org, accounts.b]);
-    });
-    await as({ userId: sup }, (q) => q("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,'expense',85,'شريط')", [org, accounts.a]));
-    // an inactive holder's balance isn't open petty cash
-    await as({ userId: owner }, (q) => q("update public.petty_cash_accounts set is_active = false where id = $1", [accounts.b]));
-    const opening = () =>
-      asAdmin((q) => q<{ kind: string; ref: string; amount: string; entity_id: string }>("select kind, ref, amount, entity_id from public.qoyod_sync_jobs where organization_id = $1 and entity_type = 'petty_cash_opening' order by created_at", [org])).then((r) => r.rows);
-    const transfers = () => asAdmin((q) => q<{ n: string }>("select count(*) as n from public.qoyod_sync_jobs where organization_id = $1 and entity_type = 'petty_cash'", [org])).then((r) => Number(r.rows[0].n));
-    const before = await transfers();
-    expect(await opening()).toEqual([]);
+    const entry = (kind: "topup" | "return" | "expense", amount: number) =>
+      as({ userId: kind === "expense" ? sup : owner }, (q) => q("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,$3,$4,'x')", [o, acc, kind, amount]));
+    const setCash = (v: number | null) => as({ userId: owner }, (q) => q("update public.qoyod_settings set cash_account_id = $2 where organization_id = $1", [o, v]));
+    const jobs = () =>
+      asAdmin((q) => q<{ kind: string; entity_type: string; ref: string; amount: string; route: string | null; entry_kind: string | null }>(
+        `select j.kind, j.entity_type, j.ref, j.amount, j.route, e.kind as entry_kind
+         from public.qoyod_sync_jobs j left join public.petty_cash_entries e on e.id = j.entity_id
+         where j.organization_id = $1 and j.entity_type in ('petty_cash', 'petty_cash_opening') order by j.created_at`, [o])).then((r) => r.rows);
+    const openings = async () => (await jobs()).filter((j) => j.entity_type === "petty_cash_opening");
+    // what Qoyod's cash account ends up holding once every job has posted: openings (bank → cash)
+    // + the cash-routed jobs (top-ups in, returns and expense payments out); bank-routed ones post nothing to cash
+    const qoyodCash = async () =>
+      (await jobs()).reduce((sum, j) => {
+        const a = Number(j.amount);
+        if (j.entity_type === "petty_cash_opening") return sum + a;
+        if (j.route !== "cash" || j.kind === "bill") return sum;
+        return sum + (j.kind === "transfer" && j.entry_kind === "topup" ? a : -a);
+      }, 0);
+    return { o, entry, setCash, jobs, openings, qoyodCash };
+  }
 
-    // the owner picks a cash account in Settings → one opening job for 1000 − 200 − 85 = 715
-    await as({ userId: owner }, (q) => q("update public.qoyod_settings set cash_account_id = 7 where organization_id = $1", [org]));
-    const jobs = await opening();
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0]).toMatchObject({ kind: "transfer", amount: "715.00", entity_id: org });
-    expect(jobs[0].ref.startsWith(`pco:${org}:`)).toBe(true);
-    // earlier top-ups' jobs are left as they are (no new ones)
-    expect(await transfers()).toBe(before);
-
-    // saving other settings, or the same cash account again, adds nothing
-    await as({ userId: owner }, (q) => q("update public.qoyod_settings set cash_account_id = 7, salary_account_id = 53 where organization_id = $1", [org]));
-    // changing from one cash account to another isn't a "chosen later" switch
-    await as({ userId: owner }, (q) => q("update public.qoyod_settings set cash_account_id = 9 where organization_id = $1", [org]));
-    expect(await opening()).toHaveLength(1);
-
-    // cleared and chosen again (the automatic setup writes as the service role) → a new switch, a new job
-    await as({ userId: owner }, (q) => q("update public.qoyod_settings set cash_account_id = null where organization_id = $1", [org]));
-    await as("service_role", (q) => q("update public.qoyod_settings set cash_account_id = 7 where organization_id = $1", [org]));
-    expect(await opening()).toHaveLength(2);
+  it("reviewer's scenario: jobs queued without a cash account, then one chosen → opening 715, cash total 715 (not 1430)", async () => {
+    const t = await setup("Org R3 petty A", null);
+    await t.entry("topup", 1000);
+    await t.entry("return", 200);
+    await t.entry("expense", 85);
+    // routed when queued: no cash account → bank (the expense's bill has no route)
+    const routed = (await t.jobs()).map((j) => [j.kind, j.route]);
+    expect(routed).toEqual([["transfer", "bank"], ["transfer", "bank"], ["bill", null], ["bill_payment", "bank"]]);
+    await t.setCash(7);
+    const op = await t.openings();
+    expect(op).toHaveLength(1);
+    expect(op[0]).toMatchObject({ kind: "transfer", amount: "715.00", route: "cash" });
+    expect(op[0].ref.startsWith(`pco:${t.o}:`)).toBe(true);
+    // the queued jobs keep their route — choosing the account later doesn't re-route them
+    expect((await t.jobs()).filter((j) => j.entity_type === "petty_cash").map((j) => j.route)).toEqual(["bank", "bank", null, "bank"]);
+    expect(await t.qoyodCash()).toBe(715);
   });
 
-  it("no open balance, or the cash account is the bank account → nothing to move", async () => {
-    await as({ userId: owner }, (q) => q("update public.qoyod_settings set cash_account_id = null where organization_id = $1", [org]));
-    const count = () => asAdmin((q) => q<{ n: string }>("select count(*) as n from public.qoyod_sync_jobs where organization_id = $1 and entity_type = 'petty_cash_opening'", [org])).then((r) => Number(r.rows[0].n));
-    const n0 = await count();
-    await as({ userId: owner }, (q) => q("update public.qoyod_settings set cash_account_id = 8 where organization_id = $1", [org]));
-    expect(await count()).toBe(n0);
-    await as({ userId: owner }, (q) => q("update public.qoyod_settings set cash_account_id = null where organization_id = $1", [org]));
-    // spend the whole open balance (715)
-    const a = (await asAdmin((q) => q<{ id: string }>("select id from public.petty_cash_accounts where organization_id = $1 and is_active", [org]))).rows[0].id;
-    await as({ userId: sup }, (q) => q("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,'expense',715,'مواد')", [org, a]));
-    await as({ userId: owner }, (q) => q("update public.qoyod_settings set cash_account_id = 7 where organization_id = $1", [org]));
-    expect(await count()).toBe(n0);
+  it("cash account chosen first → every job routed cash, no opening; cash total 715", async () => {
+    const t = await setup("Org R3 petty B", 7);
+    await t.entry("topup", 1000);
+    await t.entry("return", 200);
+    await t.entry("expense", 85);
+    expect((await t.jobs()).map((j) => j.route)).toEqual(["cash", "cash", null, "cash"]);
+    expect(await t.openings()).toEqual([]);
+    expect(await t.qoyodCash()).toBe(715);
+  });
+
+  it("mixed: top-up before the cash account, return and expense after → opening 1000, cash total 715", async () => {
+    const t = await setup("Org R3 petty C", null);
+    await t.entry("topup", 1000);
+    await t.setCash(7);
+    await t.entry("return", 200);
+    await t.entry("expense", 85);
+    expect((await t.openings()).map((j) => j.amount)).toEqual(["1000.00"]);
+    expect(await t.qoyodCash()).toBe(715);
+  });
+
+  it("cleared and chosen again moves only the difference (nothing if nothing changed)", async () => {
+    const t = await setup("Org R3 petty D", null);
+    await t.entry("topup", 1000);
+    await t.entry("return", 200);
+    await t.entry("expense", 85);
+    await t.setCash(7);
+    // saving the same account again, or switching one cash account for another, isn't a new switch
+    await as({ userId: owner }, (q) => q("update public.qoyod_settings set cash_account_id = 7, salary_account_id = 53 where organization_id = $1", [t.o]));
+    await t.setCash(9);
+    expect(await t.openings()).toHaveLength(1);
+    // cleared and chosen again (the automatic setup writes as the service role) → nothing new to move
+    await t.setCash(null);
+    await as("service_role", (q) => q("update public.qoyod_settings set cash_account_id = 7 where organization_id = $1", [t.o]));
+    expect(await t.openings()).toHaveLength(1);
+    expect(await t.qoyodCash()).toBe(715);
+    // cleared, a top-up routed bank meanwhile, chosen again → only that 100 moves
+    await t.setCash(null);
+    await t.entry("topup", 100);
+    await t.setCash(7);
+    expect((await t.openings()).map((j) => j.amount)).toEqual(["715.00", "100.00"]);
+    expect(await t.qoyodCash()).toBe(815);
+  });
+
+  it("nothing open in the bank, or the cash account is the bank account → no opening", async () => {
+    const t = await setup("Org R3 petty E", null);
+    await t.entry("topup", 500);
+    await t.setCash(8);
+    expect(await t.openings()).toEqual([]);
+    // cash = bank still routes bank
+    await t.entry("expense", 500);
+    expect((await t.jobs()).filter((j) => j.kind !== "bill").map((j) => j.route)).toEqual(["bank", "bank"]);
+    await t.setCash(7);
+    expect(await t.openings()).toEqual([]);
+    expect(await t.qoyodCash()).toBe(0);
+  });
+
+  it("a job's route is set by the database, not by whoever inserts it", async () => {
+    const t = await setup("Org R3 petty F", null);
+    const e = (await asAdmin((q) => q<{ id: string }>("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) select $1, id, 'topup', 10, 'x' from public.petty_cash_accounts where organization_id = $1 returning id", [t.o]))).rows[0].id;
+    await asAdmin((q) => q("delete from public.qoyod_sync_jobs where organization_id = $1", [t.o]));
+    await asAdmin((q) => q("insert into public.qoyod_sync_jobs (organization_id, kind, entity_type, entity_id, ref, amount, route) values ($1,'transfer','petty_cash',$2,$3,10,'cash')", [t.o, e, "pct:" + e]));
+    expect((await t.jobs()).map((j) => j.route)).toEqual(["bank"]);
+    // other jobs carry no route
+    const other = await asAdmin((q) => q<{ route: string | null }>("insert into public.qoyod_sync_jobs (organization_id, kind, entity_type, entity_id, ref, route) values ($1,'customer','client',$1,'x','cash') returning route", [t.o]));
+    expect(other.rows[0].route).toBeNull();
   });
 });

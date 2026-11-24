@@ -722,6 +722,8 @@ export type QoyodJobKind = "customer" | "vendor" | "invoice" | "invoice_payment"
 export type QoyodJobRow = {
   id: string; organization_id: string; kind: QoyodJobKind; entity_type: "client" | "supplier" | "subcontractor" | "contract_payment" | "addendum" | "purchase" | "payroll_run" | "subcontractor_payment" | "petty_cash" | "petty_cash_opening"; entity_id: string; ref: string;
   amount: number | null; status: "queued" | "running" | "done" | "failed"; attempts: number; next_attempt_at: string; last_error: string | null; qoyod_id: number | null; done_at: string | null; created_at: string; updated_at: string;
+  /** petty-cash jobs only: the account fixed when queued */
+  route: "bank" | "cash" | null;
 };
 
 export type Database = {

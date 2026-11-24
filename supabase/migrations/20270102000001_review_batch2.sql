@@ -12,6 +12,7 @@
 --   G4  subcontractor payments and petty-cash expenses reach Qoyod (simple bill +
 --       its payment), like supplier purchases; subcontracting expense account; a cash
 --       account chosen later moves the open petty-cash balance bank → cash once.
+--       Each petty-cash job is routed (bank | cash) when it is queued.
 --   A new client-page link and the revocation of the older ones in one locked step
 --       (public.issue_portal_link).
 --   Qoyod account choices added after the first release (salary, cash) were not
@@ -498,12 +499,61 @@ revoke all on function private.qoyod_on_petty_cash() from public;
 create trigger petty_cash_entries_qoyod after insert on public.petty_cash_entries
   for each row execute function private.qoyod_on_petty_cash();
 
--- A cash account chosen later (Settings, or the automatic setup): until then petty cash was paid
--- from the bank account (top-ups / returns were skipped as "same account"), so the open balance
--- sits in the bank. One opening transfer bank → cash moves it — the sum of the active holders'
--- balances, once per switch (null → an account other than the bank). Earlier skipped top-ups
--- stay skipped: their expenses were paid from the bank. entity_id = the organization; the
--- worker tags the journal entry with the job id so a retry finds it.
+-- Petty cash is routed when its job is queued, not when the worker runs: 'cash' when a cash
+-- account is set and differs from the bank (receive) account, else 'bank' (petty cash then
+-- lives in the bank account: top-ups / returns are a no-op, expenses are paid from the bank).
+-- The worker posts each job by its route, so jobs queued before a cash account was chosen still
+-- settle through the bank — only the opening transfer below moves money to cash.
+alter table public.qoyod_sync_jobs add column route text check (route in ('bank', 'cash'));
+
+create or replace function private.qoyod_petty_route(p_org uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select case when s.cash_account_id is not null and s.cash_account_id is distinct from s.receive_account_id then 'cash' else 'bank' end
+    from public.qoyod_settings s where s.organization_id = p_org), 'bank');
+$$;
+revoke all on function private.qoyod_petty_route(uuid) from public;
+
+-- set by the database for every insert (enqueue triggers, backfill) — never by the caller
+create or replace function private.qoyod_job_route()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.entity_type = 'petty_cash_opening' then
+    new.route := 'cash';
+  elsif new.entity_type = 'petty_cash' and new.kind in ('transfer', 'bill_payment') then
+    new.route := private.qoyod_petty_route(new.organization_id);
+  else
+    new.route := null;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.qoyod_job_route() from public;
+create trigger qoyod_sync_jobs_route before insert on public.qoyod_sync_jobs
+  for each row execute function private.qoyod_job_route();
+
+-- jobs queued before this migration: routed from the settings as they are now
+update public.qoyod_sync_jobs j set route = case when j.entity_type = 'petty_cash_opening' then 'cash' else private.qoyod_petty_route(j.organization_id) end
+where j.entity_type = 'petty_cash_opening' or (j.entity_type = 'petty_cash' and j.kind in ('transfer', 'bill_payment'));
+alter table public.qoyod_sync_jobs add constraint qoyod_sync_jobs_route_scope
+  check ((route is not null) = (entity_type = 'petty_cash_opening' or (entity_type = 'petty_cash' and kind in ('transfer', 'bill_payment'))));
+
+-- A cash account chosen later (Settings, or the automatic setup; routing bank → cash): petty
+-- cash routed 'bank' sits in the bank account, so one opening transfer bank → cash moves it —
+-- the net of the organization's bank-routed petty-cash jobs (top-ups − returns − expense
+-- payments, whatever their status: they all settle through the bank) minus what earlier
+-- openings already moved (or will). Cleared and chosen again → only the difference (bank-routed
+-- jobs queued meanwhile); nothing if ≤ 0. entity_id = the organization; the worker tags the
+-- journal entry with the job id so a retry finds it.
 create or replace function private.qoyod_petty_opening()
 returns trigger
 language plpgsql
@@ -511,25 +561,33 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_balance numeric;
+  v_bank numeric;
+  v_moved numeric;
+  v_amount numeric;
 begin
-  if old.cash_account_id is not null or new.cash_account_id is null or new.cash_account_id is not distinct from new.receive_account_id then
+  -- only a switch from bank routing to cash routing
+  if not (old.cash_account_id is null or old.cash_account_id is not distinct from old.receive_account_id)
+     or new.cash_account_id is null or new.cash_account_id is not distinct from new.receive_account_id then
     return null;
   end if;
-  select coalesce(sum(case e.kind when 'topup' then e.amount else -e.amount end), 0) into v_balance
-  from public.petty_cash_entries e
-  join public.petty_cash_accounts a on a.id = e.account_id
-  where e.organization_id = new.organization_id and a.is_active;
-  if v_balance <= 0 then
+  select coalesce(sum(case when j.kind = 'transfer' and e.kind = 'topup' then 1 else -1 end * coalesce(j.amount, e.amount)), 0) into v_bank
+  from public.qoyod_sync_jobs j
+  join public.petty_cash_entries e on e.id = j.entity_id
+  where j.organization_id = new.organization_id and j.entity_type = 'petty_cash' and j.route = 'bank';
+  select coalesce(sum(j.amount), 0) into v_moved
+  from public.qoyod_sync_jobs j
+  where j.organization_id = new.organization_id and j.entity_type = 'petty_cash_opening';
+  v_amount := round(v_bank - v_moved, 2);
+  if v_amount <= 0 then
     return null;
   end if;
   perform private.qoyod_enqueue(new.organization_id, 'transfer', 'petty_cash_opening', new.organization_id,
-    'pco:' || new.organization_id || ':' || to_char(clock_timestamp() at time zone 'Asia/Riyadh', 'YYYYMMDD"T"HH24MISS.US'), round(v_balance, 2));
+    'pco:' || new.organization_id || ':' || to_char(clock_timestamp() at time zone 'Asia/Riyadh', 'YYYYMMDD"T"HH24MISS.US'), v_amount);
   return null;
 end;
 $$;
 revoke all on function private.qoyod_petty_opening() from public;
-create trigger qoyod_settings_petty_opening after update of cash_account_id on public.qoyod_settings
+create trigger qoyod_settings_petty_opening after update of cash_account_id, receive_account_id on public.qoyod_settings
   for each row execute function private.qoyod_petty_opening();
 
 -- Backfill: also supplier payments, subcontractor payments and petty-cash expenses.

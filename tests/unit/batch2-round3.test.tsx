@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { hrefs, render } from "./helpers/render";
 import { lastValidDay } from "@/lib/contracts";
 import { projectBought, purchaseCharge } from "@/lib/purchases";
-import { findJournalEntry, pettyOpeningBody, pettyOpeningTag } from "@/lib/qoyod/payloads";
+import { findJournalEntry, pettyOpeningBody, pettyOpeningTag, pettyPlan } from "@/lib/qoyod/payloads";
 import { OwnerFinanceSections } from "@/components/finance/owner-dashboard";
 import { PortalView } from "@/components/portal/portal-view";
 import { ProjectCostsView, PurchasesList, PurchaseView } from "@/components/purchases/purchase-views";
@@ -90,6 +90,25 @@ describe("#4 petty cash opening transfer when a cash account is chosen later", (
     expect(b.journal_entry.date).toBe("2026-11-24");
     expect(b.journal_entry.debit_amounts).toEqual([{ account_id: 7, amount: 715, comment: expect.any(String) }]);
     expect(b.journal_entry.credit_amounts).toEqual([{ account_id: 8, amount: 715, comment: expect.any(String) }]);
+  });
+});
+
+describe("#4 petty cash posts by the route fixed when its job was queued", () => {
+  const noCash = { receive_account_id: 8, cash_account_id: null };
+  const cash = { receive_account_id: 8, cash_account_id: 7 };
+  it("route 'bank' stays bank even after a cash account is chosen (top-up/return = no-op, expense paid from the bank)", () => {
+    expect(pettyPlan("bank", noCash)).toEqual({ post: "bank" });
+    expect(pettyPlan("bank", cash)).toEqual({ post: "bank" });
+  });
+  it("route 'cash' uses the cash account; if it was cleared (or is now the bank), waits instead of switching", () => {
+    expect(pettyPlan("cash", cash)).toEqual({ post: "cash", cashAccountId: 7 });
+    expect(pettyPlan("cash", noCash)).toEqual({ wait: "cash_account" });
+    expect(pettyPlan("cash", { receive_account_id: 8, cash_account_id: 8 })).toEqual({ wait: "cash_account" });
+  });
+  it("a job without a route (older rows) follows the current settings", () => {
+    expect(pettyPlan(null, noCash)).toEqual({ post: "bank" });
+    expect(pettyPlan(null, { receive_account_id: 8, cash_account_id: 8 })).toEqual({ post: "bank" });
+    expect(pettyPlan(null, cash)).toEqual({ post: "cash", cashAccountId: 7 });
   });
 });
 

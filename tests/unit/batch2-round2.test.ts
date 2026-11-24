@@ -3,7 +3,7 @@ import { assistantLinks } from "@/lib/assistant/context";
 import { deliveryDate } from "@/lib/contracts";
 import { companyPaidRepairs, projectHref } from "@/lib/finance";
 import { markBought, pickStockItem, projectBought, stillToAdd, type ListLine } from "@/lib/purchases";
-import { findJournalEntry, pettyTransferSkip } from "@/lib/qoyod/payloads";
+import { findJournalEntry, pettyPlan } from "@/lib/qoyod/payloads";
 import { projectDates } from "@/lib/schedule";
 
 /** Review of batch 2, second round (Nov 2026). */
@@ -104,9 +104,9 @@ describe("#3 changing a row's stock item drops the suggested product", () => {
 
 describe("#5 Qoyod petty cash without a cash account; journal lookups never guess", () => {
   it("no cash account (or the same as the bank) → the transfer is a no-op", () => {
-    expect(pettyTransferSkip({ receive_account_id: 10, cash_account_id: null })).toBe("same_account");
-    expect(pettyTransferSkip({ receive_account_id: 10, cash_account_id: 10 })).toBe("same_account");
-    expect(pettyTransferSkip({ receive_account_id: 10, cash_account_id: 20 })).toBeNull();
+    expect(pettyPlan(null, { receive_account_id: 10, cash_account_id: null })).toEqual({ post: "bank" });
+    expect(pettyPlan(null, { receive_account_id: 10, cash_account_id: 10 })).toEqual({ post: "bank" });
+    expect(pettyPlan(null, { receive_account_id: 10, cash_account_id: 20 })).toEqual({ post: "cash", cashAccountId: 20 });
   });
   it("finds an earlier entry by its tag; a failed lookup throws instead of posting a possible duplicate", async () => {
     const paths: string[] = [];
