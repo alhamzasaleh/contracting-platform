@@ -615,6 +615,28 @@ revoke all on function private.qoyod_petty_holdings(uuid) from public;
 -- yet (queued, never tried) is withdrawn first and recomputed, so clearing and re-choosing before
 -- anything posted leaves nothing behind; one the worker has tried may already be in Qoyod and
 -- stays counted. Nothing to move → no job, so it is idempotent.
+-- When the worker first claims a job (it may reach Qoyod from then on). A retry resets
+-- attempts but never this, so a reconcile that was ever tried is never withdrawn.
+alter table public.qoyod_sync_jobs add column if not exists first_claimed_at timestamptz;
+create or replace function private.qoyod_job_first_claim()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.status = 'running' and old.status is distinct from 'running' then
+    new.first_claimed_at := coalesce(old.first_claimed_at, now());
+  else
+    new.first_claimed_at := old.first_claimed_at;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.qoyod_job_first_claim() from public;
+create trigger qoyod_sync_jobs_first_claim before update on public.qoyod_sync_jobs
+  for each row execute function private.qoyod_job_first_claim();
+
 create or replace function private.qoyod_petty_reconcile(p_org uuid)
 returns void
 language plpgsql
@@ -636,6 +658,7 @@ begin
   perform set_config('app.petty_reconcile', 'on', true);
   delete from public.qoyod_sync_jobs j
   where j.organization_id = p_org and j.entity_type = 'petty_cash_opening' and j.status = 'queued' and j.attempts = 0
+    and j.first_claimed_at is null
     and j.qoyod_id is null and (j.last_error is null or j.last_error like 'waiting:%');
   select coalesce(sum(case when j.kind = 'transfer' and e.kind = 'topup' then 1 else -1 end * coalesce(j.amount, e.amount)), 0) into v_total
   from public.qoyod_sync_jobs j join public.petty_cash_entries e on e.id = j.entity_id

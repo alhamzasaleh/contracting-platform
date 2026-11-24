@@ -291,6 +291,18 @@ describe("#4 Qoyod petty cash: routed when queued; one reconciliation keeps Qoyo
     expect(await t.qoyodCash()).toEqual({});
   });
 
+  it("a reconcile the worker already tried is never withdrawn, even after a retry resets its attempts", async () => {
+    const t = await setup("Org R3 petty RT", null);
+    await t.entry("topup", 300);
+    await t.setCash(7);
+    // the worker claimed it (it may have reached Qoyod), it failed, then «إعادة المحاولة» reset it
+    await asAdmin((q) => q("update public.qoyod_sync_jobs set status = 'running', attempts = 1 where organization_id = $1 and entity_type = 'petty_cash_opening'", [t.o]));
+    await asAdmin((q) => q("update public.qoyod_sync_jobs set status = 'queued', attempts = 0, last_error = null where organization_id = $1 and entity_type = 'petty_cash_opening'", [t.o]));
+    await t.setCash(null);
+    // kept (bank → 7) and reversed (7 → bank) — not withdrawn
+    expect((await t.reconciles()).map(move)).toEqual([{ from: null, to: 7, amount: "300.00" }, { from: 7, to: null, amount: "300.00" }]);
+  });
+
   it("a job's route and accounts are set by the database, not by whoever inserts it", async () => {
     const t = await setup("Org R3 petty G", null);
     const e = (await asAdmin((q) => q<{ id: string }>("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) select $1, id, 'topup', 10, 'x' from public.petty_cash_accounts where organization_id = $1 returning id", [t.o]))).rows[0].id;
