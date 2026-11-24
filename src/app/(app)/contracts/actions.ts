@@ -8,10 +8,10 @@ import { z } from "zod";
 import { runBackground } from "@/lib/background";
 import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
-import { linkExpiry, percentSum, portalLinkState, scheduleAmounts } from "@/lib/contracts";
+import { linkExpiry, percentSum, portalLinkState } from "@/lib/contracts";
 import { loadWarrantyEnd } from "@/lib/data/contracts";
 import { effectiveVatPercent } from "@/lib/costing";
-import { paymentRequestError } from "@/lib/finance";
+import { paymentRecordError, paymentRequestError } from "@/lib/finance";
 import { termsSchema } from "@/lib/contracts/terms";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -69,19 +69,10 @@ export async function saveContract(input: unknown): Promise<ActionResult<{ numbe
 
   let contractId = v.contract_id ?? null;
   let number: string;
-  let total: number;
   if (contractId) {
-    const { data: c } = await supabase.from("contracts").select("id, number, status, total").eq("id", contractId).eq("organization_id", orgId).maybeSingle();
+    const { data: c } = await supabase.from("contracts").select("id, number, status").eq("id", contractId).eq("organization_id", orgId).maybeSingle();
     if (!c || (c.status !== "draft" && c.status !== "sent")) return { ok: false, error: "contractLocked" };
-    const { error } = await supabase
-      .from("contracts")
-      .update({ start_date: v.start_date, duration_days: v.duration_days, warranty_months: v.warranty_months, notes: v.notes })
-      .eq("id", c.id);
-    if (error) return fail(error, "update");
     number = c.number;
-    total = Number(c.total);
-    const { error: e2 } = await supabase.from("contract_payments").delete().eq("contract_id", c.id);
-    if (e2) return fail(e2, "payments reset");
   } else {
     // From the quote's current, issued version (total and project type are frozen there).
     const { data: q } = await supabase.from("quotes").select("id, status, current_version, client_id, service, options").eq("id", v.quote_id!).eq("organization_id", orgId).maybeSingle();
@@ -91,7 +82,6 @@ export async function saveContract(input: unknown): Promise<ActionResult<{ numbe
     const { data: ver } = await supabase.from("quote_versions").select("total, selection").eq("quote_id", q.id).eq("version", startVersion).maybeSingle();
     if (!ver) return { ok: false, error: "invalid" };
     const projectType = ((ver.selection as { options?: { projectType?: string } } | null)?.options?.projectType ?? "full") as "full" | "labour" | "supply";
-    total = Number(ver.total);
     // the company's clause settings are copied into the contract (editable until the client accepts)
     const { data: tpl } = await supabase.from("contract_templates").select("terms").eq("organization_id", orgId).maybeSingle();
     const { data: c, error } = await supabase
@@ -100,7 +90,7 @@ export async function saveContract(input: unknown): Promise<ActionResult<{ numbe
         terms: (tpl?.terms ?? {}) as Json,
         organization_id: orgId, quote_id: q.id, quote_version: startVersion, options: q.options ?? null, client_id: q.client_id, service: q.service,
         project_type: projectType, start_date: v.start_date, duration_days: v.duration_days, warranty_months: v.warranty_months,
-        total, notes: v.notes,
+        total: Number(ver.total), notes: v.notes,
       })
       .select("id, number")
       .single();
@@ -109,11 +99,17 @@ export async function saveContract(input: unknown): Promise<ActionResult<{ numbe
     number = c.number;
   }
 
-  const amounts = scheduleAmounts(total, v.payments.map((p) => p.percent));
-  const { error: e3 } = await supabase.from("contract_payments").insert(
-    v.payments.map((p, i) => ({ organization_id: orgId, contract_id: contractId!, seq: i + 1, label: p.label, percent: p.percent, amount: amounts[i], due_event: p.due_event })),
-  );
-  if (e3) return fail(e3, "payments");
+  // dates + the whole payment schedule in one database step (amounts from the contract total,
+  // the last payment absorbs rounding) — a refusal leaves the previous schedule as it was
+  const { error: e3 } = await supabase.rpc("save_contract_schedule", {
+    p_contract: contractId,
+    p_start: v.start_date,
+    p_duration: v.duration_days,
+    p_warranty: v.warranty_months,
+    p_notes: v.notes,
+    p_payments: v.payments.map((p) => ({ label: p.label, percent: p.percent, due_event: p.due_event })),
+  });
+  if (e3) return e3.code === "22023" ? { ok: false, error: "paymentsSum" } : fail(e3, "payments");
   return done({ number });
 }
 
@@ -292,7 +288,11 @@ export async function recordAddendumPayment(input: unknown): Promise<ActionResul
   const v = parsed.data;
   const supabase = await createClient();
   const { error } = await supabase.rpc("record_addendum_payment", { p_addendum: v.addendum_id, p_paid_on: v.paid_on, p_amount: v.amount, p_method: v.method, p_reference: v.reference });
-  if (error) return fail(error, "addendum payment");
+  if (error) {
+    const why = error.code === "22023" ? paymentRecordError(error.message) : null;
+    if (why) return { ok: false, error: why };
+    return fail(error, "addendum payment");
+  }
   after(runBackground);
   revalidatePath("/", "layout");
   return done();

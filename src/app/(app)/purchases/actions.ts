@@ -10,6 +10,7 @@ import { readInvoice, type InvoiceMedia } from "@/lib/ai/invoice";
 import { can, getSession } from "@/lib/auth/session";
 import { invoiceFlags, itemsToLink, lineAmount, purchaseTotals, type InvoiceDraft, type InvoiceFlag } from "@/lib/purchases";
 import { rateLimit } from "@/lib/rate-limit";
+import { subWorkError } from "@/lib/subcontractors";
 import { createClient } from "@/lib/supabase/server";
 
 const id = z.uuid();
@@ -312,7 +313,11 @@ export async function addSubWork(input: unknown): Promise<ActionResult> {
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
   const { error } = await ctx.supabase.from("subcontractor_work").insert({ ...parsed.data, organization_id: ctx.orgId, amount: 0 });
-  if (error) return fail(error, "sub work");
+  if (error) {
+    const why = error.code === "22023" ? subWorkError(error.message) : null;
+    if (why) return { ok: false, error: why };
+    return fail(error, "sub work");
+  }
   return done();
 }
 

@@ -176,6 +176,11 @@ function RequestCard({ r, data, open, actions, base }: { r: MaintenanceItem; dat
       )}
       {r.reply && !edit && <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm">↳ {r.reply}</p>}
       {r.client_confirmed_at && <p className="text-[12px] text-success">{t("confirmed", { date: fmt.dateTime(r.client_confirmed_at) })}</p>}
+      {r.status === "closed" && !r.client_confirmed_at && r.closed_at && (
+        <p className="text-[12px] text-muted-foreground">
+          {t("closedBy", { name: data.members.find((m) => m.id === r.closed_by)?.name ?? t("ourTeam"), date: fmt.dateTime(r.closed_at) })}
+        </p>
+      )}
 
       {data.canManage &&
         (edit ? (

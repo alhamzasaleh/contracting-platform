@@ -29,3 +29,14 @@ export function useBiometricKind(): "faceid" | "touchid" | "fingerprint" {
     () => "fingerprint",
   );
 }
+
+/** This browser's push subscription, if any (never waits more than 2 s — sign-out must not hang). */
+export async function currentPushSubscription(): Promise<PushSubscription | null> {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return null;
+  const lookup = navigator.serviceWorker
+    .getRegistration()
+    .then((reg) => reg?.pushManager?.getSubscription() ?? null)
+    .catch(() => null);
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
+  return Promise.race([lookup, timeout]);
+}

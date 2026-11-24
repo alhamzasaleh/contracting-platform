@@ -134,6 +134,9 @@ export function WarrantySection({ w, number, token, onAdd, onConfirm }: {
                 </Button>
               )}
               {r.client_confirmed_at && <p className="text-[12px] text-success">{t("confirmedOn", { date: fmt.dateTime(r.client_confirmed_at) })}</p>}
+              {r.status === "closed" && r.closed_by_staff && r.closed_at && (
+                <p className="text-[12px] text-muted-foreground">{t("closedByStaff", { date: fmt.dateTime(r.closed_at) })}</p>
+              )}
             </li>
           ))}
         </ul>

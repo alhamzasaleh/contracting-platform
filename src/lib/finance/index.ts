@@ -44,6 +44,15 @@ export function paymentRequestError(message: string | null | undefined): "paymen
   return null;
 }
 
+/** A refused record_client_payment / record_addendum_payment → a message key for the person. */
+export function paymentRecordError(message: string | null | undefined): "paymentOverDue" | "paymentAlreadyPaid" | "paymentNotAccepted" | null {
+  if (!message) return null;
+  if (/more than the amount due/.test(message)) return "paymentOverDue";
+  if (/already paid/.test(message)) return "paymentAlreadyPaid";
+  if (/isn't accepted/.test(message)) return "paymentNotAccepted";
+  return null;
+}
+
 /** Days since a payment was requested when it is late (7 days or more), else null. */
 export function lateDays(requestedAt: string | null | undefined, today: string): number | null {
   if (!requestedAt) return null;

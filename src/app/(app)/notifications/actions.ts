@@ -5,7 +5,8 @@ import { z } from "zod";
 import type { ActionResult } from "@/lib/actions";
 import { getSession } from "@/lib/auth/session";
 import { NOTIFICATION_KINDS } from "@/lib/notifications";
-import { PUSH_ENDPOINT, sendTestPush } from "@/lib/notifications/push";
+import { PUSH_ENDPOINT } from "@/lib/notifications/endpoint";
+import { sendTestPush } from "@/lib/notifications/push";
 import { rateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
@@ -60,14 +61,14 @@ export async function savePushSubscription(input: unknown): Promise<ActionResult
   if (!parsed.success) return { ok: false, error: "invalid" };
   const supabase = await createClient();
   const { endpoint, keys, device } = parsed.data;
-  // the same device may re-subscribe (new keys): replace its own row
-  await supabase.from("push_subscriptions").delete().eq("user_id", session.userId).eq("endpoint", endpoint);
-  const { error } = await supabase.from("push_subscriptions").insert({
-    organization_id: session.organization.id, user_id: session.userId, endpoint, p256dh: keys.p256dh, auth: keys.auth, device: device ?? null,
+  // one row per device (endpoint): a shared iPad belongs to whoever turned notifications on
+  // last — the database moves it to the caller only (he holds the browser's subscription)
+  const { error } = await supabase.rpc("claim_push_subscription", {
+    p_org: session.organization.id, p_endpoint: endpoint, p_p256dh: keys.p256dh, p_auth: keys.auth, p_device: device ?? null,
   });
   if (error) {
     console.error("[push] subscribe failed", { code: error.code });
-    return { ok: false, error: error.code === "23505" ? "invalid" : "error" };
+    return { ok: false, error: error.code === "22023" || error.code === "23514" ? "invalid" : "error" };
   }
   revalidatePath("/settings/notifications");
   return { ok: true };

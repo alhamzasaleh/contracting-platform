@@ -17,7 +17,7 @@ import { shrinkImage } from "@/lib/client/image";
 import type { PettyCashData, SubAgreementView, SubcontractorsData } from "@/lib/data/subcontractors";
 import type { ServiceKind } from "@/lib/pricing";
 import type { InvoiceDraft, InvoiceFlag } from "@/lib/purchases";
-import { pettyBalance, subSummary, workAmount } from "@/lib/subcontractors";
+import { pettyBalance, subSummary, workAmount, workRemaining } from "@/lib/subcontractors";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn, ltr } from "@/lib/utils";
 
@@ -399,6 +399,9 @@ function WorkDialog({ agreement: g, today, onClose, save }: { agreement: SubAgre
   const [val, setVal] = React.useState("");
   const [note, setNote] = React.useState("");
   const amount = workAmount(g, g.basis === "per_m2" ? { quantity_m2: num(val) } : { percent: num(val) });
+  // the database refuses more than what is left on the agreement (0.01 tolerance)
+  const left = workRemaining(g, g.work);
+  const over = num(val) > left + 0.01;
   return (
     <FormDialog
       open
@@ -412,7 +415,12 @@ function WorkDialog({ agreement: g, today, onClose, save }: { agreement: SubAgre
       <Field id="wk-d" label={t("date")}>
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </Field>
-      <Field id="wk-v" label={g.basis === "per_m2" ? t("areaDone") : t("percentDone")}>
+      <Field
+        id="wk-v"
+        label={g.basis === "per_m2" ? t("areaDone") : t("percentDone")}
+        hint={g.basis === "per_m2" ? t("leftArea", { n: fmt.number(left, 2) }) : t("leftPct", { n: fmt.number(left, 2) })}
+        error={over ? t("overLeft") : undefined}
+      >
         <NumberInput value={val} onChange={(e) => setVal(e.target.value)} suffix={g.basis === "per_m2" ? "m²" : "%"} />
       </Field>
       <p className="text-[13px]">

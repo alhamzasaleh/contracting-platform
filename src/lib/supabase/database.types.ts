@@ -701,6 +701,8 @@ export type MaintenanceStatus = "open" | "in_progress" | "resolved" | "closed" |
 export type MaintenanceRow = {
   id: string; organization_id: string; number: string; contract_id: string; body: string; photos: string[]; source: "client" | "staff"; status: MaintenanceStatus;
   assigned_to: string | null; covered: boolean; cost: number; reply: string | null; internal_note: string | null; resolved_at: string | null; closed_at: string | null;
+  /** the staff member who closed / rejected it (set by the database); null = open or closed by the client */
+  closed_by: string | null;
   client_confirmed_at: string | null; created_at: string; created_by: string | null; updated_at: string;
 };
 export type ClientMessageRow = {
@@ -842,6 +844,11 @@ export type Database = {
       approve_payroll_run: { Args: { p_run: string }; Returns: undefined };
       mark_payroll_paid: { Args: { p_run: string; p_paid_on: string }; Returns: undefined };
       record_client_payment: { Args: { p_payment: string; p_paid_on: string; p_amount: number; p_method: string; p_reference: string | null }; Returns: string };
+      save_contract_schedule: {
+        Args: { p_contract: string; p_start: string; p_duration: number; p_warranty: number; p_notes: string | null; p_payments: { label: string; percent: number; due_event: string }[] };
+        Returns: undefined;
+      };
+      claim_push_subscription: { Args: { p_org: string; p_endpoint: string; p_p256dh: string; p_auth: string; p_device: string | null }; Returns: string };
       record_addendum_payment: { Args: { p_addendum: string; p_paid_on: string; p_amount: number; p_method: string; p_reference: string | null }; Returns: string };
       request_contract_payment: { Args: { p_payment: string }; Returns: undefined };
       requestable_payments: { Args: { p_org: string; p_contract?: string | null }; Returns: { payment_id: string }[] };

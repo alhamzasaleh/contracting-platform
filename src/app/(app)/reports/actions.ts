@@ -8,6 +8,7 @@ import { recordAddendumPayment, requestPayment as requestContractPayment } from 
 import { decideApproval } from "@/app/(app)/quotations/actions";
 import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
+import { paymentRecordError } from "@/lib/finance";
 import { createClient } from "@/lib/supabase/server";
 
 const id = z.uuid();
@@ -44,7 +45,11 @@ export async function recordPayment(input: unknown): Promise<ActionResult> {
     return recordAddendumPayment({ addendum_id: v.payment_id.slice(3), paid_on: v.paid_on, amount: v.amount, method: v.method, reference: v.reference });
   }
   const { error } = await supabase.rpc("record_client_payment", { p_payment: v.payment_id, p_paid_on: v.paid_on, p_amount: v.amount, p_method: v.method, p_reference: v.reference });
-  if (error) return fail(error, "record payment");
+  if (error) {
+    const why = error.code === "22023" ? paymentRecordError(error.message) : null;
+    if (why) return { ok: false, error: why };
+    return fail(error, "record payment");
+  }
   after(runBackground);
   return done();
 }

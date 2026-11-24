@@ -1,6 +1,7 @@
 import "server-only";
 import webpush from "web-push";
 import { whatsappText } from "@/lib/notifications";
+import { PUSH_ENDPOINT } from "@/lib/notifications/endpoint";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { NotificationKind } from "@/lib/supabase/database.types";
 
@@ -10,8 +11,8 @@ import type { NotificationKind } from "@/lib/supabase/database.types";
  * once and kept in the database (service role only) — nothing for the owner to set up.
  */
 
-/** Browsers' own push services only (the database enforces the same list). */
-export const PUSH_ENDPOINT = /^https:\/\/(fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com|web\.push\.apple\.com|[a-z0-9-]+\.notify\.windows\.com)\//;
+/** Browsers' own push services only (shared with the sign-out route, see endpoint.ts). */
+export { PUSH_ENDPOINT };
 
 // Apple requires a real https/mailto contact for the sender
 const SUBJECT = process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://vercel.app";

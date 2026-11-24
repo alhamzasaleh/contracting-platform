@@ -25,6 +25,7 @@ import { useFormatter } from "@/components/formatter-provider";
 import { NotificationBell } from "@/components/notifications/bell";
 import { CommandMenu } from "./command-menu";
 import { BrandLogo } from "@/components/brand-logo";
+import { currentPushSubscription } from "@/lib/client/device";
 import { SidebarBrand, SidebarNav } from "./sidebar";
 import type { ShellData } from "./types";
 
@@ -49,14 +50,23 @@ export function Topbar({ data }: { data: ShellData }) {
   const signOut = async () => {
     // A plain <form> inside the menu is unmounted before it submits (the menu closes
     // on select), so the request is sent directly, then to /login with fresh data.
+    // a shared iPad: this device stops receiving the signed-out user's notifications
+    const sub = await currentPushSubscription();
     try {
-      const res = await fetch("/auth/signout", { method: "POST", credentials: "same-origin" });
+      const res = await fetch("/auth/signout", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(sub ? { endpoint: sub.endpoint } : {}),
+      });
       if (!res.ok) throw new Error(String(res.status));
     } catch {
       // still signed in (offline / refused): say so instead of pretending
       toast.error(t("user.signOutFailed"));
       return;
     }
+    // the server row is gone; the browser subscription goes too, so the next person turns it on for himself
+    await sub?.unsubscribe().catch(() => undefined);
     router.replace("/login");
     router.refresh();
   };

@@ -182,7 +182,12 @@ export function RecordPaymentDialog({
       onSubmit={() => run(submit && (() => submit({ paid_on: date, amount: num(amount), method, reference: ref || null })), { onSuccess: onClose })}
     >
       <div className="grid grid-cols-2 gap-4">
-        <Field id="rp-a" label={t("amount")} hint={num(amount) < outstanding ? t("partialHint") : undefined}>
+        <Field
+          id="rp-a"
+          label={t("amount")}
+          hint={num(amount) < outstanding ? t("partialHint") : undefined}
+          error={num(amount) > outstanding + 0.005 ? t("overOutstanding") : undefined}
+        >
           <NumberInput value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
         <Field id="rp-d" label={t("date")}>

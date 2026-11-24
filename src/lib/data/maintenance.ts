@@ -7,6 +7,8 @@ export type MaintenanceItem = {
   id: string; number: string; contract: string; client: string; client_phone: string | null; body: string; photos: string[]; source: "client" | "staff";
   status: MaintenanceStatus; assigned_to: string | null; covered: boolean; cost: number; reply: string | null; internal_note: string | null;
   created_at: string; resolved_at: string | null; client_confirmed_at: string | null;
+  /** closed / rejected: when, and by which staff member (null = the client confirmed) */
+  closed_at?: string | null; closed_by?: string | null;
 };
 export type WarrantyItem = { number: string; client: string; handover_at: string; warranty_end: string; active: boolean };
 export type MaintenancePageData = {
@@ -51,6 +53,7 @@ export async function loadMaintenance(session: SessionContext): Promise<Maintena
         id: r.id, number: r.number, contract: c?.number ?? "—", client: cl?.name ?? "—", client_phone: cl?.phone ?? null, body: r.body,
         photos: r.photos.map((p) => url.get(p)).filter((u): u is string => !!u), source: r.source, status: r.status, assigned_to: r.assigned_to,
         covered: r.covered, cost: Number(r.cost), reply: r.reply, internal_note: r.internal_note, created_at: r.created_at, resolved_at: r.resolved_at, client_confirmed_at: r.client_confirmed_at,
+        closed_at: r.closed_at, closed_by: r.closed_by,
       };
     }),
     warranties: (warranties ?? [])

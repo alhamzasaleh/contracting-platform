@@ -13,9 +13,9 @@ const rows = (sql: string) => asAdmin((q) => q<{ name: string }>(sql)).then((r) 
 // SECURITY DEFINER functions signed-in users may call — each checks permissions itself.
 // Adding one here means you reviewed its checks.
 const AUTHENTICATED_DEFINER = [
-  "accept_pending_invitations", "approve_payroll_run", "can_create_organization", "contract_warranties", "create_organization", "create_payroll_run",
+  "accept_pending_invitations", "approve_payroll_run", "can_create_organization", "claim_push_subscription", "contract_warranties", "create_organization", "create_payroll_run",
   "issue_portal_link", "issue_quote", "log_event", "mark_payroll_paid", "move_stock", "my_permissions", "project_labour_costs", "qoyod_backfill", "qoyod_retry", "qoyod_set_key", "qoyod_wake_waiting",
-  "record_addendum_payment", "record_client_payment", "record_purchase_payment", "request_contract_payment", "requestable_payments",
+  "record_addendum_payment", "record_client_payment", "record_purchase_payment", "request_contract_payment", "requestable_payments", "save_contract_schedule",
   "schedule_roster", "seed_employee_cost_items", "seed_pricing_engine", "seed_starter_catalogue", "submit_addendum", "submit_purchase", "team_cost_month",
 ];
 
