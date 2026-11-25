@@ -13,10 +13,11 @@ type PdfPage = import("pdfjs-dist").PDFPageProxy;
 
 export type FoundSheet = { page: number; title: string; prefix: string; rooms: number; scale: number; width: number; height: number; tokens: PlanToken[] };
 
+// the legacy build carries polyfills for older Safari (iPad) that the modern build expects natively
 let lib: Promise<typeof import("pdfjs-dist")> | null = null;
 function pdfjs() {
-  lib ??= import("pdfjs-dist").then((m) => {
-    m.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+  lib ??= import("pdfjs-dist/legacy/build/pdf.mjs").then((m) => {
+    m.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
     return m;
   });
   return lib;

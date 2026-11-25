@@ -12,11 +12,11 @@ import { useListSep } from "@/components/forms/form-kit";
 import type { ActionResult } from "@/lib/actions";
 import { settle } from "@/lib/client/action";
 import { useFailureText } from "@/lib/client/failure-text";
-import { markRepeats, planRoomName, PLAN_MAX_BYTES, type PlanRoom, type cleanPlanDraft } from "@/lib/survey/plan";
+import { markRepeats, planRoomName, roomSize, PLAN_MAX_BYTES, type PlanRoom, type cleanPlanDraft } from "@/lib/survey/plan";
 import { cn } from "@/lib/utils";
 
 export type PlanReading = ReturnType<typeof cleanPlanDraft>;
-type Row = PlanRoom & { repeated: boolean; pick: boolean };
+type Row = PlanRoom & { repeated: boolean; pick: boolean; saved?: boolean };
 type Floor = { floor: string; page: number; height: number | null; rows: Row[]; conflicts: string[] };
 type Found = { page: number; title: string; rooms: number; pick: boolean };
 type Step = { kind: "file" } | { kind: "sheets"; found: Found[]; pages: number } | { kind: "review"; floors: Floor[]; failed: number[] };
@@ -43,6 +43,7 @@ export function SurveyPlanImport({
   sample?: (PlanReading & { page: number })[];
 }) {
   const t = useTranslations("survey");
+  const tErr = useTranslations("errors");
   const failure = useFailureText();
   const sep = useListSep();
   const { fmt } = useFormatter();
@@ -51,11 +52,16 @@ export function SurveyPlanImport({
   const [busy, setBusy] = React.useState<string | null>(null);
   const doc = React.useRef<{ doc: import("pdfjs-dist").PDFDocumentProxy; sheets: import("@/lib/client/plan-pdf").FoundSheet[] } | null>(null);
 
+  // one open PDF at a time (a 60 MB plan is heavy on an iPad): freed on close, on a new file and on leaving the page
+  const dropDoc = () => {
+    void doc.current?.doc.loadingTask.destroy();
+    doc.current = null;
+  };
+  React.useEffect(() => dropDoc, []);
   const close = () => {
     setOpen(false);
     setStep({ kind: "file" });
-    void doc.current?.doc.loadingTask.destroy();
-    doc.current = null;
+    dropDoc();
   };
 
   const toFloors = (readings: (PlanReading & { page: number })[]): Floor[] =>
@@ -76,6 +82,7 @@ export function SurveyPlanImport({
     if (file.size > PLAN_MAX_BYTES) return toast.error(t("planTooBig"));
     const { findPlanSheets, looksLikePdf } = await import("@/lib/client/plan-pdf");
     if (!(await looksLikePdf(file))) return toast.error(t("planNotPdf"));
+    dropDoc();
     setBusy(t("planOpening", { done: 0, total: "…" }));
     try {
       const found = await findPlanSheets(file, (done, total) => setBusy(t("planOpening", { done, total })));
@@ -108,15 +115,15 @@ export function SurveyPlanImport({
         continue;
       }
       const r = await settle(() => readPlan(fd));
-      if (!r.ok && failure(r.error)) {
-        setBusy(null);
-        return toast.error(failure(r.error)!);
+      // a stop for every sheet (connection gone, hourly limit, AI off, no access): keep what was
+      // read so far, list the rest as not read, and say why
+      const stop = !r.ok ? failure(r.error) ?? (["rateLimited", "aiNotConfigured"].includes(r.error) ? t(`ai_${r.error}`) : r.error === "noAccess" ? tErr("noAccess") : null) : null;
+      if (stop) {
+        toast.error(stop);
+        failed.push(...chosen.slice(i).map((x) => x.page));
+        break;
       }
       if (!r.ok || !r.data) {
-        if (!r.ok && (r.error === "rateLimited" || r.error === "aiNotConfigured")) {
-          setBusy(null);
-          return toast.error(t(`ai_${r.error}`));
-        }
         failed.push(f.page);
         continue;
       }
@@ -126,14 +133,22 @@ export function SurveyPlanImport({
     setStep({ kind: "review", floors: toFloors(readings), failed });
   };
 
+  const back = () => {
+    if (step.kind === "review" && doc.current) {
+      // back to the sheets of the same file: the pages not read are ticked to try them again
+      const failed = new Set(step.failed);
+      const sheets = doc.current.sheets;
+      return setStep({ kind: "sheets", pages: doc.current.doc.numPages, found: sheets.map((x) => ({ page: x.page, title: x.title, rooms: x.rooms, pick: failed.size ? failed.has(x.page) : true })) });
+    }
+    dropDoc();
+    setStep({ kind: "file" });
+  };
+
   const floors = step.kind === "review" ? step.floors : [];
   const setFloor = (fi: number, patch: Partial<Floor>) =>
     setStep((s) => (s.kind === "review" ? { ...s, floors: s.floors.map((f, j) => (j === fi ? { ...f, ...patch } : f)) } : s));
   const setRow = (fi: number, ri: number, patch: Partial<Row>) => setFloor(fi, { rows: floors[fi].rows.map((r, j) => (j === ri ? { ...r, ...patch } : r)) });
-  const numberIn = (v: string) => {
-    const n = Number(v.replace(",", "."));
-    return Number.isFinite(n) && n > 0 ? n : null;
-  };
+
   const ready = (f: Floor, r: Row) => r.pick && r.length_m != null && r.width_m != null && f.height != null;
   const chosen = floors.flatMap((f) => f.rows.filter((r) => ready(f, r)).map((r) => ({ f, r })));
   const area = (rows: Row[]) => rows.reduce((s, r) => s + (r.pick && r.length_m && r.width_m ? r.length_m * r.width_m : 0), 0);
@@ -146,6 +161,7 @@ export function SurveyPlanImport({
     setBusy(t("planAdding"));
     let added = 0;
     let lost: string | null = null;
+    const saved = new Set<Row>();
     for (const { f, r } of chosen) {
       const res = await settle(() =>
         addRoom({
@@ -153,13 +169,19 @@ export function SurveyPlanImport({
           openings_m2: "0", gypsum_ceiling: false, ceiling_board: "normal", paint_walls: true, paint_ceiling: true, wall_zone: "normal",
         }),
       );
-      if (res.ok) added++;
-      else if ((lost = failure(res.error))) break;
+      if (res.ok) {
+        added++;
+        saved.add(r);
+      } else if ((lost = failure(res.error))) break;
     }
     setBusy(null);
-    if (added === chosen.length) toast.success(t("aiAdded", { n: added }));
-    else toast.error(lost ? `${t("aiAddedSome", { n: added, total: chosen.length })} ${lost}` : t("aiAddedSome", { n: added, total: chosen.length }));
-    if (!lost) close();
+    if (added === chosen.length) {
+      toast.success(t("aiAdded", { n: added }));
+      return close();
+    }
+    // keep the dialog on what is left: rooms already saved are unticked, so pressing «إضافة» again never adds them twice
+    setStep((s) => (s.kind === "review" ? { ...s, floors: s.floors.map((fl) => ({ ...fl, rows: fl.rows.map((x) => (saved.has(x) ? { ...x, pick: false, saved: true } : x)) })) } : s));
+    toast.error(lost ? `${t("aiAddedSome", { n: added, total: chosen.length })} ${lost}` : t("aiAddedSome", { n: added, total: chosen.length }));
   };
 
   return (
@@ -233,7 +255,7 @@ export function SurveyPlanImport({
                           dir="ltr"
                           className={cn("h-9 w-24 font-latin", f.height == null && "border-warning")}
                           defaultValue={f.height ?? ""}
-                          onChange={(e) => setFloor(fi, { height: numberIn(e.target.value) })}
+                          onChange={(e) => setFloor(fi, { height: roomSize(e.target.value, 30) })}
                         />
                       </label>
                     </div>
@@ -242,10 +264,12 @@ export function SurveyPlanImport({
                         <li key={ri} className={cn("grid gap-2 rounded-xl border p-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center", r.pick ? "border-primary/40 bg-primary/5" : "border-border")}>
                           <div className="grid gap-1">
                             <label className="flex flex-wrap items-center gap-2 text-[14px] font-semibold">
-                              <input type="checkbox" className="size-4 accent-[var(--primary)]" checked={r.pick} onChange={() => setRow(fi, ri, { pick: !r.pick })} />
+                              <input type="checkbox" className="size-4 accent-[var(--primary)]" checked={r.pick} disabled={r.saved} onChange={() => setRow(fi, ri, { pick: !r.pick })} />
                               {r.name}
                               <bdi dir="ltr" className="font-latin text-[12px] font-normal text-muted-foreground">{r.label}</bdi>
-                              {r.repeated ? (
+                              {r.saved ? (
+                                <Badge tone="success"><CircleCheck className="size-3.5" /> {t("planSaved")}</Badge>
+                              ) : r.repeated ? (
                                 <Badge tone="warning">{t("planRepeated")}</Badge>
                               ) : r.open_space ? (
                                 <Badge tone="warning"><CircleAlert className="size-3.5" /> {t("planOpen")}</Badge>
@@ -270,7 +294,7 @@ export function SurveyPlanImport({
                                 aria-label={`${r.name} — ${t(`ai_${k}`)}`}
                                 placeholder={t(`ai_${k}`)}
                                 defaultValue={r[k] ?? ""}
-                                onChange={(e) => setRow(fi, ri, { [k]: numberIn(e.target.value) })}
+                                onChange={(e) => setRow(fi, ri, { [k]: roomSize(e.target.value, 200) })}
                                 className={cn("h-9 font-latin", r[k] == null && "border-warning")}
                               />
                             ))}
@@ -307,7 +331,7 @@ export function SurveyPlanImport({
               </Button>
             )}
             {step.kind !== "file" && (
-              <Button variant="ghost" onClick={() => setStep({ kind: "file" })} disabled={!!busy}>
+              <Button variant="ghost" onClick={back} disabled={!!busy}>
                 {t("aiBack")}
               </Button>
             )}

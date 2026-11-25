@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toNumber } from "@/lib/validation/numbers";
 
 /**
  * Reading an architect's floor plan (CAD PDF) into survey rooms (owner, Nov 2026).
@@ -197,15 +198,18 @@ export type PlanRoom = {
 const num = (v: number | null | undefined, max: number) => (typeof v === "number" && Number.isFinite(v) && v > 0 && v <= max ? Math.round(v * 100) / 100 : null);
 
 /**
- * Keep plausible numbers, mark a room confirmed only when both its sides appear among the printed
- * dimensions within ~12 m of its label (same sheet, metres), and keep the AI's notes.
+ * Keep plausible numbers, mark a room «written on the plan» only when both its sides appear among
+ * the printed dimensions within the room's reach of its label (same sheet, metres), and keep the
+ * AI's notes. It tells the reviewer the number exists on the drawing — not that it is the right one.
  */
 export function cleanPlanDraft(d: PlanDraft, sheet: Pick<PlanSheet, "labels" | "words">, fallbackFloor: string): { floor: string; rooms: PlanRoom[]; conflicts: string[] } {
   const floor = d.floor_name.trim().slice(0, 60) || fallbackFloor;
   const dims = dimensionTokens(sheet.words);
-  const near = (label: string) => {
+  // a printed side counts only within the room's own reach of its tag (half its diagonal + 1 m):
+  // the dimensions along its walls, not the dozens of numbers of the neighbouring rooms
+  const near = (label: string, reach: number) => {
     const at = sheet.labels.filter((l) => l.s === label);
-    return (v: number) => dims.some((dm) => Math.abs(dm.v - v) <= 0.025 && at.some((a) => Math.hypot(a.x - dm.x, a.y - dm.y) <= 12));
+    return (v: number) => dims.some((dm) => Math.abs(dm.v - v) <= 0.025 && at.some((a) => Math.hypot(a.x - dm.x, a.y - dm.y) <= reach));
   };
   const known = new Set(sheet.labels.map((l) => l.s));
   const rooms = d.rooms.slice(0, 120).map((r, i): PlanRoom => {
@@ -213,8 +217,9 @@ export function cleanPlanDraft(d: PlanDraft, sheet: Pick<PlanSheet, "labels" | "
     const b = num(r.width_m, 60);
     const [length_m, width_m] = a != null && b != null && b > a ? [b, a] : [a, b];
     const label = r.label.trim().slice(0, 12);
-    const printed = near(label);
-    const confirmed = length_m != null && width_m != null && known.has(label) && printed(length_m) && printed(width_m) && !r.open_space;
+    const confirmed =
+      length_m != null && width_m != null && known.has(label) && !r.open_space &&
+      ((printed) => printed(length_m) && printed(width_m))(near(label, Math.hypot(length_m, width_m) / 2 + 1));
     const notes = [r.note?.trim().slice(0, 200)].filter((x): x is string => !!x);
     return { label, name: r.name.trim().slice(0, 60) || `${floor} ${i + 1}`, unit_label: floor, length_m, width_m, open_space: r.open_space, confirmed, notes };
   });
@@ -235,3 +240,12 @@ export function markRepeats<T extends { label: string }>(sheets: T[][]): (T & { 
 
 /** The room name saved in the survey: «مجلس (GF-07)». */
 export const planRoomName = (r: { name: string; label: string }) => (r.label && !r.name.includes(r.label) ? `${r.name} (${r.label})`.slice(0, 80) : r.name.slice(0, 80));
+
+/**
+ * A size typed in a review row: Arabic digits («٤٫٥») and a comma decimal («4,5») accepted; only
+ * what the room form accepts (0 < v ≤ max: 200 m for length / width, 30 m for height), else empty.
+ */
+export function roomSize(text: string, max: number): number | null {
+  const v = toNumber(text.replace(/,/g, "."));
+  return typeof v === "number" && Number.isFinite(v) && v > 0 && v <= max ? Math.round(v * 100) / 100 : null;
+}

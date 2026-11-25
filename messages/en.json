@@ -1335,14 +1335,15 @@
     "planFloorName": "Floor name",
     "planFloorArea": "{area} m² selected · page {page}",
     "planHeight": "Height m",
-    "planConfirmed": "Matches the plan",
+    "planConfirmed": "Size printed on the plan",
     "planOpen": "Open space — check its limits",
     "planCheck": "Check the size",
     "planRepeated": "Repeated on another sheet",
     "planArea": "{area} m²",
     "planTotal": "Selected total: {area} m²",
-    "planReview": "Check every number before adding — this is a draft. Rooms are added without gypsum; set each room's services afterwards.",
-    "planAdding": "Adding the rooms…"
+    "planReview": "Check every number before adding — this is a draft. Rooms are added without gypsum and without deducting door and window openings; set each room's services and openings afterwards.",
+    "planAdding": "Adding the rooms…",
+    "planSaved": "Added"
   },
   "quotes": {
     "service_gypsum": "Gypsum",

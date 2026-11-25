@@ -144,3 +144,20 @@ describe("sheets that only mention a few tags", () => {
     expect(isFloorPlan("ROOF FLOOR PLAN", tags(["RF-01", "RF-02", "RF-03"]))).toBe(true);
   });
 });
+
+describe("review rows", () => {
+  it("sizes typed with Arabic digits or a comma are read; out-of-range ones are empty", async () => {
+    const { roomSize } = await import("@/lib/survey/plan");
+    expect(roomSize("٤٫٥", 200)).toBe(4.5);
+    expect(roomSize("4,5", 200)).toBe(4.5);
+    expect(roomSize("6.20", 200)).toBe(6.2);
+    expect(roomSize("35", 30)).toBeNull(); // a height the room form refuses
+    expect(roomSize("0", 200)).toBeNull();
+    expect(roomSize("abc", 200)).toBeNull();
+  });
+  it("a matching number printed by another room (far from the tag) doesn't make it «written on the plan»", () => {
+    const sheet = { labels: [{ s: "GF-07", x: 5, y: 5 }], words: [{ s: "6.20", x: 3, y: 5 }, { s: "4.50", x: 5, y: 16 }] };
+    const r = cleanPlanDraft({ floor_name: "x", conflicts: [], rooms: [{ label: "GF-07", name: "مجلس", length_m: 6.2, width_m: 4.5, open_space: false, confidence: "high", note: null }] }, sheet, "GF").rooms[0];
+    expect(r.confirmed).toBe(false);
+  });
+});

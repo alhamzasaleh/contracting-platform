@@ -10,6 +10,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
 import type { DraftRoom, cleanDraft } from "@/lib/survey/ai-draft";
+import { roomSize } from "@/lib/survey/plan";
 import { cn } from "@/lib/utils";
 import { useListSep } from "@/components/forms/form-kit";
 import { settle } from "@/lib/client/action";
@@ -24,7 +25,7 @@ function speechRecognition(): (new () => Recognition) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-type Row = DraftRoom & { pick: boolean };
+type Row = DraftRoom & { pick: boolean; added?: boolean };
 
 /**
  * Speak or write the measurements (or photograph a sketch) → the AI drafts rooms →
@@ -124,19 +125,25 @@ export function SurveyAiDraft({
     setBusy(true);
     let added = 0;
     let lost: string | null = null;
+    const saved = new Set<Row>();
     for (const r of chosen) {
       const res = await settle(() => addRoom({
         survey_id: surveyId, name: r.name, unit_label: r.unit_label, length_m: String(r.length_m), width_m: String(r.width_m), height_m: String(r.height_m),
         openings_m2: String(r.openings_m2), gypsum_ceiling: r.gypsum_ceiling, ceiling_board: r.ceiling_board, paint_walls: r.paint_walls,
         paint_ceiling: r.paint_ceiling, wall_zone: r.wall_zone,
       }));
-      if (res.ok) added++;
-      else if ((lost = failure(res.error))) break; // the connection is gone: stop and say so
+      if (res.ok) {
+        added++;
+        saved.add(r);
+      } else if ((lost = failure(res.error))) break; // the connection is gone: stop and say so
     }
     setBusy(false);
-    if (added === chosen.length) toast.success(t("aiAdded", { n: added }));
-    else toast.error(lost ? `${t("aiAddedSome", { n: added, total: chosen.length })} ${lost}` : t("aiAddedSome", { n: added, total: chosen.length }));
-    if (lost) return; // keep the dialog and its rows to try again
+    if (added !== chosen.length) {
+      // keep the dialog on what is left: rooms already saved are unticked and locked, so «إضافة» never adds them twice
+      setRows((xs) => xs!.map((x) => (saved.has(x) ? { ...x, pick: false, added: true } : x)));
+      return toast.error(lost ? `${t("aiAddedSome", { n: added, total: chosen.length })} ${lost}` : t("aiAddedSome", { n: added, total: chosen.length }));
+    }
+    toast.success(t("aiAdded", { n: added }));
     setOpen(false);
     reset();
     setText("");
@@ -144,8 +151,8 @@ export function SurveyAiDraft({
   };
 
   const setNum = (i: number, k: "length_m" | "width_m" | "height_m") => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = Number(e.target.value.replace(",", "."));
-    setRows((xs) => xs!.map((x, j) => (j === i ? { ...x, [k]: Number.isFinite(v) && v > 0 ? v : null } : x)));
+    const v = roomSize(e.target.value, k === "height_m" ? 30 : 200);
+    setRows((xs) => xs!.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
   };
 
   const totals = Object.entries(result?.totals ?? {});
@@ -208,7 +215,7 @@ export function SurveyAiDraft({
                   {rows.map((r, i) => (
                     <li key={i} className={cn("grid gap-2 rounded-2xl border p-3", r.pick ? "border-primary/50 bg-primary/5" : "border-border")}>
                       <label className="flex items-center gap-2 text-[14px] font-semibold">
-                        <input type="checkbox" className="size-4 accent-[var(--primary)]" checked={r.pick} onChange={() => setRows((xs) => xs!.map((x, j) => (j === i ? { ...x, pick: !x.pick } : x)))} />
+                        <input type="checkbox" className="size-4 accent-[var(--primary)]" checked={r.pick} disabled={r.added} onChange={() => setRows((xs) => xs!.map((x, j) => (j === i ? { ...x, pick: !x.pick } : x)))} />
                         {r.name}
                         {r.unit_label && <span className="font-normal text-muted-foreground">· {r.unit_label}</span>}
                       </label>

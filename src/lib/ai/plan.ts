@@ -26,7 +26,8 @@ export type PlanTile = { bytes: Uint8Array };
 
 export async function readPlan(sheet: PlanSheet, tiles: PlanTile[]): Promise<{ ok: true; draft: PlanDraft } | { ok: false; error: "aiNotConfigured" | "aiFailed" | "aiRefused" }> {
   if (!aiConfigured()) return { ok: false, error: "aiNotConfigured" };
-  const client = new Anthropic({ maxRetries: 2, timeout: 300_000 });
+  // one attempt that ends before the page function does (maxDuration 300 s): a cut-off request would lose the answer anyway
+  const client = new Anthropic({ maxRetries: 0, timeout: 270_000 });
   const content: Anthropic.Beta.BetaContentBlockParam[] = [];
   tiles.forEach((t, i) => {
     const b = sheet.tiles[i];
