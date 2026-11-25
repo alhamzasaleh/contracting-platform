@@ -26,11 +26,15 @@ export type MarketerView = {
   clients: { number: string; name: string }[];
   /** the open page link (issued when / valid until) — the token itself is shown only once */
   link: { created_at: string; expires_at: string } | null;
+  /** what points at him (the owner only — for «حذف»): quotes / priced versions, contracts, rewards */
+  usage: { quotes: number; contracts: number; rewards: number };
 };
 export type MarketersData = {
   marketers: MarketerView[];
   commissions: CommissionView[];
   canManage: boolean;
+  /** «حذف الشريك» — the owner only (public.delete_marketer) */
+  canDelete: boolean;
   canPay: boolean;
   /** the voucher print page needs finance.view */
   canSeeVouchers: boolean;
@@ -43,15 +47,18 @@ export async function loadMarketers(session: SessionContext): Promise<MarketersD
   const supabase = await createClient();
   const orgId = session.organization.id;
   const canManage = can(session, "marketers.manage");
-  const [marketers, commissions, payments, clients, contracts, links] = await Promise.all([
+  const canDelete = session.role === "owner";
+  const [marketers, commissions, payments, clients, contracts, links, quoteRefs, versionRefs] = await Promise.all([
     rows(supabase.from("marketers").select("id, number, name, phone, commission_percent, iban, notes, is_active").eq("organization_id", orgId).order("is_active", { ascending: false }).order("name")),
     rows(supabase.from("marketer_commissions").select("id, contract_id, marketer_id, base, percent, amount, status, due_at, paid_at, created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(5000)),
     rows(supabase.from("commission_payments").select("commission_id, number, paid_on, method, reference").eq("organization_id", orgId).limit(5000)),
     rows(supabase.from("clients").select("id, number, name, marketer_id").eq("organization_id", orgId).not("marketer_id", "is", null)),
-    rows(supabase.from("contracts").select("id, number, client_id").eq("organization_id", orgId).not("marketer_id", "is", null)),
+    rows(supabase.from("contracts").select("id, number, client_id, marketer_id").eq("organization_id", orgId).not("marketer_id", "is", null)),
     canManage
       ? rows(supabase.from("marketer_portal_links").select("marketer_id, created_at, expires_at").eq("organization_id", orgId).is("revoked_at", null).gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }))
       : Promise.resolve([] as { marketer_id: string; created_at: string; expires_at: string }[]),
+    canDelete ? rows(supabase.from("quotes").select("marketer_id").eq("organization_id", orgId).not("marketer_id", "is", null).limit(5000)) : Promise.resolve([] as { marketer_id: string | null }[]),
+    canDelete ? rows(supabase.from("quote_version_costs").select("marketer_id").eq("organization_id", orgId).not("marketer_id", "is", null).limit(5000)) : Promise.resolve([] as { marketer_id: string | null }[]),
   ]);
   // client names of contracts the viewer can see (clients RLS); names of the others come from the contract's client
   const allClients = contracts.length ? await rows(supabase.from("clients").select("id, name").in("id", [...new Set(contracts.map((c) => c.client_id))])) : [];
@@ -64,6 +71,11 @@ export async function loadMarketers(session: SessionContext): Promise<MarketersD
       commission_percent: n(m.commission_percent),
       clients: clients.filter((c) => c.marketer_id === m.id).map((c) => ({ number: c.number, name: c.name })),
       link: links.find((l) => l.marketer_id === m.id) ?? null,
+      usage: {
+        quotes: [...quoteRefs, ...versionRefs].filter((r) => r.marketer_id === m.id).length,
+        contracts: contracts.filter((c) => c.marketer_id === m.id).length,
+        rewards: commissions.filter((k) => k.marketer_id === m.id).length,
+      },
     })),
     commissions: commissions.map((k) => {
       const c = contractOf.get(k.contract_id);
@@ -75,6 +87,7 @@ export async function loadMarketers(session: SessionContext): Promise<MarketersD
       };
     }),
     canManage,
+    canDelete,
     canPay: can(session, "finance.manage"),
     canSeeVouchers: can(session, "finance.view"),
     links: { contracts: can(session, "quotes.view"), projects: can(session, "projects.view") },

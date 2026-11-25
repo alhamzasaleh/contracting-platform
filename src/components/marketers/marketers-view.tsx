@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 import { DocNo } from "@/components/doc-no";
 import { useFormatter } from "@/components/formatter-provider";
+import { DeleteRecord } from "@/components/forms/delete-record";
 import { FormDialog, NumberInput, useActionRunner } from "@/components/forms/form-kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,12 +19,13 @@ import { displayPhone } from "@/components/clients/clients-view";
 import type { ActionResult } from "@/lib/actions";
 import type { CommissionView, MarketersData, MarketerView } from "@/lib/data/marketers";
 import { projectHref } from "@/lib/finance";
+import { partnerDeleteBlock } from "@/lib/deletion";
 import { commissionTotals, type CommissionStatus } from "@/lib/marketers";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn } from "@/lib/utils";
 
 type Act<T = undefined> = (i: Record<string, unknown>) => Promise<ActionResult<T>>;
-export type MarketersActions = { save: Act<{ number: string }>; issueLink: Act<{ url: string }>; revokeLinks: Act; pay: Act<{ number: string }> };
+export type MarketersActions = { save: Act<{ number: string }>; issueLink: Act<{ url: string }>; revokeLinks: Act; pay: Act<{ number: string }>; remove?: Act };
 
 const TONE: Record<CommissionStatus, "neutral" | "warning" | "success" | "danger"> = { expected: "neutral", due: "warning", paid: "success", cancelled: "danger" };
 const todayRiyadh = () => new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
@@ -73,6 +75,7 @@ function Kpi({ label, value, strong }: { label: string; value: string; strong?: 
 
 function MarketerCard({ m, data, actions, onEdit, onPay, base, highlight }: { m: MarketerView; data: MarketersData; actions?: MarketersActions; onEdit: () => void; onPay: (k: CommissionView) => void; base: string; highlight: string | null }) {
   const t = useTranslations("marketers");
+  const td = useTranslations("deletion");
   const { fmt } = useFormatter();
   const own = data.commissions.filter((k) => k.marketer_id === m.id);
   const totals = commissionTotals(own);
@@ -103,6 +106,17 @@ function MarketerCard({ m, data, actions, onEdit, onPay, base, highlight }: { m:
             <Button size="sm" variant="secondary" onClick={onEdit}>
               {t("edit")}
             </Button>
+          )}
+          {data.canDelete && (
+            <DeleteRecord
+              compact
+              label={td("deletePartner")}
+              title={td("partnerTitle", { name: m.name })}
+              body={td("partnerBody", { clients: m.clients.length })}
+              block={partnerDeleteBlock(m.usage)}
+              action={actions?.remove && (() => actions.remove!({ id: m.id }))}
+              to={`${base}/partners`}
+            />
           )}
         </div>
       </div>

@@ -670,7 +670,8 @@
     "rewardChanged": "The success partner's reward rate changed — refresh and save again.",
     "partnerInactive": "This success partner is inactive — pick another or reactivate them.",
     "commissionNotDue": "The reward isn't due yet — it is due once the client has paid the original contract in full.",
-    "commissionAlreadyPaid": "This reward has already been paid."
+    "commissionAlreadyPaid": "This reward has already been paid.",
+    "deletePartnerUsed": "This partner has quotes, contracts or rewards — he can't be deleted. Deactivate him from «Edit» instead"
   },
   "engine": {
     "emptyTitle": "Start the pricing catalogue",
@@ -2892,7 +2893,10 @@
     "cantDelete": "It can't be deleted:",
     "confirm": "Delete for good",
     "cancel": "Cancel",
-    "deleted": "Deleted"
+    "deleted": "Deleted",
+    "deletePartner": "Delete partner",
+    "partnerTitle": "Delete success partner {name}?",
+    "partnerBody": "The partner is deleted for good and his page link stops working{clients, plural, =0 {.} other {; «referred by» is cleared on his clients (#).}}"
   },
   "marketers": {
     "title": "Success partners",

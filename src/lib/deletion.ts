@@ -3,7 +3,7 @@
  * (public.delete_client / delete_survey / delete_quote); these mirror its rules so the page can
  * disable the button with the reason, and map its refusals to messages (`errors.<key>`).
  */
-export type DeleteBlock = "deleteQuoteContract" | "deleteQuoteAccepted" | "deleteSurveyQuotes" | "deleteClientContracts" | "deleteClientAccepted";
+export type DeleteBlock = "deletePartnerUsed" | "deleteQuoteContract" | "deleteQuoteAccepted" | "deleteSurveyQuotes" | "deleteClientContracts" | "deleteClientAccepted";
 
 type Decision = string | null | undefined;
 
@@ -26,7 +26,13 @@ export function clientDeleteBlock(c: { contracts: number; quotes: { hasContract?
   return null;
 }
 
+/** A success partner with any quote, contract or reward stays (deactivate him instead). */
+export function partnerDeleteBlock(p: { quotes: number; contracts: number; rewards: number }): DeleteBlock | null {
+  return p.quotes + p.contracts + p.rewards > 0 ? "deletePartnerUsed" : null;
+}
+
 const REFUSALS: [RegExp, DeleteBlock][] = [
+  [/partner has records/, "deletePartnerUsed"],
   [/quote has a contract/, "deleteQuoteContract"],
   [/quote accepted by the client/, "deleteQuoteAccepted"],
   [/survey has quotes/, "deleteSurveyQuotes"],

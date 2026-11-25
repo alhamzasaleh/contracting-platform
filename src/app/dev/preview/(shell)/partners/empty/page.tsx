@@ -9,7 +9,7 @@ export default async function P() {
   return (
     <div>
       <PageHeader title={t("title")} description={t("subtitle")} />
-      <MarketersView data={SAMPLE_MARKETERS_EMPTY} base="/dev/preview" actions={{ save: previewNoop as never, issueLink: previewNoop as never, revokeLinks: previewNoop, pay: previewNoop as never }} />
+      <MarketersView data={SAMPLE_MARKETERS_EMPTY} base="/dev/preview" actions={{ save: previewNoop as never, issueLink: previewNoop as never, revokeLinks: previewNoop, pay: previewNoop as never, remove: previewNoop }} />
     </div>
   );
 }

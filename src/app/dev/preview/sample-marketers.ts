@@ -5,6 +5,7 @@ import type { MarketerPortalData } from "@/lib/marketer-portal";
 export const SAMPLE_MARKETERS: MarketersData = {
   orgName: "ملمس",
   canManage: true,
+  canDelete: true,
   canPay: true,
   canSeeVouchers: true,
   links: { contracts: true, projects: true },
@@ -13,9 +14,10 @@ export const SAMPLE_MARKETERS: MarketersData = {
       id: "mk1", number: "MK-2026-001", name: "سعد بن فهد الدوسري", phone: "966500000777", commission_percent: 5, iban: "SA0380000000608010167519", notes: null, is_active: true,
       clients: [{ number: "CL-2026-004", name: "أبو محمد العتيبي" }, { number: "CL-2026-009", name: "شركة البناء المتقن" }],
       link: { created_at: "2026-11-20T09:00:00Z", expires_at: "2027-11-20T09:00:00Z" },
+      usage: { quotes: 3, contracts: 3, rewards: 3 },
     },
-    { id: "mk2", number: "MK-2026-002", name: "مكتب الإتقان العقاري", phone: "966511110000", commission_percent: 3, iban: null, notes: "يحيل عملاء الفلل الجديدة", is_active: true, clients: [], link: null },
-    { id: "mk3", number: "MK-2026-003", name: "فهد العنزي", phone: "0097150123456", commission_percent: 4, iban: null, notes: null, is_active: false, clients: [], link: null },
+    { id: "mk2", number: "MK-2026-002", name: "مكتب الإتقان العقاري", phone: "966511110000", commission_percent: 3, iban: null, notes: "يحيل عملاء الفلل الجديدة", is_active: true, clients: [], link: null, usage: { quotes: 0, contracts: 0, rewards: 0 } },
+    { id: "mk3", number: "MK-2026-003", name: "فهد العنزي", phone: "0097150123456", commission_percent: 4, iban: null, notes: null, is_active: false, clients: [], link: null, usage: { quotes: 0, contracts: 0, rewards: 0 } },
   ],
   commissions: [
     { id: "k1", contract_id: "c1", contract: "C-2026-004", client: "أبو محمد العتيبي", marketer_id: "mk1", base: 46000, percent: 5, amount: 2300, status: "due", due_at: "2026-11-23T10:00:00Z", paid_at: null, created_at: "2026-11-01T10:00:00Z", voucher: null },
@@ -39,6 +41,6 @@ export const SAMPLE_PARTNER_PAGE: MarketerPortalData = {
 };
 
 /** finance.view only (no marketers.manage): rewards and vouchers, no editing or page links */
-export const SAMPLE_MARKETERS_FINANCE: MarketersData = { ...SAMPLE_MARKETERS, canManage: false, canPay: false };
+export const SAMPLE_MARKETERS_FINANCE: MarketersData = { ...SAMPLE_MARKETERS, canManage: false, canDelete: false, canPay: false };
 export const SAMPLE_MARKETERS_EMPTY: MarketersData = { ...SAMPLE_MARKETERS, marketers: [], commissions: [] };
 export const SAMPLE_PARTNER_PAGE_EMPTY: MarketerPortalData = { ...SAMPLE_PARTNER_PAGE, items: [] };

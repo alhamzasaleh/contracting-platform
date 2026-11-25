@@ -930,6 +930,7 @@ export type Database = {
       marketer_portal_view: { Args: { p_number: string; p_token: string }; Returns: Json };
       marketer_portal_voucher: { Args: { p_number: string; p_token: string; p_voucher: string }; Returns: Json };
       delete_client: { Args: { p_client: string }; Returns: undefined };
+      delete_marketer: { Args: { p_marketer: string }; Returns: undefined };
       delete_survey: { Args: { p_survey: string }; Returns: undefined };
       delete_quote: { Args: { p_quote: string }; Returns: undefined };
       schedule_roster: { Args: { p_org: string }; Returns: { id: string; full_name: string; job_title: string | null }[] };

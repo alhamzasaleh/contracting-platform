@@ -6,6 +6,7 @@ import { z } from "zod";
 import { publicEnv } from "@/env";
 import { fieldErrors, type ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
+import { deleteError } from "@/lib/deletion";
 import { commissionPaymentError, marketerHref } from "@/lib/marketers";
 import { hashPortalToken, newPortalToken } from "@/lib/portal-token";
 import { createClient } from "@/lib/supabase/server";
@@ -119,4 +120,24 @@ export async function payCommission(input: unknown): Promise<ActionResult<{ numb
   if (error || !data) return fail(error, "pay");
   revalidatePath("/", "layout");
   return done({ number: data });
+}
+
+/**
+ * Deletes a success partner — the owner only, and only one no quote, priced version, contract or
+ * reward points at (public.delete_marketer re-checks all of it). His clients lose «جاء عن طريق».
+ */
+export async function deleteMarketer(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (session.role !== "owner") return { ok: false, error: "noAccess" };
+  const parsed = z.object({ id }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("delete_marketer", { p_marketer: parsed.data.id });
+  if (error) {
+    const key = deleteError(error);
+    if (key === "error") console.error("[marketers] delete failed", { code: error.code });
+    return { ok: false, error: key };
+  }
+  revalidatePath("/clients", "layout");
+  return done();
 }
