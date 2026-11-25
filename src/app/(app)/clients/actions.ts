@@ -12,6 +12,8 @@ import { rateLimit } from "@/lib/rate-limit";
 import { cleanDraft } from "@/lib/survey/ai-draft";
 import { surveyTotalsSchema } from "@/lib/survey/schema";
 import { deleteError } from "@/lib/deletion";
+import { readPlan, type PlanTile } from "@/lib/ai/plan";
+import { cleanPlanDraft, planSheetSchema, PLAN_SHEET_MAX_BYTES, PLAN_TILE_MAX_BYTES, type PlanSheet } from "@/lib/survey/plan";
 import { clientDbError } from "@/lib/marketers";
 
 type Ctx = { orgId: string; supabase: Awaited<ReturnType<typeof createClient>> };
@@ -181,6 +183,45 @@ export async function deleteClient(input: unknown): Promise<ActionResult> {
 /** Deletes a survey with its rooms — refused while a quote is built on it. */
 export async function deleteSurvey(input: unknown): Promise<ActionResult> {
   return ownerDelete("delete_survey", input);
+}
+
+// --- Floor plan → rooms (owner, Nov 2026) ---------------------------------------------
+
+/**
+ * One floor-plan sheet, cropped and tiled in the browser (the PDF itself never leaves the device)
+ * → a rooms draft. Nothing is saved: the owner reviews the rows and adds them with saveRoom.
+ * 20 sheets per hour per user; the drawing is never stored or logged.
+ */
+export async function readPlanAi(fd: FormData): Promise<ActionResult<ReturnType<typeof cleanPlanDraft>>> {
+  const session = await getSession();
+  if (!can(session, "clients.manage")) return { ok: false, error: "noAccess" };
+  const meta = fd.get("meta");
+  let sheet: PlanSheet;
+  try {
+    const parsed = planSheetSchema.safeParse(typeof meta === "string" && meta.length < 400_000 ? JSON.parse(meta) : null);
+    if (!parsed.success) return { ok: false, error: "invalid" };
+    sheet = parsed.data;
+  } catch {
+    return { ok: false, error: "invalid" };
+  }
+  const files = fd.getAll("tiles").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length !== sheet.tiles.length) return { ok: false, error: "invalid" };
+  if (files.reduce((n, f) => n + f.size, 0) > PLAN_SHEET_MAX_BYTES) return { ok: false, error: "fileTooLarge" };
+  const tiles: PlanTile[] = [];
+  for (const f of files) {
+    if (f.size > PLAN_TILE_MAX_BYTES) return { ok: false, error: "fileTooLarge" };
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    if (sniffPhoto(bytes) !== "image/jpeg") return { ok: false, error: "fileType" };
+    tiles.push({ bytes });
+  }
+  const supabase = await createClient();
+  const { data: survey } = await supabase.from("surveys").select("id").eq("id", sheet.survey_id).eq("organization_id", session.organization.id).maybeSingle();
+  if (!survey) return { ok: false, error: "invalid" };
+  const limit = await rateLimit(`ai:plan:${session.userId}`, 20, 3600);
+  if (limit !== "ok") return { ok: false, error: limit === "limited" ? "rateLimited" : "aiFailed" };
+  const r = await readPlan(sheet, tiles);
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, data: cleanPlanDraft(r.draft, sheet, sheet.title) };
 }
 
 // --- AI survey draft (§3.2 / §8.1) ----------------------------------------------------

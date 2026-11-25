@@ -7,6 +7,7 @@ import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
 import { FormDialog, NumberInput, str, useActionRunner, useUnitText } from "@/components/forms/form-kit";
 import { SurveyAiDraft } from "./survey-ai-draft";
+import { SurveyPlanImport, type PlanReading } from "./survey-plan-import";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -55,7 +56,10 @@ export function SurveyView({
   actions,
   base = "",
   aiSample,
+  planSample,
 }: {
+  /** design preview only: what the plan reading shows */
+  planSample?: (PlanReading & { page: number })[];
   /** design preview only: what the AI draft dialog shows */
   aiSample?: SurveyDraftResult;
   base?: string;
@@ -63,7 +67,7 @@ export function SurveyView({
   canManage: boolean;
   canQuote: boolean;
   /** deleteSurvey: owner only (detail.canDelete) */
-  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>>; deleteSurvey?: Act };
+  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>>; readPlan?: (fd: FormData) => Promise<ActionResult<PlanReading>>; deleteSurvey?: Act };
 }) {
   const unitText = useUnitText();
   const t = useTranslations("survey");
@@ -274,6 +278,7 @@ export function SurveyView({
             </h3>
             {canManage && (
               <div className="flex flex-wrap gap-2">
+                <SurveyPlanImport surveyId={survey.id} readPlan={actions?.readPlan} addRoom={actions?.saveRoom} usualHeight={rooms.at(-1)?.height_m ?? null} preview={!actions} sample={planSample} />
                 {aiDraft}
                 <Button size="sm" onClick={() => setRoom({ height_m: rooms.at(-1)?.height_m ?? 3, paint_walls: true, paint_ceiling: true })}>
                   <Plus /> {t("addRoom")}
