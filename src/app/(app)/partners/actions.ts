@@ -28,7 +28,7 @@ function fail(error: { code?: string; message?: string } | null, what: string): 
   return { ok: false, error: "error" };
 }
 const done = <T,>(data?: T): ActionResult<T> => {
-  revalidatePath("/marketers");
+  revalidatePath("/partners");
   return { ok: true, data };
 };
 

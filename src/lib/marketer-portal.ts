@@ -5,6 +5,7 @@ import type { CommissionStatus } from "@/lib/marketers";
 import { MARKETER_NUMBER_RE } from "@/lib/marketers";
 import { portalLogo } from "@/lib/portal";
 import { TOKEN_RE } from "@/lib/portal-token";
+import type { PaymentVoucherDoc } from "@/lib/data/marketers";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -51,6 +52,33 @@ export async function loadMarketerPortal(number: string, token: string): Promise
       marketer: { ...raw.marketer, commission_percent: n(raw.marketer.commission_percent) },
       expires_at: raw.expires_at,
       items: (raw.items ?? []).map((i) => ({ ...i, base: n(i.base), percent: n(i.percent), amount: n(i.amount), vouchers: (i.vouchers ?? []).map((v) => ({ ...v, amount: n(v.amount) })) })),
+    },
+  };
+}
+
+export const VOUCHER_RE = /^PV-\d{4}-\d{3,6}$/;
+
+/** One of the partner's own payment vouchers (print / PDF): the same token checks and per-IP limit as his page. */
+export async function loadMarketerVoucher(number: string, token: string, voucher: string): Promise<{ doc: PaymentVoucherDoc | null; brand: Brand | null }> {
+  if (!MARKETER_NUMBER_RE.test(number) || !TOKEN_RE.test(token) || !VOUCHER_RE.test(voucher)) return { doc: null, brand: null };
+  if ((await rateLimit(`marketer:view:${await clientIp()}`, 30, 60)) !== "ok") return { doc: null, brand: null };
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("marketer_portal_voucher", { p_number: number, p_token: token, p_voucher: voucher });
+  if (error) {
+    console.error("[marketer-portal] voucher failed", { code: error.code });
+    return { doc: null, brand: null };
+  }
+  const raw = data as unknown as (Omit<PaymentVoucherDoc, "org"> & { org: PaymentVoucherDoc["org"] & { id: string; logo_path: string | null; brand: Brand } }) | null;
+  if (!raw) return { doc: null, brand: null };
+  const n = (v: unknown) => Number(v ?? 0);
+  const { id, logo_path, brand, ...org } = raw.org;
+  return {
+    brand,
+    doc: {
+      org: { ...org, logoUrl: await portalLogo(admin, id, logo_path) },
+      voucher: { ...raw.voucher, amount: n(raw.voucher.amount) },
+      marketer: raw.marketer,
+      contract: { ...raw.contract, base: n(raw.contract.base), percent: n(raw.contract.percent) },
     },
   };
 }

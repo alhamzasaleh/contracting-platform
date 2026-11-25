@@ -280,6 +280,8 @@ type SetupState = {
   inventory_id: number | null; receive_account_id: number | null; expense_account_id: number | null; addendum_product_id: number | null;
   salary_account_id: number | null; cash_account_id: number | null; subcontract_account_id: number | null;
   commission_account_id?: number | null;
+  /** the rewards account's own first pick (connections made before it existed get it once) */
+  commission_setup_at?: string | null;
   service_products: Record<string, number> | null; auto_setup_at: string | null;
 };
 /**
@@ -291,10 +293,10 @@ type SetupState = {
 export function autoSetupDue(s: SetupState): boolean {
   const p = s.service_products ?? {};
   if (!s.inventory_id || !s.receive_account_id || !s.expense_account_id || !s.addendum_product_id || !p.gypsum || !p.interior || !p.exterior) return true;
-  return !s.auto_setup_at;
+  return !s.auto_setup_at || !s.commission_setup_at;
 }
 
-type AutoPicked = Omit<SetupState, "auto_setup_at" | "service_products"> & { service_products: Record<string, number> };
+type AutoPicked = Omit<SetupState, "auto_setup_at" | "commission_setup_at" | "service_products"> & { service_products: Record<string, number> };
 /**
  * The settings after an automatic setup: only empty settings are filled (the owner's choices
  * stay). Required ones whenever empty; the optional accounts (salary, cash, subcontracting) only
@@ -312,7 +314,8 @@ export function autoSetupNext(cur: Partial<SetupState> | null | undefined, auto:
     salary_account_id: optional("salary_account_id"),
     cash_account_id: cashAccountOrNull(optional("cash_account_id"), receive),
     subcontract_account_id: optional("subcontract_account_id"),
-    commission_account_id: optional("commission_account_id"),
+    // picked once for connections made before rewards existed (commission_setup_at empty)
+    commission_account_id: cur?.commission_account_id ?? (first || !cur?.commission_setup_at ? (auto.commission_account_id ?? null) : null),
     service_products: { ...auto.service_products, ...(cur?.service_products ?? {}) },
     addendum_product_id: cur?.addendum_product_id ?? auto.addendum_product_id,
   };

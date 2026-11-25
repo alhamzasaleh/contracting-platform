@@ -52,7 +52,7 @@ export const NAV: NavGroup[] = [
     items: [
       { key: "purchases", href: "/purchases", icon: ShoppingCart, permission: "purchases.view" },
       { key: "invoices", href: "/invoices", icon: Receipt, permission: "finance.view" },
-      { key: "marketers", href: "/marketers", icon: Handshake, anyPermission: ["marketers.manage", "finance.view"] },
+      { key: "marketers", href: "/partners", icon: Handshake, anyPermission: ["marketers.manage", "finance.view"] },
       { key: "reports", href: "/reports", icon: BarChart3, permission: "finance.view" },
       { key: "assistant", href: "/assistant", icon: Sparkles, permission: "finance.view" },
     ],

@@ -279,7 +279,7 @@ test.describe("payroll (design preview)", () => {
 test.describe("notifications (design preview)", () => {
   test("bell lists notifications, approves inline and marks all read", async ({ page }) => {
     await page.goto("/dev/preview");
-    const bell = page.getByRole("button", { name: /التنبيهات \(3 غير مقروء\)/ });
+    const bell = page.getByRole("button", { name: /التنبيهات \(4 غير مقروء\)/ });
     await expect(async () => {
       await bell.click();
       await expect(page.getByRole("menu")).toBeVisible({ timeout: 1000 });
@@ -596,7 +596,7 @@ test.describe("purchases from the quote's list (design preview)", () => {
 
 test.describe("success partners (design preview)", () => {
   test("partners page: rewards per state, pay a due reward, the partner's page link", async ({ page }) => {
-    await page.goto("/dev/preview/marketers");
+    await page.goto("/dev/preview/partners");
     await expect(page.getByRole("heading", { name: "شركاء النجاح" })).toBeVisible();
     await expect(page.getByTestId("marketer-card").first()).toContainText("سعد بن فهد الدوسري");
     await page.getByRole("button", { name: "صرف المكافأة" }).first().click();
@@ -606,9 +606,22 @@ test.describe("success partners (design preview)", () => {
     await expect(page.locator("body")).not.toContainText(/عمول|مسو/);
   });
 
+  test("partners: a notification link marks its card; finance.view only sees no edit / pay; empty page explains", async ({ page }) => {
+    await page.goto("/dev/preview/partners");
+    await expect(page.locator("[data-highlighted]")).toHaveCount(1);
+    await page.goto("/dev/preview/partners/finance");
+    await expect(page.getByRole("button", { name: "صرف المكافأة" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "شريك نجاح جديد" })).toHaveCount(0);
+    await expect(page.getByTestId("partner-link")).toHaveCount(0);
+    await page.goto("/dev/preview/partners/empty");
+    await expect(page.getByText("ما فيه شركاء نجاح بعد")).toBeVisible();
+  });
+
   test("the partner's own page shows his contracts and reward — no costs", async ({ page }) => {
-    await page.goto("/dev/preview/partner");
+    await page.goto("/dev/preview/partner-page");
     await expect(page.getByTestId("partner-item")).toHaveCount(3);
+    await expect(page.getByRole("link", { name: "PV-2026-001" })).toHaveAttribute("href", /\/m\/MK-2026-001\/previewtoken0001\/voucher\/PV-2026-001$/);
+    await expect(page.getByText("قيمة العقد قبل الضريبة").first()).toBeVisible();
     await expect(page.locator("body")).not.toContainText(/تكلفة|هامش|عمول/);
   });
 

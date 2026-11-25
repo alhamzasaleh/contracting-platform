@@ -49,7 +49,7 @@ async function applyAutoSetup(session: Awaited<ReturnType<typeof getSession>>, k
   try {
     const auto = await qoyodAutoSetup(key, !!session.organization.vat_number);
     const supabase = await createClient();
-    const { data: cur } = await supabase.from("qoyod_settings").select("enabled, inventory_id, receive_account_id, expense_account_id, salary_account_id, cash_account_id, subcontract_account_id, commission_account_id, service_products, addendum_product_id, auto_setup_at").eq("organization_id", session.organization.id).maybeSingle();
+    const { data: cur } = await supabase.from("qoyod_settings").select("enabled, inventory_id, receive_account_id, expense_account_id, salary_account_id, cash_account_id, subcontract_account_id, commission_account_id, service_products, addendum_product_id, auto_setup_at, commission_setup_at").eq("organization_id", session.organization.id).maybeSingle();
     // optional accounts only at the first setup: one the owner cleared later stays empty
     const next = autoSetupNext(cur ? { ...cur, service_products: (cur.service_products ?? {}) as Record<string, number> } : null, auto);
     const { error } = await supabase
@@ -57,7 +57,10 @@ async function applyAutoSetup(session: Awaited<ReturnType<typeof getSession>>, k
       .update({ ...next, enabled: cur?.enabled || !!(next.inventory_id && next.receive_account_id), updated_by: session.userId })
       .eq("organization_id", session.organization.id);
     // the first setup has run (service role only: the worker reads it)
-    if (!error && !cur?.auto_setup_at) await createAdminClient().from("qoyod_settings").update({ auto_setup_at: new Date().toISOString() }).eq("organization_id", session.organization.id);
+    if (!error && (!cur?.auto_setup_at || !cur?.commission_setup_at)) {
+      const now = new Date().toISOString();
+      await createAdminClient().from("qoyod_settings").update({ ...(cur?.auto_setup_at ? {} : { auto_setup_at: now }), commission_setup_at: now }).eq("organization_id", session.organization.id);
+    }
     return !error;
   } catch {
     console.error("[qoyod] auto setup failed");

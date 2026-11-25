@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { DocNo } from "@/components/doc-no";
 import { useFormatter } from "@/components/formatter-provider";
@@ -11,7 +12,7 @@ import { lastValidDay } from "@/lib/contracts";
 const TONE: Record<CommissionStatus, "neutral" | "warning" | "success" | "danger"> = { expected: "neutral", due: "warning", paid: "success", cancelled: "danger" };
 
 /** The success partner's own page: his contracts and his reward — nothing about costs or the clients' contact details. */
-export function MarketerPortalView({ data, logoUrl }: { data: MarketerPortalData; logoUrl: string | null }) {
+export function MarketerPortalView({ data, logoUrl, token }: { data: MarketerPortalData; logoUrl: string | null; /** his link's token: his vouchers open under the same link */ token: string }) {
   const t = useTranslations("partnerPage");
   const tc = useTranslations("common");
   const { fmt } = useFormatter();
@@ -50,7 +51,10 @@ export function MarketerPortalView({ data, logoUrl }: { data: MarketerPortalData
                 {i.status === "expected" && <p className="text-[12px] text-muted-foreground">{t("expectedHint")}</p>}
                 {i.vouchers.map((v) => (
                   <p key={v.number} className="text-[13px]">
-                    {t("voucherLine", { amount: fmt.money(v.amount), date: fmt.date(v.paid_on) })} · <DocNo>{v.number}</DocNo>
+                    {t("voucherLine", { amount: fmt.money(v.amount), date: fmt.date(v.paid_on) })} ·{" "}
+                    <Link href={`/m/${encodeURIComponent(data.marketer.number)}/${token}/voucher/${encodeURIComponent(v.number)}`} className="text-primary hover:underline">
+                      <DocNo>{v.number}</DocNo>
+                    </Link>
                   </p>
                 ))}
               </li>

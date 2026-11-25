@@ -35,6 +35,8 @@ export type ClientDetail = {
   client: { id: string; number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null; location_url: string | null; notes: string | null; marketer_id?: string | null };
   /** success partners for «جاء عن طريق» (names only; marketer_choices) */
   marketers?: MarketerChoice[];
+  /** may open /partners (marketers.manage or finance.view) */
+  canOpenPartners?: boolean;
   /** quotes = quotes built on this survey (it can't be deleted while there are any) */
   surveys: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; rooms: number; quotes?: number }[];
   /** hasContract = any contract, even cancelled (owner only — for «حذف») */
@@ -104,6 +106,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
   return {
     client,
     marketers,
+    canOpenPartners: can(session, "marketers.manage") || can(session, "finance.view"),
     surveys: (surveys ?? []).map((s) => ({ ...s, rooms: (rooms ?? []).filter((r) => r.survey_id === s.id).length, quotes: (quotes ?? []).filter((q) => q.survey_id === s.id).length })),
     quotes: (quotes ?? []).map((q) => ({
       id: q.id,

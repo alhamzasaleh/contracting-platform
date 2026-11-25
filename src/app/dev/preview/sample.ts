@@ -26,8 +26,9 @@ export const SAMPLE_SHELL: ShellData = {
   permissions: [...PERMISSIONS],
   notifications: {
     canDecide: true,
-    unread: 3,
+    unread: 4,
     items: [
+      { id: "n0", kind: "commission_due", params: { number: `C-${new Date().getFullYear()}-004`, marketer: "سعد بن فهد الدوسري", amount: 2300 }, link: "/partners?k=k1", read: false, created_at: new Date(Date.now() - 5 * 60_000).toISOString() },
       { id: "n1", kind: "approval", params: { approval_id: "a1", kind: "quote_discount", number: `Q-${new Date().getFullYear()}-014` }, link: "/", read: false, created_at: new Date(Date.now() - 12 * 60_000).toISOString() },
       { id: "n2", kind: "client_note", params: { number: `C-${new Date().getFullYear()}-007`, body: "نبغى نغير لون غرفة النوم الرئيسية للون أفتح" }, link: "/projects/C-2026-007", read: false, created_at: new Date(Date.now() - 95 * 60_000).toISOString() },
       { id: "n3", kind: "payment_late", params: { number: `C-${new Date().getFullYear()}-003`, label: "بعد توريد المواد", amount: 18400, days: 14 }, link: "/reports", read: false, created_at: new Date(Date.now() - 5 * 3600_000).toISOString() },

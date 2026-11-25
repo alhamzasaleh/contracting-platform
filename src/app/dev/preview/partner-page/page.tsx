@@ -10,7 +10,7 @@ export default function PreviewPartnerPage() {
   return (
     <>
       <BrandStyle primary={SAMPLE_PARTNER_PAGE.org.brand.primary} accent={SAMPLE_PARTNER_PAGE.org.brand.accent} />
-      <MarketerPortalView data={SAMPLE_PARTNER_PAGE} logoUrl={SAMPLE_LOGO} />
+      <MarketerPortalView data={SAMPLE_PARTNER_PAGE} logoUrl={SAMPLE_LOGO} token="previewtoken0001" />
     </>
   );
 }

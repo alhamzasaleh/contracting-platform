@@ -284,7 +284,20 @@
       "organizations": "Company details",
       "memberships": "Membership",
       "member_invitations": "Invitation",
-      "permission_delegations": "Permission delegation"
+      "permission_delegations": "Permission delegation",
+      "marketers": "Success partner",
+      "marketer_commissions": "Success partner reward",
+      "commission_payments": "Reward payment voucher",
+      "marketer_portal_links": "Partner page link"
+    },
+    "fields": {
+      "marketer_id": "Success partner",
+      "marketer_set": "Partner chosen",
+      "commission_percent": "Reward rate",
+      "commission_amount": "Reward amount",
+      "commission_id": "Reward",
+      "commission_account_id": "Rewards account",
+      "commission_setup_at": "Rewards account setup"
     }
   },
   "permissions": {
@@ -1136,7 +1149,8 @@
     "pastFew": "At least 3 won quotes are needed to suggest a margin.",
     "pickTeam": "Pick a team:",
     "partnerReward": "Success partner reward — {name} {percent}%",
-    "partnerRewardHint": "Internal only: the price is raised to cover the reward and keep the margin. Lower the margin or give a discount if the price looks high."
+    "partnerRewardHint": "Internal only: the price is raised to cover the reward and keep the margin. Lower the margin or give a discount if the price looks high.",
+    "problem_margin": "Margin plus the success partner's reward is {max}% or more — the price would be ten times the cost. Lower the margin before saving."
   },
   "clients": {
     "contracts": "Contracts & projects",
@@ -2898,7 +2912,7 @@
     "status_due": "Due to pay",
     "status_paid": "Paid",
     "status_cancelled": "Cancelled",
-    "line": "Contract value {base} · {percent}% · reward {amount}",
+    "line": "Contract value before VAT {base} · {percent}% · reward {amount}",
     "rewardLine": "Success partner reward — {name} {percent}%",
     "pay": "Pay the reward",
     "payHint": "Pay {amount} in full for contract {contract} — a numbered payment voucher is issued and it counts as a project cost.",
@@ -2934,7 +2948,9 @@
     "method_transfer": "Transfer",
     "method_cash": "Cash",
     "method_cheque": "Cheque",
-    "reference": "Reference"
+    "reference": "Reference",
+    "waPaid": "Hello {name}, your reward of {amount} for contract {contract} has been paid — voucher {voucher} is on your page. Thank you from {org}.",
+    "waPaidButton": "Reward paid — WhatsApp"
   },
   "voucher": {
     "title": "Payment voucher",
@@ -2970,7 +2986,7 @@
     "cancelled": "Contract cancelled",
     "handedOver": "Handed over",
     "underWay": "In progress",
-    "value": "Contract value",
+    "value": "Contract value before VAT",
     "percent": "Rate",
     "reward": "Reward",
     "expectedHint": "Due once the client has paid the contract in full.",

@@ -242,7 +242,13 @@ export function ClientDetailView({
           {client.notes && <p className="max-w-prose text-[13px] leading-6">{client.notes}</p>}
           {client.marketer_id && (
             <p className="text-[13px] text-muted-foreground" data-testid="came-through">
-              {t("cameThroughValue", { name: detail.marketers?.find((m) => m.id === client.marketer_id)?.name ?? "—" })}
+              {detail.canOpenPartners ? (
+                <Link href={`${base}/partners`} className="hover:text-primary hover:underline">
+                  {t("cameThroughValue", { name: detail.marketers?.find((m) => m.id === client.marketer_id)?.name ?? "—" })}
+                </Link>
+              ) : (
+                t("cameThroughValue", { name: detail.marketers?.find((m) => m.id === client.marketer_id)?.name ?? "—" })
+              )}
             </p>
           )}
         </div>

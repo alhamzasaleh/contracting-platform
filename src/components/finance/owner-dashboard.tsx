@@ -376,7 +376,7 @@ function PartnerRewards({ f, base }: { f: OwnerFinance; base: string }) {
   if (!f.rewards || (f.rewards.due <= 0 && f.rewards.expected <= 0)) return null;
   return (
     <motion.section variants={item} className="grid gap-1 rounded-2xl border border-border bg-surface p-5 text-[13px]" data-testid="home-rewards">
-      <Link href={`${base}/marketers`} className="text-[14px] font-bold hover:text-primary">
+      <Link href={`${base}/partners`} className="text-[14px] font-bold hover:text-primary">
         {t("rewardsTitle")}
       </Link>
       <p className="num text-[22px] font-extrabold tabular-nums">{fmt.money(f.rewards.due)}</p>

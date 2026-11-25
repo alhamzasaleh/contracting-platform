@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { projectCostRows } from "@/lib/purchases";
 import { as, asAdmin, closePool, createUser, expectDenied, resetDatabase, type Q } from "./db";
 
 /**
@@ -192,14 +193,92 @@ describe("due only after the original contract is fully paid", () => {
     expect((await commission(c.id)).status).toBe("paid");
     const a = await asAdmin((q) => q<{ commission: string }>("select commission from private.project_actuals($1)", [c.id]));
     expect(Number(a.rows[0].commission)).toBe(200);
+    // the app's project cost (loadProjectCosts → projectCostRows) gives the same figure, inside the actual cost
+    const paid = await as({ userId: fin }, (q) => q<{ contract_id: string; amount: string }>("select contract_id, amount from public.commission_payments where contract_id = $1", [c.id]));
+    const [row] = projectCostRows({
+      contracts: [{ id: c.id, number: c.number, client_id: client, status: "accepted" }], clients: [], moves: [], purchases: [], subWork: [], agreements: [], petty: [], repairs: [],
+      labour: null, expenseLines: [], estimates: new Map(), vatRegistered: false, commissions: paid.rows,
+    });
+    expect(row.commission).toBe(Number(a.rows[0].commission));
+    expect(row.actual).toBe(200);
     // the voucher can't be edited
     await expectDenied(as({ userId: owner }, (q) => q("update public.commission_payments set amount = 1 where commission_id = $1", [k.id])), /permission denied/);
   });
 
-  it("a cancelled contract cancels the unpaid commission", async () => {
-    const c = await makeContract(3000);
-    await as({ userId: owner }, (q) => q("update public.contracts set status = 'cancelled' where id = $1", [c.id]));
+  it("users can't move an accepted contract out of accepted; a cancellation never cancels a due or paid reward", async () => {
+    const c = await makeContract(3000, { percents: [100] });
+    await expectDenied(as({ userId: owner }, (q) => q("update public.contracts set status = 'cancelled' where id = $1", [c.id])), /cannot change/);
+    expect((await commission(c.id)).status).toBe("expected");
+    // (the server / an admin may still cancel) expected → cancelled
+    await asAdmin((q) => q("update public.contracts set status = 'cancelled' where id = $1", [c.id]));
     expect((await commission(c.id)).status).toBe("cancelled");
+    const d = await makeContract(3000, { percents: [100] });
+    await pay(fin, d.payments[0], 3000);
+    await asAdmin((q) => q("update public.contracts set status = 'cancelled' where id = $1", [d.id]));
+    expect((await commission(d.id)).status).toBe("due");
+  });
+
+  it("a reward can't be paid with a date before it became due (Riyadh day)", async () => {
+    const c = await makeContract(2000, { percents: [100] });
+    await pay(fin, c.payments[0], 2000);
+    const k = await commission(c.id);
+    await expectDenied(as({ userId: fin }, (q) => q("select public.record_commission_payment($1, (now() at time zone 'Asia/Riyadh')::date - 1, 'cash', null, null)", [k.id])), /before the reward was due/);
+  });
+
+  it("a due reward unpaid after 7 days is reminded (finance.manage), linked to its card", async () => {
+    const c = await makeContract(2500, { percents: [100] });
+    await pay(fin, c.payments[0], 2500);
+    const k = await commission(c.id);
+    await asAdmin((q) => q("update public.marketer_commissions set due_at = now() - interval '7 days' where id = $1", [k.id]));
+    await as("service_role", (q) => q("select public.run_daily_reminders()"));
+    const n = await asAdmin((q) => q<{ user_id: string; link: string }>("select user_id, link from public.notifications where dedupe_key = $1", [`commission_due:${k.id}:7`]));
+    expect(n.rows.map((r) => r.user_id).sort()).toEqual([owner, fin].sort());
+    expect(n.rows[0].link).toBe(`/partners?k=${k.id}`);
+  });
+
+  it("the paid reward counts in the daily 'project losing' check (actual cost)", async () => {
+    const c = await makeContract(1000, { percents: [100], percent: 5 });
+    await pay(fin, c.payments[0], 1000);
+    await payCommission(fin, (await commission(c.id)).id);
+    // + 960 petty-cash expense: without the reward the project would still be at +40
+    await as({ userId: owner }, async (q) => {
+      const acc = (await q<{ id: string }>("insert into public.petty_cash_accounts (organization_id, holder_id, name) values ($1,$2,'عهدة') on conflict (organization_id, holder_id) do update set name = excluded.name returning id", [org, owner])).rows[0].id;
+      await q("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, contract_id, description) values ($1,$2,'expense',960,$3,'مصروف')", [org, acc, c.id]);
+    });
+    await as("service_role", (q) => q("select public.run_daily_reminders()"));
+    const n = await asAdmin((q) => q("select 1 from public.notifications where dedupe_key = $1", [`losing:${c.id}:loss`]));
+    expect(n.rowCount).toBeGreaterThan(0);
+  });
+
+  it("a contract with options takes the chosen option's partner and percentage", async () => {
+    const token = tok();
+    const made = await as({ userId: owner }, async (q) => {
+      const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'gypsum') returning id", [org, client])).rows[0].id;
+      await saveVersion(q, quote, 10000, marketer, 5); // option 1: the partner at 5 %
+      await saveVersion(q, quote, 9000, null, 0); // option 2: no partner
+      const opts = JSON.stringify([{ version: 1, label: "أ" }, { version: 2, label: "ب" }]);
+      await q("update public.quotes set options = $2::jsonb where id = $1", [quote, opts]);
+      await q("select public.issue_quote($1, null)", [quote]);
+      const c = (await q<{ id: string; number: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total, status, options) values ($1,$2,2,$3,'gypsum',current_date,10,9000,'sent',$4::jsonb) returning id, number", [org, quote, client, opts])).rows[0];
+      await q("insert into public.contract_payments (organization_id, contract_id, seq, label, percent, amount, due_event) values ($1,$2,1,'كامل',100,9000,'custom')", [org, c.id]);
+      await q("insert into public.client_portal_links (organization_id, contract_id, token_hash, expires_at) values ($1,$2,$3, now() + interval '60 days')", [org, c.id, hash(token)]);
+      return c;
+    });
+    await as("service_role", (q) => q("select public.portal_accept($1,$2,'محمد',null,'1.1.1.1','x',1)", [made.number, token]));
+    const k = await commission(made.id);
+    expect([Number(k.percent), Number(k.base), Number(k.amount), k.marketer_id]).toEqual([5, 10000, 500, marketer]);
+  });
+
+  it("the quote remembers that its partner was chosen (removed on purpose ≠ never set)", async () => {
+    const q1 = await as({ userId: owner }, async (q) => {
+      const quote = (await q<{ id: string; marketer_set: boolean }>("insert into public.quotes (organization_id, client_id, service, marketer_set) values ($1,$2,'gypsum',true) returning id, marketer_set", [org, client])).rows[0];
+      expect(quote.marketer_set).toBe(false);
+      await saveVersion(q, quote.id, 1000, null, 0);
+      return quote.id;
+    });
+    const r = await asAdmin((q) => q<{ marketer_set: boolean; marketer_id: string | null }>("select marketer_set, marketer_id from public.quotes where id = $1", [q1]));
+    expect(r.rows[0]).toEqual({ marketer_set: true, marketer_id: null });
+    await expectDenied(as({ userId: owner }, (q) => q("update public.quotes set marketer_set = false where id = $1", [q1])), /priced version/);
   });
 
   it("read access: finance / costs / marketers.manage; never viewers, other organizations or projects outside a restricted member's scope", async () => {
@@ -260,6 +339,28 @@ describe("the marketer's page", () => {
     // deactivating the marketer closes his page
     await as({ userId: owner }, (q) => q("update public.marketers set is_active = false where id = $1", [marketer]));
     expect(await view(marketerNo, t)).toBeNull();
+    await as({ userId: owner }, (q) => q("update public.marketers set is_active = true where id = $1", [marketer]));
+  });
+
+  it("his voucher (print / PDF) only through his own link", async () => {
+    const t = tok();
+    await as({ userId: owner }, (q) => q("select public.issue_marketer_link($1,$2)", [marketer, hash(t)]));
+    const pv = (await asAdmin((q) => q<{ number: string }>("select number from public.commission_payments where marketer_id = $1 limit 1", [marketer]))).rows[0].number;
+    const get = (n: string, tk: string, v: string) => as("service_role", (q) => q<{ v: Record<string, unknown> | null }>("select public.marketer_portal_voucher($1,$2,$3) as v", [n, tk, v])).then((r) => r.rows[0].v);
+    const doc = (await get(marketerNo, t, pv)) as { voucher: { number: string }; contract: { client: string } };
+    expect(doc.voucher.number).toBe(pv);
+    expect(JSON.stringify(doc)).not.toMatch(/966511112222|1012345678|margin|cost/);
+    expect(await get(marketerNo, tok(), pv)).toBeNull();
+    expect(await get(marketerNo, t, "PV-2099-999")).toBeNull();
+    await expectDenied(as({ userId: owner }, (q) => q("select public.marketer_portal_voucher($1,$2,$3)", [marketerNo, t, pv])), /permission denied/);
+  });
+
+  it("deactivating the partner revokes his open links", async () => {
+    const t = tok();
+    await as({ userId: owner }, (q) => q("select public.issue_marketer_link($1,$2)", [marketer, hash(t)]));
+    await as({ userId: owner }, (q) => q("update public.marketers set is_active = false where id = $1", [marketer]));
+    const open = await asAdmin((q) => q("select 1 from public.marketer_portal_links where marketer_id = $1 and revoked_at is null", [marketer]));
+    expect(open.rowCount).toBe(0);
     await as({ userId: owner }, (q) => q("update public.marketers set is_active = true where id = $1", [marketer]));
   });
 });

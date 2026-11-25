@@ -175,7 +175,7 @@ export function QuoteEditorView({
         initial,
         quantitiesPanel: panel,
         history: history ?? null,
-        commission: chosen ? { name: chosen.name, percent: chosen.commission_percent ?? 0 } : null,
+        commission: chosen ? { name: chosen.name, percent: chosen.commission_percent ?? 0, discountPercent: discount } : null,
         renderActions: (sel, outcome) => (
           <section className="grid gap-3 rounded-2xl border-2 border-primary/30 bg-surface p-4">
             <p className="text-[14px] font-bold">{quote ? t("newVersionOf", { number: quote.number }) : t("newQuote")}</p>
@@ -238,6 +238,8 @@ export function QuoteEditorView({
                         method,
                         notes: notes.trim() || null,
                         marketer_id: partner || null,
+                        // the % on screen: the server refuses (rewardChanged) if it changed since
+                        ...(chosen ? { commission_percent: chosen.commission_percent ?? 0 } : {}),
                       })),
                   { onSuccess: (r) => r.ok && r.data && router.push(`${base}/quotations/${r.data.number}`) },
                 )

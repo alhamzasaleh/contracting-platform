@@ -155,6 +155,46 @@ alter table public.quote_version_costs
   add constraint quote_version_costs_commission_marketer check (commission_percent = 0 or marketer_id is not null);
 create trigger quote_version_costs_marketer_ref before insert or update of marketer_id on public.quote_version_costs for each row execute function private.check_marketer_ref();
 
+-- an accepted contract stays accepted for users (cancelling it through the API would cancel a
+-- reward the client has already earned; the app's «إلغاء» refuses accepted contracts too)
+create or replace function private.guard_accepted_contract_status()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if current_user in ('authenticated', 'anon') and old.status = 'accepted' and new.status is distinct from old.status then
+    raise exception 'an accepted contract cannot change' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+create trigger contracts_guard_accepted_status before update of status on public.contracts
+  for each row execute function private.guard_accepted_contract_status();
+
+-- whether the quote's partner was ever chosen with a priced version: false = never set → the
+-- editor offers the client's «جاء عن طريق»; true + null = removed on purpose
+alter table public.quotes add column marketer_set boolean not null default false;
+create or replace function private.guard_quote_marketer_set()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if current_user in ('authenticated', 'anon') then
+    if tg_op = 'INSERT' then
+      new.marketer_set := false;
+    elsif new.marketer_set is distinct from old.marketer_set then
+      raise exception 'the marketer is saved with a priced version' using errcode = '42501';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+create trigger quotes_guard_marketer_set before insert or update of marketer_set on public.quotes for each row execute function private.guard_quote_marketer_set();
+
 -- the contract's marketer = its agreed version's (set by the database; fixed once accepted)
 alter table public.contracts add column marketer_id uuid references public.marketers (id) on delete restrict;
 create index contracts_marketer_idx on public.contracts (marketer_id) where marketer_id is not null;
@@ -244,7 +284,7 @@ begin
                                             marketer_id, commission_percent, commission_amount, created_by)
     values (v_id, q.organization_id, (c ->> 'cost')::numeric, (c ->> 'cost_with_contingency')::numeric, (c ->> 'margin_percent')::numeric,
             c -> 'lines', coalesce(c -> 'purchase_list', '[]'::jsonb), v_marketer.id, v_percent, round(greatest(v_net, 0) * v_percent / 100, 2), p_user);
-    update public.quotes x set marketer_id = v_marketer.id where x.id = q.id and x.marketer_id is distinct from v_marketer.id;
+    update public.quotes x set marketer_id = v_marketer.id, marketer_set = true where x.id = q.id and (x.marketer_id is distinct from v_marketer.id or not x.marketer_set);
   end if;
   return query select v_id, v_version;
 end;
@@ -342,7 +382,7 @@ begin
     select m.name into v_name from public.marketers m where m.id = k.marketer_id;
     perform private.notify(k.organization_id, 'finance.manage', 'commission_due',
       jsonb_build_object('number', v_number, 'marketer', v_name, 'amount', k.amount),
-      '/marketers', 'commission_due:' || k.id, p_contract);
+      '/partners?k=' || k.id, 'commission_due:' || k.id, p_contract);
   elsif not v_paid and k.status = 'due' then
     update public.marketer_commissions set status = 'expected', due_at = null where id = k.id;
   end if;
@@ -371,7 +411,8 @@ begin
       perform private.commission_sync(new.id);
     end if;
   elsif new.status = 'cancelled' and old.status is distinct from 'cancelled' then
-    update public.marketer_commissions set status = 'cancelled', cancelled_at = now() where contract_id = new.id and status in ('expected', 'due');
+    -- only a reward not yet earned; a due or paid one stays (the client paid the contract in full)
+    update public.marketer_commissions set status = 'cancelled', cancelled_at = now() where contract_id = new.id and status = 'expected';
   end if;
   return null;
 end;
@@ -420,6 +461,10 @@ begin
   end if;
   if p_paid_on is null or p_paid_on > (now() at time zone 'Asia/Riyadh')::date or p_paid_on < (now() at time zone 'Asia/Riyadh')::date - 366 then
     raise exception 'invalid date' using errcode = '22023';
+  end if;
+  -- never dated before the reward became due (Riyadh day)
+  if p_paid_on < (k.due_at at time zone 'Asia/Riyadh')::date then
+    raise exception 'invalid date: before the reward was due' using errcode = '22023';
   end if;
   if p_method is null or p_method not in ('transfer', 'cash', 'cheque') then
     raise exception 'invalid method' using errcode = '22023';
@@ -472,6 +517,10 @@ alter table public.notification_preferences add constraint notification_preferen
 -- 7. Qoyod: a commission payment = expense bill (vendor = the marketer) + its payment ---------
 -- (same pattern as subcontractor payments: mk: / mkp:, the payment waits for "Approved")
 alter table public.qoyod_settings add column commission_account_id int check (commission_account_id > 0);
+-- when the rewards account was last picked automatically (service role only): connections made
+-- before this feature get it picked ONCE by the worker / «إعداد تلقائي»; an account the owner
+-- clears afterwards stays empty (= the general expense account)
+alter table public.qoyod_settings add column commission_setup_at timestamptz;
 grant insert (commission_account_id) on public.qoyod_settings to authenticated;
 grant update (commission_account_id) on public.qoyod_settings to authenticated;
 
@@ -670,6 +719,22 @@ begin
       v_count := v_count + 1;
     end if;
   end loop;
+
+  -- success partners' rewards due and still unpaid after 7 / 14 / 30 days (finance.manage)
+  for r in
+    select k.id, k.organization_id, k.contract_id, k.amount, c.number, m.name as marketer,
+           (v_today - (k.due_at at time zone 'Asia/Riyadh')::date) as age
+    from public.marketer_commissions k
+    join public.contracts c on c.id = k.contract_id
+    join public.marketers m on m.id = k.marketer_id
+    where k.status = 'due' and k.due_at is not null
+      and (v_today - (k.due_at at time zone 'Asia/Riyadh')::date) in (7, 14, 30)
+  loop
+    perform private.notify(r.organization_id, 'finance.manage', 'commission_due',
+      jsonb_build_object('number', r.number, 'marketer', r.marketer, 'amount', r.amount, 'days', r.age),
+      '/partners?k=' || r.id, 'commission_due:' || r.id || ':' || r.age, r.contract_id);
+    v_count := v_count + 1;
+  end loop;
   return v_count;
 end;
 $$;
@@ -829,6 +894,30 @@ $$;
 revoke all on function private.marketer_deactivated() from public;
 create trigger marketers_deactivated after update of is_active on public.marketers for each row execute function private.marketer_deactivated();
 
+-- The partner's link by number + token (hash, not revoked, not expired, partner active).
+create or replace function private.marketer_link(p_number text, p_token text)
+returns public.marketer_portal_links
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  l public.marketer_portal_links;
+begin
+  if not private.portal_token_ok(p_token) or p_number is null or char_length(p_number) > 30 then
+    return l;
+  end if;
+  select x.* into l
+  from public.marketer_portal_links x join public.marketers mk on mk.id = x.marketer_id
+  where x.token_hash = encode(sha256(convert_to(p_token, 'UTF8')), 'hex')
+    and x.revoked_at is null and x.expires_at > now() and mk.number = p_number and mk.is_active
+  limit 1;
+  return l;
+end;
+$$;
+revoke all on function private.marketer_link(text, text) from public, anon, authenticated;
+
 -- What the marketer sees: his name and percentage, and per contract that earned him a commission:
 -- the client's NAME only (no phone / id), contract number, date, status, value before VAT, the
 -- frozen percentage, the commission (expected / due / paid / cancelled) and his payment vouchers.
@@ -845,14 +934,7 @@ declare
   m public.marketers;
   o public.organizations;
 begin
-  if not private.portal_token_ok(p_token) or p_number is null or char_length(p_number) > 30 then
-    return null;
-  end if;
-  select x.* into l
-  from public.marketer_portal_links x join public.marketers mk on mk.id = x.marketer_id
-  where x.token_hash = encode(sha256(convert_to(p_token, 'UTF8')), 'hex')
-    and x.revoked_at is null and x.expires_at > now() and mk.number = p_number and mk.is_active
-  limit 1;
+  l := private.marketer_link(p_number, p_token);
   if l.id is null then
     return null;
   end if;
@@ -878,3 +960,39 @@ end;
 $$;
 revoke all on function public.marketer_portal_view(text, text) from public, anon, authenticated;
 grant execute on function public.marketer_portal_view(text, text) to service_role;
+
+-- One of HIS payment vouchers (PV-) for his page's print / PDF: same token checks; another
+-- partner's voucher (or anything else) → null.
+create or replace function public.marketer_portal_voucher(p_number text, p_token text, p_voucher text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  l public.marketer_portal_links;
+  v public.commission_payments;
+  o public.organizations;
+begin
+  l := private.marketer_link(p_number, p_token);
+  if l.id is null or p_voucher is null or char_length(p_voucher) > 30 then
+    return null;
+  end if;
+  select * into v from public.commission_payments x where x.number = p_voucher and x.marketer_id = l.marketer_id and x.organization_id = l.organization_id;
+  if v.id is null then
+    return null;
+  end if;
+  select * into o from public.organizations where id = l.organization_id;
+  return jsonb_build_object(
+    'org', jsonb_build_object('id', o.id, 'name', o.name, 'legal_name', o.legal_name, 'cr_number', o.cr_number, 'vat_number', o.vat_number, 'phone', o.phone,
+                              'city', o.city, 'address', o.address, 'signatory_name', o.signatory_name, 'signatory_title', o.signatory_title, 'logo_path', o.logo_path, 'brand', o.brand),
+    'voucher', jsonb_build_object('number', v.number, 'paid_on', v.paid_on, 'amount', v.amount, 'method', v.method, 'reference', v.reference, 'note', v.note),
+    'marketer', (select jsonb_build_object('number', m.number, 'name', m.name, 'iban', m.iban) from public.marketers m where m.id = v.marketer_id),
+    'contract', (select jsonb_build_object('number', c.number, 'client', cl.name, 'base', k.base, 'percent', k.percent)
+                 from public.contracts c join public.clients cl on cl.id = c.client_id join public.marketer_commissions k on k.id = v.commission_id
+                 where c.id = v.contract_id));
+end;
+$$;
+revoke all on function public.marketer_portal_voucher(text, text, text) from public, anon, authenticated;
+grant execute on function public.marketer_portal_voucher(text, text, text) to service_role;

@@ -37,6 +37,8 @@ export function AuditView({ items }: { items: AuditItem[] }) {
 
   const tableLabel = (table: string) => (t.has(`audit.tables.${table}`) ? t(`audit.tables.${table}`) : table);
   const actionLabel = (a: string) => (t.has(`audit.${a}`) ? t(`audit.${a}`) : a);
+  // column names that have a label (e.g. the success partner's reward); others stay as stored
+  const fieldLabel = (f: string) => (t.has(`audit.fields.${f}`) ? t(`audit.fields.${f}`) : f);
 
   return (
     <Card>
@@ -94,7 +96,7 @@ export function AuditView({ items }: { items: AuditItem[] }) {
                         <dl className="mx-5 mb-4 grid gap-1.5 rounded-xl bg-surface-sunken p-3 text-[13px] sm:mx-6">
                           {e.changes.map((c) => (
                             <div key={c.field} className="grid grid-cols-[minmax(0,8rem)_1fr] gap-3">
-                              <dt className="truncate font-latin text-muted-foreground">{c.field}</dt>
+                              <dt className="truncate font-latin text-muted-foreground">{fieldLabel(c.field)}</dt>
                               <dd className="min-w-0 break-words">
                                 {e.action === "update" && (
                                   <>

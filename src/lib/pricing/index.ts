@@ -23,6 +23,9 @@ import {
   type PriceSummary,
 } from "@/lib/engine";
 
+/** margin % + partner reward % at or above this can't be issued (the price would be ≥ 10 × the cost). */
+export const MAX_MARGIN_AND_REWARD = 90;
+
 export type ServiceKind = "gypsum" | "interior" | "exterior";
 export const SERVICE_KINDS: ServiceKind[] = ["gypsum", "interior", "exterior"];
 
@@ -250,7 +253,7 @@ export type PricingOutcome = {
   steps: StepResult[];
   /** Included roles with no usable product (shown as red lines). */
   /** Included roles with no usable product (shown as red lines), and labour that couldn't be priced as chosen ("labour"). */
-  problems: { step: string; role: string; reason: "no_product" | "incomplete" | "no_price" | "labour"; product?: string }[];
+  problems: { step: string; role: string; reason: "no_product" | "incomplete" | "no_price" | "labour" | "margin"; product?: string }[];
   labourNote: string | null;
 };
 
@@ -376,13 +379,18 @@ export function priceSelection(sel: Selection, q: Quantities, ctx: PricingContex
   // Supply only: no labour.
   const withLabour = o.projectType === "supply" ? { ...applied.result, lines: applied.result.lines.filter((l) => l.group !== "labour") } : applied.result;
 
+  const marginPercent = Math.min(95, sel.marginPercent ?? cfg.commercial.targetMarginPercent);
+  const commissionPercent = extra?.commissionPercent ?? 0;
+  // margin + the partner's reward take this share of the price: at 90 % the cost would be a tenth of
+  // the price (×10) — refuse to issue instead of inflating the price silently
+  if (marginPercent + commissionPercent >= MAX_MARGIN_AND_REWARD) problems.push({ step: "commercial", role: "margin", reason: "margin" });
   const price = priceProject([withLabour], {
     contingencyPercent: sel.contingencyPercent ?? cfg.commercial.contingencyPercent,
-    marginPercent: Math.min(95, sel.marginPercent ?? cfg.commercial.targetMarginPercent),
+    marginPercent,
     roundingStep: cfg.commercial.roundingStep,
     method: "unit",
     vatPercent: ctx.vatPercent,
-    commissionPercent: extra?.commissionPercent ?? 0,
+    commissionPercent,
   });
   return { result: withLabour, price, steps, problems, labourNote: note };
 }

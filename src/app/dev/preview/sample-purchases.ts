@@ -62,6 +62,6 @@ export const SAMPLE_INVENTORY: InventoryData = {
 };
 
 export const SAMPLE_COSTS: ProjectCost[] = [
-  { ...projects[0], estimated: 11800, materials: 11950, expenses: 900, subcontractors: 4200, petty: 0, materialsActual: 12850, actual: 20540, pending: 7245, labour: 3240, maintenance: 250 },
+  { ...projects[0], estimated: 11800, materials: 11950, expenses: 900, subcontractors: 4200, petty: 0, materialsActual: 12850, actual: 22840, pending: 7245, labour: 3240, maintenance: 250, commission: 2300 },
   { ...projects[1], estimated: 7200, materials: 4100, expenses: 0, subcontractors: 0, petty: 0, materialsActual: 4100, actual: 4100, pending: 0, labour: 0 },
 ];

@@ -410,6 +410,8 @@ export type QuoteRow = OrgRow & Upd & {
   number: string;
   /** the success partner of the current version (set only by save_quote_version) */
   marketer_id?: string | null;
+  /** true once a priced version chose (or removed) the partner */
+  marketer_set?: boolean;
   /** 2–3 versions offered side by side (null = a single quote) */
   options?: QuoteOption[] | null;
   client_id: string;
@@ -749,6 +751,8 @@ export type QoyodSettingsRow = {
   organization_id: string; enabled: boolean; invoice_status: "Draft" | "Approved"; inventory_id: number | null; receive_account_id: number | null; expense_account_id: number | null;
   salary_account_id: number | null; cash_account_id: number | null; subcontract_account_id: number | null;
   commission_account_id?: number | null;
+  /** last automatic pick of the rewards account (service role) */
+  commission_setup_at?: string | null;
   service_products: Record<string, number>; addendum_product_id: number | null; sync_from: string | null; key_last4: string | null; key_set_at: string | null; updated_at: string; updated_by: string | null;
   /** the worker's last automatic setup run (service role only) */
   auto_setup_at: string | null;
@@ -924,6 +928,7 @@ export type Database = {
       issue_marketer_link: { Args: { p_marketer: string; p_token_hash: string }; Returns: string };
       revoke_marketer_links: { Args: { p_marketer: string }; Returns: number };
       marketer_portal_view: { Args: { p_number: string; p_token: string }; Returns: Json };
+      marketer_portal_voucher: { Args: { p_number: string; p_token: string; p_voucher: string }; Returns: Json };
       delete_client: { Args: { p_client: string }; Returns: undefined };
       delete_survey: { Args: { p_survey: string }; Returns: undefined };
       delete_quote: { Args: { p_quote: string }; Returns: undefined };

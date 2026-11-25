@@ -43,6 +43,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // «شركاء النجاح» lived at /marketers before it was renamed (owner, Nov 2026)
+  async redirects() {
+    return [{ source: "/marketers", destination: "/partners", permanent: true }];
+  },
 };
 
 export default withNextIntl(nextConfig);

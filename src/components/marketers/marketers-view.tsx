@@ -14,6 +14,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import { WhatsAppButton } from "@/components/whatsapp-button";
+import { displayPhone } from "@/components/clients/clients-view";
 import type { ActionResult } from "@/lib/actions";
 import type { CommissionView, MarketersData, MarketerView } from "@/lib/data/marketers";
 import { projectHref } from "@/lib/finance";
@@ -28,7 +29,7 @@ const TONE: Record<CommissionStatus, "neutral" | "warning" | "success" | "danger
 const todayRiyadh = () => new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
 
 /** «شركاء النجاح»: each partner, his clients and contracts, his reward (expected / due / paid) and his own page link. */
-export function MarketersView({ data, actions }: { data: MarketersData; actions?: MarketersActions }) {
+export function MarketersView({ data, actions, base = "", highlight = null }: { data: MarketersData; actions?: MarketersActions; base?: string; /** a reward id from a notification link (/partners?k=<id>) — its card is marked */ highlight?: string | null }) {
   const t = useTranslations("marketers");
   const { fmt } = useFormatter();
   const [edit, setEdit] = React.useState<Partial<MarketerView> | null>(null);
@@ -51,7 +52,7 @@ export function MarketersView({ data, actions }: { data: MarketersData; actions?
       ) : (
         <div className="columns-1 gap-4 lg:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
           {data.marketers.map((m) => (
-            <MarketerCard key={m.id} m={m} data={data} actions={actions} onEdit={() => setEdit(m)} onPay={setPayFor} />
+            <MarketerCard key={m.id} m={m} data={data} actions={actions} onEdit={() => setEdit(m)} onPay={setPayFor} base={base} highlight={highlight} />
           ))}
         </div>
       )}
@@ -70,13 +71,18 @@ function Kpi({ label, value, strong }: { label: string; value: string; strong?: 
   );
 }
 
-function MarketerCard({ m, data, actions, onEdit, onPay }: { m: MarketerView; data: MarketersData; actions?: MarketersActions; onEdit: () => void; onPay: (k: CommissionView) => void }) {
+function MarketerCard({ m, data, actions, onEdit, onPay, base, highlight }: { m: MarketerView; data: MarketersData; actions?: MarketersActions; onEdit: () => void; onPay: (k: CommissionView) => void; base: string; highlight: string | null }) {
   const t = useTranslations("marketers");
   const { fmt } = useFormatter();
   const own = data.commissions.filter((k) => k.marketer_id === m.id);
   const totals = commissionTotals(own);
+  const marked = !!highlight && own.some((k) => k.id === highlight);
+  const ref = React.useRef<HTMLElement>(null);
+  React.useEffect(() => {
+    if (marked) ref.current?.scrollIntoView({ block: "center" });
+  }, [marked]);
   return (
-    <section className={cn("grid gap-3 rounded-3xl border border-border bg-surface p-5", !m.is_active && "opacity-60")} data-testid="marketer-card">
+    <section ref={ref} className={cn("grid gap-3 rounded-3xl border border-border bg-surface p-5", !m.is_active && "opacity-60", marked && "ring-2 ring-primary")} data-testid="marketer-card" data-highlighted={marked || undefined}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[16px] font-bold">{m.name}</p>
@@ -85,7 +91,7 @@ function MarketerCard({ m, data, actions, onEdit, onPay }: { m: MarketerView; da
             {m.phone && (
               <>
                 {" · "}
-                <bdi dir="ltr" className="font-latin">{`0${m.phone.slice(3)}`}</bdi>
+                <bdi dir="ltr" className="font-latin">{displayPhone(m.phone)}</bdi>
               </>
             )}
           </p>
@@ -110,7 +116,7 @@ function MarketerCard({ m, data, actions, onEdit, onPay }: { m: MarketerView; da
           <p className="text-[12px] font-bold text-muted-foreground">{t("clients")}</p>
           <div className="flex flex-wrap gap-1.5">
             {m.clients.map((c) => (
-              <Link key={c.number} href={`/clients/${c.number}`} className="rounded-full bg-surface-sunken px-3 py-1 text-[13px] hover:underline">
+              <Link key={c.number} href={`${base}/clients/${c.number}`} className="rounded-full bg-surface-sunken px-3 py-1 text-[13px] hover:underline">
                 {c.name}
               </Link>
             ))}
@@ -122,9 +128,10 @@ function MarketerCard({ m, data, actions, onEdit, onPay }: { m: MarketerView; da
       ) : (
         <ul className="grid gap-2">
           {own.map((k) => {
-            const href = projectHref(k.contract, data.links);
+            const path = projectHref(k.contract, data.links);
+            const href = path ? `${base}${path}` : null;
             return (
-              <li key={k.id} className="grid gap-2 rounded-2xl bg-surface-sunken/50 p-3 text-[13px]">
+              <li key={k.id} className={cn("grid gap-2 rounded-2xl bg-surface-sunken/50 p-3 text-[13px]", k.id === highlight && "ring-2 ring-primary")}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="min-w-0 font-bold">
                     {k.client} ·{" "}
@@ -149,10 +156,17 @@ function MarketerCard({ m, data, actions, onEdit, onPay }: { m: MarketerView; da
                   )}
                   {k.voucher && data.canSeeVouchers && (
                     <Button asChild size="sm" variant="secondary">
-                      <Link href={`/print/payment-vouchers/${k.voucher.number}`}>
+                      <Link href={`${base}/print/payment-vouchers/${k.voucher.number}`}>
                         <Printer /> {t("voucher", { number: k.voucher.number })}
                       </Link>
                     </Button>
+                  )}
+                  {k.status === "paid" && k.voucher && (
+                    <WhatsAppButton
+                      phone={m.phone}
+                      label={t("waPaidButton")}
+                      text={t("waPaid", { name: m.name, amount: fmt.money(k.amount), contract: k.contract, voucher: k.voucher.number, org: data.orgName })}
+                    />
                   )}
                 </div>
               </li>
@@ -243,7 +257,8 @@ function MarketerDialog({ initial, onClose, save }: { initial: Partial<MarketerV
   const t = useTranslations("marketers");
   const { run, pending, fieldText } = useActionRunner();
   const [name, setName] = React.useState(initial.name ?? "");
-  const [phone, setPhone] = React.useState(initial.phone ? `0${initial.phone.slice(3)}` : "");
+  // a Saudi number (966…) is shown as 05…; anything else exactly as stored — never converted silently
+  const [phone, setPhone] = React.useState(initial.phone ? (initial.phone.startsWith("966") ? `0${initial.phone.slice(3)}` : initial.phone) : "");
   const [percent, setPercent] = React.useState(String(initial.commission_percent ?? ""));
   const [iban, setIban] = React.useState(initial.iban ?? "");
   const [notes, setNotes] = React.useState(initial.notes ?? "");

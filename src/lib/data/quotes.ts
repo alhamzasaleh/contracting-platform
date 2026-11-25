@@ -1,5 +1,6 @@
 import "server-only";
 import { loadMarketerChoices } from "@/lib/data/marketers";
+import { defaultPartner } from "@/lib/marketers";
 import { notFound } from "next/navigation";
 import { can, type SessionContext } from "@/lib/auth/session";
 import { loadPricingContext } from "@/lib/data/pricing";
@@ -80,13 +81,13 @@ export async function loadQuoteEditor(session: SessionContext, args: { surveyNum
   // the pricing context doesn't depend on the quote: start it now, alongside the quote lookups
   const contextP = loadPricingContext(session);
   contextP.catch(() => {}); // awaited below; never an unhandled rejection if notFound() comes first
-  let quote: { id: string; number: string; service: ServiceKind; survey_id: string | null; current_version: number; marketer_id?: string | null } | null = null;
+  let quote: { id: string; number: string; service: ServiceKind; survey_id: string | null; current_version: number; marketer_id?: string | null; marketer_set?: boolean } | null = null;
   let initial: Selection | null = null;
   let discount = 0;
   let method: "unit" | "lump" = "unit";
   let notes: string | null = null;
   if (args.quoteNumber) {
-    const { data } = await supabase.from("quotes").select("id, number, service, survey_id, current_version, marketer_id").eq("organization_id", orgId).eq("number", args.quoteNumber).maybeSingle();
+    const { data } = await supabase.from("quotes").select("id, number, service, survey_id, current_version, marketer_id, marketer_set").eq("organization_id", orgId).eq("number", args.quoteNumber).maybeSingle();
     if (!data || !data.survey_id) notFound();
     quote = data;
   }
@@ -100,9 +101,10 @@ export async function loadQuoteEditor(session: SessionContext, args: { surveyNum
   // the success partner: the quote's own (as last priced), else the client's «جاء عن طريق» (owner may change / remove it)
   const [partners, clientRow] = await Promise.all([
     loadMarketerChoices(supabase, orgId),
-    quote ? Promise.resolve(null) : supabase.from("clients").select("marketer_id").eq("organization_id", orgId).eq("number", src.client.number).maybeSingle().then((r) => r.data),
+    supabase.from("clients").select("marketer_id").eq("organization_id", orgId).eq("number", src.client.number).maybeSingle().then((r) => r.data),
   ]);
-  const partnerId = quote ? (quote.marketer_id ?? null) : (clientRow?.marketer_id ?? null);
+  // a quote whose partner was never chosen (older quotes) starts from the client's
+  const partnerId = defaultPartner(quote, clientRow?.marketer_id);
   if (v) {
     initial = v.selection as unknown as Selection;
     discount = n((v.client_view as { discountPercent?: number } | null)?.discountPercent ?? 0);

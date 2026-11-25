@@ -81,12 +81,12 @@ export function buildFacts(
 
 /** Links the assistant may suggest (anything else is dropped). */
 export const SAFE_LINK =
-  /^\/(?:reports|schedule|team\/payroll|purchases\/costs|marketers|(?:purchases|projects|contracts|invoices|clients|quotations)(?:\/[A-Z]{1,3}-\d{4}-\d{3,6})?|maintenance(?:\?r=MR-\d{4}-\d{3,6})?)$/;
+  /^\/(?:reports|schedule|team\/payroll|purchases\/costs|partners|(?:purchases|projects|contracts|invoices|clients|quotations)(?:\/[A-Z]{1,3}-\d{4}-\d{3,6})?|maintenance(?:\?r=MR-\d{4}-\d{3,6})?)$/;
 
 /** The permissions each page the assistant can link to needs (the same as the page's own guards). */
 const LINK_PERMISSION: [RegExp, string[]][] = [
   [/^\/reports$/, ["finance.view"]],
-  [/^\/marketers$/, ["finance.view"]],
+  [/^\/partners$/, ["finance.view"]],
   [/^\/invoices(?:\/|$)/, ["finance.view"]],
   [/^\/schedule$/, ["schedule.view"]],
   [/^\/team\/payroll$/, ["hr.view"]],

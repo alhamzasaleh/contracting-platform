@@ -83,7 +83,15 @@ export async function loadMarketers(session: SessionContext): Promise<MarketersD
 }
 
 /** The reward of one contract (costs.view / finance.view / marketers.manage — RLS), for the contract and project pages. */
-export type ContractCommission = { marketer: string; percent: number; amount: number; status: CommissionStatus; voucher: string | null } | null;
+export type ContractCommission = {
+  id: string | null; marketer: string; percent: number; amount: number; status: CommissionStatus; voucher: string | null;
+  /** links shown only to who may open them: /partners (marketers.manage or finance.view), the voucher print page (finance.view) */
+  canOpenPartners?: boolean; canOpenVoucher?: boolean;
+} | null;
+const partnerLinks = (session: SessionContext) => ({
+  canOpenPartners: can(session, "marketers.manage") || can(session, "finance.view"),
+  canOpenVoucher: can(session, "finance.view"),
+});
 export async function loadContractCommission(session: SessionContext, contractId: string): Promise<ContractCommission> {
   if (!can(session, "costs.view") && !can(session, "finance.view") && !can(session, "marketers.manage")) return null;
   const supabase = await createClient();
@@ -97,13 +105,13 @@ export async function loadContractCommission(session: SessionContext, contractId
     const { data: qc } = v ? await supabase.from("quote_version_costs").select("marketer_id, commission_percent, commission_amount").eq("quote_version_id", v.id).maybeSingle() : { data: null };
     if (!qc?.marketer_id || !(n(qc.commission_percent) > 0)) return null;
     const choices = await loadMarketerChoices(supabase, session.organization.id);
-    return { marketer: choices.find((m) => m.id === qc.marketer_id)?.name ?? "—", percent: n(qc.commission_percent), amount: n(qc.commission_amount), status: "expected", voucher: null };
+    return { id: null, marketer: choices.find((m) => m.id === qc.marketer_id)?.name ?? "—", percent: n(qc.commission_percent), amount: n(qc.commission_amount), status: "expected", voucher: null, ...partnerLinks(session) };
   }
   const [choices, { data: v }] = await Promise.all([
     loadMarketerChoices(supabase, session.organization.id),
     supabase.from("commission_payments").select("number").eq("commission_id", k.id).maybeSingle(),
   ]);
-  return { marketer: choices.find((m) => m.id === k.marketer_id)?.name ?? "—", percent: n(k.percent), amount: n(k.amount), status: k.status as CommissionStatus, voucher: v?.number ?? null };
+  return { id: k.id, marketer: choices.find((m) => m.id === k.marketer_id)?.name ?? "—", percent: n(k.percent), amount: n(k.amount), status: k.status as CommissionStatus, voucher: v?.number ?? null, ...partnerLinks(session) };
 }
 
 export type PaymentVoucherDoc = {

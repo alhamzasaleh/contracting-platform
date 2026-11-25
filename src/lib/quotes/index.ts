@@ -4,6 +4,7 @@
  * (never trusts numbers sent by the browser) and stores this snapshot.
  */
 import type { CatalogueData } from "@/lib/engine";
+import { commissionOnNet } from "@/lib/marketers";
 import { stepIncluded, STEPS, type PricingOutcome, type Quantities, type Selection, type ServiceKind } from "@/lib/pricing";
 
 export type ClientView = {
@@ -67,7 +68,7 @@ export function buildSnapshot(
   const net = r2(p.subtotal - discount);
   const vat = r2((net * opts.vatPercent) / 100);
   const commissionPercent = Math.max(0, opts.commissionPercent ?? 0);
-  const commission = r2((net * commissionPercent) / 100);
+  const commission = commissionOnNet(p.subtotal, discountPercent, commissionPercent);
   const visible = STEPS[sel.kind].filter((s) => !s.when || s.when(sel.options));
   const included: ClientView["included"] = [];
   const excluded: string[] = [];

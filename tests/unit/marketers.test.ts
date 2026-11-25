@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { priceProject, type EngineResult } from "@/lib/engine";
-import { defaultSelection, EMPTY_QUANTITIES, priceSelection, type PricingContext } from "@/lib/pricing";
+import { defaultSelection, EMPTY_QUANTITIES, MAX_MARGIN_AND_REWARD, priceSelection, type PricingContext } from "@/lib/pricing";
 import { buildSnapshot, readiness } from "@/lib/quotes";
-import { commissionAmount, commissionPaymentError, commissionTotals, marketerHref, MARKETER_NUMBER_RE } from "@/lib/marketers";
+import { commissionAmount, commissionOnNet, commissionPaymentError, defaultPartner, partnerCheck, commissionTotals, marketerHref, MARKETER_NUMBER_RE } from "@/lib/marketers";
 import { seededProducts, seededRates } from "./helpers/seed";
 
 /**
@@ -149,6 +149,71 @@ describe("Qoyod: a reward is an expense bill", () => {
     const auto = { inventory_id: 1, receive_account_id: 8, expense_account_id: 5, salary_account_id: null, cash_account_id: null, subcontract_account_id: null, commission_account_id: 9, service_products: {}, addendum_product_id: 3 };
     expect(autoSetupNext(null, auto).commission_account_id).toBe(9);
     // after the first setup an empty one is the owner's choice
-    expect(autoSetupNext({ auto_setup_at: "2026-11-01", commission_account_id: null }, auto).commission_account_id).toBeNull();
+    expect(autoSetupNext({ auto_setup_at: "2026-11-01", commission_setup_at: "2026-11-25", commission_account_id: null }, auto).commission_account_id).toBeNull();
+    // a connection made before rewards existed gets the rewards account picked once
+    expect(autoSetupNext({ auto_setup_at: "2026-11-01", commission_setup_at: null, commission_account_id: null }, auto).commission_account_id).toBe(9);
+    const { autoSetupDue } = await import("@/lib/qoyod/payloads");
+    const full = { inventory_id: 1, receive_account_id: 8, expense_account_id: 5, addendum_product_id: 3, salary_account_id: null, cash_account_id: null, subcontract_account_id: null, service_products: { gypsum: 1, interior: 2, exterior: 3 }, auto_setup_at: "2026-11-01" };
+    expect(autoSetupDue({ ...full, commission_setup_at: null })).toBe(true);
+    expect(autoSetupDue({ ...full, commission_setup_at: "2026-11-25" })).toBe(false);
+  });
+});
+
+describe("review fixes", () => {
+  const ctx: PricingContext = { catalogue: { products: seededProducts(), rates: seededRates() }, external: [], crew: [], vatPercent: 0 };
+  const q = { ...EMPTY_QUANTITIES, walls: 300, ceilings: 100, colours: 1 };
+
+  it("margin + reward at 90 % or more is a problem that blocks issuing (never a silent price floor)", () => {
+    expect(MAX_MARGIN_AND_REWARD).toBe(90);
+    const sel = { ...defaultSelection("interior", ctx.catalogue), marginPercent: 86 };
+    expect(priceSelection(sel, q, ctx, { commissionPercent: 3 }).problems.some((p) => p.reason === "margin")).toBe(false);
+    const o = priceSelection(sel, q, ctx, { commissionPercent: 4 });
+    expect(o.problems).toContainEqual({ step: "commercial", role: "margin", reason: "margin" });
+    const snap = buildSnapshot(sel, q, o, { discountPercent: 0, method: "unit", estimated: false, vatPercent: 0, catalogue: ctx.catalogue, commissionPercent: 4 });
+    expect(readiness(o, snap, 20, []).blocking).toContain("unpriced_items");
+  });
+
+  it("the reward shown while pricing is on the net after the discount — the same as the saved version", () => {
+    const sel = { ...defaultSelection("interior", ctx.catalogue), marginPercent: 28 };
+    const o = priceSelection(sel, q, ctx, { commissionPercent: 5 });
+    const snap = buildSnapshot(sel, q, o, { discountPercent: 10, method: "unit", estimated: false, vatPercent: 0, catalogue: ctx.catalogue, commissionPercent: 5 });
+    expect(commissionOnNet(o.price.subtotal, 10, 5)).toBe(snap.commission.amount);
+    expect(commissionOnNet(o.price.subtotal, 10, 5)).toBeLessThan(o.price.commission);
+  });
+
+  it("the server refuses a reward % different from the partner's current one", () => {
+    const p = { is_active: true, commission_percent: 5 };
+    expect(partnerCheck(p, true, 5)).toBeNull();
+    expect(partnerCheck(p, true, 4)).toBe("rewardChanged");
+    expect(partnerCheck(p, true, undefined)).toBe("invalid");
+    expect(partnerCheck({ ...p, is_active: false }, true, 5)).toBe("partnerInactive");
+    expect(partnerCheck(null, true, 5)).toBe("invalid");
+    expect(partnerCheck(null, false, undefined)).toBeNull();
+  });
+
+  it("the editor's partner: the quote's once chosen (removed stays removed), else the client's", () => {
+    expect(defaultPartner(null, "mk1")).toBe("mk1");
+    expect(defaultPartner({ marketer_id: null, marketer_set: false }, "mk1")).toBe("mk1"); // older quote, never chosen
+    expect(defaultPartner({ marketer_id: null, marketer_set: true }, "mk1")).toBeNull(); // removed on purpose
+    expect(defaultPartner({ marketer_id: "mk2", marketer_set: true }, "mk1")).toBe("mk2");
+  });
+});
+
+describe("the audit log speaks the owner's wording", () => {
+  it("the partner tables and every partner/reward column have labels in both languages (no «عمولة» / «مسوّق»)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const sql = readFileSync("supabase/migrations/20270111000001_marketers.sql", "utf8");
+    // audited tables of this feature, and the columns it added
+    const tables = [...sql.matchAll(/select private\.enable_audit\('public\.(\w+)'\)/g)].map((m) => m[1]);
+    expect(tables.sort()).toEqual(["commission_payments", "marketer_commissions", "marketer_portal_links", "marketers"]);
+    const columns = [...new Set([...sql.matchAll(/add column (\w*(?:marketer|commission)\w*)/g)].map((m) => m[1]))];
+    expect(columns.length).toBeGreaterThan(3);
+    for (const lang of ["ar", "en"]) {
+      const audit = JSON.parse(readFileSync(`messages/${lang}.json`, "utf8")).audit;
+      for (const t of tables) expect(audit.tables[t], `${lang} ${t}`).toBeTruthy();
+      for (const c of [...columns, "marketer_id", "commission_id"]) expect(audit.fields?.[c], `${lang} ${c}`).toBeTruthy();
+      const shown = [...Object.values(audit.tables), ...Object.values(audit.fields ?? {})].join("\n");
+      expect(shown).not.toMatch(lang === "ar" ? /عمول|مسو[ّ]?ق/ : /commission|marketer/i);
+    }
   });
 });

@@ -1,4 +1,5 @@
 "use client";
+import { commissionOnNet } from "@/lib/marketers";
 import {
   AlertTriangle,
   Hammer,
@@ -26,6 +27,7 @@ import {
   EMPTY_QUANTITIES,
   PRESETS,
   priceSelection,
+  MAX_MARGIN_AND_REWARD,
   STEPS,
   stepBrands,
   stepIncluded,
@@ -122,7 +124,7 @@ export function PricingView({
     /** suggestions from the company's past quotes for this service */
     history?: PastStats | null;
     /** the success partner's reward on this quote — the price carries it (internal only) */
-    commission?: { name: string; percent: number } | null;
+    commission?: { name: string; percent: number; discountPercent: number } | null;
   };
   ctx: PricingContext;
   templates: Partial<Record<ServiceKind, Partial<Selection>>>;
@@ -864,8 +866,14 @@ export function PricingView({
         {quote?.commission && quote.commission.percent > 0 && (
           <p className="flex flex-wrap justify-between gap-2 rounded-2xl border border-dashed border-primary/40 px-5 py-3 text-[13px]" data-testid="partner-reward-line">
             <span>{t("partnerReward", { name: quote.commission.name, percent: fmt.number(quote.commission.percent) })}</span>
-            <span className="font-latin font-bold tabular-nums">{fmt.money(price.commission)}</span>
+            {/* on the net after the discount — exactly what the version saves */}
+            <span className="font-latin font-bold tabular-nums">{fmt.money(commissionOnNet(price.subtotal, quote.commission.discountPercent, quote.commission.percent))}</span>
             <span className="w-full text-[12px] text-muted-foreground">{t("partnerRewardHint")}</span>
+          </p>
+        )}
+        {outcome.problems.some((p) => p.reason === "margin") && (
+          <p className="flex items-center gap-2 rounded-2xl bg-danger-soft px-5 py-3 text-[13px] text-danger" data-testid="margin-too-high">
+            <AlertTriangle className="size-4 shrink-0" /> {t("problem_margin", { max: MAX_MARGIN_AND_REWARD })}
           </p>
         )}
         {(() => {

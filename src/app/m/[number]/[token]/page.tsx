@@ -25,7 +25,7 @@ export default async function MarketerPage({ params }: { params: Promise<{ numbe
   return (
     <>
       <BrandStyle primary={data.org.brand.primary} accent={data.org.brand.accent} />
-      <MarketerPortalView data={data} logoUrl={logoUrl} />
+      <MarketerPortalView data={data} logoUrl={logoUrl} token={token} />
     </>
   );
 }

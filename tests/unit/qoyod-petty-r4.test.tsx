@@ -27,7 +27,7 @@ describe("#4 the owner's choice of optional accounts sticks", () => {
   });
 
   it("after the first setup an optional account the owner cleared is never picked again (no daily re-pick)", () => {
-    const cleared = { ...required, salary_account_id: null, cash_account_id: null, subcontract_account_id: null, auto_setup_at: "2026-11-01T09:00:00Z" };
+    const cleared = { ...required, salary_account_id: null, cash_account_id: null, subcontract_account_id: null, auto_setup_at: "2026-11-01T09:00:00Z", commission_setup_at: "2026-11-01T09:00:00Z" };
     expect(autoSetupDue(cleared)).toBe(false);
     expect(autoSetupDue({ ...cleared, auto_setup_at: "2026-01-01T00:00:00Z" })).toBe(false);
     // even when a required setting is missing and the setup runs, the cleared ones stay empty

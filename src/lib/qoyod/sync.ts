@@ -83,8 +83,8 @@ async function fillMissing(admin: Admin, key: string, s: QoyodSettingsRow): Prom
     const auto = await qoyodAutoSetup(key, !!org?.vat_number);
     const next = autoSetupNext(s, auto);
     const attempt = new Date().toISOString();
-    await admin.from("qoyod_settings").update({ ...next, auto_setup_at: attempt }).eq("organization_id", s.organization_id);
-    return { ...s, ...next, auto_setup_at: attempt };
+    await admin.from("qoyod_settings").update({ ...next, auto_setup_at: attempt, commission_setup_at: attempt }).eq("organization_id", s.organization_id);
+    return { ...s, ...next, auto_setup_at: attempt, commission_setup_at: attempt };
   } catch {
     return s;
   }

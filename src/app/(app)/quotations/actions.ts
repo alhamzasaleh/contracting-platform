@@ -18,6 +18,7 @@ import { surveyGaps, surveyQuantities, type SurveyRoom, type SurveyTotals } from
 import type { Json } from "@/lib/supabase/database.types";
 import { deleteError } from "@/lib/deletion";
 import { loadMarketerChoices } from "@/lib/data/marketers";
+import { partnerCheck } from "@/lib/marketers";
 
 const id = z.uuid();
 const n = (v: unknown) => Number(v ?? 0);
@@ -69,6 +70,8 @@ const saveSchema = z
     notes: z.string().trim().max(4000).nullable(),
     /** the success partner on this quote (default: the client's; null = none) */
     marketer_id: id.nullable().optional(),
+    /** the reward % the editor showed — must still be the partner's current one */
+    commission_percent: z.number().min(0).max(50).optional(),
   })
   .strict();
 
@@ -95,8 +98,9 @@ export async function saveQuoteVersion(input: unknown): Promise<ActionResult<{ n
   ]);
   // the partner's CURRENT reward % prices this version (the database re-checks it and freezes it)
   const partner = v.marketer_id ? partners.find((m) => m.id === v.marketer_id) : null;
-  if (v.marketer_id && (!partner || partner.commission_percent == null)) return { ok: false, error: "invalid" };
-  if (partner && !partner.is_active) return { ok: false, error: "partnerInactive" };
+  // the price on the screen was built with this %; a change in between → re-open the editor
+  const refused = partnerCheck(partner, !!v.marketer_id, v.commission_percent);
+  if (refused) return { ok: false, error: refused };
   const commissionPercent = partner?.commission_percent ?? 0;
   const sel = v.selection as Selection;
   const outcome = priceSelection(sel, src.q, ctx, { commissionPercent });

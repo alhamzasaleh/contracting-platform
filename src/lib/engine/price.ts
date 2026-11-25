@@ -73,7 +73,8 @@ export function priceProject(results: EngineResult[], params: PriceParams): Pric
   const c = 1 + params.contingencyPercent / 100;
   const m = params.marginPercent / 100;
   const k = Math.max(0, params.commissionPercent ?? 0) / 100;
-  // margin + reward can never leave less than 5 % of the price for cost (no zero / negative division)
+  // arithmetic guard only (never a zero / negative division): priceSelection reports margin + reward
+  // ≥ 90 % as a problem that blocks issuing, so a quote is never inflated silently by this floor
   const denominator = Math.max(0.05, 1 - m - k);
 
   const byWorkType: WorkTypePrice[] = workTypes.map((wt) => {

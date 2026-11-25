@@ -284,7 +284,20 @@
       "organizations": "بيانات الشركة",
       "memberships": "عضوية",
       "member_invitations": "دعوة",
-      "permission_delegations": "تفويض صلاحيات"
+      "permission_delegations": "تفويض صلاحيات",
+      "marketers": "شريك نجاح",
+      "marketer_commissions": "مكافأة شريك نجاح",
+      "commission_payments": "سند صرف مكافأة",
+      "marketer_portal_links": "رابط صفحة شريك النجاح"
+    },
+    "fields": {
+      "marketer_id": "شريك النجاح",
+      "marketer_set": "اختيار شريك النجاح",
+      "commission_percent": "نسبة المكافأة",
+      "commission_amount": "مبلغ المكافأة",
+      "commission_id": "المكافأة",
+      "commission_account_id": "حساب المكافآت",
+      "commission_setup_at": "إعداد حساب المكافآت"
     }
   },
   "permissions": {
@@ -1136,7 +1149,8 @@
     "pastFew": "نحتاج ٣ عروض معتمدة على الأقل لاقتراح هامش.",
     "pickTeam": "اختر فريقاً:",
     "partnerReward": "مكافأة شريك النجاح — {name} {percent}%",
-    "partnerRewardHint": "داخلي فقط: السعر مرفوع بحيث يغطي المكافأة ويبقى الهامش. تقدر تنزّل الهامش أو تعطي خصم إذا شفت السعر عالي."
+    "partnerRewardHint": "داخلي فقط: السعر مرفوع بحيث يغطي المكافأة ويبقى الهامش. تقدر تنزّل الهامش أو تعطي خصم إذا شفت السعر عالي.",
+    "problem_margin": "مجموع الهامش ومكافأة شريك النجاح {max}% أو أكثر — السعر يصير عشرة أضعاف التكلفة. نزّل الهامش قبل الحفظ."
   },
   "clients": {
     "contracts": "العقود والمشاريع",
@@ -2898,7 +2912,7 @@
     "status_due": "مستحقة الصرف",
     "status_paid": "مصروفة",
     "status_cancelled": "ملغاة",
-    "line": "قيمة العقد {base} · {percent}% · المكافأة {amount}",
+    "line": "قيمة العقد قبل الضريبة {base} · {percent}% · المكافأة {amount}",
     "rewardLine": "مكافأة شريك النجاح — {name} {percent}%",
     "pay": "صرف المكافأة",
     "payHint": "صرف {amount} كاملة عن العقد {contract} — يطلع سند صرف مرقّم وتنحسب على تكلفة المشروع.",
@@ -2934,7 +2948,9 @@
     "method_transfer": "تحويل",
     "method_cash": "نقداً",
     "method_cheque": "شيك",
-    "reference": "المرجع"
+    "reference": "المرجع",
+    "waPaid": "أهلاً {name}، صُرفت مكافأتك {amount} عن العقد {contract} — سند الصرف {voucher} في صفحتك. شكراً لك من {org}.",
+    "waPaidButton": "صُرفت مكافأتك — واتساب"
   },
   "voucher": {
     "title": "سند صرف",
@@ -2970,7 +2986,7 @@
     "cancelled": "العقد ملغى",
     "handedOver": "تم التسليم",
     "underWay": "قيد التنفيذ",
-    "value": "قيمة العقد",
+    "value": "قيمة العقد قبل الضريبة",
     "percent": "النسبة",
     "reward": "المكافأة",
     "expectedHint": "تستحق بعد ما يسدد العميل دفعات العقد كاملة.",

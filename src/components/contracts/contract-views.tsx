@@ -318,7 +318,7 @@ export function ContractView({
     <div className="grid gap-6">
       {detail.reward && (
         <section className="grid rounded-3xl border border-dashed border-primary/40 bg-surface px-5 py-3 text-[13px]">
-          <RewardLine reward={detail.reward} />
+          <RewardLine reward={detail.reward} base={base} />
         </section>
       )}
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-border bg-surface p-5">

@@ -15,6 +15,7 @@ export const SAMPLE_MARKETERS: MarketersData = {
       link: { created_at: "2026-11-20T09:00:00Z", expires_at: "2027-11-20T09:00:00Z" },
     },
     { id: "mk2", number: "MK-2026-002", name: "مكتب الإتقان العقاري", phone: "966511110000", commission_percent: 3, iban: null, notes: "يحيل عملاء الفلل الجديدة", is_active: true, clients: [], link: null },
+    { id: "mk3", number: "MK-2026-003", name: "فهد العنزي", phone: "0097150123456", commission_percent: 4, iban: null, notes: null, is_active: false, clients: [], link: null },
   ],
   commissions: [
     { id: "k1", contract_id: "c1", contract: "C-2026-004", client: "أبو محمد العتيبي", marketer_id: "mk1", base: 46000, percent: 5, amount: 2300, status: "due", due_at: "2026-11-23T10:00:00Z", paid_at: null, created_at: "2026-11-01T10:00:00Z", voucher: null },
@@ -36,3 +37,8 @@ export const SAMPLE_PARTNER_PAGE: MarketerPortalData = {
     { client: "أبو محمد العتيبي", contract: "C-2026-002", date: "2026-09-10T10:00:00Z", contract_status: "accepted", handed_over: true, base: 18000, percent: 4, amount: 720, status: "paid", due_at: "2026-10-20T10:00:00Z", paid_at: "2026-10-22T10:00:00Z", vouchers: [{ number: "PV-2026-001", paid_on: "2026-10-22", amount: 720, method: "transfer" }] },
   ],
 };
+
+/** finance.view only (no marketers.manage): rewards and vouchers, no editing or page links */
+export const SAMPLE_MARKETERS_FINANCE: MarketersData = { ...SAMPLE_MARKETERS, canManage: false, canPay: false };
+export const SAMPLE_MARKETERS_EMPTY: MarketersData = { ...SAMPLE_MARKETERS, marketers: [], commissions: [] };
+export const SAMPLE_PARTNER_PAGE_EMPTY: MarketerPortalData = { ...SAMPLE_PARTNER_PAGE, items: [] };

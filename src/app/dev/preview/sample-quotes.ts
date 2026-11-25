@@ -29,7 +29,7 @@ export const SAMPLE_QUOTE: QuoteDetail = {
     { version: 1, total: snap.clientView.total + 900, created_at: "2026-11-21T11:00:00Z", brands: ["الجزيرة"] },
   ],
   options: null,
-  internal: { cost: snap.cost, costWithContingency: snap.costWithContingency, marginPercent: snap.marginPercent, lines: snap.lines, purchaseList: snap.purchaseList },
+  internal: { cost: snap.cost, costWithContingency: snap.costWithContingency, marginPercent: snap.marginPercent, lines: snap.lines, purchaseList: snap.purchaseList, reward: { name: "سعد بن فهد الدوسري", percent: 5, amount: 1420 } },
   approvals: [{ id: "a1", kind: "quote_discount", status: "pending", details: { version: 2, discount: snap.clientView.discount, discountPercent: 5 }, decided_at: null, decision_note: null }],
   canManage: true,
   canDecide: true,
