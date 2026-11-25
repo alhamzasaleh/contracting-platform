@@ -39,15 +39,17 @@ export function commissionPaymentError(message: string | null | undefined): "com
 
 /**
  * The quote editor sends the partner and the reward % it priced with; the server re-reads the
- * partner: unknown → invalid, inactive → partnerInactive, a different % → rewardChanged.
+ * partner: gone (deleted while the editor was open) → partnerGone, % not readable → invalid,
+ * inactive → partnerInactive, a different % → rewardChanged.
  */
 export function partnerCheck(
   partner: { is_active: boolean; commission_percent: number | null } | null | undefined,
   wanted: boolean,
   shownPercent: number | undefined,
-): "invalid" | "partnerInactive" | "rewardChanged" | null {
+): "invalid" | "partnerGone" | "partnerInactive" | "rewardChanged" | null {
   if (!wanted) return null;
-  if (!partner || partner.commission_percent == null || shownPercent === undefined) return "invalid";
+  if (!partner) return "partnerGone";
+  if (partner.commission_percent == null || shownPercent === undefined) return "invalid";
   if (!partner.is_active) return "partnerInactive";
   if (shownPercent !== partner.commission_percent) return "rewardChanged";
   return null;
@@ -57,4 +59,14 @@ export function partnerCheck(
 export function defaultPartner(quote: { marketer_id?: string | null; marketer_set?: boolean } | null, clientMarketer: string | null | undefined): string | null {
   if (quote?.marketer_set) return quote.marketer_id ?? null;
   return clientMarketer ?? null;
+}
+
+/**
+ * Saving a client whose «جاء عن طريق» partner was deleted meanwhile: the reference check
+ * (private.check_marketer_ref) or the foreign key refuses → «the partner was deleted», not «no access».
+ */
+export function clientDbError(error: { code?: string; message: string }): "partnerGone" | null {
+  if (error.code === "42501" && /marketer_id belongs to another organization/.test(error.message)) return "partnerGone";
+  if (error.code === "23503" && /marketer_id/.test(error.message)) return "partnerGone";
+  return null;
 }

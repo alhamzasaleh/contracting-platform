@@ -671,7 +671,8 @@
     "partnerInactive": "This success partner is inactive — pick another or reactivate them.",
     "commissionNotDue": "The reward isn't due yet — it is due once the client has paid the original contract in full.",
     "commissionAlreadyPaid": "This reward has already been paid.",
-    "deletePartnerUsed": "This partner has quotes, contracts or rewards — he can't be deleted. Deactivate him from «Edit» instead"
+    "deletePartnerUsed": "This partner has quotes (even in an earlier version of a quote), contracts or rewards — he can't be deleted. Deactivate him from «Edit» instead",
+    "partnerGone": "The chosen success partner was deleted — refresh the page and pick another"
   },
   "engine": {
     "emptyTitle": "Start the pricing catalogue",

@@ -364,3 +364,11 @@ describe("the marketer's page", () => {
     await as({ userId: owner }, (q) => q("update public.marketers set is_active = true where id = $1", [marketer]));
   });
 });
+
+describe("deleting a partner with contracts and rewards", () => {
+  it("the owner can't delete a partner a contract / reward / voucher points at", async () => {
+    await expectDenied(as({ userId: owner }, (q) => q("select public.delete_marketer($1)", [marketer])), /partner has records/);
+    const left = await asAdmin((q) => q("select 1 from public.marketers where id = $1", [marketer]));
+    expect(left.rowCount).toBe(1);
+  });
+});

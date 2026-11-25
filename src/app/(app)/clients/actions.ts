@@ -12,6 +12,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { cleanDraft } from "@/lib/survey/ai-draft";
 import { surveyTotalsSchema } from "@/lib/survey/schema";
 import { deleteError } from "@/lib/deletion";
+import { clientDbError } from "@/lib/marketers";
 
 type Ctx = { orgId: string; supabase: Awaited<ReturnType<typeof createClient>> };
 async function authorize(perm: Permission): Promise<Ctx | ActionResult> {
@@ -22,6 +23,8 @@ async function authorize(perm: Permission): Promise<Ctx | ActionResult> {
 const isCtx = (x: Ctx | ActionResult): x is Ctx => "orgId" in x;
 function dbError(error: { code?: string; message: string } | null): ActionResult | null {
   if (!error) return null;
+  const partner = clientDbError(error);
+  if (partner) return { ok: false, error: partner };
   if (error.code === "42501") return { ok: false, error: "noAccess" };
   if (error.code === "23503") return { ok: false, error: "inUse" };
   console.error("[clients] db error", { code: error.code });

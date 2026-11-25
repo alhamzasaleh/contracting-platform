@@ -187,7 +187,7 @@ describe("review fixes", () => {
     expect(partnerCheck(p, true, 4)).toBe("rewardChanged");
     expect(partnerCheck(p, true, undefined)).toBe("invalid");
     expect(partnerCheck({ ...p, is_active: false }, true, 5)).toBe("partnerInactive");
-    expect(partnerCheck(null, true, 5)).toBe("invalid");
+    expect(partnerCheck(null, true, 5)).toBe("partnerGone"); // deleted while the editor was open
     expect(partnerCheck(null, false, undefined)).toBeNull();
   });
 

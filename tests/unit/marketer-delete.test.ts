@@ -20,3 +20,13 @@ describe("partnerDeleteBlock", () => {
     }
   });
 });
+
+describe("a partner deleted while a form was open", () => {
+  it("client form: the database refusal reads «the partner was deleted», not «no access»", async () => {
+    const { clientDbError } = await import("@/lib/marketers");
+    expect(clientDbError({ code: "42501", message: "marketer_id belongs to another organization" })).toBe("partnerGone");
+    expect(clientDbError({ code: "23503", message: 'insert or update on table "clients" violates foreign key constraint "clients_marketer_id_fkey"' })).toBe("partnerGone");
+    expect(clientDbError({ code: "42501", message: "new row violates row-level security policy" })).toBeNull();
+    for (const m of [ar, en] as unknown as Record<string, Record<string, string>>[]) expect(m.errors.partnerGone).toBeTruthy();
+  });
+});
