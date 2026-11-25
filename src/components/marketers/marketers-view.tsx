@@ -106,7 +106,7 @@ function MarketerCard({ m, data, actions, onEdit, onPay, base, highlight }: { m:
           )}
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-3 text-[13px]">
+      <div className="grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-3">
         <Stat label={t("kpiExpected")} value={fmt.money(totals.expected)} />
         <Stat label={t("kpiDue")} value={fmt.money(totals.due)} strong />
         <Stat label={t("kpiPaid")} value={fmt.money(totals.paid)} />

@@ -21,7 +21,7 @@ export function MarketerPortalView({ data, logoUrl, token }: { data: MarketerPor
   return (
     <main className="min-h-dvh bg-background pb-10">
       <PortalHero org={org} logoUrl={logoUrl} clientName={data.marketer.name} intro={t("intro", { percent: fmt.number(data.marketer.commission_percent) })} number={data.marketer.number} />
-      <div className="mx-auto -mt-6 grid max-w-[880px] gap-4 px-4 [&>*]:min-w-0">
+      <div className="relative z-10 mx-auto -mt-6 grid max-w-[880px] gap-4 px-4 [&>*]:min-w-0">
         <section className="grid grid-cols-2 gap-3 rounded-3xl border border-border bg-surface p-5 shadow-sm sm:grid-cols-4">
           <Stat label={t("contracts")} value={fmt.number(data.items.filter((i) => i.status !== "cancelled").length)} />
           <Stat label={t("expected")} value={fmt.money(totals.expected)} />
