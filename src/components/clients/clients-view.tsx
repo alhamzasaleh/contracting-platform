@@ -15,6 +15,9 @@ import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
 import type { ClientDetail, ClientListItem } from "@/lib/data/clients";
+import { DeleteRecord } from "@/components/forms/delete-record";
+import { clientDeleteBlock, surveyDeleteBlock } from "@/lib/deletion";
+import { ltr } from "@/lib/utils";
 
 type SaveClient = (i: Record<string, unknown>) => Promise<ActionResult<{ number: string }>>;
 
@@ -177,6 +180,8 @@ export function ClientDetailView({
   canQuote,
   onSave,
   onNewSurvey,
+  onDelete,
+  onDeleteSurvey,
   base = "",
 }: {
   base?: string;
@@ -185,8 +190,12 @@ export function ClientDetailView({
   canQuote: boolean;
   onSave?: SaveClient;
   onNewSurvey?: (i: Record<string, unknown>) => Promise<ActionResult<{ number: string }>>;
+  /** owner only (detail.canDelete) */
+  onDelete?: (i: Record<string, unknown>) => Promise<ActionResult>;
+  onDeleteSurvey?: (i: Record<string, unknown>) => Promise<ActionResult>;
 }) {
   const t = useTranslations("clients");
+  const td = useTranslations("deletion");
   const tq = useTranslations("quotes");
   const tcn = useTranslations("contract");
   const { fmt } = useFormatter();
@@ -241,6 +250,16 @@ export function ClientDetailView({
               <Pencil /> {t("edit")}
             </Button>
           )}
+          {detail.canDelete && (
+            <DeleteRecord
+              label={td("deleteClient")}
+              title={td("clientTitle", { name: client.name })}
+              body={td("clientBody", { surveys: surveys.length, quotes: quotes.length })}
+              block={clientDeleteBlock({ contracts: detail.contractCount ?? 0, quotes })}
+              action={onDelete && (() => onDelete({ id: client.id }))}
+              to={`${base}/clients`}
+            />
+          )}
         </div>
       </section>
 
@@ -262,8 +281,8 @@ export function ClientDetailView({
           {surveys.length === 0 && <p className="rounded-2xl border border-dashed border-border p-5 text-center text-[14px] text-muted-foreground">{t("noSurveys")}</p>}
           <ul className="grid gap-2">
             {surveys.map((s) => (
-              <li key={s.id}>
-                <Link href={`${base}/clients/${client.number}/surveys/${s.number}`} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3 hover:border-primary/40">
+              <li key={s.id} className="flex items-center gap-1.5">
+                <Link href={`${base}/clients/${client.number}/surveys/${s.number}`} className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3 hover:border-primary/40">
                   <span>
                     <span className="block text-[15px] font-bold">{s.title ?? t("survey")}</span>
                     <span className="text-[12px] text-muted-foreground">
@@ -273,6 +292,17 @@ export function ClientDetailView({
                   </span>
                   <DocNo className="text-[12px] text-muted-foreground">{s.number}</DocNo>
                 </Link>
+                {detail.canDelete && (
+                  <DeleteRecord
+                    compact
+                    label={td("deleteSurvey")}
+                    title={td("surveyTitle", { number: ltr(s.number) })}
+                    body={td("surveyBody", { rooms: s.rooms })}
+                    block={surveyDeleteBlock({ quotes: s.quotes ?? 0 })}
+                    action={onDeleteSurvey && (() => onDeleteSurvey({ id: s.id }))}
+                    to={`${base}/clients/${client.number}`}
+                  />
+                )}
               </li>
             ))}
           </ul>

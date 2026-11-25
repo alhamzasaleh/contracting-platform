@@ -15,11 +15,13 @@ import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import type { SurveyDetail } from "@/lib/data/clients";
+import { DeleteRecord } from "@/components/forms/delete-record";
+import { surveyDeleteBlock } from "@/lib/deletion";
 import type { SurveyDraftResult } from "@/lib/survey/ai-draft";
 import { PRESETS, type Quantities, type ServiceKind } from "@/lib/pricing";
 import { roomCeiling, roomWalls, surveyGaps, surveyQuantities, type BoardType, type SurveyMode, type SurveyRoom, type SurveyTotals, type WallZone } from "@/lib/survey";
 import { toNumber } from "@/lib/validation/numbers";
-import { cn } from "@/lib/utils";
+import { cn, ltr } from "@/lib/utils";
 
 type Act = (i: Record<string, unknown>) => Promise<ActionResult>;
 
@@ -60,10 +62,12 @@ export function SurveyView({
   detail: SurveyDetail;
   canManage: boolean;
   canQuote: boolean;
-  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>> };
+  /** deleteSurvey: owner only (detail.canDelete) */
+  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>>; deleteSurvey?: Act };
 }) {
   const unitText = useUnitText();
   const t = useTranslations("survey");
+  const td = useTranslations("deletion");
   const tc = useTranslations("common");
   const { fmt } = useFormatter();
   const router = useRouter();
@@ -229,7 +233,19 @@ export function SurveyView({
 
       <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="font-latin text-[12px] text-muted-foreground"><bdi dir="ltr" className="whitespace-nowrap">{survey.number}</bdi></p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-latin text-[12px] text-muted-foreground"><bdi dir="ltr" className="whitespace-nowrap">{survey.number}</bdi></p>
+            {detail.canDelete && (
+              <DeleteRecord
+                label={td("deleteSurvey")}
+                title={td("surveyTitle", { number: ltr(survey.number) })}
+                body={td("surveyBody", { rooms: rooms.length })}
+                block={surveyDeleteBlock({ quotes: detail.quotes ?? 0 })}
+                action={actions?.deleteSurvey && (() => actions.deleteSurvey!({ id: survey.id }))}
+                to={`${base}/clients/${client.number}`}
+              />
+            )}
+          </div>
           <Segmented
             name={t("mode")}
             value={mode}

@@ -5,7 +5,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { loadPricingSettings } from "@/lib/data/catalogue";
 import { loadQuote } from "@/lib/data/quotes";
 import { orgLogoUrl } from "@/lib/org";
-import { decideApproval, issueQuote, revokeQuoteLink, sendQuote, setQuoteOptions } from "../actions";
+import { decideApproval, deleteQuote, issueQuote, revokeQuoteLink, sendQuote, setQuoteOptions } from "../actions";
 
 export default async function QuotePage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
@@ -24,7 +24,7 @@ export default async function QuotePage({ params }: { params: Promise<{ number: 
         detail={detail}
         org={{ name: o.name, legal_name: o.legal_name, cr_number: o.cr_number, vat_number: o.vat_number, phone: o.phone, city: o.city, logoUrl }}
         warrantyMonths={Number(settings?.default_warranty_months ?? 6)}
-        actions={{ issue: issueQuote, decide: decideApproval, options: setQuoteOptions, send: sendQuote, revokeLink: revokeQuoteLink }}
+        actions={{ issue: issueQuote, decide: decideApproval, options: setQuoteOptions, send: sendQuote, revokeLink: revokeQuoteLink, ...(detail.canDelete ? { deleteQuote } : {}) }}
       />
     </div>
   );

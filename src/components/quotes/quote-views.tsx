@@ -27,6 +27,8 @@ import { useBuyText } from "./buy-text";
 import { itemParts, needsFromLines } from "@/lib/quotes/materials";
 import { QuoteDocument, type DocOrg } from "./quote-document";
 import { QuoteOptionsPanel } from "./quote-options";
+import { DeleteRecord } from "@/components/forms/delete-record";
+import { quoteDeleteBlock } from "@/lib/deletion";
 import type { PastStats } from "@/lib/pricing/history";
 
 const STATUS_TONE: Record<QuoteStatus, "neutral" | "warning" | "primary" | "success" | "danger"> = {
@@ -242,10 +244,13 @@ export function QuoteView({
     /** «إرسال للعميل»: the quote's client-page link (shown once) */
     send?: (i: Record<string, unknown>) => Promise<ActionResult<{ url: string }>>;
     revokeLink?: (i: Record<string, unknown>) => Promise<ActionResult>;
+    /** owner only (detail.canDelete) */
+    deleteQuote?: (i: Record<string, unknown>) => Promise<ActionResult>;
   };
   base?: string;
 }) {
   const t = useTranslations("quotes");
+  const td = useTranslations("deletion");
   const { fmt } = useFormatter();
   const { run, pending } = useActionRunner();
   const { quote, client, current, internal, approvals } = detail;
@@ -313,6 +318,16 @@ export function QuoteView({
             <Button size="sm" loading={pending} onClick={() => run(actions && (() => actions.issue({ id: quote.id })))}>
               <Send /> {quote.status === "issued" || quote.status === "rejected" ? t("reissue") : t("issue")}
             </Button>
+          )}
+          {detail.canDelete && (
+            <DeleteRecord
+              label={td("deleteQuote")}
+              title={td("quoteTitle", { number: ltr(quote.number) })}
+              body={td("quoteBody", { versions: detail.versions.length })}
+              block={quoteDeleteBlock({ hasContract: !!detail.anyContract || !!detail.contract, clientDecision: detail.clientDecision?.decision })}
+              action={actions?.deleteQuote && (() => actions.deleteQuote!({ id: quote.id }))}
+              to={client.number ? `${base}/clients/${client.number}` : `${base}/quotations`}
+            />
           )}
         </div>
       </section>

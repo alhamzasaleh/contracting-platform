@@ -646,7 +646,12 @@
     "sendLater": "Couldn't send right now — what you entered is still here; try again in a moment.",
     "quoteClientAccepted": "The client accepted this quotation — it can't change.",
     "quoteHasContract": "A contract was made from this quotation — send it from the contract page.",
-    "invalid": "Not saved: a number or field isn't valid — check what you entered and try again"
+    "invalid": "Not saved: a number or field isn't valid — check what you entered and try again",
+    "deleteQuoteContract": "This quote has a contract — the contract is an official record, so the quote stays with it. Cancel the contract instead of deleting the quote",
+    "deleteQuoteAccepted": "The client accepted this quote on his page — his acceptance is an official record, so it can't be deleted",
+    "deleteSurveyQuotes": "A quote is built on its measurements — delete the quote first",
+    "deleteClientContracts": "The client has contracts — he can't be deleted",
+    "deleteClientAccepted": "The client accepted a quote on his page — he can't be deleted"
   },
   "engine": {
     "emptyTitle": "Start the pricing catalogue",
@@ -2831,5 +2836,21 @@
     "noPrice": "No price",
     "totalIncomplete": "Incomplete total: {n} materials had no price at pricing time.",
     "recordPurchase": "Record a purchase for the project"
+  },
+  "deletion": {
+    "deleteClient": "Delete client",
+    "deleteSurvey": "Delete survey",
+    "deleteQuote": "Delete quote",
+    "clientTitle": "Delete client {name}?",
+    "clientBody": "The client is deleted for good with his surveys ({surveys}) and quotes ({quotes}) and all their versions; the client-page links of his quotes stop working.",
+    "surveyTitle": "Delete survey {number}?",
+    "surveyBody": "The survey is deleted for good with its rooms ({rooms}).",
+    "quoteTitle": "Delete quote {number}?",
+    "quoteBody": "The quote is deleted for good with its versions ({versions}) and approvals; its client-page link stops working at once.",
+    "irreversible": "This can't be undone. It stays recorded in the audit log under your name.",
+    "cantDelete": "It can't be deleted:",
+    "confirm": "Delete for good",
+    "cancel": "Cancel",
+    "deleted": "Deleted"
   }
 }

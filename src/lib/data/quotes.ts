@@ -190,6 +190,9 @@ export type QuoteDetail = {
   clientDecision?: { decision: QuoteDecision; at: string; name: string | null; note: string | null; version: number | null; ip: string | null } | null;
   /** the quote's client-page link (issued from the quote; then it follows the contract made from it) */
   link?: { active: boolean; expires_at: string | null; open_count: number; last_opened_at: string | null; onContract: boolean };
+  /** the owner may delete it (public.delete_quote); anyContract = a contract of any status, cancelled included */
+  canDelete?: boolean;
+  anyContract?: boolean;
 };
 
 export async function loadQuote(session: SessionContext, number: string): Promise<QuoteDetail> {
@@ -197,13 +200,15 @@ export async function loadQuote(session: SessionContext, number: string): Promis
   const orgId = session.organization.id;
   const { data: q } = await supabase.from("quotes").select("*").eq("organization_id", orgId).eq("number", number).maybeSingle();
   if (!q) notFound();
-  const [{ data: client }, { data: survey }, { data: versions }, { data: approvals }, { data: contract }, { data: links }] = await Promise.all([
+  const owner = session.role === "owner";
+  const [{ data: client }, { data: survey }, { data: versions }, { data: approvals }, { data: contract }, { data: links }, allContracts] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city").eq("id", q.client_id).maybeSingle(),
     q.survey_id ? supabase.from("surveys").select("number").eq("id", q.survey_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("quote_versions").select("id, version, total, created_at, client_view, notes, estimated, quantities").eq("quote_id", q.id).order("version", { ascending: false }),
     supabase.from("approvals").select("id, kind, status, details, decided_at, decision_note").eq("entity", "quote").eq("entity_id", q.id).order("created_at", { ascending: false }),
     supabase.from("contracts").select("number, status").eq("quote_id", q.id).neq("status", "cancelled").maybeSingle(),
     supabase.from("client_portal_links").select("contract_id, expires_at, revoked_at, open_count, last_opened_at").eq("quote_id", q.id).order("created_at", { ascending: false }),
+    owner ? rows(supabase.from("contracts").select("id").eq("quote_id", q.id).limit(1)) : Promise.resolve([] as { id: string }[]),
   ]);
   const activeLink = (links ?? []).find((l) => !l.revoked_at && new Date(l.expires_at) > new Date());
   const cur = (versions ?? []).find((v) => v.version === q.current_version) ?? null;
@@ -232,6 +237,8 @@ export async function loadQuote(session: SessionContext, number: string): Promis
       ? { decision: q.client_decision, at: q.client_decided_at, name: q.client_name ?? null, note: q.client_note ?? null, version: q.client_version ?? null, ip: q.client_ip ?? null }
       : null,
     link: { active: !!activeLink, expires_at: activeLink?.expires_at ?? null, open_count: activeLink?.open_count ?? 0, last_opened_at: activeLink?.last_opened_at ?? null, onContract: !!activeLink?.contract_id },
+    canDelete: owner,
+    ...(owner ? { anyContract: allContracts.length > 0 } : {}),
   };
 }
 

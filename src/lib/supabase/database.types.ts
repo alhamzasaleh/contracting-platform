@@ -895,6 +895,9 @@ export type Database = {
       };
       link_member_employee: { Args: { p_employee: string; p_user: string }; Returns: undefined };
       unlink_employee_account: { Args: { p_employee: string }; Returns: undefined };
+      delete_client: { Args: { p_client: string }; Returns: undefined };
+      delete_survey: { Args: { p_survey: string }; Returns: undefined };
+      delete_quote: { Args: { p_quote: string }; Returns: undefined };
       schedule_roster: { Args: { p_org: string }; Returns: { id: string; full_name: string; job_title: string | null }[] };
       staff_employee_names: { Args: { p_org: string }; Returns: { user_id: string; full_name: string; job_title: string | null }[] };
       portal_view: { Args: { p_number: string; p_token: string }; Returns: Json };

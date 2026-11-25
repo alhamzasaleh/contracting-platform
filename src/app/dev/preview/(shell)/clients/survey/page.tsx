@@ -3,7 +3,7 @@ import { SAMPLE_SURVEY } from "../../../sample-clients";
 
 export default function P() {
   return <SurveyView
-      detail={SAMPLE_SURVEY}
+      detail={{ ...SAMPLE_SURVEY, canDelete: true, quotes: 0 }}
       canManage
       canQuote
       base="/dev/preview"

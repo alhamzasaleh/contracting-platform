@@ -16,6 +16,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { surveyGaps, surveyQuantities, type SurveyRoom, type SurveyTotals } from "@/lib/survey";
 import type { Json } from "@/lib/supabase/database.types";
+import { deleteError } from "@/lib/deletion";
 
 const id = z.uuid();
 const n = (v: unknown) => Number(v ?? 0);
@@ -322,5 +323,27 @@ export async function revokeQuoteLink(input: unknown): Promise<ActionResult> {
     .is("revoked_at", null);
   if (error) return fail(error, "revoke");
   revalidatePath("/quotations", "layout");
+  return { ok: true };
+}
+
+/**
+ * Deletes a quote — the owner only (owner, Nov 2026). public.delete_quote checks the owner again and
+ * refuses a quote with any contract or accepted by the client on his page; it removes the versions,
+ * approvals and the client-page link, all audited.
+ */
+export async function deleteQuote(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (session.role !== "owner") return { ok: false, error: "noAccess" };
+  const parsed = z.object({ id }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("delete_quote", { p_quote: parsed.data.id });
+  if (error) {
+    const key = deleteError(error);
+    if (key === "error") console.error("[quotes] delete failed", { code: error.code });
+    return { ok: false, error: key };
+  }
+  // no revalidatePath: it would re-render the deleted quote (404) in this response — the page
+  // replaces itself with the client's page, which loads fresh (dynamic pages aren't cached)
   return { ok: true };
 }

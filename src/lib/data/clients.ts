@@ -32,8 +32,10 @@ export async function loadClients(session: SessionContext): Promise<ClientListIt
 
 export type ClientDetail = {
   client: { id: string; number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null; location_url: string | null; notes: string | null };
-  surveys: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; rooms: number }[];
-  quotes: { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; version: number; total: number | null; created_at: string; clientDecision?: "accepted" | "changes_requested" | "rejected" | null }[];
+  /** quotes = quotes built on this survey (it can't be deleted while there are any) */
+  surveys: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; rooms: number; quotes?: number }[];
+  /** hasContract = any contract, even cancelled (owner only — for «حذف») */
+  quotes: { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; version: number; total: number | null; created_at: string; clientDecision?: "accepted" | "changes_requested" | "rejected" | null; hasContract?: boolean }[];
   /** contracts (quotes.view) — accepted ones are projects; openMaintenance = open requests */
   contracts?: { number: string; service: "gypsum" | "interior" | "exterior"; status: string; total: number; openMaintenance: number }[];
   /** what he owes (finance.view): accepted contracts + accepted additional works vs receipt vouchers */
@@ -41,6 +43,10 @@ export type ClientDetail = {
   /** his invoices (finance.view) */
   invoices?: { number: string; total: number; issue_date: string }[];
   canViewProjects?: boolean;
+  /** the owner may delete the client and his surveys (public.delete_client / delete_survey) */
+  canDelete?: boolean;
+  /** all his contracts, cancelled included (owner only) — any contract keeps the client */
+  contractCount?: number;
 };
 
 export async function loadClientDetail(session: SessionContext, number: string): Promise<ClientDetail> {
@@ -55,12 +61,13 @@ export async function loadClientDetail(session: SessionContext, number: string):
   if (!client) notFound();
   const finance = can(session, "finance.view");
   const surveysP = once(supabase.from("surveys").select("id, number, title, mode, visit_date").eq("client_id", client.id).order("created_at", { ascending: false }));
-  const quotesP = once(supabase.from("quotes").select("id, number, service, status, current_version, created_at, client_decision").eq("client_id", client.id).order("created_at", { ascending: false }));
+  const owner = session.role === "owner";
+  const quotesP = once(supabase.from("quotes").select("id, number, service, status, current_version, created_at, client_decision, survey_id").eq("client_id", client.id).order("created_at", { ascending: false }));
   const contractsP: Promise<{ data: { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; total: number }[] | null }> = can(session, "quotes.view")
     ? once(supabase.from("contracts").select("id, number, service, status, total").eq("client_id", client.id).neq("status", "cancelled").order("created_at", { ascending: false }))
     : Promise.resolve({ data: [] });
   // one parallel round after the client; queries that need his surveys / quotes / contracts are chained onto them
-  const [{ data: surveys }, rooms, { data: quotes }, versions, { data: contracts }, [repairs, addenda, receipts, invoices]] = await Promise.all([
+  const [{ data: surveys }, rooms, { data: quotes }, versions, { data: contracts }, [repairs, addenda, receipts, invoices], allContracts] = await Promise.all([
     surveysP,
     // rooms of his surveys only (counted per survey)
     surveysP.then(({ data }) => {
@@ -83,6 +90,8 @@ export async function loadClientDetail(session: SessionContext, number: string):
         finance && cids.length ? rows(supabase.from("invoices").select("number, total, issue_date").in("contract_id", cids).order("issue_date", { ascending: false }).limit(100)) : [],
       ]);
     }),
+    // owner: every contract of his, cancelled included — any contract keeps the client and its quote
+    owner ? rows(supabase.from("contracts").select("quote_id").eq("client_id", client.id)) : Promise.resolve([] as { quote_id: string }[]),
   ]);
   const accepted = (contracts ?? []).filter((c) => c.status === "accepted").map((c) => c.id);
   const billed = (contracts ?? []).filter((c) => c.status === "accepted").reduce((s, c) => s + n(c.total), 0) + addenda.reduce((s, a) => s + n(a.total), 0);
@@ -90,7 +99,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
   const r2 = (x: number) => Math.round(x * 100) / 100;
   return {
     client,
-    surveys: (surveys ?? []).map((s) => ({ ...s, rooms: (rooms ?? []).filter((r) => r.survey_id === s.id).length })),
+    surveys: (surveys ?? []).map((s) => ({ ...s, rooms: (rooms ?? []).filter((r) => r.survey_id === s.id).length, quotes: (quotes ?? []).filter((q) => q.survey_id === s.id).length })),
     quotes: (quotes ?? []).map((q) => ({
       id: q.id,
       number: q.number,
@@ -103,11 +112,14 @@ export async function loadClientDetail(session: SessionContext, number: string):
         return v ? n(v.total) : null;
       })(),
       created_at: q.created_at,
+      ...(owner ? { hasContract: allContracts.some((c) => c.quote_id === q.id) } : {}),
     })),
     contracts: (contracts ?? []).map((c) => ({ number: c.number, service: c.service, status: c.status, total: n(c.total), openMaintenance: (repairs ?? []).filter((m) => m.contract_id === c.id).length })),
     balance: finance && accepted.length ? { billed: r2(billed), received: r2(received), outstanding: r2(Math.max(0, billed - received)) } : null,
     invoices: (invoices ?? []).map((i) => ({ number: i.number, total: n(i.total), issue_date: i.issue_date })),
     canViewProjects: can(session, "projects.view"),
+    canDelete: owner,
+    ...(owner ? { contractCount: allContracts.length } : {}),
   };
 }
 
@@ -115,6 +127,9 @@ export type SurveyDetail = {
   survey: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; notes: string | null; totals: SurveyTotals };
   client: { id: string; number: string; name: string };
   rooms: SurveyRoom[];
+  /** the owner may delete it (public.delete_survey) — not while quotes are built on it */
+  canDelete?: boolean;
+  quotes?: number;
 };
 
 export async function loadSurvey(session: SessionContext, clientNumber: string, surveyNumber: string): Promise<SurveyDetail> {
@@ -127,9 +142,11 @@ export async function loadSurvey(session: SessionContext, clientNumber: string, 
     .eq("number", surveyNumber)
     .maybeSingle();
   if (!survey) notFound();
-  const [{ data: client }, { data: rooms }] = await Promise.all([
+  const owner = session.role === "owner";
+  const [{ data: client }, { data: rooms }, onSurvey] = await Promise.all([
     supabase.from("clients").select("id, number, name").eq("id", survey.client_id).maybeSingle(),
     supabase.from("survey_rooms").select("*").eq("survey_id", survey.id).order("sort_order").order("created_at"),
+    owner ? rows(supabase.from("quotes").select("id").eq("survey_id", survey.id)) : Promise.resolve([] as { id: string }[]),
   ]);
   if (!client || client.number !== clientNumber) notFound();
   return {
@@ -149,5 +166,7 @@ export async function loadSurvey(session: SessionContext, clientNumber: string, 
       paint_ceiling: r.paint_ceiling,
       wall_zone: r.wall_zone,
     })),
+    canDelete: owner,
+    ...(owner ? { quotes: onSurvey.length } : {}),
   };
 }

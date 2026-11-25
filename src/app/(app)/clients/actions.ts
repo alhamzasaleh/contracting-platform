@@ -11,6 +11,7 @@ import { draftSurvey, type SurveyPhoto } from "@/lib/ai/survey";
 import { rateLimit } from "@/lib/rate-limit";
 import { cleanDraft } from "@/lib/survey/ai-draft";
 import { surveyTotalsSchema } from "@/lib/survey/schema";
+import { deleteError } from "@/lib/deletion";
 
 type Ctx = { orgId: string; supabase: Awaited<ReturnType<typeof createClient>> };
 async function authorize(perm: Permission): Promise<Ctx | ActionResult> {
@@ -143,6 +144,38 @@ export async function deleteRoom(input: unknown): Promise<ActionResult> {
   if (!parsed.success) return { ok: false, error: "invalid" };
   const { error } = await ctx.supabase.from("survey_rooms").delete().eq("id", parsed.data.id).eq("organization_id", ctx.orgId);
   return dbError(error) ?? done();
+}
+
+// --- Deleting (owner only, Nov 2026) ----------------------------------------------------
+// The database checks the owner again and refuses what must stay (contracts, the client's
+// acceptance, a quote built on the survey); every deleted row is audited under the owner.
+
+async function ownerDelete(fn: "delete_client" | "delete_survey", input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (session.role !== "owner") return { ok: false, error: "noAccess" };
+  const parsed = z.object({ id }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } =
+    fn === "delete_client" ? await supabase.rpc("delete_client", { p_client: parsed.data.id }) : await supabase.rpc("delete_survey", { p_survey: parsed.data.id });
+  if (error) {
+    const key = deleteError(error);
+    if (key === "error") console.error("[clients] delete failed", { code: error.code });
+    return { ok: false, error: key };
+  }
+  // no revalidatePath: it would re-render the deleted page (404) in this response — the page
+  // replaces itself with the one above, which loads fresh (dynamic pages aren't cached)
+  return { ok: true };
+}
+
+/** Deletes a client with his surveys and quotes — refused if he has any contract or a quote he accepted. */
+export async function deleteClient(input: unknown): Promise<ActionResult> {
+  return ownerDelete("delete_client", input);
+}
+
+/** Deletes a survey with its rooms — refused while a quote is built on it. */
+export async function deleteSurvey(input: unknown): Promise<ActionResult> {
+  return ownerDelete("delete_survey", input);
 }
 
 // --- AI survey draft (§3.2 / §8.1) ----------------------------------------------------
