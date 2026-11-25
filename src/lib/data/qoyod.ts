@@ -13,7 +13,7 @@ export type QoyodJobItem = Pick<QoyodJobRow, "id" | "kind" | "status" | "attempt
   to_account_id?: number | null;
 };
 export type QoyodPageData = {
-  settings: Pick<QoyodSettingsRow, "enabled" | "invoice_status" | "inventory_id" | "receive_account_id" | "expense_account_id" | "salary_account_id" | "cash_account_id" | "subcontract_account_id" | "service_products" | "addendum_product_id" | "key_last4" | "key_set_at" | "sync_from">;
+  settings: Pick<QoyodSettingsRow, "enabled" | "invoice_status" | "inventory_id" | "receive_account_id" | "expense_account_id" | "salary_account_id" | "cash_account_id" | "subcontract_account_id" | "commission_account_id" | "service_products" | "addendum_product_id" | "key_last4" | "key_set_at" | "sync_from">;
   jobs: QoyodJobItem[];
   counts: { queued: number; done: number; failed: number };
   /** invoices sent to Qoyod as drafts whose payments wait: the owner approves them in Qoyod (its API can't) — numbers only with finance.view */
@@ -27,7 +27,7 @@ export type QoyodPageData = {
 };
 
 const EMPTY: QoyodPageData["settings"] = {
-  enabled: false, invoice_status: "Draft", inventory_id: null, receive_account_id: null, expense_account_id: null, salary_account_id: null, cash_account_id: null, subcontract_account_id: null, service_products: {}, addendum_product_id: null, key_last4: null, key_set_at: null, sync_from: null,
+  enabled: false, invoice_status: "Draft", inventory_id: null, receive_account_id: null, expense_account_id: null, salary_account_id: null, cash_account_id: null, subcontract_account_id: null, commission_account_id: null, service_products: {}, addendum_product_id: null, key_last4: null, key_set_at: null, sync_from: null,
 };
 
 export async function loadQoyod(session: SessionContext): Promise<QoyodPageData> {
@@ -53,6 +53,8 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
       ids("payroll_run").length ? rows(supabase.from("payroll_runs").select("id, month").in("id", ids("payroll_run"))) : [],
       subPaysP,
       ids("petty_cash").length ? rows(supabase.from("petty_cash_entries").select("id, description, supplier_name").in("id", ids("petty_cash"))) : [],
+      // success partners' rewards: the payment voucher number (RLS: finance / costs / marketers.manage)
+      ids("commission_payment").length ? rows(supabase.from("commission_payments").select("id, number").in("id", ids("commission_payment"))) : [],
       paysP.then((pays) => {
         const cids = [...new Set(pays.map((p) => p.contract_id))];
         return cids.length ? rows(supabase.from("contracts").select("id, number").in("id", cids)) : [];
@@ -66,8 +68,8 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
       }),
     ]);
   });
-  const [{ data: s }, { data: jobs }, { pay: waitPay, ad: waitAd }, [wp, wa], [pays, ads, pos, runs, subPays, petty, cons, subName], ...counts] = await Promise.all([
-    supabase.from("qoyod_settings").select("enabled, invoice_status, inventory_id, receive_account_id, expense_account_id, salary_account_id, cash_account_id, subcontract_account_id, service_products, addendum_product_id, key_last4, key_set_at, sync_from").eq("organization_id", org).maybeSingle(),
+  const [{ data: s }, { data: jobs }, { pay: waitPay, ad: waitAd }, [wp, wa], [pays, ads, pos, runs, subPays, petty, rewards, cons, subName], ...counts] = await Promise.all([
+    supabase.from("qoyod_settings").select("enabled, invoice_status, inventory_id, receive_account_id, expense_account_id, salary_account_id, cash_account_id, subcontract_account_id, commission_account_id, service_products, addendum_product_id, key_last4, key_set_at, sync_from").eq("organization_id", org).maybeSingle(),
     jobsP,
     waitIds,
     // invoice numbers are finance documents (RLS: finance.view); without it only the count is shown
@@ -92,6 +94,7 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
     ...runs.map((r) => [r.id, r.month.slice(0, 7)] as [string, string]),
     ...subPays.map((p) => [p.id, `${subName.get(p.agreement_id) ?? ""} · ${p.paid_on}`] as [string, string]),
     ...petty.map((e) => [e.id, e.supplier_name ? `${e.supplier_name} · ${e.description}` : e.description] as [string, string]),
+    ...rewards.map((v) => [v.id, v.number] as [string, string]),
   ]);
   return {
     settings: s ? { ...s, service_products: (s.service_products ?? {}) as Record<string, number> } : EMPTY,

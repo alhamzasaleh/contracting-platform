@@ -1,4 +1,5 @@
 "use client";
+import type { MarketerChoice } from "@/lib/data/marketers";
 import { DocNo } from "@/components/doc-no";
 import { ClipboardList, FileSignature, FileText, HardHat, MapPin, MessageCircle, Pencil, Phone, Plus, Receipt, Search, Users, Wrench } from "lucide-react";
 import Link from "next/link";
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Input, Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
 import type { ClientDetail, ClientListItem } from "@/lib/data/clients";
@@ -33,8 +35,11 @@ function ClientDialog({
   onClose,
   onSave,
   base = "",
+  marketers = [],
 }: {
   base?: string;
+  /** success partners («جاء عن طريق»); empty = the field isn't shown */
+  marketers?: MarketerChoice[];
   client?: ClientDetail["client"];
   onClose: () => void;
   onSave?: SaveClient;
@@ -63,6 +68,7 @@ function ClientDialog({
                 id_number: str(fd, "id_number"),
                 location_url: str(fd, "location_url"),
                 notes: str(fd, "notes") || null,
+                ...(marketers.length ? { marketer_id: str(fd, "marketer_id") || null } : {}),
               })),
           {
             onFieldErrors: setErrors,
@@ -95,6 +101,18 @@ function ClientDialog({
       <Field id="cl-loc" label={t("location")} hint={t("locationHint")} optional={tc("optional")} error={errors.location_url ? t("urlInvalid") : undefined}>
         <Input name="location_url" defaultValue={client?.location_url ?? ""} dir="ltr" inputMode="url" placeholder="https://maps.app.goo.gl/…" className="font-latin rtl:text-right" />
       </Field>
+      {marketers.length > 0 && (
+        <Field id="cl-marketer" label={t("cameThrough")} hint={t("cameThroughHint")} optional={tc("optional")}>
+          <NativeSelect name="marketer_id" defaultValue={client?.marketer_id ?? ""}>
+            <option value="">{t("cameThroughNone")}</option>
+            {marketers.filter((m) => m.is_active || m.id === client?.marketer_id).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+      )}
       <Field id="cl-notes" label={t("notes")} optional={tc("optional")}>
         <Textarea name="notes" defaultValue={client?.notes ?? ""} rows={2} />
       </Field>
@@ -102,7 +120,7 @@ function ClientDialog({
   );
 }
 
-export function ClientsView({ clients, canManage, onSave, base = "" }: { clients: ClientListItem[]; canManage: boolean; onSave?: SaveClient; base?: string }) {
+export function ClientsView({ clients, canManage, onSave, base = "", marketers }: { clients: ClientListItem[]; canManage: boolean; onSave?: SaveClient; base?: string; marketers?: MarketerChoice[] }) {
   const t = useTranslations("clients");
   const { fmt } = useFormatter();
   const [query, setQuery] = React.useState("");
@@ -169,7 +187,7 @@ export function ClientsView({ clients, canManage, onSave, base = "" }: { clients
           {list.length === 0 && <p className="py-10 text-center text-muted-foreground">{t("noResults")}</p>}
         </>
       )}
-      {creating && <ClientDialog onClose={() => setCreating(false)} onSave={onSave} base={base} />}
+      {creating && <ClientDialog onClose={() => setCreating(false)} onSave={onSave} base={base} marketers={marketers} />}
     </div>
   );
 }
@@ -222,6 +240,11 @@ export function ClientDetailView({
             {client.phone && <span className="ltr-inline font-latin">{displayPhone(client.phone)}</span>}
           </p>
           {client.notes && <p className="max-w-prose text-[13px] leading-6">{client.notes}</p>}
+          {client.marketer_id && (
+            <p className="text-[13px] text-muted-foreground" data-testid="came-through">
+              {t("cameThroughValue", { name: detail.marketers?.find((m) => m.id === client.marketer_id)?.name ?? "—" })}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {client.phone && (
@@ -396,7 +419,7 @@ export function ClientDetailView({
           )}
         </div>
       )}
-      {editing && <ClientDialog client={client} onClose={() => setEditing(false)} onSave={onSave} />}
+      {editing && <ClientDialog client={client} onClose={() => setEditing(false)} onSave={onSave} marketers={detail.marketers} />}
     </div>
   );
 }

@@ -260,8 +260,11 @@ const MAIN_LABOUR: Record<ServiceKind, string[]> = {
   exterior: ["labour_application", "labour_spray", "labour_sanding_putty"],
 };
 
-/** Prices one service for one client, exactly as chosen. */
-export function priceSelection(sel: Selection, q: Quantities, ctx: PricingContext): PricingOutcome {
+/**
+ * Prices one service for one client, exactly as chosen. `commissionPercent` = the success
+ * partner's reward on this quote (owner, Nov 2026): the price carries it (see priceProject).
+ */
+export function priceSelection(sel: Selection, q: Quantities, ctx: PricingContext, extra?: { commissionPercent?: number }): PricingOutcome {
   const c = ctx.catalogue;
   const defs = STEPS[sel.kind].filter((s) => !s.when || s.when(sel.options));
   const chosen: CatalogueProduct[] = [];
@@ -379,6 +382,7 @@ export function priceSelection(sel: Selection, q: Quantities, ctx: PricingContex
     roundingStep: cfg.commercial.roundingStep,
     method: "unit",
     vatPercent: ctx.vatPercent,
+    commissionPercent: extra?.commissionPercent ?? 0,
   });
   return { result: withLabour, price, steps, problems, labourNote: note };
 }

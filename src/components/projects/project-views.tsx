@@ -1,4 +1,5 @@
 "use client";
+import { RewardLine } from "@/components/marketers/reward-line";
 import { DocNo } from "@/components/doc-no";
 import { CalendarDays, Camera, Check, CheckCircle2, ClipboardList, ExternalLink, FileBadge, FileText, HardHat, MapPin, MessageSquare, Phone, Send, ShoppingCart, Sparkles, Wallet, Wrench, X } from "lucide-react";
 import Link from "next/link";
@@ -332,6 +333,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
                 <span className="text-muted-foreground">{t("costActualTotal")}</span>
                 <span className="font-latin font-bold tabular-nums">{fmt.money(data.cost.actual)}</span>
               </span>
+              {data.cost.reward && <RewardLine reward={data.cost.reward} />}
             </CostCard>
           )}
 

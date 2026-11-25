@@ -30,6 +30,8 @@ export type AssistantFacts = {
   pendingApprovals: { kind: string; number: string | null; since: string }[];
   /** costs are shown without in-house labour (built from salaries: the user lacks hr.view) — profits exclude it */
   labourHidden: boolean;
+  /** success partners' rewards («مكافآت شركاء النجاح»): due now and expected later (totals only; a cost of each project once paid) */
+  partnerRewards: { due: number; dueCount: number; expected: number } | null;
 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -73,16 +75,18 @@ export function buildFacts(
     forecast: f.forecast.map((w) => ({ week: w.start, inflow: r2(w.inflow), outflow: r2(w.outflow), balance: r2(w.balance), shortfall: w.shortfall })),
     pendingApprovals: f.approvals.map((a) => ({ kind: a.kind, number: typeof a.details.number === "string" ? a.details.number : null, since: a.created_at.slice(0, 10) })),
     labourHidden: !!f.labourHidden,
+    partnerRewards: f.rewards ?? null,
   };
 }
 
 /** Links the assistant may suggest (anything else is dropped). */
 export const SAFE_LINK =
-  /^\/(?:reports|schedule|team\/payroll|purchases\/costs|(?:purchases|projects|contracts|invoices|clients|quotations)(?:\/[A-Z]{1,3}-\d{4}-\d{3,6})?|maintenance(?:\?r=MR-\d{4}-\d{3,6})?)$/;
+  /^\/(?:reports|schedule|team\/payroll|purchases\/costs|marketers|(?:purchases|projects|contracts|invoices|clients|quotations)(?:\/[A-Z]{1,3}-\d{4}-\d{3,6})?|maintenance(?:\?r=MR-\d{4}-\d{3,6})?)$/;
 
 /** The permissions each page the assistant can link to needs (the same as the page's own guards). */
 const LINK_PERMISSION: [RegExp, string[]][] = [
   [/^\/reports$/, ["finance.view"]],
+  [/^\/marketers$/, ["finance.view"]],
   [/^\/invoices(?:\/|$)/, ["finance.view"]],
   [/^\/schedule$/, ["schedule.view"]],
   [/^\/team\/payroll$/, ["hr.view"]],

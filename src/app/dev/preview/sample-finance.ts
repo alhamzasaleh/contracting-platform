@@ -43,6 +43,7 @@ export const SAMPLE_FINANCE: OwnerFinance = {
     { id: "ap3", kind: "addendum", entity: "addendum", entity_id: "z", details: { number: "AD-2026-002", title: "دهان سقف الملحق", total: 1400 }, created_at: "2026-11-22T13:00:00Z", link: null },
   ],
   teamCost: { monthly: 28500, allocated: 16200, toDate: 21900, unabsorbed: 5700 },
+  rewards: { due: 2300, dueCount: 1, expected: 6000 },
   canManage: true,
   canDecide: true,
   links: { contracts: true, projects: true, costs: true, schedule: true },

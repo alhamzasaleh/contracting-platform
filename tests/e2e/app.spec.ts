@@ -593,3 +593,40 @@ test.describe("purchases from the quote's list (design preview)", () => {
     await expect(page.getByRole("dialog")).toBeVisible();
   });
 });
+
+test.describe("success partners (design preview)", () => {
+  test("partners page: rewards per state, pay a due reward, the partner's page link", async ({ page }) => {
+    await page.goto("/dev/preview/marketers");
+    await expect(page.getByRole("heading", { name: "شركاء النجاح" })).toBeVisible();
+    await expect(page.getByTestId("marketer-card").first()).toContainText("سعد بن فهد الدوسري");
+    await page.getByRole("button", { name: "صرف المكافأة" }).first().click();
+    await expect(page.getByRole("dialog")).toContainText("سند صرف");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("partner-link").first()).toBeVisible();
+    await expect(page.locator("body")).not.toContainText(/عمول|مسو/);
+  });
+
+  test("the partner's own page shows his contracts and reward — no costs", async ({ page }) => {
+    await page.goto("/dev/preview/partner");
+    await expect(page.getByTestId("partner-item")).toHaveCount(3);
+    await expect(page.locator("body")).not.toContainText(/تكلفة|هامش|عمول/);
+  });
+
+  test("a malformed partner link is refused before any lookup", async ({ page }) => {
+    await page.goto("/m/MK-2026-001/short");
+    await expect(page.getByText("الرابط غير صالح")).toBeVisible();
+  });
+
+  test("the payment voucher prints the reward", async ({ page }) => {
+    await page.goto("/dev/preview/payment-voucher");
+    await expect(page.getByTestId("payment-voucher")).toContainText("PV-2026-001");
+    await expect(page.getByTestId("payment-voucher")).toContainText("مكافأة شريك النجاح");
+  });
+
+  test("quote editor: the partner's reward is an internal line, the client's field on the client page", async ({ page }) => {
+    await page.goto("/dev/preview/quotations/editor");
+    await expect(page.getByTestId("partner-reward-line")).toContainText("مكافأة شريك النجاح");
+    await page.goto("/dev/preview/clients/detail");
+    await expect(page.getByTestId("came-through")).toContainText("سعد بن فهد الدوسري");
+  });
+});

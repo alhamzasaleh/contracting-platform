@@ -8,7 +8,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import * as D from "@radix-ui/react-dialog";
 import { updatePreferences } from "@/app/actions/preferences";
-import { NAV } from "./nav";
+import { NAV, navVisible } from "./nav";
 import type { ShellData } from "./types";
 import { settle } from "@/lib/client/action";
 import { useFailureText } from "@/lib/client/failure-text";
@@ -38,7 +38,7 @@ export function CommandMenu({ data, open, onOpenChange }: { data: ShellData; ope
   };
 
   const items = NAV.flatMap((g) => g.items).filter(
-    (i) => !i.phase && (!i.permission || data.permissions.includes(i.permission)),
+    (i) => !i.phase && navVisible(i, data.permissions),
   );
 
   return (

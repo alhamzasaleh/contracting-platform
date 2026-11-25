@@ -94,7 +94,7 @@ export const NUMBER_RE = /^[A-Z]{1,3}-\d{4}-\d{3,6}$/;
 type Loaded = { data: PortalData | null; logoUrl: string | null; limited: boolean; unavailable?: boolean; quoteStage?: PortalQuoteData | null };
 
 /** The company logo for the page: the approved SVG when stored, else the uploaded file (org found through the token-checked link). */
-async function portalLogo(admin: ReturnType<typeof createAdminClient>, orgId: string | null | undefined, logoPath: string | null): Promise<string | null> {
+export async function portalLogo(admin: ReturnType<typeof createAdminClient>, orgId: string | null | undefined, logoPath: string | null): Promise<string | null> {
   if (orgId) {
     const { data: o } = await admin.from("organizations").select("logo_svg").eq("id", orgId).maybeSingle();
     if (o?.logo_svg) return `data:image/svg+xml;base64,${Buffer.from(o.logo_svg, "utf8").toString("base64")}`;

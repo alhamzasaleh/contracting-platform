@@ -6,6 +6,7 @@ import {
   ClipboardList,
   FileSignature,
   FileText,
+  Handshake,
   HardHat,
   IdCard,
   LayoutDashboard,
@@ -26,6 +27,8 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   permission?: Permission;
+  /** shown with ANY of these (instead of one permission) */
+  anyPermission?: Permission[];
   phase?: number; // not built yet → shown as "soon"
 };
 
@@ -49,6 +52,7 @@ export const NAV: NavGroup[] = [
     items: [
       { key: "purchases", href: "/purchases", icon: ShoppingCart, permission: "purchases.view" },
       { key: "invoices", href: "/invoices", icon: Receipt, permission: "finance.view" },
+      { key: "marketers", href: "/marketers", icon: Handshake, anyPermission: ["marketers.manage", "finance.view"] },
       { key: "reports", href: "/reports", icon: BarChart3, permission: "finance.view" },
       { key: "assistant", href: "/assistant", icon: Sparkles, permission: "finance.view" },
     ],
@@ -73,6 +77,12 @@ export const SETTINGS_NAV = [
   { key: "qoyod", href: "/settings/qoyod", icon: Link2, permission: "settings.manage" as Permission },
   { key: "audit", href: "/settings/audit", icon: ClipboardList, permission: "audit.view" as Permission },
 ] as const;
+
+/** One rule for the sidebar and the command menu. */
+export function navVisible(item: NavItem, permissions: readonly string[]): boolean {
+  if (item.anyPermission) return item.anyPermission.some((p) => permissions.includes(p));
+  return !item.permission || permissions.includes(item.permission);
+}
 
 export function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";

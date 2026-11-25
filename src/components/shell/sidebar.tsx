@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
-import { NAV, isActive, type NavItem } from "./nav";
+import { NAV, isActive, navVisible, type NavItem } from "./nav";
 import { BrandLogo } from "@/components/brand-logo";
 import type { ShellData } from "./types";
 
@@ -14,7 +14,7 @@ export function SidebarNav({ data, onNavigate }: { data: ShellData; onNavigate?:
   const base = data.basePath ?? "";
   const rel = base && pathname.startsWith(base) ? pathname.slice(base.length) || "/" : pathname;
 
-  const visible = (item: NavItem) => !item.permission || data.permissions.includes(item.permission);
+  const visible = (item: NavItem) => navVisible(item, data.permissions);
 
   return (
     <nav className="flex flex-col gap-6" aria-label={t("nav.menu")}>

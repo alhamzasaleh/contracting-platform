@@ -895,6 +895,7 @@ export function ProjectCostsView({ rows, links, base = "", labourHidden = false 
                 <Stat label={t("subsCost")} value={fmt.money(r.subcontractors)} />
                 {r.labour != null && <Stat label={t("labourCost")} value={fmt.money(r.labour)} />}
                 {(r.maintenance ?? 0) > 0 && <Stat label={t("maintenanceCost")} value={fmt.money(r.maintenance ?? 0)} />}
+                {(r.commission ?? 0) > 0 && <Stat label={t("partnerRewardCost")} value={fmt.money(r.commission ?? 0)} />}
               </div>
               {s.ratio != null && (
                 <div className="h-2.5 overflow-hidden rounded-full bg-surface-sunken" role="meter" aria-valuenow={Math.round(s.ratio * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={t("actualMaterials")}>

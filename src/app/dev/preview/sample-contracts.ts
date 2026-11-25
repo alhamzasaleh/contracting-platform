@@ -22,6 +22,7 @@ export const SAMPLE_CONTRACT: ContractDetail = {
   payments: SAMPLE_PAYMENTS,
   link: { active: true, expires_at: "2027-07-10T00:00:00Z", last_opened_at: "2026-11-22T18:00:00Z", open_count: 3 },
   materialCost: 7200,
+  reward: { marketer: "سعد بن فهد الدوسري", percent: 5, amount: 2300, status: "expected", voucher: null },
   canManage: true,
   canPurchase: true,
   canViewProject: true,

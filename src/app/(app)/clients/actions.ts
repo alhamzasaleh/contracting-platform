@@ -54,6 +54,8 @@ const clientSchema = z
     id_number: z.preprocess((v) => { const d = digits(v); return typeof d === "string" && d !== "" ? d : null; }, z.string().regex(/^\d{10}$/, "idInvalid").nullable()),
     location_url: z.preprocess((v) => (v === "" ? null : v), z.url({ protocol: /^https$/, error: "urlInvalid" }).max(500).nullable()),
     notes: optionalText(2000),
+    /** «جاء عن طريق» — the success partner (same organization: checked by the database) */
+    marketer_id: z.preprocess((v) => (v === "" ? null : v), id.nullable()).optional(),
   })
   .strict();
 

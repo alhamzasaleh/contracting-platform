@@ -377,6 +377,8 @@ export type ClientRow = OrgRow & Upd & {
   location_url: string | null;
   notes: string | null;
   is_active: boolean;
+  /** «جاء عن طريق» — the success partner (marketers) */
+  marketer_id?: string | null;
 };
 export type SurveyRow = OrgRow & Upd & {
   number: string;
@@ -406,6 +408,8 @@ export type QuoteStatus = "draft" | "pending_approval" | "issued" | "accepted" |
 export type QuoteOption = { version: number; label: string };
 export type QuoteRow = OrgRow & Upd & {
   number: string;
+  /** the success partner of the current version (set only by save_quote_version) */
+  marketer_id?: string | null;
   /** 2–3 versions offered side by side (null = a single quote) */
   options?: QuoteOption[] | null;
   client_id: string;
@@ -451,6 +455,10 @@ export type QuoteVersionCostRow = {
   margin_percent: number;
   lines: Json;
   purchase_list: Json;
+  /** the success partner's reward frozen with the version (internal) */
+  marketer_id?: string | null;
+  commission_percent?: number;
+  commission_amount?: number;
   created_at: string;
   created_by: string | null;
 };
@@ -467,8 +475,19 @@ export type ApprovalRow = OrgRow & Upd & {
 
 
 export type ContractStatus = "draft" | "sent" | "accepted" | "cancelled";
+export type MarketerRow = OrgRow & Upd & { number: string; name: string; phone: string | null; commission_percent: number; iban: string | null; notes: string | null; is_active: boolean };
+export type MarketerCommissionRow = OrgRow & Upd & {
+  contract_id: string; marketer_id: string; base: number; percent: number; amount: number; status: "expected" | "due" | "paid" | "cancelled";
+  due_at: string | null; paid_at: string | null; cancelled_at: string | null;
+};
+export type CommissionPaymentRow = OrgRow & {
+  number: string; commission_id: string; marketer_id: string; contract_id: string; amount: number; paid_on: string; method: "transfer" | "cash" | "cheque"; reference: string | null; note: string | null;
+};
+export type MarketerPortalLinkRow = OrgRow & { marketer_id: string; token_hash: string; expires_at: string; revoked_at: string | null };
 export type ContractRow = OrgRow & Upd & {
   number: string;
+  /** the agreed version's success partner (set by the database) */
+  marketer_id?: string | null;
   /** copied from the quote; the client picks one while accepting */
   options?: QuoteOption[] | null;
   /** editable clauses (ContractTermsConfig), frozen after acceptance */
@@ -698,7 +717,7 @@ export type PayrollLineRow = OrgRow & Upd & {
 
 export type NotificationKind = "approval" | "client_note" | "stage_confirmed" | "contract_accepted" | "addendum_accepted" | "payment_received" | "payment_late" | "doc_expiry" | "approval_reminder" | "maintenance_request"
   | "project_delay" | "project_over_budget" | "project_losing" | "missed_visit" | "agreement_review"
-  | "quote_accepted" | "quote_changes_requested" | "quote_rejected";
+  | "quote_accepted" | "quote_changes_requested" | "quote_rejected" | "commission_due";
 export type NotificationRow = { id: string; organization_id: string; user_id: string; kind: NotificationKind; params: Json; link: string | null; dedupe_key: string | null; read_at: string | null; created_at: string };
 export type NotificationPrefRow = { organization_id: string; user_id: string; kind: NotificationKind; in_app: boolean; whatsapp: boolean; push: boolean; updated_at: string };
 export type PushSubscriptionRow = { id: string; organization_id: string; user_id: string; endpoint: string; p256dh: string; auth: string; device: string | null; failures: number; last_success_at: string | null; created_at: string; created_by: string | null };
@@ -729,6 +748,7 @@ export type ClientMessageRow = {
 export type QoyodSettingsRow = {
   organization_id: string; enabled: boolean; invoice_status: "Draft" | "Approved"; inventory_id: number | null; receive_account_id: number | null; expense_account_id: number | null;
   salary_account_id: number | null; cash_account_id: number | null; subcontract_account_id: number | null;
+  commission_account_id?: number | null;
   service_products: Record<string, number>; addendum_product_id: number | null; sync_from: string | null; key_last4: string | null; key_set_at: string | null; updated_at: string; updated_by: string | null;
   /** the worker's last automatic setup run (service role only) */
   auto_setup_at: string | null;
@@ -739,7 +759,7 @@ export type AddendumCostRow = {
 };
 export type QoyodJobKind = "customer" | "vendor" | "invoice" | "invoice_payment" | "bill" | "bill_payment" | "payroll" | "transfer";
 export type QoyodJobRow = {
-  id: string; organization_id: string; kind: QoyodJobKind; entity_type: "client" | "supplier" | "subcontractor" | "contract_payment" | "addendum" | "purchase" | "payroll_run" | "subcontractor_payment" | "petty_cash" | "petty_cash_opening"; entity_id: string; ref: string;
+  id: string; organization_id: string; kind: QoyodJobKind; entity_type: "client" | "supplier" | "subcontractor" | "contract_payment" | "addendum" | "purchase" | "payroll_run" | "subcontractor_payment" | "petty_cash" | "petty_cash_opening" | "marketer" | "commission_payment"; entity_id: string; ref: string;
   amount: number | null; status: "queued" | "running" | "done" | "failed"; attempts: number; next_attempt_at: string; last_error: string | null; qoyod_id: number | null; done_at: string | null; created_at: string; updated_at: string;
   /** petty-cash jobs only: the account fixed when queued */
   route: "bank" | "cash" | null;
@@ -825,6 +845,10 @@ export type Database = {
       client_messages: Table<ClientMessageRow>;
       qoyod_sync_jobs: Table<QoyodJobRow>;
       addendum_costs: Table<AddendumCostRow>;
+      marketers: Table<MarketerRow>;
+      marketer_commissions: Table<MarketerCommissionRow>;
+      commission_payments: Table<CommissionPaymentRow>;
+      marketer_portal_links: Table<MarketerPortalLinkRow>;
     };
     Views: {
       material_current_prices: { Row: MaterialCurrentPriceRow; Relationships: [] };
@@ -895,6 +919,11 @@ export type Database = {
       };
       link_member_employee: { Args: { p_employee: string; p_user: string }; Returns: undefined };
       unlink_employee_account: { Args: { p_employee: string }; Returns: undefined };
+      marketer_choices: { Args: { p_org: string }; Returns: { id: string; number: string; name: string; is_active: boolean; commission_percent: number | null }[] };
+      record_commission_payment: { Args: { p_commission: string; p_paid_on: string; p_method: string; p_reference?: string | null; p_note?: string | null }; Returns: string };
+      issue_marketer_link: { Args: { p_marketer: string; p_token_hash: string }; Returns: string };
+      revoke_marketer_links: { Args: { p_marketer: string }; Returns: number };
+      marketer_portal_view: { Args: { p_number: string; p_token: string }; Returns: Json };
       delete_client: { Args: { p_client: string }; Returns: undefined };
       delete_survey: { Args: { p_survey: string }; Returns: undefined };
       delete_quote: { Args: { p_quote: string }; Returns: undefined };

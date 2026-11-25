@@ -1,4 +1,5 @@
 "use client";
+import type { MarketerChoice } from "@/lib/data/marketers";
 import { DocNo } from "@/components/doc-no";
 import { Check, CheckCircle2, ClipboardList, Copy, FileSignature, FileText, Link2, MessageSquare, Pencil, Printer, Send, ShieldAlert, XCircle } from "lucide-react";
 import Link from "next/link";
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
 import type { QuoteDetail, QuoteListItem } from "@/lib/data/quotes";
@@ -88,7 +90,13 @@ export function QuoteEditorView({
   onSave,
   base = "",
   history,
+  partners = [],
+  partnerId = null,
 }: {
+  /** success partners (the reward % is known here: the editor needs costs.view) */
+  partners?: MarketerChoice[];
+  /** the quote's partner, else the client's «جاء عن طريق» */
+  partnerId?: string | null;
   /** what past quotes of this service suggest (costs.view) */
   history?: PastStats | null;
   kind: ServiceKind;
@@ -116,6 +124,8 @@ export function QuoteEditorView({
   const [discount, setDiscount] = React.useState(initialDiscount);
   const [method, setMethod] = React.useState(initialMethod);
   const [notes, setNotes] = React.useState(initialNotes ?? "");
+  const [partner, setPartner] = React.useState<string>(partnerId ?? "");
+  const chosen = partners.find((m) => m.id === partner) ?? null;
 
   const rows: [string, number, string][] =
     kind === "gypsum"
@@ -165,6 +175,7 @@ export function QuoteEditorView({
         initial,
         quantitiesPanel: panel,
         history: history ?? null,
+        commission: chosen ? { name: chosen.name, percent: chosen.commission_percent ?? 0 } : null,
         renderActions: (sel, outcome) => (
           <section className="grid gap-3 rounded-2xl border-2 border-primary/30 bg-surface p-4">
             <p className="text-[14px] font-bold">{quote ? t("newVersionOf", { number: quote.number }) : t("newQuote")}</p>
@@ -195,6 +206,20 @@ export function QuoteEditorView({
                 </div>
               </Field>
             </div>
+            {(partners.length > 0 || partner) && (
+              <Field id="q-partner" label={t("partner")} hint={t("partnerHint")}>
+                <NativeSelect id="q-partner" value={partner} onChange={(e) => setPartner(e.target.value)} data-testid="quote-partner">
+                  <option value="">{t("partnerNone")}</option>
+                  {partners
+                    .filter((m) => m.is_active || m.id === partner)
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.commission_percent != null ? t("partnerOption", { name: m.name, percent: fmt.number(m.commission_percent) }) : m.name}
+                      </option>
+                    ))}
+                </NativeSelect>
+              </Field>
+            )}
             <Field id="q-notes" label={t("notes")} hint={t("notesHint")}>
               <Textarea id="q-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
             </Field>
@@ -212,6 +237,7 @@ export function QuoteEditorView({
                         discount_percent: discount,
                         method,
                         notes: notes.trim() || null,
+                        marketer_id: partner || null,
                       })),
                   { onSuccess: (r) => r.ok && r.data && router.push(`${base}/quotations/${r.data.number}`) },
                 )
@@ -406,6 +432,12 @@ export function QuoteView({
                   <dt className="text-muted-foreground">{t("costWithContingency")}</dt>
                   <dd className="font-latin tabular-nums">{fmt.money(internal.costWithContingency)}</dd>
                 </div>
+                {internal.reward && (
+                  <div className="flex justify-between gap-2" data-testid="quote-partner-reward">
+                    <dt className="text-muted-foreground">{t("partnerRewardLine", { name: internal.reward.name, percent: fmt.number(internal.reward.percent) })}</dt>
+                    <dd className="font-latin tabular-nums">{fmt.money(internal.reward.amount)}</dd>
+                  </div>
+                )}
                 <div className="flex justify-between font-bold">
                   <dt>{t("margin")}</dt>
                   <dd className="font-latin tabular-nums">{fmt.number(internal.marginPercent, 1)}%</dd>

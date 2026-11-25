@@ -55,7 +55,7 @@ describe("loading skeletons", () => {
 
   it("every main section shows its own loading frame", () => {
     const root = join(process.cwd(), "src/app/(app)");
-    const sections = ["clients", "quotations", "contracts", "projects", "purchases", "invoices", "reports", "schedule", "maintenance", "team", "catalogue", "settings", "assistant"];
+    const sections = ["clients", "quotations", "contracts", "projects", "purchases", "invoices", "reports", "schedule", "maintenance", "team", "catalogue", "settings", "assistant", "marketers"];
     for (const s of sections) expect(statSync(join(root, s, "loading.tsx")).isFile(), s).toBe(true);
     // every loading frame has the shape of its page (columns and breakpoints included)
     const frames: Record<string, string> = {

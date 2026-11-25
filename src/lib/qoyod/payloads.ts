@@ -260,6 +260,11 @@ export function subcontractExpenseAccount(s: { subcontract_account_id: number | 
   return s.subcontract_account_id ?? s.expense_account_id ?? null;
 }
 
+/** A success partner's reward bill: the rewards / commissions account when chosen, else the general expense account. */
+export function commissionExpenseAccount(s: { commission_account_id?: number | null; expense_account_id: number | null }): number | null {
+  return s.commission_account_id ?? s.expense_account_id ?? null;
+}
+
 /**
  * VAT on a payment to a subcontractor: only when the company is VAT-registered (its VAT %
  * is > 0) and the subcontractor has a VAT number — the amount paid is then VAT-inclusive.
@@ -274,6 +279,7 @@ export function subcontractorBillAmounts(amount: number, companyVatPercent: numb
 type SetupState = {
   inventory_id: number | null; receive_account_id: number | null; expense_account_id: number | null; addendum_product_id: number | null;
   salary_account_id: number | null; cash_account_id: number | null; subcontract_account_id: number | null;
+  commission_account_id?: number | null;
   service_products: Record<string, number> | null; auto_setup_at: string | null;
 };
 /**
@@ -298,7 +304,7 @@ type AutoPicked = Omit<SetupState, "auto_setup_at" | "service_products"> & { ser
 export function autoSetupNext(cur: Partial<SetupState> | null | undefined, auto: AutoPicked): AutoPicked {
   const first = !cur?.auto_setup_at;
   const receive = cur?.receive_account_id ?? auto.receive_account_id;
-  const optional = (k: "salary_account_id" | "cash_account_id" | "subcontract_account_id") => cur?.[k] ?? (first ? auto[k] : null);
+  const optional = (k: "salary_account_id" | "cash_account_id" | "subcontract_account_id" | "commission_account_id") => cur?.[k] ?? (first ? (auto[k] ?? null) : null);
   return {
     inventory_id: cur?.inventory_id ?? auto.inventory_id,
     receive_account_id: receive,
@@ -306,6 +312,7 @@ export function autoSetupNext(cur: Partial<SetupState> | null | undefined, auto:
     salary_account_id: optional("salary_account_id"),
     cash_account_id: cashAccountOrNull(optional("cash_account_id"), receive),
     subcontract_account_id: optional("subcontract_account_id"),
+    commission_account_id: optional("commission_account_id"),
     service_products: { ...auto.service_products, ...(cur?.service_products ?? {}) },
     addendum_product_id: cur?.addendum_product_id ?? auto.addendum_product_id,
   };
@@ -315,6 +322,8 @@ export const billPaymentRef = (purchaseNumber: string) => `${purchaseNumber}/PAI
 const shortId = (uuid: string) => uuid.replace(/-/g, "").slice(0, 12).toUpperCase();
 export const subcontractorBillRef = (paymentId: string) => `SUB-${shortId(paymentId)}`;
 export const pettyBillRef = (entryId: string) => `PC-${shortId(entryId)}`;
+/** A reward paid to a success partner: its payment voucher number (PV-…) is the bill's reference. */
+export const commissionBillRef = (voucherNumber: string) => voucherNumber;
 /** The vendor used for petty-cash expenses with no supplier name on the receipt. */
 export const PETTY_VENDOR = "مصروفات نثرية";
 

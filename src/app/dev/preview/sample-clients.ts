@@ -8,7 +8,8 @@ export const SAMPLE_CLIENTS: ClientListItem[] = [
 ];
 
 export const SAMPLE_CLIENT_DETAIL: ClientDetail = {
-  client: { id: "c1", number: "CL-2026-003", name: "أبو محمد العتيبي", phone: "966551234567", city: "الرياض", district: "النرجس", id_number: "1012345678", location_url: "https://maps.app.goo.gl/example", notes: "فيلا دورين، يفضّل التواصل بالواتساب بعد العصر." },
+  client: { id: "c1", number: "CL-2026-003", name: "أبو محمد العتيبي", phone: "966551234567", city: "الرياض", district: "النرجس", id_number: "1012345678", location_url: "https://maps.app.goo.gl/example", notes: "فيلا دورين، يفضّل التواصل بالواتساب بعد العصر.", marketer_id: "mk1" },
+  marketers: [{ id: "mk1", number: "MK-2026-001", name: "سعد بن فهد الدوسري", is_active: true, commission_percent: 5 }],
   surveys: [{ id: "s1", number: "SV-2026-004", title: "فيلا النرجس", mode: "rooms", visit_date: "2026-11-21", rooms: 6 }],
   quotes: [
     { id: "q1", number: "Q-2026-007", service: "gypsum", status: "issued", version: 2, total: 31840, created_at: "2026-11-21T10:00:00Z" },

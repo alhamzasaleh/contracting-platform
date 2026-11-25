@@ -55,7 +55,8 @@
     "switchLanguage": "العربية",
     "team": "Employees",
     "maintenance": "Maintenance",
-    "assistant": "Assistant"
+    "assistant": "Assistant",
+    "marketers": "Success partners"
   },
   "user": {
     "profile": "Profile",
@@ -316,7 +317,8 @@
     "approvals_decide": "Approve requests",
     "reports_view": "View reports",
     "hr_view": "View employees & salaries",
-    "hr_manage": "Manage employees & salaries"
+    "hr_manage": "Manage employees & salaries",
+    "marketers_manage": "Manage success partners & rewards"
   },
   "preview": {
     "banner": "Design preview with sample data — not connected to the database",
@@ -651,7 +653,11 @@
     "deleteQuoteAccepted": "The client accepted this quote on his page — his acceptance is an official record, so it can't be deleted",
     "deleteSurveyQuotes": "A quote is built on its measurements — delete the quote first",
     "deleteClientContracts": "The client has contracts — he can't be deleted",
-    "deleteClientAccepted": "The client accepted a quote on his page — he can't be deleted"
+    "deleteClientAccepted": "The client accepted a quote on his page — he can't be deleted",
+    "rewardChanged": "The success partner's reward rate changed — refresh and save again.",
+    "partnerInactive": "This success partner is inactive — pick another or reactivate them.",
+    "commissionNotDue": "The reward isn't due yet — it is due once the client has paid the original contract in full.",
+    "commissionAlreadyPaid": "This reward has already been paid."
   },
   "engine": {
     "emptyTitle": "Start the pricing catalogue",
@@ -1128,7 +1134,9 @@
     "pastSlower": "Your projects usually take {pct}% longer than planned — check the contract duration.",
     "pastApply": "Use the suggested margin {m}%",
     "pastFew": "At least 3 won quotes are needed to suggest a margin.",
-    "pickTeam": "Pick a team:"
+    "pickTeam": "Pick a team:",
+    "partnerReward": "Success partner reward — {name} {percent}%",
+    "partnerRewardHint": "Internal only: the price is raised to cover the reward and keep the margin. Lower the margin or give a discount if the price looks high."
   },
   "clients": {
     "contracts": "Contracts & projects",
@@ -1173,7 +1181,11 @@
     "roomsCount": "{n, plural, =0 {no rooms} one {# room} other {# rooms}}",
     "totalMode": "Total areas",
     "surveysCount": "{n} surveys",
-    "quotesCount": "{n} quotes"
+    "quotesCount": "{n} quotes",
+    "cameThrough": "Came through",
+    "cameThroughHint": "The success partner who brought this client — suggested on their quotes, changeable per quote.",
+    "cameThroughNone": "Nobody",
+    "cameThroughValue": "Came through: {name}"
   },
   "survey": {
     "pageTitle": "Survey",
@@ -1387,7 +1399,12 @@
     "decision_accepted": "Client accepted",
     "decision_changes_requested": "Changes requested",
     "decision_rejected": "Client declined",
-    "optionsClientAccepted": "The client accepted one of the options on his page — options are locked. To change them, cancel the contract if any, then revise the quotation."
+    "optionsClientAccepted": "The client accepted one of the options on his page — options are locked. To change them, cancel the contract if any, then revise the quotation.",
+    "partner": "Success partner",
+    "partnerHint": "Their reward is added to the price automatically and never shown to the client.",
+    "partnerNone": "None",
+    "partnerOption": "{name} — {percent}%",
+    "partnerRewardLine": "Success partner reward — {name} {percent}%"
   },
   "doc": {
     "title": "Quotation",
@@ -1979,7 +1996,8 @@
     "actualNote": "Total actual = materials, expenses, petty cash, subcontractors earned, warranty maintenance (our cost) and our team’s scheduled days. The estimate (quote + additional works) is compared with materials only.",
     "actualNoteNoLabour": "Total actual = materials, expenses, petty cash, subcontractors' earnings and warranty maintenance (our cost). The estimate (quote + additional works) is compared with materials only.",
     "actualNoteHidden": "Total actual = materials, expenses, petty cash, subcontractors earned and warranty maintenance (our cost). In-house labour is hidden because it is built from salaries (needs the HR permission). The estimate (quote + additional works) is compared with materials only.",
-    "materialsTable": "Bill of quantities"
+    "materialsTable": "Bill of quantities",
+    "partnerRewardCost": "Success partner reward"
   },
   "projects": {
     "startDate": "Start",
@@ -2312,7 +2330,10 @@
     "teamIdleHint": "Our team’s cost not booked on projects in the schedule — covered by the overhead % in pricing.",
     "teamIdleOf": "{allocated} charged to projects of {monthly} (cost of the month's work days so far)",
     "profitNoteHidden": "Actual cost = materials, expenses, petty cash and subcontractors earned so far. In-house labour is hidden because it is built from salaries (needs the HR permission).",
-    "overOutstanding": "More than what is left on this payment — not accepted"
+    "overOutstanding": "More than what is left on this payment — not accepted",
+    "rewardsTitle": "Success partner rewards due",
+    "rewardsDue": "{n, plural, =0 {nothing due now} one {# reward} other {# rewards}} · expected later {expected}",
+    "out_reward": "Success partner rewards"
   },
   "payroll": {
     "expiringTitle": "Documents expiring soon",
@@ -2442,7 +2463,9 @@
     "quote_rejected_reason": "The client declined quotation {number}: {note}",
     "k_quote_accepted": "Client accepted a quotation",
     "k_quote_changes_requested": "Client asked for quotation changes",
-    "k_quote_rejected": "Client declined a quotation"
+    "k_quote_rejected": "Client declined a quotation",
+    "commission_due": "Success partner {name}'s reward is due — {amount} ({number})",
+    "k_commission_due": "Success partner rewards due"
   },
   "qoyod": {
     "title": "Qoyod accounting",
@@ -2550,7 +2573,11 @@
     "draftCount": "Invoices waiting for your approval in Qoyod: {n} (their numbers show to users with finance access).",
     "draftListHint": "These invoices were sent to Qoyod as drafts and their payments are waiting. Qoyod's API can't approve an existing invoice, so open each one in Qoyod and approve it, then tap “Approved — send now” and the payments are sent right away. (Purchase bills are approved automatically before they are paid.)",
     "approvedSendNow": "Approved — send now",
-    "approvedSent": "Done — the waiting payments are being sent to Qoyod"
+    "approvedSent": "Done — the waiting payments are being sent to Qoyod",
+    "rewardAccount": "Success partner rewards account",
+    "rewardHint": "Rewards are recorded as an expense bill on this account, then paid. Without one they go to the purchases & expenses account.",
+    "missing_marketer": "Success partner not found",
+    "missing_commission_payment": "Payment voucher not found"
   },
   "receipt": {
     "title": "Receipt voucher",
@@ -2852,5 +2879,102 @@
     "confirm": "Delete for good",
     "cancel": "Cancel",
     "deleted": "Deleted"
+  },
+  "marketers": {
+    "title": "Success partners",
+    "subtitle": "Who brings us clients, and each one's reward: expected, due and paid.",
+    "kpiExpected": "Expected rewards",
+    "kpiDue": "Due to pay",
+    "kpiPaid": "Paid",
+    "new": "New success partner",
+    "edit": "Edit",
+    "emptyTitle": "No success partners yet",
+    "emptyBody": "Add whoever brings you clients and set their reward rate. Then pick them on the client's record («Came through»).",
+    "percentBadge": "Reward {percent}%",
+    "inactive": "Inactive",
+    "clients": "Their clients",
+    "noContracts": "No signed contracts for them yet.",
+    "status_expected": "Expected",
+    "status_due": "Due to pay",
+    "status_paid": "Paid",
+    "status_cancelled": "Cancelled",
+    "line": "Contract value {base} · {percent}% · reward {amount}",
+    "rewardLine": "Success partner reward — {name} {percent}%",
+    "pay": "Pay the reward",
+    "payHint": "Pay {amount} in full for contract {contract} — a numbered payment voucher is issued and it counts as a project cost.",
+    "payConfirm": "Pay {amount}",
+    "voucher": "Voucher {number}",
+    "pageTitle": "Partner page",
+    "linkActive": "Link active until {date}",
+    "linkNone": "No active link — create one and send it by WhatsApp.",
+    "linkOnce": "Copy the link now — it isn't shown again.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "sendWhatsapp": "Send by WhatsApp",
+    "remindWhatsapp": "Remind by WhatsApp",
+    "issueLink": "Create link",
+    "renewLink": "New link (revokes the old one)",
+    "revokeLink": "Revoke link",
+    "waLink": "Hello {name}, here is your page at {org} to follow your clients and rewards: {url}",
+    "waReminder": "Hello {name}, you can follow your clients and rewards at {org} from the link we sent you earlier.",
+    "name": "Name",
+    "phone": "Mobile",
+    "optional": "Optional",
+    "phoneInvalid": "Invalid mobile number",
+    "percent": "Reward rate",
+    "percentHint": "Of the original contract value before VAT — additional works excluded.",
+    "percentInvalid": "Between 0 and 50",
+    "percentChangeHint": "A new rate applies to new quotes only — earlier contracts keep their own rate.",
+    "iban": "IBAN",
+    "ibanInvalid": "The IBAN starts with SA followed by 22 digits.",
+    "notes": "Notes",
+    "active": "Active",
+    "date": "Payment date",
+    "method": "Method",
+    "method_transfer": "Transfer",
+    "method_cash": "Cash",
+    "method_cheque": "Cheque",
+    "reference": "Reference"
+  },
+  "voucher": {
+    "title": "Payment voucher",
+    "cr": "CR {n}",
+    "amount": "Amount",
+    "paidTo": "Paid to",
+    "for": "For",
+    "forText": "Success partner reward {percent}% — client {client} — contract",
+    "base": "Contract value before VAT",
+    "method": "Method",
+    "m_transfer": "Bank transfer",
+    "m_cash": "Cash",
+    "m_cheque": "Cheque",
+    "reference": "Reference",
+    "iban": "IBAN",
+    "note": "Note",
+    "payer": "Paid by",
+    "receiver": "Received by",
+    "signature": "Signature"
+  },
+  "partnerPage": {
+    "intro": "Success partner page — your reward {percent}%",
+    "contracts": "Contracts",
+    "expected": "Expected",
+    "due": "Due",
+    "paid": "Paid",
+    "empty": "No signed contracts for your clients yet — they appear here once a client signs.",
+    "status_expected": "Expected",
+    "status_due": "Due to pay",
+    "status_paid": "Paid",
+    "status_cancelled": "Cancelled",
+    "contractLine": "Signed {date} · {state}",
+    "cancelled": "Contract cancelled",
+    "handedOver": "Handed over",
+    "underWay": "In progress",
+    "value": "Contract value",
+    "percent": "Rate",
+    "reward": "Reward",
+    "expectedHint": "Due once the client has paid the contract in full.",
+    "voucherLine": "{amount} paid on {date}",
+    "validUntil": "Link valid until {date}"
   }
 }

@@ -1,4 +1,5 @@
 import "server-only";
+import { loadContractCommission, type ContractCommission } from "@/lib/data/marketers";
 import { notFound } from "next/navigation";
 import { aiConfigured } from "@/lib/ai/invoice";
 import { can, type SessionContext } from "@/lib/auth/session";
@@ -59,7 +60,7 @@ export type ProjectDetail = {
   /** planned start, delivery (incl. accepted addenda days) and the warranty end once handed over */
   dates?: { start: string; delivery: string; extraDays: number; warrantyEnd: string | null };
   /** estimated materials vs actual materials, and the full actual cost (costs.view) — details on /purchases/costs */
-  cost?: { estimated: number | null; materials: number; actual: number } | null;
+  cost?: { estimated: number | null; materials: number; actual: number; reward?: ContractCommission } | null;
   /** the team priced on the quote (G1) — pre-selected when opening the schedule */
   bookTeam?: string | null;
   /** open maintenance requests on this project */
@@ -87,7 +88,7 @@ export async function loadProject(session: SessionContext, number: string): Prom
   const notesP = Promise.resolve(supabase.from("client_notes").select("id, body, photos, status, reply, stage_id, created_at").eq("contract_id", c.id).order("created_at", { ascending: false }));
   const [
     { data: client }, { data: stages }, { data: updates }, { data: visits }, { data: notes }, { data: payments }, who,
-    { data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam, signed,
+    { data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam, signed, reward,
   ] = await Promise.all([
     supabase.from("clients").select("name, phone, city, district, location_url").eq("id", c.client_id).maybeSingle(),
     supabase.from("project_stages").select("*").eq("contract_id", c.id).order("seq"),
@@ -110,6 +111,8 @@ export async function loadProject(session: SessionContext, number: string): Prom
       const paths = [...new Set([...(u.data ?? []).flatMap((x) => x.photos), ...(nt.data ?? []).flatMap((x) => x.photos)])];
       return paths.length ? ((await supabase.storage.from("project-photos").createSignedUrls(paths, 600)).data ?? []) : [];
     }),
+    // the success partner's reward on this project (internal: costs.view)
+    can(session, "costs.view") ? loadContractCommission(session, c.id) : Promise.resolve(null),
   ]);
   const extraDays = (addenda ?? []).reduce((s, a) => s + a.extra_days, 0);
   const own = costs?.find((x) => x.id === c.id);
@@ -131,7 +134,7 @@ export async function loadProject(session: SessionContext, number: string): Prom
     // delivery: the same date as the contract page (start + duration + accepted addenda days)
     dates: { start: c.start_date, delivery: deliveryDate(c.start_date, c.duration_days, extraDays), extraDays, warrantyEnd },
     // the estimate covers materials only: compare it with actual materials; the full actual apart
-    cost: own ? { estimated: own.estimated, materials: own.materialsActual, actual: own.actual } : null,
+    cost: own ? { estimated: own.estimated, materials: own.materialsActual, actual: own.actual, reward } : null,
     bookTeam,
     openMaintenance: openMaintenance ?? 0,
     canSchedule: can(session, "schedule.view"),

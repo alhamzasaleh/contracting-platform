@@ -49,6 +49,8 @@ export type OwnerFinance = {
   teamCost?: { monthly: number; allocated: number; toDate: number; unabsorbed: number } | null;
   /** costs are shown but in-house labour isn't (it is built from salaries: needs hr.view) */
   labourHidden?: boolean;
+  /** success partners' rewards: due now (to pay) and expected (paid once their contracts are fully paid) */
+  rewards?: { due: number; dueCount: number; expected: number } | null;
   canManage: boolean;
   canDecide: boolean;
   /** which pages the viewer may open from here: contracts (quotes.view), projects (projects.view), costs (costs.view + purchases.view), schedule (schedule.view) */
@@ -91,7 +93,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   const [
     { data: contracts }, { data: clients }, { data: settings }, { data: addenda }, { data: approvals }, { data: stages },
     payments, versions, requestableRows,
-    hr, spend, costs, estimatedTotals, { data: tc }, { data: monthReceipts },
+    hr, spend, costs, estimatedTotals, { data: tc }, { data: monthReceipts }, rewardRows,
   ] = await Promise.all([
     contractsP,
     supabase.from("clients").select("id, name, phone").eq("organization_id", orgId),
@@ -145,6 +147,8 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     seeEstimates && can(session, "finance.view") && seeHr ? supabase.rpc("team_cost_month", { p_org: orgId }) : Promise.resolve({ data: null }),
     // collected this month = the receipt vouchers issued this month (contract payments and addenda, partial too)
     supabase.from("client_receipts").select("amount").eq("organization_id", orgId).gte("paid_on", `${today.slice(0, 7)}-01`).lte("paid_on", today),
+    // success partners' rewards (RLS: finance.view / costs.view / marketers.manage) — not cancelled
+    rowsOf(supabase.from("marketer_commissions").select("contract_id, amount, status").eq("organization_id", orgId).in("status", ["expected", "due", "paid"])),
   ]);
   const requestable = new Set((requestableRows ?? []).map((r) => r.payment_id));
   const clientName = new Map((clients ?? []).map((c) => [c.id, c.name]));
@@ -210,6 +214,15 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     const owed = [...byAccount.values()].filter((b) => b < 0).reduce((s, b) => s - b, 0);
     if (owed > 0.005) outflows.push({ date: today, amount: r2(owed), label: "petty", kind: "petty" });
   }
+  // a due reward is paid now; an expected one when its contract's last payment comes in (it becomes due then)
+  for (const k of rewardRows) {
+    if (k.status === "due") outflows.push({ date: today, amount: n(k.amount), label: "reward", kind: "reward" });
+    if (k.status === "expected") {
+      const own = rows.filter((r) => r.contract_id === k.contract_id && !r.id.startsWith("ad:"));
+      const last = own.reduce((d, r) => (r.expected > d ? r.expected : d), today);
+      if (own.length) outflows.push({ date: last, amount: n(k.amount), label: "reward", kind: "reward" });
+    }
+  }
   const inflows: Flow[] = rows.filter((r) => r.outstanding > 0).map((r) => ({ date: r.expected, amount: r.outstanding, label: `${r.client} · ${r.label}`, kind: "client" }));
   const opening = n(settings?.cash_balance);
 
@@ -232,6 +245,8 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     // accepted additional works add their own estimated cost (addendum_costs)
     const extra = new Map<string, number>();
     for (const a of adCosts ?? []) extra.set(a.contract_id, (extra.get(a.contract_id) ?? 0) + n(a.material_cost) + n(a.other_cost));
+    // the partner's reward is part of the expected cost (the price carries it)
+    for (const k of rewardRows) extra.set(k.contract_id, (extra.get(k.contract_id) ?? 0) + n(k.amount));
     estimated = new Map((contracts ?? []).map((c) => [c.id, (total.get(vid.find((v) => v.quote_id === c.quote_id && v.version === c.quote_version)?.id ?? "") ?? 0) + (extra.get(c.id) ?? 0)]).filter(([, v]) => (v as number) > 0) as [string, number][]);
   }
   const profits: ProfitRow[] = (contracts ?? []).map((c) => {
@@ -288,6 +303,13 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     approvals: (approvals ?? []).map(approvalRow),
     teamCost,
     labourHidden: can(session, "costs.view") && !can(session, "hr.view"),
+    rewards: rewardRows.length
+      ? {
+          due: r2(rewardRows.filter((k) => k.status === "due").reduce((s, k) => s + n(k.amount), 0)),
+          dueCount: rewardRows.filter((k) => k.status === "due").length,
+          expected: r2(rewardRows.filter((k) => k.status === "expected").reduce((s, k) => s + n(k.amount), 0)),
+        }
+      : null,
     canManage: can(session, "finance.manage"),
     canDecide: can(session, "approvals.decide"),
     links: { contracts: can(session, "quotes.view"), projects: can(session, "projects.view"), costs: can(session, "costs.view") && can(session, "purchases.view"), schedule: can(session, "schedule.view") },

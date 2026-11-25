@@ -316,6 +316,8 @@ export type ProjectCostInput = {
   estimates: Map<string, number>;
   /** a VAT-registered company reclaims purchase VAT; otherwise VAT is part of cost */
   vatRegistered: boolean;
+  /** success partners' rewards PAID per project (a cost once paid — owner) */
+  commissions?: { contract_id: string | null; amount: Num }[];
 };
 
 /**
@@ -345,6 +347,7 @@ export function projectCostRows(d: ProjectCostInput) {
   const pending = sumBy(d.purchases.filter((p) => p.status === "pending_approval"), (p) => p.contract_id, (p) => n(p.total));
   const repairs = sumBy(d.repairs, (m) => m.contract_id, (m) => n(m.cost));
   const labourOf = d.labour ? sumBy(d.labour, (l) => l.contract_id, (l) => n(l.labour)) : null;
+  const rewards = sumBy(d.commissions ?? [], (k) => k.contract_id, (k) => n(k.amount));
   return d.contracts.map((c) => {
     const mat = materials.get(c.id) ?? 0;
     const exp = expenses.get(c.id) ?? 0;
@@ -352,12 +355,13 @@ export function projectCostRows(d: ProjectCostInput) {
     const sub = subs.get(c.id) ?? 0;
     const maintenance = repairs.get(c.id) ?? 0;
     const labour = labourOf ? labourOf.get(c.id) ?? 0 : null;
+    const commission = rewards.get(c.id) ?? 0;
     return {
       id: c.id, number: c.number, client: names.get(c.client_id) ?? "—", status: c.status,
       estimated: d.estimates.get(c.id) ?? null, materials: r(mat), expenses: r(exp), subcontractors: r(sub), petty: r(pet),
       materialsActual: r(mat + exp + pet),
-      actual: r(mat + exp + pet + sub + maintenance + (labour ?? 0)), pending: r(pending.get(c.id) ?? 0),
-      labour: labour == null ? null : r(labour), maintenance: r(maintenance),
+      actual: r(mat + exp + pet + sub + maintenance + (labour ?? 0) + commission), pending: r(pending.get(c.id) ?? 0),
+      labour: labour == null ? null : r(labour), maintenance: r(maintenance), commission: r(commission),
     };
   });
 }

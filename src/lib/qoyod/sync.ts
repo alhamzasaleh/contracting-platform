@@ -4,7 +4,7 @@ import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.type
 import { qoyod, QoyodError } from "./client";
 import { qoyodAutoSetup } from "./setup";
 import { effectiveVatPercent } from "@/lib/costing";
-import { approveSimpleBillBody, autoSetupDue, autoSetupNext, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyOpeningBody, pettyOpeningTag, pettyPlan, pettyReconcileAccounts, pettyTag, pettyTransferBody, simpleBillBody, simpleBillPaymentBody, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
+import { approveSimpleBillBody, autoSetupDue, autoSetupNext, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyOpeningBody, pettyOpeningTag, pettyPlan, pettyReconcileAccounts, pettyTag, pettyTransferBody, simpleBillBody, simpleBillPaymentBody, commissionBillRef, commissionExpenseAccount, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Ctx = { admin: Admin; key: string; s: QoyodSettingsRow };
@@ -100,7 +100,7 @@ async function doneId(ctx: Ctx, kind: QoyodJobRow["kind"], ref: string): Promise
   return data?.qoyod_id ?? null;
 }
 
-async function remember(ctx: Ctx, kind: "customer" | "vendor", entityType: "client" | "supplier" | "subcontractor", entityId: string, ref: string, id: number) {
+async function remember(ctx: Ctx, kind: "customer" | "vendor", entityType: "client" | "supplier" | "subcontractor" | "marketer", entityId: string, ref: string, id: number) {
   await ctx.admin.from("qoyod_sync_jobs").upsert(
     { organization_id: ctx.s.organization_id, kind, entity_type: entityType, entity_id: entityId, ref, status: "done", qoyod_id: id, done_at: new Date().toISOString() },
     { onConflict: "organization_id,kind,ref" },
@@ -166,6 +166,19 @@ async function subcontractorVendorId(ctx: Ctx, subcontractorId: string): Promise
   return id;
 }
 
+/** A success partner is a vendor in Qoyod (created on demand, remembered; name and phone only). */
+async function marketerVendorId(ctx: Ctx, marketerId: string): Promise<number> {
+  const ref = `mkt:${marketerId}`;
+  const known = await doneId(ctx, "vendor", ref);
+  if (known) return known;
+  const { data } = await ctx.admin.from("marketers").select("name, phone").eq("id", marketerId).single();
+  const m = need(data, "marketer");
+  const r = await qoyod<{ contact?: { id: number } }>(ctx.key, "POST", "/vendors", vendorBody({ ...m, vat_number: null }));
+  const id = need(r.contact?.id, "vendor");
+  await remember(ctx, "vendor", "marketer", marketerId, ref, id);
+  return id;
+}
+
 /**
  * What a "bill" job sends: a supplier purchase, a payment to a subcontractor (subcontracting
  * expense; VAT-inclusive when both sides are VAT-registered) or a petty-cash expense (expense
@@ -204,6 +217,16 @@ async function billSource(ctx: Ctx, job: QoyodJobRow): Promise<BillSource> {
       description: [c?.number, agr.scope, pay.reference].filter(Boolean).join(" — ").slice(0, 250), ...amounts,
     };
   }
+  if (job.entity_type === "commission_payment") {
+    // a success partner's reward: an expense (rewards account, else the general expense account), no VAT
+    const { data: p } = await admin.from("commission_payments").select("number, marketer_id, contract_id, paid_on, amount").eq("id", job.entity_id).single();
+    const pay = need(p, "commission_payment");
+    const { data: c } = await admin.from("contracts").select("number").eq("id", pay.contract_id).maybeSingle();
+    const expenseAccountId = need(commissionExpenseAccount(s), "expense_account");
+    const contactId = await marketerVendorId(ctx, pay.marketer_id);
+    const amount = Number(pay.amount);
+    return { reference: commissionBillRef(pay.number), contactId, issueDate: pay.paid_on, expenseAccountId, description: [pay.number, c?.number].filter(Boolean).join(" — "), subtotal: amount, vat: 0, total: amount };
+  }
   if (job.entity_type === "petty_cash") {
     const { data: e } = await admin.from("petty_cash_entries").select("id, entry_date, amount, description, supplier_name, contract_id").eq("id", job.entity_id).single();
     const entry = need(e, "petty_cash");
@@ -234,6 +257,12 @@ async function billPayment(ctx: Ctx, job: QoyodJobRow): Promise<{ billRef: strin
     const pay = need(p, "subcontractor_payment");
     const ref = subcontractorBillRef(pay.id);
     return { billRef: `sb:${pay.id}`, reference: billPaymentRef(ref), from: pay.method === "cash" ? "cash" : "bank", date: pay.paid_on, amount: Number(job.amount ?? pay.amount), description: pay.reference ? `${ref} — ${pay.reference}` : ref };
+  }
+  if (job.entity_type === "commission_payment") {
+    const { data: p } = await admin.from("commission_payments").select("id, number, paid_on, amount, method, reference").eq("id", job.entity_id).single();
+    const pay = need(p, "commission_payment");
+    const ref = commissionBillRef(pay.number);
+    return { billRef: `mk:${pay.id}`, reference: billPaymentRef(ref), from: pay.method === "cash" ? "cash" : "bank", date: pay.paid_on, amount: Number(job.amount ?? pay.amount), description: pay.reference ? `${ref} — ${pay.reference}` : ref };
   }
   if (job.entity_type === "petty_cash") {
     const { data: e } = await admin.from("petty_cash_entries").select("id, entry_date, amount").eq("id", job.entity_id).single();

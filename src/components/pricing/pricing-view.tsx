@@ -121,6 +121,8 @@ export function PricingView({
     renderActions: (sel: Selection, outcome: PricingOutcome) => React.ReactNode;
     /** suggestions from the company's past quotes for this service */
     history?: PastStats | null;
+    /** the success partner's reward on this quote — the price carries it (internal only) */
+    commission?: { name: string; percent: number } | null;
   };
   ctx: PricingContext;
   templates: Partial<Record<ServiceKind, Partial<Selection>>>;
@@ -187,8 +189,8 @@ export function PricingView({
     };
 
   const outcome = React.useMemo(
-    () => priceSelection(sel, q, ctx),
-    [sel, q, ctx],
+    () => priceSelection(sel, q, ctx, { commissionPercent: quote?.commission?.percent ?? 0 }),
+    [sel, q, ctx, quote?.commission?.percent],
   );
   const { price } = outcome;
 
@@ -859,6 +861,13 @@ export function PricingView({
           )}
         </div>
 
+        {quote?.commission && quote.commission.percent > 0 && (
+          <p className="flex flex-wrap justify-between gap-2 rounded-2xl border border-dashed border-primary/40 px-5 py-3 text-[13px]" data-testid="partner-reward-line">
+            <span>{t("partnerReward", { name: quote.commission.name, percent: fmt.number(quote.commission.percent) })}</span>
+            <span className="font-latin font-bold tabular-nums">{fmt.money(price.commission)}</span>
+            <span className="w-full text-[12px] text-muted-foreground">{t("partnerRewardHint")}</span>
+          </p>
+        )}
         {(() => {
           const target = sel.marginPercent ?? c.rates["commercial.targetMarginPercent"] ?? 28;
           const step = c.rates["commercial.roundingStep"] ?? 1;

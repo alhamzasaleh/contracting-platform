@@ -1,4 +1,5 @@
 import "server-only";
+import { loadMarketerChoices, type MarketerChoice } from "@/lib/data/marketers";
 import { notFound } from "next/navigation";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { SurveyRoom, SurveyTotals } from "@/lib/survey";
@@ -31,7 +32,9 @@ export async function loadClients(session: SessionContext): Promise<ClientListIt
 }
 
 export type ClientDetail = {
-  client: { id: string; number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null; location_url: string | null; notes: string | null };
+  client: { id: string; number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null; location_url: string | null; notes: string | null; marketer_id?: string | null };
+  /** success partners for «جاء عن طريق» (names only; marketer_choices) */
+  marketers?: MarketerChoice[];
   /** quotes = quotes built on this survey (it can't be deleted while there are any) */
   surveys: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; rooms: number; quotes?: number }[];
   /** hasContract = any contract, even cancelled (owner only — for «حذف») */
@@ -54,7 +57,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
   const orgId = session.organization.id;
   const { data: client } = await supabase
     .from("clients")
-    .select("id, number, name, phone, city, district, id_number, location_url, notes")
+    .select("id, number, name, phone, city, district, id_number, location_url, notes, marketer_id")
     .eq("organization_id", orgId)
     .eq("number", number)
     .maybeSingle();
@@ -67,7 +70,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
     ? once(supabase.from("contracts").select("id, number, service, status, total").eq("client_id", client.id).neq("status", "cancelled").order("created_at", { ascending: false }))
     : Promise.resolve({ data: [] });
   // one parallel round after the client; queries that need his surveys / quotes / contracts are chained onto them
-  const [{ data: surveys }, rooms, { data: quotes }, versions, { data: contracts }, [repairs, addenda, receipts, invoices], allContracts] = await Promise.all([
+  const [{ data: surveys }, rooms, { data: quotes }, versions, { data: contracts }, [repairs, addenda, receipts, invoices], allContracts, marketers] = await Promise.all([
     surveysP,
     // rooms of his surveys only (counted per survey)
     surveysP.then(({ data }) => {
@@ -92,6 +95,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
     }),
     // owner: every contract of his, cancelled included — any contract keeps the client and its quote
     owner ? rows(supabase.from("contracts").select("quote_id").eq("client_id", client.id)) : Promise.resolve([] as { quote_id: string }[]),
+    loadMarketerChoices(supabase, orgId),
   ]);
   const accepted = (contracts ?? []).filter((c) => c.status === "accepted").map((c) => c.id);
   const billed = (contracts ?? []).filter((c) => c.status === "accepted").reduce((s, c) => s + n(c.total), 0) + addenda.reduce((s, a) => s + n(a.total), 0);
@@ -99,6 +103,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
   const r2 = (x: number) => Math.round(x * 100) / 100;
   return {
     client,
+    marketers,
     surveys: (surveys ?? []).map((s) => ({ ...s, rooms: (rooms ?? []).filter((r) => r.survey_id === s.id).length, quotes: (quotes ?? []).filter((q) => q.survey_id === s.id).length })),
     quotes: (quotes ?? []).map((q) => ({
       id: q.id,

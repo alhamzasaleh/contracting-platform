@@ -47,6 +47,8 @@ export type QuoteSnapshot = {
   marginPercent: number;
   lines: PricingOutcome["result"]["lines"];
   purchaseList: PurchaseItem[];
+  /** the success partner's reward on the net before VAT (internal — never in clientView) */
+  commission: { percent: number; amount: number };
 };
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -57,13 +59,15 @@ export function buildSnapshot(
   sel: Selection,
   q: Quantities,
   o: PricingOutcome,
-  opts: { discountPercent: number; method: "unit" | "lump"; estimated: boolean; vatPercent: number; catalogue: CatalogueData },
+  opts: { discountPercent: number; method: "unit" | "lump"; estimated: boolean; vatPercent: number; catalogue: CatalogueData; commissionPercent?: number },
 ): QuoteSnapshot {
   const p = o.price;
   const discountPercent = Math.min(100, Math.max(0, opts.discountPercent));
   const discount = r2((p.subtotal * discountPercent) / 100);
   const net = r2(p.subtotal - discount);
   const vat = r2((net * opts.vatPercent) / 100);
+  const commissionPercent = Math.max(0, opts.commissionPercent ?? 0);
+  const commission = r2((net * commissionPercent) / 100);
   const visible = STEPS[sel.kind].filter((s) => !s.when || s.when(sel.options));
   const included: ClientView["included"] = [];
   const excluded: string[] = [];
@@ -112,10 +116,11 @@ export function buildSnapshot(
     },
     cost: r2(p.cost),
     costWithContingency: r2(p.costWithContingency),
-    // margin after any discount, on the selling price
-    marginPercent: net > 0 ? r2(((net - p.costWithContingency) / net) * 100) : 0,
+    // margin after any discount and after the partner's reward (a cost of the sale), on the selling price
+    marginPercent: net > 0 ? r2(((net - p.costWithContingency - commission) / net) * 100) : 0,
     lines: o.result.lines,
     purchaseList,
+    commission: { percent: commissionPercent, amount: commission },
   };
 }
 

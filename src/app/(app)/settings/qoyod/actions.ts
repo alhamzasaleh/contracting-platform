@@ -49,7 +49,7 @@ async function applyAutoSetup(session: Awaited<ReturnType<typeof getSession>>, k
   try {
     const auto = await qoyodAutoSetup(key, !!session.organization.vat_number);
     const supabase = await createClient();
-    const { data: cur } = await supabase.from("qoyod_settings").select("enabled, inventory_id, receive_account_id, expense_account_id, salary_account_id, cash_account_id, subcontract_account_id, service_products, addendum_product_id, auto_setup_at").eq("organization_id", session.organization.id).maybeSingle();
+    const { data: cur } = await supabase.from("qoyod_settings").select("enabled, inventory_id, receive_account_id, expense_account_id, salary_account_id, cash_account_id, subcontract_account_id, commission_account_id, service_products, addendum_product_id, auto_setup_at").eq("organization_id", session.organization.id).maybeSingle();
     // optional accounts only at the first setup: one the owner cleared later stays empty
     const next = autoSetupNext(cur ? { ...cur, service_products: (cur.service_products ?? {}) as Record<string, number> } : null, auto);
     const { error } = await supabase
@@ -112,6 +112,7 @@ const settingsSchema = z
     salary_account_id: id.optional(),
     cash_account_id: id.optional(),
     subcontract_account_id: id.optional(),
+    commission_account_id: id.optional(),
     service_products: z.object({ gypsum: id, interior: id, exterior: id }).strict(),
     addendum_product_id: id,
   })

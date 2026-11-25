@@ -1,5 +1,6 @@
 import { termsSchema, type ContractTermsConfig } from "@/lib/contracts/terms";
 import "server-only";
+import { loadContractCommission, type ContractCommission } from "@/lib/data/marketers";
 import { notFound } from "next/navigation";
 import { can, type SessionContext } from "@/lib/auth/session";
 import { defaultStages, suggestedDays, type DueEvent } from "@/lib/contracts";
@@ -164,6 +165,8 @@ export type ContractDetail = {
   warrantyEnd?: string | null;
   /** today in Riyadh (YYYY-MM-DD), so the view and the server agree */
   today?: string;
+  /** the success partner's reward (internal: costs.view / finance.view) */
+  reward?: ContractCommission;
 };
 
 /**
@@ -220,7 +223,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
     { data: client }, { data: q }, { data: ver }, { data: payments }, { data: links },
     { data: addenda }, settings, { data: receipts }, { data: tpl }, { data: requestableRows },
     bookTeam, warrantyEnd, { data: invoices }, { count: openMaintenance },
-    adCosts, approvals, { data: optRows }, materialCostValue,
+    adCosts, approvals, { data: optRows }, materialCostValue, reward,
   ] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city, district, id_number").eq("id", c.client_id).maybeSingle(),
     supabase.from("quotes").select("number, valid_until, client_decision, client_decided_at, client_name").eq("id", c.quote_id).maybeSingle(),
@@ -257,10 +260,12 @@ export async function loadContract(session: SessionContext, number: string): Pro
       ? supabase.from("quote_versions").select("version, total").eq("quote_id", c.quote_id).in("version", c.options.map((o) => o.version))
       : Promise.resolve({ data: [] as { version: number; total: number }[] }),
     can(session, "costs.view") ? materialCost(supabase, c.quote_id, c.quote_version) : Promise.resolve(null),
+    loadContractCommission(session, c.id),
   ]);
   const active = (links ?? []).find((l) => !l.revoked_at && new Date(l.expires_at) > new Date());
   const requestable = new Set((requestableRows ?? []).map((r) => r.payment_id));
   return {
+    reward,
     options: c.options?.length ? c.options.map((o) => ({ ...o, total: n(optRows?.find((r) => r.version === o.version)?.total) })) : null,
     contract: {
       id: c.id, number: c.number, status: c.status, service: c.service, project_type: c.project_type, start_date: c.start_date,

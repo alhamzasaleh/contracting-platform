@@ -1,4 +1,5 @@
 "use client";
+import { RewardLine } from "@/components/marketers/reward-line";
 import { DocNo } from "@/components/doc-no";
 import { AlertTriangle, CalendarClock, CalendarDays, Check, ClipboardList, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, Send, ShoppingCart, Trash2, Wrench, XCircle } from "lucide-react";
 import Link from "next/link";
@@ -315,6 +316,11 @@ export function ContractView({
 
   return (
     <div className="grid gap-6">
+      {detail.reward && (
+        <section className="grid rounded-3xl border border-dashed border-primary/40 bg-surface px-5 py-3 text-[13px]">
+          <RewardLine reward={detail.reward} />
+        </section>
+      )}
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-border bg-surface p-5">
         <div>
           <p className="flex flex-wrap items-center gap-2">

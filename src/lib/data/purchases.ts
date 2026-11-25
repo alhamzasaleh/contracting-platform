@@ -257,6 +257,8 @@ export type ProjectCost = ProjectRef & {
   labour?: number | null;
   /** maintenance covered by the warranty (the company pays; repairs charged to the client are not our cost) */
   maintenance?: number;
+  /** success partners' rewards paid on this project (a cost once paid) */
+  commission?: number;
 };
 
 /**
@@ -277,6 +279,7 @@ export async function loadProjectCosts(session: SessionContext, only?: string): 
   let repairsQ = supabase.from("maintenance_requests").select("contract_id, cost").eq("organization_id", orgId).eq("covered", true).gt("cost", 0);
   // expense lines of recorded project purchases (filtered in the database through the purchase)
   let expenseQ = supabase.from("purchase_lines").select("purchase_id, amount, purchases!inner(contract_id, status)").eq("organization_id", orgId).eq("kind", "expense").eq("purchases.status", "recorded").not("purchases.contract_id", "is", null);
+  let rewardsQ = supabase.from("commission_payments").select("contract_id, amount").eq("organization_id", orgId);
   let adCostsQ = supabase.from("addendum_costs").select("contract_id, material_cost, addenda!inner(status)").eq("organization_id", orgId).eq("addenda.status", "accepted");
   if (only) {
     contractsQ = contractsQ.eq("id", only);
@@ -287,10 +290,11 @@ export async function loadProjectCosts(session: SessionContext, only?: string): 
     repairsQ = repairsQ.eq("contract_id", only);
     expenseQ = expenseQ.eq("purchases.contract_id", only);
     adCostsQ = adCostsQ.eq("contract_id", only);
+    rewardsQ = rewardsQ.eq("contract_id", only);
   }
   const contractsP = Promise.resolve(contractsQ.order("created_at", { ascending: false }));
   const agreementsP = Promise.resolve(agreementsQ);
-  const [{ data: contracts }, { data: clients }, { data: moves }, { data: purchases }, { data: subWork }, { data: subAgreements }, { data: petty }, { data: repairs }, { data: labourRows }, { data: expenseLines }, estimates] = await Promise.all([
+  const [{ data: contracts }, { data: clients }, { data: moves }, { data: purchases }, { data: subWork }, { data: subAgreements }, { data: petty }, { data: repairs }, { data: labourRows }, { data: expenseLines }, estimates, { data: rewards }] = await Promise.all([
     contractsP,
     supabase.from("clients").select("id, name").eq("organization_id", orgId),
     movesQ.limit(20000),
@@ -325,9 +329,12 @@ export async function loadProjectCosts(session: SessionContext, only?: string): 
           return new Map(list.map((c) => [c.id, (byVersion.get(vid.get(`${c.quote_id}|${c.quote_version}`) ?? "") ?? 0) + (extra.get(c.id) ?? 0)]).filter(([, v]) => (v as number) > 0) as [string, number][]);
         })
       : Promise.resolve(new Map<string, number>()),
+    // success partners' rewards paid (RLS: costs.view / finance.view / marketers.manage)
+    rewardsQ.limit(20000),
   ]);
   return projectCostRows({
     contracts: contracts ?? [], clients: clients ?? [], moves: moves ?? [], purchases: purchases ?? [], subWork: subWork ?? [], agreements: subAgreements ?? [],
     petty: petty ?? [], repairs: repairs ?? [], labour: labourRows ?? null, expenseLines: expenseLines ?? [], estimates, vatRegistered: !!session.organization.vat_number,
+    commissions: rewards ?? [],
   });
 }

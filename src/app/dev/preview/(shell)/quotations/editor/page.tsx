@@ -18,6 +18,8 @@ export default function P() {
       ctx={SAMPLE_PRICING_CTX}
       templates={{}}
       canSeeCrewCost
+      partners={[{ id: "mk1", number: "MK-2026-001", name: "سعد بن فهد الدوسري", is_active: true, commission_percent: 5 }]}
+      partnerId="mk1"
       base="/dev/preview"
       history={{
         won: 7, lost: 3, winRate: 70, wonMargin: 26.5, lostMargin: 32, suggestedMargin: 26.5, durationFactor: 1.18,

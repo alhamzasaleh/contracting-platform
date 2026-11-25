@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 import { surveyGaps, surveyQuantities, type SurveyRoom, type SurveyTotals } from "@/lib/survey";
 import type { Json } from "@/lib/supabase/database.types";
 import { deleteError } from "@/lib/deletion";
+import { loadMarketerChoices } from "@/lib/data/marketers";
 
 const id = z.uuid();
 const n = (v: unknown) => Number(v ?? 0);
@@ -26,6 +27,8 @@ function fail(error: { code?: string; message?: string } | null, what: string): 
   if (error?.code === "42501") return { ok: false, error: /accepted quote/.test(error.message ?? "") ? "quoteLocked" : "noAccess" };
   if (error?.code === "22023" && /sent to the client/.test(error.message ?? "")) return { ok: false, error: "quoteContractSent" };
   if (error?.code === "22023" && /client accepted this quote/.test(error.message ?? "")) return { ok: false, error: "quoteClientAccepted" };
+  if (error?.code === "22023" && /commission changed/.test(error.message ?? "")) return { ok: false, error: "rewardChanged" };
+  if (error?.code === "22023" && /marketer inactive/.test(error.message ?? "")) return { ok: false, error: "partnerInactive" };
   return { ok: false, error: "error" };
 }
 
@@ -64,6 +67,8 @@ const saveSchema = z
     discount_percent: z.number().min(0).max(100),
     method: z.enum(["unit", "lump"]),
     notes: z.string().trim().max(4000).nullable(),
+    /** the success partner on this quote (default: the client's; null = none) */
+    marketer_id: id.nullable().optional(),
   })
   .strict();
 
@@ -83,10 +88,19 @@ export async function saveQuoteVersion(input: unknown): Promise<ActionResult<{ n
 
   const src = await quantitiesFor(supabase, v.survey_id, v.selection.kind);
   if (!src) return { ok: false, error: "invalid" };
-  const [{ ctx }, settings] = await Promise.all([loadPricingContext(session), loadPricingSettings(session)]);
+  const [{ ctx }, settings, partners] = await Promise.all([
+    loadPricingContext(session),
+    loadPricingSettings(session),
+    v.marketer_id ? loadMarketerChoices(supabase, orgId) : Promise.resolve([]),
+  ]);
+  // the partner's CURRENT reward % prices this version (the database re-checks it and freezes it)
+  const partner = v.marketer_id ? partners.find((m) => m.id === v.marketer_id) : null;
+  if (v.marketer_id && (!partner || partner.commission_percent == null)) return { ok: false, error: "invalid" };
+  if (partner && !partner.is_active) return { ok: false, error: "partnerInactive" };
+  const commissionPercent = partner?.commission_percent ?? 0;
   const sel = v.selection as Selection;
-  const outcome = priceSelection(sel, src.q, ctx);
-  const snap = buildSnapshot(sel, src.q, outcome, { discountPercent: v.discount_percent, method: v.method, estimated: src.estimated, vatPercent: ctx.vatPercent, catalogue: ctx.catalogue });
+  const outcome = priceSelection(sel, src.q, ctx, { commissionPercent });
+  const snap = buildSnapshot(sel, src.q, outcome, { discountPercent: v.discount_percent, method: v.method, estimated: src.estimated, vatPercent: ctx.vatPercent, catalogue: ctx.catalogue, commissionPercent });
   const check = readiness(outcome, snap, n(settings?.min_margin_percent ?? 20), src.gaps);
 
   // The quote (new, or an existing one getting a new version)
@@ -129,6 +143,7 @@ export async function saveQuoteVersion(input: unknown): Promise<ActionResult<{ n
       costs: {
         cost: snap.cost, cost_with_contingency: snap.costWithContingency, margin_percent: snap.marginPercent,
         lines: snap.lines as unknown as Json, purchase_list: snap.purchaseList as unknown as Json,
+        marketer_id: partner?.id ?? null, commission_percent: commissionPercent,
       },
     } as Json,
   });

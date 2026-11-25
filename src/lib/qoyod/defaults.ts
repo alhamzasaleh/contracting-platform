@@ -25,5 +25,7 @@ export function pickDefaults(o: QoyodOptions) {
     salaryAccountId: expense.find((a) => match(a, /رواتب|أجور|اجور|salar|wage/i))?.id ?? null,
     cashAccountId: receive.find((a) => match(a, /نقد|صندوق|cash/i))?.id ?? null,
     subcontractAccountId: expense.find((a) => match(a, /مقاول|باطن|subcontract/i))?.id ?? null,
+    // success partners' rewards
+    commissionAccountId: expense.find((a) => match(a, /عمول|مكافأ|مكافا|commission|referral/i))?.id ?? null,
   };
 }

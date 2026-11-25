@@ -1,4 +1,5 @@
 import "server-only";
+import { loadMarketerChoices } from "@/lib/data/marketers";
 import { notFound } from "next/navigation";
 import { can, type SessionContext } from "@/lib/auth/session";
 import { loadPricingContext } from "@/lib/data/pricing";
@@ -79,13 +80,13 @@ export async function loadQuoteEditor(session: SessionContext, args: { surveyNum
   // the pricing context doesn't depend on the quote: start it now, alongside the quote lookups
   const contextP = loadPricingContext(session);
   contextP.catch(() => {}); // awaited below; never an unhandled rejection if notFound() comes first
-  let quote: { id: string; number: string; service: ServiceKind; survey_id: string | null; current_version: number } | null = null;
+  let quote: { id: string; number: string; service: ServiceKind; survey_id: string | null; current_version: number; marketer_id?: string | null } | null = null;
   let initial: Selection | null = null;
   let discount = 0;
   let method: "unit" | "lump" = "unit";
   let notes: string | null = null;
   if (args.quoteNumber) {
-    const { data } = await supabase.from("quotes").select("id, number, service, survey_id, current_version").eq("organization_id", orgId).eq("number", args.quoteNumber).maybeSingle();
+    const { data } = await supabase.from("quotes").select("id, number, service, survey_id, current_version, marketer_id").eq("organization_id", orgId).eq("number", args.quoteNumber).maybeSingle();
     if (!data || !data.survey_id) notFound();
     quote = data;
   }
@@ -96,13 +97,19 @@ export async function loadQuoteEditor(session: SessionContext, args: { surveyNum
     Promise.all([contextP, loadPastStats(session, kind, quote?.id ?? null)]),
   ]);
   if (!src) notFound();
+  // the success partner: the quote's own (as last priced), else the client's «جاء عن طريق» (owner may change / remove it)
+  const [partners, clientRow] = await Promise.all([
+    loadMarketerChoices(supabase, orgId),
+    quote ? Promise.resolve(null) : supabase.from("clients").select("marketer_id").eq("organization_id", orgId).eq("number", src.client.number).maybeSingle().then((r) => r.data),
+  ]);
+  const partnerId = quote ? (quote.marketer_id ?? null) : (clientRow?.marketer_id ?? null);
   if (v) {
     initial = v.selection as unknown as Selection;
     discount = n((v.client_view as { discountPercent?: number } | null)?.discountPercent ?? 0);
     method = v.pricing_method;
     notes = v.notes;
   }
-  return { quote, kind, initial, discount, method, notes, ...src, ctx, templates, canSeeCrewCost, history };
+  return { quote, kind, initial, discount, method, notes, ...src, ctx, templates, canSeeCrewCost, history, partners, partnerId };
 }
 
 /**
@@ -179,7 +186,8 @@ export type QuoteDetail = {
   versions: { version: number; total: number; created_at: string; brands: string[] }[];
   /** 2–3 versions offered side by side (null = a single quote) */
   options: { version: number; label: string }[] | null;
-  internal: { cost: number; costWithContingency: number; marginPercent: number; lines: Line[]; purchaseList: PurchaseItem[] } | null;
+  /** reward = the success partner's frozen reward on this version (internal) */
+  internal: { cost: number; costWithContingency: number; marginPercent: number; lines: Line[]; purchaseList: PurchaseItem[]; reward?: { name: string; percent: number; amount: number } | null } | null;
   approvals: { id: string; kind: string; status: string; details: Record<string, unknown>; decided_at: string | null; decision_note: string | null }[];
   canManage: boolean;
   /** may record purchases (purchases.manage) — «create a purchase» from the list once the contract is accepted */
@@ -215,7 +223,12 @@ export async function loadQuote(session: SessionContext, number: string): Promis
   let internal: QuoteDetail["internal"] = null;
   if (cur && can(session, "costs.view")) {
     const { data: c } = await supabase.from("quote_version_costs").select("*").eq("quote_version_id", cur.id).maybeSingle();
-    if (c) internal = { cost: n(c.cost), costWithContingency: n(c.cost_with_contingency), marginPercent: n(c.margin_percent), lines: c.lines as unknown as Line[], purchaseList: c.purchase_list as unknown as PurchaseItem[] };
+    const partner = c?.marketer_id ? (await loadMarketerChoices(supabase, orgId)).find((m) => m.id === c.marketer_id) : null;
+    if (c)
+      internal = {
+        cost: n(c.cost), costWithContingency: n(c.cost_with_contingency), marginPercent: n(c.margin_percent), lines: c.lines as unknown as Line[], purchaseList: c.purchase_list as unknown as PurchaseItem[],
+        reward: c.marketer_id && n(c.commission_percent) > 0 ? { name: partner?.name ?? "—", percent: n(c.commission_percent), amount: n(c.commission_amount) } : null,
+      };
   }
   return {
     quote: { id: q.id, number: q.number, service: q.service, status: q.status, version: q.current_version, valid_until: q.valid_until, created_at: q.created_at },
