@@ -48,17 +48,16 @@ export function SitePinField({
   const [busy, setBusy] = React.useState<"gps" | "link" | null>(null);
   const [note, setNote] = React.useState<string | null>(null);
   const asked = React.useRef(0);
+  const placed = React.useRef(0);
 
-  // a new pin → its city and district (a suggestion for the form)
-  const place = React.useCallback(
-    (p: LatLng) => {
-      if (!readPlace || !onPlace) return;
-      void settle(() => readPlace(p)).then((r) => {
-        if (r.ok && r.data) onPlace(r.data);
-      });
-    },
-    [readPlace, onPlace],
-  );
+  // a new pin → its city and district (a suggestion for the form); only the latest pin's answer counts
+  const place = (p: LatLng) => {
+    if (!readPlace || !onPlace) return;
+    const ask = ++placed.current;
+    void settle(() => readPlace(p)).then((r) => {
+      if (ask === placed.current && r.ok && r.data) onPlace(r.data);
+    });
+  };
   const set = (p: LatLng | null) => {
     onChange(p);
     if (p) place(p);
@@ -130,7 +129,7 @@ export function SitePinField({
           <Crosshair /> {t("myLocation")}
         </Button>
         {value && (
-          <Button type="button" size="sm" variant="ghost" disabled={busy != null} onClick={() => onChange(null)}>
+          <Button type="button" size="sm" variant="ghost" disabled={busy != null} onClick={() => (placed.current++, onChange(null))}>
             <X /> {t("clearPin")}
           </Button>
         )}

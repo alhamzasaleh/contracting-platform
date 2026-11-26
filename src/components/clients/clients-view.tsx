@@ -68,7 +68,9 @@ function ClientDialog({
   const [linkText, setLinkText] = React.useState(client?.location_url ?? "");
   // city and district: typed, or filled from the pin (only when empty; a different one is offered)
   const [place, setPlace] = React.useState({ city: client?.city ?? "", district: client?.district ?? "" });
-  const [placeOffer, setPlaceOffer] = React.useState<Place | null>(null);
+  // the map's place: fills empty fields; offered while it differs from what's typed
+  const [placeFound, setPlaceFound] = React.useState<Place | null>(null);
+  const placeOffer = placeFound ? fillPlace(place, placeFound).offer : null;
   return (
     <FormDialog
       open
@@ -112,13 +114,13 @@ function ClientDialog({
       </Field>
       <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="cl-city" label={t("city")} optional={tc("optional")}>
-          <Input name="city" value={place.city} onChange={(e) => setPlace({ ...place, city: e.target.value })} />
+          <Input name="city" value={place.city} onChange={(e) => { const city = e.target.value; setPlace((p) => ({ ...p, city })); }} />
         </Field>
         <Field id="cl-district" label={t("district")} optional={tc("optional")}>
-          <Input name="district" value={place.district} onChange={(e) => setPlace({ ...place, district: e.target.value })} />
+          <Input name="district" value={place.district} onChange={(e) => { const district = e.target.value; setPlace((p) => ({ ...p, district })); }} />
         </Field>
       </div>
-      <PlaceOffer offer={placeOffer} onUse={(o) => (setPlace({ city: o.city ?? place.city, district: o.district ?? place.district }), setPlaceOffer(null))} />
+      <PlaceOffer offer={placeOffer} onUse={(o) => setPlace((p) => ({ city: o.city ?? p.city, district: o.district ?? p.district }))} />
       <Field id="cl-id" label={t("idNumber")} hint={t("idHint")} optional={tc("optional")} error={errors.id_number ? t("idInvalid") : undefined}>
         <Input name="id_number" defaultValue={client?.id_number ?? ""} inputMode="numeric" dir="ltr" maxLength={10} className="font-latin rtl:text-right" />
       </Field>
@@ -137,10 +139,13 @@ function ClientDialog({
         }}
         readLink={onReadLink}
         readPlace={onReadPlace}
+        // the address arrives later: fill what the fields hold NOW (typing meanwhile is kept)
         onPlace={(found) => {
-          const r = fillPlace(place, found);
-          setPlace({ city: r.city, district: r.district });
-          setPlaceOffer(r.offer);
+          setPlace((cur) => {
+            const r = fillPlace(cur, found);
+            return { city: r.city, district: r.district };
+          });
+          setPlaceFound(found);
         }}
         fromLinkOnSave={source === "auto" && !!linkText.trim()}
       />

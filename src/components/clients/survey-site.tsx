@@ -30,18 +30,20 @@ export function siteInput(v: SiteValue) {
 }
 
 /** «نفس موقع العميل» / «موقع ثاني» + the one place for the site and its city / district. */
-function SiteChoice({ value, onChange, clientHasSite, readLink, readPlace }: { value: SiteValue; onChange: (v: SiteValue) => void; clientHasSite: boolean; readLink?: ReadMapLink; readPlace?: ReadPlace }) {
+function SiteChoice({ value, onChange, clientHasSite, readLink, readPlace }: { value: SiteValue; onChange: React.Dispatch<React.SetStateAction<SiteValue>>; clientHasSite: boolean; readLink?: ReadMapLink; readPlace?: ReadPlace }) {
   const t = useTranslations("survey");
   const tc = useTranslations("common");
   const tcl = useTranslations("clients");
   const [link, setLink] = React.useState("");
-  const [offer, setOffer] = React.useState<Place | null>(null);
+  // the map's place: fills empty fields; offered while it differs from what's typed
+  const [found, setFound] = React.useState<Place | null>(null);
+  const offer = found ? fillPlace(value, found).offer : null;
   return (
     <div className="grid gap-3">
       <Segmented
         name={t("siteWhere")}
         value={value.own ? "own" : "client"}
-        onChange={(v) => onChange({ ...value, own: v === "own" })}
+        onChange={(o) => onChange((v) => ({ ...v, own: o === "own" }))}
         options={[
           { value: "client", label: t("siteClient") },
           { value: "own", label: t("siteOther") },
@@ -53,31 +55,33 @@ function SiteChoice({ value, onChange, clientHasSite, readLink, readPlace }: { v
           <SitePinField
             id="sv-site"
             value={value.pin}
-            onChange={(pin) => onChange({ ...value, pin })}
+            onChange={(pin) => onChange((v) => ({ ...v, pin }))}
             link={link}
             onLinkChange={setLink}
             readLink={readLink}
             readPlace={readPlace}
+            // the address arrives later: fill the CURRENT value (never an older pin)
             onPlace={(found) => {
-              const r = fillPlace(value, found);
-              onChange({ ...value, city: r.city, district: r.district });
-              setOffer(r.offer);
+              onChange((v) => ({ ...v, ...pick(fillPlace(v, found)) }));
+              setFound(found);
             }}
           />
           <div className="field-row grid gap-4 sm:grid-cols-2">
             <Field id="sv-city" label={tcl("city")} optional={tc("optional")}>
-              <Input value={value.city} onChange={(e) => onChange({ ...value, city: e.target.value })} />
+              <Input value={value.city} onChange={(e) => { const city = e.target.value; onChange((v) => ({ ...v, city })); }} />
             </Field>
             <Field id="sv-district" label={tcl("district")} optional={tc("optional")}>
-              <Input value={value.district} onChange={(e) => onChange({ ...value, district: e.target.value })} />
+              <Input value={value.district} onChange={(e) => { const district = e.target.value; onChange((v) => ({ ...v, district })); }} />
             </Field>
           </div>
-          <PlaceOffer offer={offer} onUse={(o) => (onChange({ ...value, city: o.city ?? value.city, district: o.district ?? value.district }), setOffer(null))} />
+          <PlaceOffer offer={offer} onUse={(o) => onChange((v) => ({ ...v, city: o.city ?? v.city, district: o.district ?? v.district }))} />
         </>
       )}
     </div>
   );
 }
+
+const pick = (r: { city: string; district: string }) => ({ city: r.city, district: r.district });
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
 
