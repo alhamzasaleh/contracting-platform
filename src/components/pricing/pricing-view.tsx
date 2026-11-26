@@ -818,8 +818,36 @@ export function PricingView({
           />
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-          <table className="w-full text-[14px]">
+        <div className="@container overflow-hidden rounded-2xl border border-border bg-surface">
+          {/* narrow (phone, half an iPad): one block per work type — five columns don't fit and the
+              last ones (price per m², total) would be cut off */}
+          <ul className="divide-y divide-border @2xl:hidden" data-testid="work-types-stacked">
+            {price.byWorkType.map((w) => (
+              <li key={w.workType} className="grid gap-2 px-4 py-3">
+                <p className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="font-bold">{te(`wt_${w.workType}`)}</span>
+                  <span className="font-latin text-[13px] tabular-nums text-muted-foreground">
+                    {te("area")} {fmt.number(w.area, 1)}
+                  </span>
+                </p>
+                <dl className="grid grid-cols-3 gap-2 text-[12px] [&_dd]:font-latin [&_dd]:text-[14px] [&_dd]:tabular-nums [&_dt]:text-muted-foreground">
+                  <div className="grid gap-0.5">
+                    <dt>{te("cost")}</dt>
+                    <dd>{fmt.money(w.cost)}</dd>
+                  </div>
+                  <div className="grid gap-0.5">
+                    <dt>{te("pricePerM2")}</dt>
+                    <dd className="font-bold text-primary">{fmt.money(w.pricePerM2)}</dd>
+                  </div>
+                  <div className="grid gap-0.5">
+                    <dt>{te("total")}</dt>
+                    <dd>{fmt.money(w.total)}</dd>
+                  </div>
+                </dl>
+              </li>
+            ))}
+          </ul>
+          <table className="hidden w-full text-[14px] @2xl:table">
             <thead className="bg-surface-sunken/60 text-[12px] text-muted-foreground">
               <tr>
                 <th className="whitespace-nowrap px-4 py-2.5 text-start font-bold">

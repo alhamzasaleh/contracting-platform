@@ -129,6 +129,16 @@ export function layoutIssues(): string[] {
     if (sideScroller(n)) continue;
     if (n.scrollWidth > n.clientWidth + 1) out.push(`content wider than its box (hidden sideways scroll): ${n.tagName.toLowerCase()} «${name(n)}» (${n.scrollWidth} > ${n.clientWidth})`);
   }
+  // 3b. boxes that CUT content sideways (overflow hidden / clip): a table's last columns vanish on a
+  // phone with no way to reach them (the price per m² column on the pricing screen, Nov 2026).
+  // Text meant to be shortened with «…» (truncate) and screen-reader-only boxes are fine.
+  for (const n of [root, ...root.querySelectorAll("*")]) {
+    if (n.matches(fieldish) || !shown(n)) continue;
+    const s = getComputedStyle(n);
+    if (!(s.overflowX === "hidden" || s.overflowX === "clip")) continue;
+    if (s.textOverflow === "ellipsis" || n.clientWidth <= 2) continue;
+    if (n.scrollWidth > n.clientWidth + 2) out.push(`content cut off sideways (hidden, can't be reached): ${n.tagName.toLowerCase()} «${name(n)}» (${n.scrollWidth} > ${n.clientWidth})`);
+  }
   // the dialog panel itself must fit the screen
   if (dialog) {
     const d = dialog.getBoundingClientRect();
