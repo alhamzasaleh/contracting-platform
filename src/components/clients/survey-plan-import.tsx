@@ -279,11 +279,12 @@ export function SurveyPlanImport({
                 {floors.length === 0 && <p className="text-sm text-muted-foreground">{t("aiNoRooms")}</p>}
                 {floors.map((f, fi) => (
                   <section key={`${f.page}-${fi}`} className="grid gap-2 rounded-2xl border border-border p-3">
-                    <div className="flex flex-wrap items-end justify-between gap-2">
-                      <div className="grid gap-1">
-                        <Input aria-label={t("planFloorName")} value={f.floor} maxLength={60} onChange={(e) => setFloor(fi, { floor: e.target.value })} className="h-9 max-w-64 font-bold" />
-                        <span className="text-[12px] text-muted-foreground">{t("planFloorArea", { area: fmt.number(area(f.rows), 1), page: f.page })}</span>
-                      </div>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <label className="grid gap-1 text-[12px] font-semibold text-muted-foreground">
+                        {t("planFloorName")}
+                        <Input value={f.floor} maxLength={60} onChange={(e) => setFloor(fi, { floor: e.target.value })} className="h-9 max-w-64 font-bold text-foreground" />
+                        <span className="font-normal">{t("planFloorArea", { area: fmt.number(area(f.rows), 1), page: f.page })}</span>
+                      </label>
                       <label className="grid gap-1 text-[12px] font-semibold text-muted-foreground">
                         {t("planHeight")}
                         <Input
@@ -328,7 +329,6 @@ export function SurveyPlanImport({
                                 inputMode="decimal"
                                 dir="ltr"
                                 aria-label={`${r.name} — ${t(`ai_${k}`)}`}
-                                placeholder={t(`ai_${k}`)}
                                 defaultValue={r[k] ?? ""}
                                 onChange={(e) => setRow(fi, ri, { [k]: roomSize(e.target.value, 200) })}
                                 className={cn("h-9 font-latin", r[k] == null && "border-warning")}

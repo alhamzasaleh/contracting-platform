@@ -830,7 +830,7 @@ export function PricingView({
                     {te("area")} {fmt.number(w.area, 1)}
                   </span>
                 </p>
-                <dl className="grid grid-cols-3 gap-2 text-[12px] [&_dd]:font-latin [&_dd]:text-[14px] [&_dd]:tabular-nums [&_dt]:text-muted-foreground">
+                <dl className="grid grid-cols-[repeat(auto-fit,minmax(6.5rem,1fr))] gap-2 text-[12px] [&_dd]:font-latin [&_dd]:text-[14px] [&_dd]:tabular-nums [&_dt]:text-muted-foreground">
                   <div className="grid gap-0.5">
                     <dt>{te("cost")}</dt>
                     <dd>{fmt.money(w.cost)}</dd>

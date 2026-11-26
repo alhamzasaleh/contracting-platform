@@ -89,7 +89,7 @@ export function MaterialsDocument({ org, doc }: { org: DocOrg; doc: MaterialsDoc
       ) : (
         <>
           {/* paper and wide screens */}
-          <table className="hidden w-full border-collapse text-[13px] sm:table print:table">
+          <table className="hidden w-full border-collapse text-[13px] lg:table print:table">
             <thead>
               <tr className="bg-primary text-primary-foreground">
                 <th className="rounded-s-lg px-2.5 py-2 text-start font-bold">{t("colMaterial")}</th>
@@ -149,7 +149,7 @@ export function MaterialsDocument({ org, doc }: { org: DocOrg; doc: MaterialsDoc
           </table>
 
           {/* phone: one card per material */}
-          <ul className="grid gap-2 sm:hidden print:hidden">
+          <ul className="grid gap-2 lg:hidden print:hidden">
             {doc.rows.map((r) => (
               <li key={r.key} className="grid gap-2 rounded-2xl border border-sand p-3.5">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
