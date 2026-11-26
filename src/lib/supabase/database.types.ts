@@ -505,6 +505,9 @@ export type CommissionPaymentRow = OrgRow & {
 export type MarketerPortalLinkRow = OrgRow & { marketer_id: string; token_hash: string; expires_at: string; revoked_at: string | null };
 export type ContractRow = OrgRow & Upd & {
   number: string;
+  /** the project's place when its survey has its own site (set by the database) */
+  site_city?: string | null;
+  site_district?: string | null;
   /** the agreed version's success partner (set by the database) */
   marketer_id?: string | null;
   /** copied from the quote; the client picks one while accepting */
@@ -651,7 +654,7 @@ export type ProjectStageRow = OrgRow & Upd & {
 };
 export type SiteVisitRow = OrgRow & { contract_id: string; latitude: number | null; longitude: number | null; accuracy_m: number | null; note: string | null; checked_in_at: string };
 /** a project's own site pin (else the client's) */
-export type ProjectSiteRow = { contract_id: string; organization_id: string; latitude: number; longitude: number; created_at: string; created_by: string | null; updated_at: string };
+export type ProjectSiteRow = { contract_id: string; organization_id: string; latitude: number; longitude: number; from_survey?: boolean; created_at: string; created_by: string | null; updated_at: string };
 export type ProgressUpdateRow = OrgRow & { contract_id: string; stage_id: string; progress: number; note: string | null; photos: string[]; visible_to_client: boolean };
 export type ClientNoteRow = OrgRow & Upd & { contract_id: string; stage_id: string | null; body: string; photos: string[]; status: "new" | "seen" | "resolved"; reply: string | null };
 
@@ -886,7 +889,7 @@ export type Database = {
       my_permissions: { Args: { p_org: string }; Returns: string[] };
       session_context: { Args: Record<string, never>; Returns: Json | null };
       quote_version_quantities: { Args: { p_version: string }; Returns: Json };
-      project_site_list: { Args: { p_org: string }; Returns: { contract_id: string; latitude: number | null; longitude: number | null; own: boolean; source: "project" | "survey" | "client" | null }[] };
+      project_site_list: { Args: { p_org: string }; Returns: { contract_id: string; latitude: number | null; longitude: number | null; own: boolean; source: "project" | "survey" | "client" | null; city: string | null; district: string | null }[] };
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };

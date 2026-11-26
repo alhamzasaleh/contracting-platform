@@ -44,6 +44,9 @@ export type ContractClient = {
   city: string | null;
   district?: string | null;
   id_number?: string | null;
+  /** where the project is when not at the client's address (its survey's own site; set by the DB) */
+  site_city?: string | null;
+  site_district?: string | null;
 };
 
 const localPhone = (p: string | null) => (p ? (p.startsWith("966") ? `0${p.slice(3)}` : p) : null);
@@ -69,7 +72,9 @@ export function ContractTerms({ data, org, client, terms }: { data: ContractTerm
   end.setUTCDate(end.getUTCDate() + data.duration_days);
   const pt = data.project_type;
   const v = data.view;
-  const location = [client.city, client.district].filter(Boolean).join(" — ");
+  // the project's place: its survey's own site, else the client's address
+  const ownSite = !!(client.site_city || client.site_district);
+  const location = (ownSite ? [client.site_city, client.site_district] : [client.city, client.district]).filter(Boolean).join(" — ");
 
   // numbered clauses, built in order so the numbering always matches; the owner's
   // edits (hide / rename / replace text / extra clauses) come from `terms`

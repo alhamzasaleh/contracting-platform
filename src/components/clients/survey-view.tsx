@@ -41,7 +41,10 @@ export function SurveyView({
   base = "",
   aiSample,
   planSample,
+  siteActions,
 }: {
+  /** design preview only: the site card's actions (the rest of the page stays in preview mode) */
+  siteActions?: { saveSite?: Act; readLink?: ReadMapLink; readPlace?: ReadPlace };
   /** design preview only: what the plan reading shows */
   planSample?: (PlanReading & { page: number })[];
   /** design preview only: what the AI draft dialog shows */
@@ -264,7 +267,7 @@ export function SurveyView({
         </div>
       </section>
 
-      <SurveySiteCard survey={survey} client={client} canManage={canManage} save={actions?.saveSite} readLink={actions?.readLink} readPlace={actions?.readPlace} />
+      <SurveySiteCard survey={survey} client={client} project={detail.project} base={base} canManage={canManage} save={(actions ?? siteActions)?.saveSite} readLink={(actions ?? siteActions)?.readLink} readPlace={(actions ?? siteActions)?.readPlace} />
 
       {mode === "rooms" && (
         <section className="grid gap-3">

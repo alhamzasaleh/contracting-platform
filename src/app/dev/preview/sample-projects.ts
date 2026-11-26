@@ -22,6 +22,8 @@ export const SAMPLE_PROJECT: ProjectDetail = {
   client: { name: "شركة البناء المتقن", phone: "966551234567", city: "الرياض", district: "الملقا", number: "CL-2026-001", location_url: "https://www.google.com/maps/place/x/@24.8031,46.6105,17z" },
   site: { lat: 24.8031, lng: 46.6105 },
   siteOwn: false,
+  siteSource: "survey",
+  place: { city: "الرياض", district: "النرجس" },
   canSetSite: true,
   canManage: true,
   canPurchase: true,

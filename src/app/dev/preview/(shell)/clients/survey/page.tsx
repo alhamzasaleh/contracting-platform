@@ -1,5 +1,6 @@
 import { SurveyView } from "@/components/clients/survey-view";
 import { SAMPLE_SURVEY } from "../../../sample-clients";
+import { previewMapLink, previewNoop, previewPlace } from "../../../preview-actions";
 
 export default function P() {
   return <SurveyView
@@ -7,6 +8,7 @@ export default function P() {
       canManage
       canQuote
       base="/dev/preview"
+      siteActions={{ saveSite: previewNoop, readLink: previewMapLink, readPlace: previewPlace }}
       planSample={[
         {
           page: 8,

@@ -1,7 +1,9 @@
 "use client";
 import { CalendarClock, MapPin, Navigation, Pencil } from "lucide-react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { DocNo } from "@/components/doc-no";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
@@ -158,13 +160,18 @@ export function NewSurveyDialog({
 export function SurveySiteCard({
   survey,
   client,
+  project,
+  base = "",
   canManage,
   save,
   readLink,
   readPlace,
 }: {
   survey: { id: string; visit_date: string | null; visit_time?: string | null; latitude?: number | null; longitude?: number | null; site_city?: string | null; site_district?: string | null };
-  client: { name: string; latitude?: number | null; longitude?: number | null; city?: string | null; district?: string | null };
+  client: { name: string; latitude?: number | null; longitude?: number | null; city?: string | null; district?: string | null; location_url?: string | null };
+  /** an accepted project made from this survey (it keeps its own site) */
+  project?: string | null;
+  base?: string;
   canManage: boolean;
   save?: (i: Record<string, unknown>) => Promise<ActionResult>;
   readLink?: ReadMapLink;
@@ -185,9 +192,9 @@ export function SurveySiteCard({
           <MapPin className="size-4" /> {t("siteTitle")}
         </p>
         <div className="flex flex-wrap gap-2">
-          {site && (
+          {(site || client.location_url) && (
             <Button asChild size="sm" variant="secondary">
-              <a href={mapLink(site)} target="_blank" rel="noopener noreferrer">
+              <a href={site ? mapLink(site) : client.location_url!} target="_blank" rel="noopener noreferrer">
                 <Navigation /> {t("directions")}
               </a>
             </Button>
@@ -203,6 +210,11 @@ export function SurveySiteCard({
         {own ? t("siteIsOwn") : clientSite ? t("siteIsClient") : t("siteNone")}
         {place.some(Boolean) && ` · ${place.filter(Boolean).join(" — ")}`}
       </p>
+      {project && (
+        <p className="rounded-xl bg-surface-sunken px-3 py-2 text-[12px]">
+          {t.rich("siteProjectKept", { project: () => <Link href={`${base}/projects/${project}`} className="font-semibold text-primary hover:underline"><DocNo>{project}</DocNo></Link> })}
+        </p>
+      )}
       {survey.visit_date && (
         <p className="flex items-center gap-2 text-[13px]">
           <CalendarClock className="size-4 text-muted-foreground" />

@@ -122,6 +122,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
   const cur = currentStage(data.stages);
   const [open, setOpen] = React.useState<string | null>(cur?.id ?? null);
   const site = data.site ?? null;
+  const placeText = (data.place ? [data.place.city, data.place.district] : [data.client.city, data.client.district]).filter(Boolean).join(" — ");
   const [editSite, setEditSite] = React.useState(false);
   const tm = useTranslations("maps");
   const pins = visitPins(site, data.visits);
@@ -183,7 +184,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
             </p>
             <p className="text-[13px] text-muted-foreground">
               {tp(`kind_${data.contract.service}`)} · <DocNo>{data.contract.number}</DocNo>
-              {(data.client.city || data.client.district) && ` · ${[data.client.city, data.client.district].filter(Boolean).join(" — ")}`}
+              {placeText && ` · ${placeText}`}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

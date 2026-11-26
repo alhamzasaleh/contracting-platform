@@ -6,6 +6,7 @@ import type { SurveyRoom, SurveyTotals } from "@/lib/survey";
 import { once, rows } from "@/lib/data/query";
 import { createClient } from "@/lib/supabase/server";
 import { readPendingPins } from "@/lib/geo-pins";
+import { upcomingSurveys, type UpcomingSurvey } from "@/lib/survey/upcoming";
 
 const n = (v: unknown) => Number(v ?? 0);
 
@@ -140,8 +141,10 @@ export async function loadClientDetail(session: SessionContext, number: string):
 
 export type SurveyDetail = {
   survey: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; visit_time?: string | null; latitude?: number | null; longitude?: number | null; site_city?: string | null; site_district?: string | null; notes: string | null; totals: SurveyTotals };
-  client: { id: string; number: string; name: string; latitude?: number | null; longitude?: number | null; city?: string | null; district?: string | null };
+  client: { id: string; number: string; name: string; latitude?: number | null; longitude?: number | null; city?: string | null; district?: string | null; location_url?: string | null };
   rooms: SurveyRoom[];
+  /** an accepted contract made from this survey: its project keeps the site it had at acceptance */
+  project?: string | null;
   /** the owner may delete it (public.delete_survey) — not while quotes are built on it */
   canDelete?: boolean;
   quotes?: number;
@@ -158,12 +161,21 @@ export async function loadSurvey(session: SessionContext, clientNumber: string, 
     .maybeSingle();
   if (!survey) notFound();
   const owner = session.role === "owner";
-  const [{ data: client }, { data: rooms }, onSurvey] = await Promise.all([
-    supabase.from("clients").select("id, number, name, latitude, longitude, city, district").eq("id", survey.client_id).maybeSingle(),
+  const [{ data: found }, { data: rooms }, onSurvey, project] = await Promise.all([
+    supabase.from("clients").select("id, number, name, latitude, longitude, city, district, location_url, pin_pending").eq("id", survey.client_id).maybeSingle(),
     supabase.from("survey_rooms").select("*").eq("survey_id", survey.id).order("sort_order").order("created_at"),
     owner ? rows(supabase.from("quotes").select("id").eq("survey_id", survey.id)) : Promise.resolve([] as { id: string }[]),
+    rows(supabase.from("quotes").select("id").eq("survey_id", survey.id)).then(async (qs) =>
+      qs.length ? ((await supabase.from("contracts").select("number").in("quote_id", qs.map((q) => q.id)).eq("status", "accepted").limit(1).maybeSingle()).data?.number ?? null) : null,
+    ),
   ]);
-  if (!client || client.number !== clientNumber) notFound();
+  if (!found || found.number !== clientNumber) notFound();
+  const { pin_pending, ...client } = found;
+  // the survey at the client's site and his short map link not read yet: read it now (≤ 3 s)
+  if (survey.latitude == null && pin_pending && client.latitude == null) {
+    const pin = (await readPendingPins({ orgId, clientIds: [client.id], budgetMs: 3000 })).get(client.id);
+    if (pin) Object.assign(client, { latitude: pin.lat, longitude: pin.lng });
+  }
   return {
     survey: { ...survey, totals: (survey.totals ?? {}) as SurveyTotals },
     client,
@@ -183,6 +195,23 @@ export async function loadSurvey(session: SessionContext, clientNumber: string, 
       wall_zone: r.wall_zone,
     })),
     canDelete: owner,
+    project,
     ...(owner ? { quotes: onSurvey.length } : {}),
   };
+}
+
+/** «معاينات قادمة» (home, clients.view): visits booked from today within 14 days. */
+export async function loadUpcomingSurveys(session: SessionContext, today: string): Promise<UpcomingSurvey[]> {
+  const supabase = await createClient();
+  const orgId = session.organization.id;
+  const end = new Date(`${today}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() + 14);
+  const surveys = await rows(
+    supabase.from("surveys").select("number, visit_date, visit_time, latitude, longitude, client_id").eq("organization_id", orgId)
+      .gte("visit_date", today).lte("visit_date", end.toISOString().slice(0, 10)).order("visit_date").limit(50),
+  );
+  if (!surveys.length) return [];
+  const clients = await rows(supabase.from("clients").select("id, number, name, latitude, longitude").in("id", [...new Set(surveys.map((s) => s.client_id))]));
+  const byId = new Map(clients.map((c) => [c.id, c]));
+  return upcomingSurveys(surveys.map((s) => ({ ...s, visit_time: s.visit_time ?? null, latitude: s.latitude ?? null, longitude: s.longitude ?? null, client: byId.get(s.client_id) ?? null })).map((s) => ({ ...s, client: s.client ? { ...s.client, latitude: s.client.latitude ?? null, longitude: s.client.longitude ?? null } : null })), today);
 }

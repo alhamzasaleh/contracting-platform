@@ -86,7 +86,7 @@ export async function saveProjectSite(input: unknown): Promise<ActionResult> {
       ? await ctx.supabase.from("project_sites").delete().eq("contract_id", v.contract_id).eq("organization_id", ctx.orgId)
       : await ctx.supabase.from("project_sites").upsert({
           contract_id: v.contract_id, organization_id: ctx.orgId,
-          latitude: Math.round(v.latitude * 1e6) / 1e6, longitude: Math.round(v.longitude * 1e6) / 1e6,
+          latitude: Math.round(v.latitude * 1e6) / 1e6, longitude: Math.round(v.longitude * 1e6) / 1e6, from_survey: false,
         });
   if (error) return fail(error, "save site");
   return done();

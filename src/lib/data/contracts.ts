@@ -122,7 +122,7 @@ export type ContractDetail = {
     start_date: string; duration_days: number; warranty_months: number; total: number; notes: string | null; created_at: string;
     accepted_at: string | null; accepted_name: string | null; accepted_ip: string | null; accepted_user_agent: string | null; signed: boolean;
   };
-  client: { number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null };
+  client: { number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null; site_city?: string | null; site_district?: string | null };
   quote: { number: string; version: number; date: string; valid_until: string | null; view: ClientView; notes: string | null };
   payments: {
     seq: number; label: string; percent: number; amount: number; due_event: DueEvent; status: string;
@@ -273,7 +273,8 @@ export async function loadContract(session: SessionContext, number: string): Pro
       accepted_at: c.accepted_at, accepted_name: c.accepted_name, accepted_ip: c.accepted_ip, accepted_user_agent: c.accepted_user_agent,
       signed: !!c.accepted_signature,
     },
-    client: client ?? { number: "", name: "—", phone: null, city: null, district: null, id_number: null },
+    // the project's place (its survey's own site) sits with the client for the contract text
+    client: { ...(client ?? { number: "", name: "—", phone: null, city: null, district: null, id_number: null }), site_city: c.site_city ?? null, site_district: c.site_district ?? null },
     quote: { number: q?.number ?? "", version: c.quote_version, date: ver?.created_at ?? c.created_at, valid_until: q?.valid_until ?? null, view: ver?.client_view as unknown as ClientView, notes: ver?.notes ?? null },
     payments: (payments ?? []).map((p) => ({
       ...p, percent: n(p.percent), amount: n(p.amount), paid_amount: n(p.paid_amount),

@@ -1,5 +1,5 @@
 "use client";
-import { AlertTriangle, ArrowUpLeft, Check, CheckCircle2, Plus, ListChecks } from "lucide-react";
+import { AlertTriangle, ArrowUpLeft, Check, CheckCircle2, Plus, ListChecks, Navigation } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -12,6 +12,8 @@ import {
 import { Button } from "@/components/ui/button";
 import type { OwnerFinance } from "@/lib/data/finance";
 import type { QuoteWaiting } from "@/lib/portal-flow";
+import type { UpcomingSurvey } from "@/lib/survey/upcoming";
+import { mapLink } from "@/lib/geo";
 import { DocNo } from "@/components/doc-no";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +36,8 @@ export type DashboardData = {
   expiring?: { total: number; expired: number } | null;
   /** quotes.view: the clients' answers waiting for us (accepted → contract, changes → revise) */
   quotesWaiting?: QuoteWaiting[] | null;
+  /** «معاينات قادمة» (clients.view) */
+  upcomingSurveys?: UpcomingSurvey[] | null;
 };
 
 const ease = [0.16, 1, 0.3, 1] as const;
@@ -107,6 +111,35 @@ export function DashboardView({ data }: { data: DashboardData }) {
             <ArrowUpLeft className="ms-auto size-4 ltr:-scale-x-100" />
           </Link>
         </motion.div>
+      )}
+
+      {!!data.upcomingSurveys?.length && (
+        <motion.section variants={item} className="grid gap-3 rounded-3xl border border-border bg-surface p-5" aria-labelledby="upcoming-surveys" data-testid="upcoming-surveys">
+          <div>
+            <h2 id="upcoming-surveys" className="text-[17px] font-bold">{t("upcomingSurveysTitle")}</h2>
+            <p className="text-[13px] text-muted-foreground">{t("upcomingSurveysHint")}</p>
+          </div>
+          <ul className="grid gap-2">
+            {data.upcomingSurveys.slice(0, 8).map((s) => (
+              <li key={s.number} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-2xl border border-border px-4 py-3 text-[14px]">
+                <Link href={`${base}/clients/${s.client.number}/surveys/${s.number}`} className="min-w-0 hover:text-primary hover:underline">
+                  <span className="font-bold">{s.client.name}</span> · <DocNo>{s.number}</DocNo>
+                </Link>
+                <span className="flex flex-wrap items-center gap-3 text-[13px]">
+                  <span className="text-muted-foreground">
+                    {fmt.date(s.date)}
+                    {s.time && <span className="font-latin tabular-nums" dir="ltr"> {s.time}</span>}
+                  </span>
+                  {s.site && (
+                    <a href={mapLink(s.site)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
+                      <Navigation className="size-3.5" /> {t("upcomingDirections")}
+                    </a>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </motion.section>
       )}
 
       {!!data.quotesWaiting?.length && (

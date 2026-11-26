@@ -3,6 +3,7 @@ import { can, getSession } from "@/lib/auth/session";
 import { loadOwnerFinance, loadPendingApprovals } from "@/lib/data/finance";
 import { expiringDocuments } from "@/lib/hr";
 import { loadQuotesWaiting } from "@/lib/data/quotes";
+import { loadUpcomingSurveys } from "@/lib/data/clients";
 import { teamSetupStep } from "@/lib/hr/access";
 import { decideFromDashboard, saveCashSettings } from "./reports/actions";
 import { createClient } from "@/lib/supabase/server";
@@ -13,7 +14,7 @@ export default async function HomePage() {
   const org = session.organization;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh" }).format(new Date());
   // all independent: one parallel round
-  const [{ count }, finance, approvals, expiring, { count: pendingInvites }, { count: withoutAccess }, quotesWaiting] = await Promise.all([
+  const [{ count }, finance, approvals, expiring, { count: pendingInvites }, { count: withoutAccess }, quotesWaiting, upcoming] = await Promise.all([
     supabase.from("memberships").select("id", { count: "exact", head: true }).eq("organization_id", org.id),
     can(session, "finance.view") ? loadOwnerFinance(session, today) : Promise.resolve(null),
     // an approver without finance.view still gets the approvals card (approve in one tap)
@@ -36,6 +37,8 @@ export default async function HomePage() {
       : Promise.resolve({ count: 0 }),
     // «عروض تنتظرك»: the clients' answers on their pages (quotes.view)
     can(session, "quotes.view") ? loadQuotesWaiting(session) : Promise.resolve(null),
+    // «معاينات قادمة»: booked visits with where to go (clients.view)
+    can(session, "clients.view") ? loadUpcomingSurveys(session, today) : Promise.resolve(null),
   ]);
   const team = teamSetupStep({ members: count ?? 1, pendingInvites: pendingInvites ?? 0, employeesWithoutAccess: withoutAccess ?? 0 });
   return (
@@ -46,6 +49,7 @@ export default async function HomePage() {
         approvals,
         expiring,
         quotesWaiting,
+        upcomingSurveys: upcoming,
         financeActions: { decide: decideFromDashboard, saveCash: saveCashSettings },
         setup: [
           { key: "setupCompany", done: Boolean(org.cr_number && org.vat_number), href: "/settings" },

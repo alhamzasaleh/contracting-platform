@@ -32,10 +32,10 @@ export type ProjectListItem = {
 /** where a project's site comes from: its own pin, its survey's or the client's */
 export type SiteSource = "project" | "survey" | "client";
 
-export async function loadProjectSites(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string): Promise<Map<string, { site: LatLng | null; own: boolean; source: SiteSource | null }>> {
+export async function loadProjectSites(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string): Promise<Map<string, { site: LatLng | null; own: boolean; source: SiteSource | null; city: string | null; district: string | null }>> {
   const { data, error } = await supabase.rpc("project_site_list", { p_org: orgId });
   if (error) return new Map();
-  return new Map((data ?? []).map((r) => [r.contract_id, { site: siteOf(r), own: r.own, source: r.source ?? null }]));
+  return new Map((data ?? []).map((r) => [r.contract_id, { site: siteOf(r), own: r.own, source: r.source ?? null, city: r.city ?? null, district: r.district ?? null }]));
 }
 
 /** Read the organization's pending map links after the response (outside a request: skipped). */
@@ -92,6 +92,8 @@ export type ProjectDetail = {
   siteOwn?: boolean;
   /** where the site comes from (project / survey / client) */
   siteSource?: SiteSource | null;
+  /** the project's city / district (its survey's own site, else the client's) */
+  place?: { city: string | null; district: string | null } | null;
   /** projects.manage: may set this project's own site */
   canSetSite?: boolean;
   /** clients.view: the client's name links to his page */
@@ -174,6 +176,8 @@ export async function loadProject(session: SessionContext, number: string): Prom
     site: sites.get(c.id)?.site ?? null,
     siteOwn: sites.get(c.id)?.own ?? false,
     siteSource: sites.get(c.id)?.source ?? null,
+    // where the project is (its survey's own place, else the client's address)
+    place: sites.has(c.id) ? { city: sites.get(c.id)!.city, district: sites.get(c.id)!.district } : null,
     canSetSite: can(session, "projects.manage"),
     canOpenClient: can(session, "clients.view"),
     orgName: session.organization.name,

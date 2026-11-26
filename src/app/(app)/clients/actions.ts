@@ -137,7 +137,8 @@ export async function createSurvey(input: unknown): Promise<ActionResult<{ numbe
     .from("surveys")
     .insert({
       organization_id: ctx.orgId, client_id: v.client_id, mode: v.mode,
-      visit_date: v.visit_date ?? today, visit_time: v.visit_time ?? null,
+      // not sent = today; cleared on purpose = no date yet
+      visit_date: v.visit_date === undefined ? today : v.visit_date, visit_time: v.visit_time ?? null,
       ...sitePart({ latitude: v.latitude ?? null, longitude: v.longitude ?? null, site_city: v.site_city ?? null, site_district: v.site_district ?? null }),
     })
     .select("number")
