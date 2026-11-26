@@ -54,6 +54,26 @@ const LEVEL_RE = /(FINISH|LEVEL|PARAPET|ROOF\s+TOP|منسوب)/i;
 /** words of the sheet's title block (on the right) */
 const TITLE_BLOCK_RE = /^(NOTES:?|PROJECT:?|CLIENT:?|DWG\s+TITLE:?|SHEET\s+NO:?|SCALE:?|NORTH:?|LOCATION:?|DATE:?)$/i;
 
+/**
+ * The level labels printed beside an elevation («ROOF FINISH 8.70M», «PAVEMENT LEVEL 20 CM»), in
+ * metres, lowest first. A value with a decimal point is metres even when labelled «CM» (a common
+ * slip: «FENCE WALL LINE 3.70 CM»); a whole number in CM is centimetres.
+ */
+export function printedLevels(words: { s: string }[]): { name: string; m: number }[] {
+  const out = new Map<string, { name: string; m: number }>();
+  for (const w of words) {
+    const m = /^(.*?[A-Z].*?)\s+(\d+(?:\.\d+)?)\s*(M|CM)\b\.?$/i.exec(w.s.trim());
+    if (!m || !LEVEL_LINE_RE.test(m[1])) continue;
+    const value = m[3].toUpperCase() === "CM" && !m[2].includes(".") ? Number(m[2]) / 100 : Number(m[2]);
+    if (!Number.isFinite(value) || value < 0 || value > 60) continue;
+    const name = m[1].trim().replace(/\s+/g, " ").toUpperCase();
+    out.set(`${name}:${value}`, { name, m: r2(value) });
+  }
+  return [...out.values()].sort((a, b) => a.m - b.m);
+}
+/** words of a level label (finish, level, parapet, roof top, fence line…) */
+const LEVEL_LINE_RE = /(FINISH|LEVEL|PAR[AE]?PET|ROOF|FENCE|LINE|SLAB|TOP)/i;
+
 export type ElevationRegion = ElevationTitle & { region: Box };
 
 /**
@@ -104,7 +124,8 @@ export function lineInventory(segments: number[][], region: Box, mpp: number, li
     const dx = Math.abs(bx - ax);
     const dy = Math.abs(by - ay);
     const vertical = dx < 0.5 && dy >= minPt;
-    const horizontal = dy < 0.5 && dx >= minPt;
+    // a level line drawn across the whole sheet is not an edge of the building
+    const horizontal = dy < 0.5 && dx >= minPt && dx < (region.x1 - region.x0) * 0.8;
     if (!vertical && !horizontal) continue;
     const kind = vertical ? "vertical" : "horizontal";
     const at = vertical ? ax : ay;
@@ -148,6 +169,8 @@ export const facadeDraftSchema = z.object({
         material: z.enum(MATERIALS),
         width_m: size,
         height_m: size,
+        from_m: size.describe("the printed level the part starts at, in metres (e.g. PAVEMENT LEVEL 0.20)"),
+        to_m: size.describe("the printed level the part ends at, in metres (e.g. PARAPET LINE 9.80, ROOF PARAPET LINE 12.30)"),
         count: z.number(),
         fence: z.boolean().describe("true for a boundary / fence wall drawn in front of the building"),
       }),
@@ -187,7 +210,8 @@ export function cleanFacade(d: FacadeDraft): Facade {
     name: p.name.trim().slice(0, 80) || "—",
     material: p.material,
     width_m: plausible(p.width_m, 80),
-    height_m: plausible(p.height_m, 40),
+    // the height is the difference of the printed levels it spans when given — never a guess
+    height_m: levelsHeight(p.from_m, p.to_m) ?? plausible(p.height_m, 40),
     count: whole(p.count),
     include: !p.fence,
   }));
@@ -201,6 +225,9 @@ export function cleanFacade(d: FacadeDraft): Facade {
   }));
   return { code: d.code.slice(0, 10), dir: d.direction, include: true, parts, openings, notes: d.notes.map((n) => n.slice(0, 200)).slice(0, 8) };
 }
+
+const levelsHeight = (from: number | null | undefined, to: number | null | undefined) =>
+  from != null && to != null && Number.isFinite(from) && Number.isFinite(to) && to > from && to - from <= 40 && from >= -5 ? r2(to - from) : null;
 
 const area = (r: { width_m: number | null; height_m: number | null; count: number }) => (r.width_m ?? 0) * (r.height_m ?? 0) * r.count;
 

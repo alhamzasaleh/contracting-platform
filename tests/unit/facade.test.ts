@@ -62,7 +62,7 @@ describe("the lines of the drawing (exact positions for measuring)", () => {
         [200, 120, 200, 380], // vertical, 9.17 m
         [200.2, 130, 200.2, 200], // same x (merged)
         [450, 300, 450, 305], // too short
-        [150, 350, 480, 350], // horizontal, 11.6 m
+        [150, 350, 400, 350], // horizontal, 8.8 m (a line across most of the region would be a level line)
         [600, 120, 600, 380], // outside
         [210, 150, 260, 190], // diagonal
       ],
@@ -134,9 +134,9 @@ describe("cleaning the AI's draft", () => {
     const f = cleanFacade({
       code: "E01", direction: "east",
       parts: [
-        { name: "واجهة", material: "paint", width_m: 12.004, height_m: 8.2, count: 1, fence: false },
-        { name: "خطأ", material: "paint", width_m: 900, height_m: 3, count: 1, fence: false },
-        { name: "السور", material: "paint", width_m: 10, height_m: 2.7, count: 1, fence: true },
+        { name: "واجهة", material: "paint", width_m: 12.004, height_m: 8.2, from_m: null, to_m: null, count: 1, fence: false },
+        { name: "خطأ", material: "paint", width_m: 900, height_m: 3, from_m: null, to_m: null, count: 1, fence: false },
+        { name: "السور", material: "paint", width_m: 10, height_m: 2.7, from_m: null, to_m: null, count: 1, fence: true },
       ],
       openings: [{ kind: "window", width_m: 1.5, height_m: 2, count: 2.6, part: 0 }, { kind: "door", width_m: 4, height_m: 2.5, count: 1, part: 2 }, { kind: "window", width_m: 1, height_m: 1, count: 1, part: 9 }],
       notes: ["x"],
@@ -161,5 +161,43 @@ describe("the materials legend", () => {
     ];
     expect(materialsLegend(tokens)).toEqual(["1 WHITE PAINT", "2 STONE", "3 GLASS", "4 GRC"]);
     expect(materialsLegend([{ s: "x", x: 1, y: 1 }])).toEqual([]);
+  });
+});
+
+describe("heights come from the printed levels, never guessed (owner: «الارتفاع الكلي لا يقل عن ١١ متر»)", () => {
+  it("reads the level labels of an elevation (metres and centimetres)", async () => {
+    const { printedLevels } = await import("@/lib/survey/facade");
+    const words = [
+      { s: "ROOF PARAPET LINE 12.30M", x: 0, y: 1 }, { s: "ROOF TOP 12.00M", x: 0, y: 2 }, { s: "PARPET LINE 9.80 M", x: 0, y: 3 },
+      { s: "ROOF FINISH 8.70M", x: 0, y: 4 }, { s: "FIRST FLOOR FINISH 4.70M", x: 0, y: 5 }, { s: "FENCE WALL LINE 3.70 CM", x: 0, y: 6 },
+      { s: "GROUND FLOOR FINISH 0.50M", x: 0, y: 7 }, { s: "GARDEN LEVEL 35 CM", x: 0, y: 8 }, { s: "PAVEMENT LEVEL 20 CM", x: 0, y: 9 },
+      { s: "STREET LEVEL 00 CM", x: 0, y: 10 }, { s: "W12", x: 0, y: 11 },
+    ];
+    expect(printedLevels(words)).toEqual([
+      { name: "STREET LEVEL", m: 0 }, { name: "PAVEMENT LEVEL", m: 0.2 }, { name: "GARDEN LEVEL", m: 0.35 }, { name: "GROUND FLOOR FINISH", m: 0.5 },
+      { name: "FENCE WALL LINE", m: 3.7 }, { name: "FIRST FLOOR FINISH", m: 4.7 }, { name: "ROOF FINISH", m: 8.7 }, { name: "PARPET LINE", m: 9.8 },
+      { name: "ROOF TOP", m: 12 }, { name: "ROOF PARAPET LINE", m: 12.3 },
+    ]);
+  });
+  it("a part read «from level → to level» takes its height from them", () => {
+    const f = cleanFacade({
+      code: "E01", direction: "east",
+      parts: [
+        { name: "الكتلة الرئيسية", material: "paint", width_m: 15, height_m: 8.2, from_m: 0.2, to_m: 9.8, count: 1, fence: false },
+        { name: "الملحق", material: "paint", width_m: 11, height_m: null, from_m: 8.7, to_m: 12.3, count: 1, fence: false },
+        { name: "بدون مناسيب", material: "paint", width_m: 2, height_m: 3, from_m: null, to_m: null, count: 1, fence: false },
+      ],
+      openings: [],
+      notes: [],
+    });
+    expect(f.parts.map((p) => p.height_m)).toEqual([9.6, 3.6, 3]);
+  });
+});
+
+describe("level lines across the whole sheet are not building edges", () => {
+  it("horizontal lines spanning most of the region are left out of the inventory", () => {
+    const region = { x0: 0, y0: 0, x1: 1000, y1: 400 };
+    const inv = lineInventory([[5, 100, 995, 100], [300, 200, 700, 200]], region, 0.0352777);
+    expect(inv.horizontal.map((l) => l.at)).toEqual([7.06]);
   });
 });

@@ -50,7 +50,7 @@ async function makeContract(subtotal: number, opts: { marketer?: string | null; 
 const commission = (contract: string) =>
   asAdmin((q) => q<{ id: string; status: string; percent: string; amount: string; base: string; marketer_id: string }>("select * from public.marketer_commissions where contract_id = $1", [contract])).then((r) => r.rows[0]);
 const pay = (u: string, p: string, amount: number) => as({ userId: u }, (q) => q("select public.record_client_payment($1, current_date, $2, 'transfer', null)", [p, amount]));
-const payCommission = (u: string, k: string) => as({ userId: u }, (q) => q<{ n: string }>("select public.record_commission_payment($1, current_date, 'transfer', 'TRX-1', null) as n", [k])).then((r) => r.rows[0].n);
+const payCommission = (u: string, k: string) => as({ userId: u }, (q) => q<{ n: string }>("select public.record_commission_payment($1, (now() at time zone 'Asia/Riyadh')::date, 'transfer', 'TRX-1', null) as n", [k])).then((r) => r.rows[0].n);
 
 beforeAll(async () => {
   await resetDatabase();
