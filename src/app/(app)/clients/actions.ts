@@ -128,6 +128,7 @@ const roomSchema = z
     paint_walls: z.boolean(),
     paint_ceiling: z.boolean(),
     wall_zone: z.enum(["normal", "wet", "decorative"]),
+    c_along: z.enum(["length", "width"]).nullable().optional(),
     sort_order: z.number().int().min(0).max(10000).optional(),
   })
   .strict();

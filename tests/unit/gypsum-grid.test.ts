@@ -63,7 +63,7 @@ describe("pricing — one grid spacing for C and omega (owner: square grid 40 / 
     const a = priceSelection({ ...base, options: { ...base.options, cSpacing: 1, omegaSpacing: 0.4 } }, q, c);
     const b = priceSelection({ ...base, options: { ...base.options, cSpacing: 0.4, omegaSpacing: 0.4 } }, q, c);
     expect(a.result.lines.find((l) => l.key === "c_channel")?.qty).toBe(b.result.lines.find((l) => l.key === "c_channel")?.qty);
-    expect((a.result as { layouts?: { channels: number }[] }).layouts?.[0].channels).toBe(gridLines(3, 0.4));
+    expect((a.result as { framing?: { rooms: { channels: number }[] } }).framing?.rooms[0].channels).toBe(gridLines(3, 0.4));
   });
 });
 

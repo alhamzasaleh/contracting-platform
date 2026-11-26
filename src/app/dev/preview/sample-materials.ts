@@ -1,5 +1,6 @@
 import type { MaterialsDoc } from "@/lib/data/materials";
-import { defaultSelection, priceSelection } from "@/lib/pricing";
+import type { FramingDoc } from "@/lib/data/framing";
+import { defaultSelection, freezeFraming, priceSelection } from "@/lib/pricing";
 import { buildSnapshot } from "@/lib/quotes";
 import { materialRows, needsFromLines } from "@/lib/quotes/materials";
 import { surveyQuantities } from "@/lib/survey";
@@ -32,4 +33,13 @@ export function sampleProjectMaterials(prices: boolean, number = "C-2026-003"): 
     client: { name: "شركة البناء المتقن", phone: "966551234567", city: "الرياض" }, service: "gypsum",
     rows: materialRows(projectSrc(prices), { prices, bought: accepted ? { stock, rows: boughtRows } : undefined }), prices, bought: accepted, canPrices: true, canPurchase: accepted,
   };
+}
+
+/** Framing plan samples: the sample survey's gypsum rooms as priced (frozen framing). */
+const gframing = freezeFraming(gq, priceSelection(gsel, gq, SAMPLE_PRICING_CTX)).framing ?? null;
+export function sampleQuoteFraming(): FramingDoc {
+  return { kind: "quote", number: "Q-2026-014", quoteNumber: "Q-2026-014", version: 2, option: null, date: SAMPLE_QUOTE.current!.created_at, client: { name: SAMPLE_QUOTE.client.name, city: SAMPLE_QUOTE.client.city }, service: "gypsum", framing: gframing };
+}
+export function sampleProjectFraming(): FramingDoc {
+  return { ...sampleQuoteFraming(), kind: "project", number: "C-2026-003" };
 }

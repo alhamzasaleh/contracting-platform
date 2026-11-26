@@ -1,7 +1,7 @@
 "use client";
 import { RewardLine } from "@/components/marketers/reward-line";
 import { DocNo } from "@/components/doc-no";
-import { AlertTriangle, CalendarClock, CalendarDays, Check, ClipboardList, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, Send, ShoppingCart, Trash2, Wrench, XCircle } from "lucide-react";
+import { AlertTriangle, CalendarClock, CalendarDays, Check, ClipboardList, Grid3x3, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, Send, ShoppingCart, Trash2, Wrench, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -372,6 +372,13 @@ export function ContractView({
               <ClipboardList /> {t("materialsTable")}
             </Link>
           </Button>
+          {c.service === "gypsum" && (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`${base}/print/contracts/${c.number}/framing`} target="_blank">
+                <Grid3x3 /> {t("framingPlan")}
+              </Link>
+            </Button>
+          )}
           {c.status === "accepted" && detail.canPurchase && (
             <Button asChild variant="secondary" size="sm">
               <Link href={`${base}/purchases/new?project=${c.number}`}>

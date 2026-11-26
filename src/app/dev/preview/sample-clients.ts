@@ -30,7 +30,7 @@ export const SAMPLE_CLIENT_DETAIL: ClientDetail = {
 
 const r = (id: string, name: string, L: number, W: number, extra: Partial<SurveyDetail["rooms"][number]> = {}) => ({
   id, name, unit_label: "الدور الأرضي", length_m: L, width_m: W, height_m: 3.2, openings_m2: 4,
-  gypsum_ceiling: true, ceiling_board: "normal" as const, paint_walls: true, paint_ceiling: true, wall_zone: "normal" as const, ...extra,
+  gypsum_ceiling: true, ceiling_board: "normal" as const, paint_walls: true, paint_ceiling: true, wall_zone: "normal" as const, c_along: null, ...extra,
 });
 
 export const SAMPLE_SURVEY: SurveyDetail = {
@@ -38,7 +38,7 @@ export const SAMPLE_SURVEY: SurveyDetail = {
   client: { id: "c1", number: "CL-2026-003", name: "أبو محمد العتيبي" },
   rooms: [
     r("r1", "المجلس", 8, 6, { openings_m2: 8 }),
-    r("r2", "الصالة", 7, 6),
+    r("r2", "الصالة", 7, 6, { c_along: "width" }),
     r("r3", "المطبخ", 5, 4, { ceiling_board: "fire" }),
     r("r4", "حمام الضيوف", 2.5, 2, { ceiling_board: "moisture", wall_zone: "wet", openings_m2: 2 }),
     r("r5", "غرفة النوم", 5, 4.5, { unit_label: "الدور الأول", wall_zone: "decorative" }),

@@ -68,7 +68,7 @@ async function surveySource(supabase: Awaited<ReturnType<typeof createClient>>, 
   const list: SurveyRoom[] = (rooms ?? []).map((r) => ({
     id: r.id, name: r.name, unit_label: r.unit_label, length_m: n(r.length_m), width_m: n(r.width_m), height_m: n(r.height_m),
     openings_m2: n(r.openings_m2), gypsum_ceiling: r.gypsum_ceiling, ceiling_board: r.ceiling_board, paint_walls: r.paint_walls,
-    paint_ceiling: r.paint_ceiling, wall_zone: r.wall_zone,
+    paint_ceiling: r.paint_ceiling, wall_zone: r.wall_zone, c_along: r.c_along ?? null,
   }));
   const q = surveyQuantities(kind, survey.mode, list, (survey.totals ?? {}) as SurveyTotals);
   return { survey: { id: survey.id, number: survey.number, title: survey.title, mode: survey.mode }, client: client!, quantities: q, gaps: surveyGaps(kind, q) };

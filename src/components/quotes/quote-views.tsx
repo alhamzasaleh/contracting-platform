@@ -1,7 +1,7 @@
 "use client";
 import type { MarketerChoice } from "@/lib/data/marketers";
 import { DocNo } from "@/components/doc-no";
-import { Check, CheckCircle2, ClipboardList, Copy, FileSignature, FileText, Link2, MessageSquare, Pencil, Printer, Send, ShieldAlert, XCircle } from "lucide-react";
+import { Check, CheckCircle2, ClipboardList, Grid3x3, Copy, FileSignature, FileText, Link2, MessageSquare, Pencil, Printer, Send, ShieldAlert, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -339,6 +339,13 @@ export function QuoteView({
             <Button asChild variant="secondary" size="sm">
               <Link href={`${base}/print/quotations/${quote.number}/materials`} target="_blank">
                 <ClipboardList /> {t("materialsTable")}
+              </Link>
+            </Button>
+          )}
+          {current && quote.service === "gypsum" && (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`${base}/print/quotations/${quote.number}/framing`} target="_blank">
+                <Grid3x3 /> {t("framingPlan")}
               </Link>
             </Button>
           )}

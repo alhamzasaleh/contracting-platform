@@ -146,6 +146,7 @@ export function SurveyView({
                   paint_walls: r.paint_walls ?? true,
                   paint_ceiling: r.paint_ceiling ?? true,
                   wall_zone: r.wall_zone ?? "normal",
+                  c_along: r.gypsum_ceiling ? (r.c_along ?? null) : null,
                   sort_order: r.id ? undefined : rooms.length,
                 })),
             { onFieldErrors: setErrors, onSuccess: () => (setRoom(null), setErrors({})) },
@@ -184,7 +185,12 @@ export function SurveyView({
             <Switch id="rm-g" checked={!!r.gypsum_ceiling} onCheckedChange={(v) => setRoom({ ...r, gypsum_ceiling: v })} />
           </div>
           {r.gypsum_ceiling && (
-            <Pills label={t("boardType")} value={(r.ceiling_board ?? "normal") as BoardType} options={["normal", "moisture", "fire"] as const} render={(b) => t(`board_${b}`)} onChange={(b) => setRoom({ ...r, ceiling_board: b })} />
+            <>
+              <Pills label={t("boardType")} value={(r.ceiling_board ?? "normal") as BoardType} options={["normal", "moisture", "fire"] as const} render={(b) => t(`board_${b}`)} onChange={(b) => setRoom({ ...r, ceiling_board: b })} />
+              <p className="text-[13px] font-semibold">{t("cAlong")}</p>
+              <Pills label={t("cAlong")} value={r.c_along ?? "auto"} options={["auto", "length", "width"] as const} render={(d) => t(`cAlong_${d}`)} onChange={(d) => setRoom({ ...r, c_along: d === "auto" ? null : d })} />
+              <p className="text-[12px] text-muted-foreground">{t("cAlongHint")}</p>
+            </>
           )}
           <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
             <label htmlFor="rm-pw" className="text-[14px]">
@@ -300,6 +306,7 @@ export function SurveyView({
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {r.gypsum_ceiling && <Badge tone="primary">{t("gypsumBadge", { type: t(`board_${r.ceiling_board}`) })}</Badge>}
+                  {r.gypsum_ceiling && r.c_along && <Badge>{t("cAlongBadge", { dir: t(`cAlong_${r.c_along}`) })}</Badge>}
                   {r.paint_walls && <Badge tone={r.wall_zone === "normal" ? "neutral" : "info"}>{t("wallsBadge", { area: fmt.number(roomWalls(r), 1), zone: t(`zone_${r.wall_zone}`) })}</Badge>}
                   {r.paint_ceiling && <Badge>{t("ceilingBadge", { area: fmt.number(roomCeiling(r), 1) })}</Badge>}
                 </div>

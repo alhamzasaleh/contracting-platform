@@ -8,3 +8,4 @@ export * from "./price";
 export * from "./types";
 export * from "./catalogue";
 export * from "./scope";
+export * from "./framing";

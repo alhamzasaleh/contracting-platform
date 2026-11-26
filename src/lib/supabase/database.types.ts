@@ -403,6 +403,8 @@ export type SurveyRoomRow = OrgRow & Upd & {
   paint_ceiling: boolean;
   wall_zone: "normal" | "wet" | "decorative";
   sort_order: number;
+  /** C channels along the length / width; null = automatic (cheaper way) */
+  c_along: "length" | "width" | null;
 };
 export type QuoteStatus = "draft" | "pending_approval" | "issued" | "accepted" | "rejected" | "expired";
 export type QuoteOption = { version: number; label: string };

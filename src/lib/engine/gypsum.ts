@@ -54,6 +54,8 @@ export type GypsumParams = {
   layers: number;
 };
 
+import type { FramingRoom, GypsumFraming } from "./framing";
+
 export type CeilingRoom = { id: string; name: string; L: number; W: number; boardType: BoardType; zone?: string; cAlong?: "length" | "width" };
 
 /**
@@ -166,7 +168,7 @@ function primaryOf(parts: Record<string, number>): string {
   return Object.entries(parts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "ceilings";
 }
 
-export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: GypsumParams): EngineResult & { layouts: (CeilingLayout & { id: string })[] } {
+export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: GypsumParams): EngineResult & { framing?: GypsumFraming } {
   const lines: Line[] = [];
   const warnings: string[] = [];
   const w = 1 + p.wastePercent / 100;
@@ -187,7 +189,7 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
   const cRuns: number[] = [];
   const omegaRuns: number[] = [];
   const angleRuns: number[] = [];
-  const layouts: (CeilingLayout & { id: string })[] = [];
+  const layouts: FramingRoom[] = [];
 
   if (measured) {
     for (const r of rooms) {
@@ -196,7 +198,7 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
       areaByType[r.boardType] += area;
       perimeter += 2 * (r.L + r.W);
       const g = ceilingLayout(r, p, cat);
-      layouts.push({ id: r.id, ...g });
+      layouts.push({ id: r.id, name: r.name, L: r.L, W: r.W, ...g });
       for (let i = 0; i < g.channels; i++) cRuns.push(g.channelLength);
       for (let i = 0; i < g.omegas; i++) omegaRuns.push(g.omegaLength);
       hangers += g.hangers;
@@ -379,6 +381,15 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
     areas: { ceilings: ceilingArea, partitions: partitionArea },
     status: measured || !(input.quickAreas && ceilingArea > 0) ? "measured" : "estimated",
     warnings,
-    layouts,
+    // the framing document (rooms measured only): frozen with the quote version
+    ...(measured
+      ? {
+          framing: {
+            grid: p.cSpacing, hangerSpacing: p.hangerSpacing, hangingHeight: p.hangingHeight, cutAllowance: p.cutAllowance, suspension: p.suspension,
+            bars: { c: cat.cChannel.length, omega: cat.omega.length, angle: cat.edgeAngle.length, hanger: p.suspension === "rod" ? cat.rod.length : cat.verticalHanger.length },
+            troughOmega: troughM * p.trough.omegaPerM, troughHangers: ceilInt(troughM * p.trough.hangersPerM), rooms: layouts,
+          } satisfies GypsumFraming,
+        }
+      : {}),
   };
 }

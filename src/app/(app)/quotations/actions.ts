@@ -9,7 +9,7 @@ import type { ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
 import { loadPricingSettings } from "@/lib/data/catalogue";
 import { loadPricingContext } from "@/lib/data/pricing";
-import { priceSelection, type Selection } from "@/lib/pricing";
+import { freezeFraming, priceSelection, type Selection } from "@/lib/pricing";
 import { selectionSchema } from "@/lib/pricing/schema";
 import { buildSnapshot, issueBlockers, readiness } from "@/lib/quotes";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -49,7 +49,7 @@ async function quantitiesFor(supabase: Awaited<ReturnType<typeof createClient>>,
   const list: SurveyRoom[] = (rooms ?? []).map((r) => ({
     id: r.id, name: r.name, unit_label: r.unit_label, length_m: n(r.length_m), width_m: n(r.width_m), height_m: n(r.height_m),
     openings_m2: n(r.openings_m2), gypsum_ceiling: r.gypsum_ceiling, ceiling_board: r.ceiling_board, paint_walls: r.paint_walls,
-    paint_ceiling: r.paint_ceiling, wall_zone: r.wall_zone,
+    paint_ceiling: r.paint_ceiling, wall_zone: r.wall_zone, c_along: r.c_along ?? null,
   }));
   const q = surveyQuantities(kind, survey.mode, list, (survey.totals ?? {}) as SurveyTotals);
   return { survey, q, gaps: surveyGaps(kind, q), estimated: survey.mode === "total" };
@@ -138,7 +138,7 @@ export async function saveQuoteVersion(input: unknown): Promise<ActionResult<{ n
     p_quote: quoteId,
     p_payload: {
       version: {
-        selection: sel as unknown as Json, quantities: src.q as unknown as Json, client_view: cv as unknown as Json,
+        selection: sel as unknown as Json, quantities: freezeFraming(src.q, outcome) as unknown as Json, client_view: cv as unknown as Json,
         pricing_method: v.method, estimated: src.estimated, discount: cv.discount, subtotal: cv.subtotal,
         vat_percent: cv.vatPercent, vat: cv.vat, total: cv.total, notes: v.notes,
         // server-recomputed unpriced items: the database refuses to issue a version that has any

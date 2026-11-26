@@ -19,6 +19,7 @@ import {
   type CatalogueData,
   type CatalogueProduct,
   type EngineResult,
+  type GypsumFraming,
   type Line,
   type PriceSummary,
 } from "@/lib/engine";
@@ -135,7 +136,9 @@ export type Quantities = {
   ceilingColours: number;
   crackM: number;
   /** Measured gypsum rooms (real dimensions) — used instead of total ceiling areas when present. */
-  gypsumRooms?: { id: string; name: string; L: number; W: number; boardType: "normal" | "moisture" | "fire" }[];
+  gypsumRooms?: { id: string; name: string; L: number; W: number; boardType: "normal" | "moisture" | "fire"; cAlong?: "length" | "width" }[];
+  /** frozen with a saved version: the framing the technician builds (rooms measured only) */
+  framing?: GypsumFraming;
   // exterior
   facade: number;
   extColours: number;
@@ -438,4 +441,15 @@ function applyLabour(sel: Selection, r: EngineResult, ctx: PricingContext, rates
     });
   }
   return { result: { ...r, lines: [...keep, ...add] }, note: null };
+}
+
+/**
+ * Quantities as frozen with a saved gypsum version: the framing the technician builds and each
+ * room's direction as priced, so re-pricing the version (issue) lays exactly the same metal.
+ */
+export function freezeFraming(q: Quantities, outcome: PricingOutcome): Quantities {
+  const framing = (outcome.result as EngineResult & { framing?: GypsumFraming }).framing;
+  if (!framing || !q.gypsumRooms?.length) return q;
+  const dir = new Map(framing.rooms.map((r) => [r.id, r.cAlong]));
+  return { ...q, framing, gypsumRooms: q.gypsumRooms.map((r) => ({ ...r, cAlong: dir.get(r.id) ?? r.cAlong })) };
 }
