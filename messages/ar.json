@@ -1331,7 +1331,7 @@
     "planSheetInfo": "صفحة {page} · {rooms} غرفة",
     "planRead": "اقرأ الأبعاد ({n})",
     "planReading": "جاري قراءة اللوحة {i} من {n} (صفحة {page})… ممكن تاخذ دقيقة أو دقيقتين",
-    "planFailedPages": "ما قدرنا نقرأ الصفحات: {pages}. اضغط «أعد قراءة» — اللي انقرأ يبقى كما هو.",
+    "planFailedPages": "ما قدرنا نقرأ الصفحات: {pages}. اضغط الزر لقراءتها وحدها — اللي انقرأ يبقى كما هو.",
     "planFloorName": "اسم الدور",
     "planFloorArea": "{area} م² للمختار · صفحة {page}",
     "planHeight": "الارتفاع م",

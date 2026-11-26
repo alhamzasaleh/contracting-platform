@@ -1331,7 +1331,7 @@
     "planSheetInfo": "page {page} · {rooms} rooms",
     "planRead": "Read sizes ({n})",
     "planReading": "Reading sheet {i} of {n} (page {page})… this can take a minute or two",
-    "planFailedPages": "Couldn't read pages: {pages}. Press «read again» — what was read stays as it is.",
+    "planFailedPages": "Couldn't read pages: {pages}. Use the button to read just those again — what was read stays as it is.",
     "planFloorName": "Floor name",
     "planFloorArea": "{area} m² selected · page {page}",
     "planHeight": "Height m",

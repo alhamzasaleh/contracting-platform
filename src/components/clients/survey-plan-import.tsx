@@ -215,7 +215,7 @@ export function SurveyPlanImport({
         variant="secondary"
         onClick={() => {
           // design preview: straight to the review step with the sample sheets
-          if (preview && sample) setStep({ kind: "review", floors: toFloors(sample), failed: [] });
+          if (preview && sample) setStep({ kind: "review", floors: toFloors(sample), failed: [10] }); // a failed page too, so its button is checked
           setOpen(true);
         }}
       >
@@ -266,8 +266,8 @@ export function SurveyPlanImport({
                 {step.failed.length > 0 && (
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-warning-soft p-3 text-[13px]">
                     <span>{t("planFailedPages", { pages: step.failed.join(sep) })}</span>
-                    {!preview && (
-                      <Button size="sm" variant="secondary" onClick={retryFailed}>
+                    {(
+                      <Button size="sm" variant="secondary" onClick={preview ? () => toast(t("planRetryFailed", { n: step.failed.length })) : retryFailed}>
                         <FileScan /> {t("planRetryFailed", { n: step.failed.length })}
                       </Button>
                     )}
