@@ -171,9 +171,8 @@ export async function loadSurvey(session: SessionContext, clientNumber: string, 
     supabase.from("clients").select("id, number, name, latitude, longitude, city, district, location_url, pin_pending").eq("id", survey.client_id).maybeSingle(),
     supabase.from("survey_rooms").select("*").eq("survey_id", survey.id).order("sort_order").order("created_at"),
     owner ? rows(supabase.from("quotes").select("id").eq("survey_id", survey.id)) : Promise.resolve([] as { id: string }[]),
-    rows(supabase.from("quotes").select("id").eq("survey_id", survey.id)).then(async (qs) =>
-      qs.length ? rows(supabase.from("contracts").select("number, status").in("quote_id", qs.map((q) => q.id)).in("status", ["sent", "accepted"])) : [],
-    ),
+    // contracts made from this survey (sent / accepted) — clients.view is enough (number + status only)
+    supabase.rpc("survey_contracts", { p_survey: survey.id }).then(({ data }) => (data ?? []) as { number: string; status: string }[]),
   ]);
   if (!found || found.number !== clientNumber) notFound();
   const { pin_pending, ...client } = found;
