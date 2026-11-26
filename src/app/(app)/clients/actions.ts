@@ -15,7 +15,8 @@ import { deleteError } from "@/lib/deletion";
 import { readPlan, type PlanTile } from "@/lib/ai/plan";
 import { cleanPlanDraft, planSheetSchema, PLAN_SHEET_MAX_BYTES, PLAN_TILE_MAX_BYTES, type PlanSheet } from "@/lib/survey/plan";
 import { clientDbError } from "@/lib/marketers";
-import { isShortMapLink, parseMapCoords, resolveShortMapLink, type LatLng } from "@/lib/geo";
+import { pinToSave, type LatLng } from "@/lib/geo";
+import { linkCoords } from "@/lib/geo-server";
 
 type Ctx = { orgId: string; userId: string; supabase: Awaited<ReturnType<typeof createClient>> };
 async function authorize(perm: Permission): Promise<Ctx | ActionResult> {
@@ -65,18 +66,11 @@ const clientSchema = z
     /** the site pin (map / phone position); null = not set → read from the map link when it has one */
     latitude: z.number().min(-90).max(90).nullable().optional(),
     longitude: z.number().min(-180).max(180).nullable().optional(),
+    /** map = the pin as set · auto = read it from the link · none = cleared (see pinToSave) */
+    pin_source: z.enum(["map", "auto", "none"]).optional(),
   })
   .strict()
   .refine((v) => (v.latitude == null) === (v.longitude == null), { path: ["latitude"], message: "pinInvalid" });
-
-/** Coordinates of a map link: written in it, else (short WhatsApp link) by following it — rate-limited per user. */
-async function linkCoords(userId: string, url: string | null | undefined): Promise<LatLng | null> {
-  if (!url) return null;
-  const direct = parseMapCoords(url);
-  if (direct || !isShortMapLink(url)) return direct;
-  if ((await rateLimit(`maplink:${userId}`, 60, 3600)) !== "ok") return null;
-  return resolveShortMapLink(url, (u, init) => fetch(u, init));
-}
 
 /** «من الرابط»: the pin of a Google Maps link (also a short one) — shown on the map before saving. */
 export async function readMapLink(input: unknown): Promise<ActionResult<LatLng | null>> {
@@ -84,7 +78,9 @@ export async function readMapLink(input: unknown): Promise<ActionResult<LatLng |
   if (!isCtx(ctx)) return ctx;
   const parsed = z.object({ url: z.url({ protocol: /^https$/ }).max(500) }).strict().safeParse(input);
   if (!parsed.success) return { ok: false, error: "urlInvalid" };
-  return { ok: true, data: await linkCoords(ctx.userId, parsed.data.url) };
+  const r = await linkCoords(ctx.userId, parsed.data.url);
+  if (r.rateLimited) return { ok: false, error: "rateLimited" };
+  return { ok: true, data: r.pin };
 }
 
 export async function saveClient(input: unknown): Promise<ActionResult<{ number: string }>> {
@@ -92,9 +88,11 @@ export async function saveClient(input: unknown): Promise<ActionResult<{ number:
   if (!isCtx(ctx)) return ctx;
   const parsed = clientSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
-  const { id: clientId, latitude, longitude, ...rest } = parsed.data;
-  // the pin: as set on the map, else from the map link (none → none)
-  const pin = latitude != null && longitude != null ? { lat: latitude, lng: longitude } : await linkCoords(ctx.userId, rest.location_url);
+  const { id: clientId, latitude, longitude, pin_source, ...rest } = parsed.data;
+  const formPin = latitude != null && longitude != null ? { lat: latitude, lng: longitude } : null;
+  // older callers without pin_source: a pin sent = map, none = read the link
+  const source = pin_source ?? (formPin ? "map" : "auto");
+  const pin = pinToSave({ source, pin: formPin }, source === "auto" ? (await linkCoords(ctx.userId, rest.location_url)).pin : null);
   const data = { ...rest, latitude: pin ? Math.round(pin.lat * 1e6) / 1e6 : null, longitude: pin ? Math.round(pin.lng * 1e6) / 1e6 : null };
   const q = clientId
     ? ctx.supabase.from("clients").update(data).eq("id", clientId).eq("organization_id", ctx.orgId).select("number").single()

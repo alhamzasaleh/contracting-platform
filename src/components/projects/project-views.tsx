@@ -3,6 +3,7 @@ import { RewardLine } from "@/components/marketers/reward-line";
 import { DocNo } from "@/components/doc-no";
 import { CalendarDays, Camera, Check, CheckCircle2, ClipboardList, Grid3x3, ExternalLink, FileBadge, FileText, HardHat, MapPin, MessageSquare, Phone, Send, ShoppingCart, Sparkles, Wallet, Wrench, X } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { WhatsAppButton } from "@/components/whatsapp-button";
@@ -12,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
-import { Textarea } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
@@ -20,7 +21,9 @@ import { isNetworkError, outboxAdd } from "@/lib/client/outbox";
 import { toast } from "sonner";
 import type { ProjectDetail, ProjectListItem, StageView } from "@/lib/data/projects";
 import { currentStage, overallProgress } from "@/lib/execution";
-import { FAR_METERS, mapLink, siteOf, visitPins } from "@/lib/geo";
+import { FAR_METERS, mapLink, visitPins, type LatLng } from "@/lib/geo";
+import { SitePinField } from "@/components/maps/site-pin-field";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MapLegend } from "@/components/maps/map-legend";
 import dynamic from "next/dynamic";
 
@@ -74,6 +77,7 @@ export function ProjectsList({ projects, base = "" }: { projects: ProjectListIte
                 </Badge>
               )}
               {p.done && <Badge tone="success">{t("handedOver")}</Badge>}
+              {p.late && <Badge tone="danger">{tm("late")}</Badge>}
             </div>
             <div className="grid gap-1.5">
               <div className="flex justify-between text-[13px]">
@@ -100,6 +104,9 @@ export type ProjectActions = {
   draftReport: (i: Record<string, unknown>) => Promise<ActionResult<{ text: string }>>;
   sendStage: (i: Record<string, unknown>) => Promise<ActionResult>;
   updateNote: (i: Record<string, unknown>) => Promise<ActionResult>;
+  /** this project's own site (projects.manage); null = back to the client's */
+  saveSite?: (i: Record<string, unknown>) => Promise<ActionResult>;
+  readSiteLink?: (i: { url: string }) => Promise<ActionResult<{ lat: number; lng: number } | null>>;
 };
 
 export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail; actions?: ProjectActions; base?: string }) {
@@ -108,45 +115,52 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
   const t = useTranslations("projects");
   const tp = useTranslations("pricing");
   const { fmt } = useFormatter();
-  const { run, pending } = useActionRunner();
+  const { errorText } = useActionRunner();
+  const router = useRouter();
   const [locating, setLocating] = React.useState(false);
   const [gpsNote, setGpsNote] = React.useState<string | null>(null);
   const cur = currentStage(data.stages);
   const [open, setOpen] = React.useState<string | null>(cur?.id ?? null);
-  const site = siteOf({ latitude: data.client.latitude ?? null, longitude: data.client.longitude ?? null, location_url: data.client.location_url });
+  const site = data.site ?? null;
+  const [editSite, setEditSite] = React.useState(false);
   const tm = useTranslations("maps");
   const pins = visitPins(site, data.visits);
   const progress = overallProgress(data.stages);
   const final = data.stages.find((s) => s.is_final && s.status === "confirmed");
   const newNotes = data.notes.filter((n) => n.status === "new").length;
 
+  // check-in only on site (owner, Nov 2026): the phone's position, ≤ 150 m accurate, within 300 m of
+  // the site — the database refuses anything else; the screen says why before and after asking
+  const failure = useFailureText();
+  const [checking, setChecking] = React.useState(false);
   const checkIn = () => {
     if (!actions) return;
     setGpsNote(null);
-    const send = (pos: GeolocationPosition | null) =>
-      run(() =>
-        actions.checkIn({
-          contract_id: data.contract.id,
-          latitude: pos ? pos.coords.latitude : null,
-          longitude: pos ? pos.coords.longitude : null,
-          accuracy_m: pos ? pos.coords.accuracy : null,
-          note: null,
-        }),
-      );
-    if (!("geolocation" in navigator)) {
-      setGpsNote(t("gpsUnavailable"));
-      return send(null);
-    }
+    if (!site) return setGpsNote(tm("visitNoSite"));
+    if (!("geolocation" in navigator)) return setGpsNote(t("gpsUnavailable"));
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         setLocating(false);
-        send(pos);
+        if (pos.coords.accuracy > 150) return setGpsNote(tm("visitInaccurate"));
+        setChecking(true);
+        const r = await settle(() =>
+          actions.checkIn({ contract_id: data.contract.id, latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy_m: pos.coords.accuracy, note: null }),
+        );
+        setChecking(false);
+        if (r.ok) {
+          toast.success(tm("visitRecorded"));
+          router.refresh();
+          return;
+        }
+        const [key, m] = r.error.split(":");
+        if (key === "visitTooFar") return setGpsNote(tm("visitTooFar", { m: fmt.number(Number(m), 0), max: FAR_METERS }));
+        if (["visitNoSite", "visitNeedsLocation", "visitInaccurate"].includes(key)) return setGpsNote(tm(key as "visitNoSite"));
+        setGpsNote(failure(r.error) ?? errorText(r.error));
       },
       () => {
         setLocating(false);
         setGpsNote(t("gpsDenied"));
-        send(null);
       },
       { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
     );
@@ -158,7 +172,15 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
       <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[20px] font-extrabold">{data.client.name}</p>
+            <p className="text-[20px] font-extrabold">
+              {data.canOpenClient && data.client.number ? (
+                <Link href={`${base}/clients/${data.client.number}`} className="hover:text-primary hover:underline">
+                  {data.client.name}
+                </Link>
+              ) : (
+                data.client.name
+              )}
+            </p>
             <p className="text-[13px] text-muted-foreground">
               {tp(`kind_${data.contract.service}`)} · <DocNo>{data.contract.number}</DocNo>
               {(data.client.city || data.client.district) && ` · ${[data.client.city, data.client.district].filter(Boolean).join(" — ")}`}
@@ -249,7 +271,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
         )}
         {data.canManage && (
           <div className="flex flex-wrap items-center gap-3">
-            <Button size="lg" loading={locating || pending} onClick={checkIn}>
+            <Button size="lg" loading={locating || checking} onClick={checkIn}>
               <MapPin /> {t("checkIn")}
             </Button>
             <p className="text-[12px] text-muted-foreground">{t("checkInHint")}</p>
@@ -299,7 +321,22 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
                 <MapLegend items={[["site", tm("site")], ["ok", tm("visitNear", { m: FAR_METERS })], ["far", tm("visitFar", { m: FAR_METERS })]]} />
               </>
             ) : null}
-            {!site && <p className="rounded-xl bg-warning-soft px-3 py-2 text-[12px]">{tm("noSiteForVisits")}</p>}
+            {!site && <p className="rounded-xl bg-warning-soft px-3 py-2 text-[12px]">{data.canSetSite ? tm("noSiteSetHere") : tm("noSiteForVisits")}</p>}
+            {data.canSetSite && (
+              <Button size="sm" variant="secondary" className="justify-self-start" onClick={() => setEditSite(true)}>
+                <MapPin /> {site ? (data.siteOwn ? tm("editProjectSite") : tm("setProjectSite")) : tm("setProjectSite")}
+              </Button>
+            )}
+            {site && <p className="text-[12px] text-muted-foreground">{data.siteOwn ? tm("siteIsProject") : tm("siteIsClient")}</p>}
+            {editSite && (
+              <ProjectSiteDialog
+                initial={data.siteOwn ? site : null}
+                clientSite={!data.siteOwn ? site : null}
+                onClose={() => setEditSite(false)}
+                readLink={actions?.readSiteLink}
+                save={actions?.saveSite && ((p) => actions.saveSite!({ contract_id: data.contract.id, latitude: p?.lat ?? null, longitude: p?.lng ?? null }))}
+              />
+            )}
             {data.visits.length === 0 && <p className="text-[13px] text-muted-foreground">{t("noVisits")}</p>}
             <ul className="grid gap-2">
               {data.visits.map((v) => {
@@ -663,5 +700,62 @@ function CostCard({ href, children }: { href: string | null; children: React.Rea
     </Link>
   ) : (
     <section className={cls}>{children}</section>
+  );
+}
+
+/** «موقع هذا المشروع»: a pin of its own (a client with two villas); clearing goes back to the client's site. */
+function ProjectSiteDialog({
+  initial,
+  clientSite,
+  onClose,
+  save,
+  readLink,
+}: {
+  initial: LatLng | null;
+  clientSite: LatLng | null;
+  onClose: () => void;
+  save?: (p: LatLng | null) => Promise<ActionResult>;
+  readLink?: (i: { url: string }) => Promise<ActionResult<LatLng | null>>;
+}) {
+  const tm = useTranslations("maps");
+  const tc = useTranslations("common");
+  const { run, pending } = useActionRunner();
+  const [pin, setPin] = React.useState<LatLng | null>(initial ?? clientSite);
+  const [link, setLink] = React.useState("");
+  return (
+    <Dialog open onOpenChange={(v) => !v && !pending && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{tm("projectSiteTitle")}</DialogTitle>
+          <DialogDescription>{tm("projectSiteHint")}</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="grid gap-3">
+          <Field id="ps-link" label={tm("linkLabel")} optional={tc("optional")}>
+            <Input
+              dir="ltr"
+              className="font-latin rtl:text-right"
+              inputMode="url"
+              placeholder="https://maps.app.goo.gl/…"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+            />
+          </Field>
+          <SitePinField value={pin} onChange={setPin} readLink={readLink} linkValue={() => link} />
+        </DialogBody>
+        <DialogFooter>
+          <Button loading={pending} disabled={!pin} onClick={() => run(save && (() => save(pin)), { onSuccess: onClose })}>
+            {tc("save")}
+          </Button>
+          {initial && (
+            <Button variant="secondary" disabled={pending} onClick={() => run(save && (() => save(null)), { onSuccess: onClose })}>
+              {tm("useClientSite")}
+            </Button>
+          )}
+          <Button variant="ghost" disabled={pending} onClick={onClose}>
+            {tc("cancel")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

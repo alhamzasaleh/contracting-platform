@@ -21,7 +21,7 @@ import { DeleteRecord } from "@/components/forms/delete-record";
 import { clientDeleteBlock, surveyDeleteBlock } from "@/lib/deletion";
 import { ltr } from "@/lib/utils";
 import { SitePinField } from "@/components/maps/site-pin-field";
-import { mapLink, siteOf, type LatLng } from "@/lib/geo";
+import { mapLink, siteOf, type LatLng, type PinSource } from "@/lib/geo";
 import dynamic from "next/dynamic";
 
 const SiteMap = dynamic(() => import("@/components/maps/site-map").then((m) => m.SiteMap), { ssr: false, loading: () => <div className="h-56 animate-pulse rounded-2xl bg-surface-sunken" /> });
@@ -58,8 +58,10 @@ function ClientDialog({
   const { run, pending, fieldText } = useActionRunner();
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   // the site pin (map / phone / link); without one the server reads it from the link
-  const [pin, setPin] = React.useState<LatLng | null>(client?.latitude != null && client?.longitude != null ? { lat: Number(client.latitude), lng: Number(client.longitude) } : null);
-  const linkRef = React.useRef<HTMLInputElement>(null);
+  const [pin, setPin] = React.useState<LatLng | null>(siteOf({ latitude: client?.latitude, longitude: client?.longitude }));
+  // map = set here (kept) · auto = read from the link on save (a new link replaces the old pin) · none = cleared
+  const [source, setSource] = React.useState<PinSource>(pin ? "map" : "auto");
+  const [linkText, setLinkText] = React.useState(client?.location_url ?? "");
   return (
     <FormDialog
       open
@@ -78,8 +80,9 @@ function ClientDialog({
                 district: str(fd, "district") || null,
                 id_number: str(fd, "id_number"),
                 location_url: str(fd, "location_url"),
-                latitude: pin?.lat ?? null,
-                longitude: pin?.lng ?? null,
+                latitude: source === "map" ? (pin?.lat ?? null) : null,
+                longitude: source === "map" ? (pin?.lng ?? null) : null,
+                pin_source: source,
                 notes: str(fd, "notes") || null,
                 ...(marketers.length ? { marketer_id: str(fd, "marketer_id") || null } : {}),
               })),
@@ -112,9 +115,25 @@ function ClientDialog({
         <Input name="id_number" defaultValue={client?.id_number ?? ""} inputMode="numeric" dir="ltr" maxLength={10} className="font-latin rtl:text-right" />
       </Field>
       <Field id="cl-loc" label={t("location")} hint={t("locationHint")} optional={tc("optional")} error={errors.location_url ? t("urlInvalid") : undefined}>
-        <Input ref={linkRef} name="location_url" defaultValue={client?.location_url ?? ""} dir="ltr" inputMode="url" placeholder="https://maps.app.goo.gl/…" className="font-latin rtl:text-right" />
+        <Input
+          name="location_url"
+          defaultValue={client?.location_url ?? ""}
+          // a changed link is read again on save (unless a pin is then set on the map)
+          onChange={(e) => {
+            setLinkText(e.target.value);
+            if (e.target.value.trim() !== (client?.location_url ?? "")) setSource("auto");
+          }} dir="ltr" inputMode="url" placeholder="https://maps.app.goo.gl/…" className="font-latin rtl:text-right" />
       </Field>
-      <SitePinField value={pin} onChange={setPin} readLink={onReadLink} linkValue={() => linkRef.current?.value ?? ""} />
+      <SitePinField
+        value={source === "auto" ? null : pin}
+        onChange={(p) => {
+          setPin(p);
+          setSource(p ? "map" : "none");
+        }}
+        readLink={onReadLink}
+        linkValue={() => linkText}
+        fromLinkOnSave={source === "auto" && !!linkText.trim()}
+      />
       {marketers.length > 0 && (
         <Field id="cl-marketer" label={t("cameThrough")} hint={t("cameThroughHint")} optional={tc("optional")}>
           <NativeSelect name="marketer_id" defaultValue={client?.marketer_id ?? ""}>
@@ -239,7 +258,7 @@ export function ClientDetailView({
   const { client, surveys, quotes } = detail;
   const wa = client.phone ? `https://wa.me/${client.phone}` : null;
   const tm = useTranslations("maps");
-  const site = siteOf({ latitude: client.latitude ?? null, longitude: client.longitude ?? null, location_url: client.location_url });
+  const site = siteOf({ latitude: client.latitude, longitude: client.longitude });
 
   const newSurvey = (mode: "rooms" | "total") =>
     run(onNewSurvey && (() => onNewSurvey({ client_id: client.id, mode })), {

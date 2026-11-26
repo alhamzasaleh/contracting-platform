@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activePins, distanceMeters, isShortMapLink, mapLink, parseMapCoords, resolveShortMapLink, siteOf, visitPins } from "@/lib/geo";
+import { activePins, distanceMeters, isShortMapLink, mapLink, parseMapCoords, pinToSave, resolveShortMapLink, siteOf, visitPins } from "@/lib/geo";
 
 /**
  * Maps (owner, Nov 2026): the project's site is a pin (lat/lng on the client), set on a map, from the
@@ -14,6 +14,9 @@ describe("reading coordinates from a map link", () => {
     expect(parseMapCoords("https://www.google.com/maps/place/Villa/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d24.80312!4d46.61055")).toEqual({ lat: 24.80312, lng: 46.61055 });
     expect(parseMapCoords("https://www.google.com/maps/dir/?api=1&destination=24.5,46.5")).toEqual({ lat: 24.5, lng: 46.5 });
     expect(parseMapCoords("geo:24.5,46.6")).toEqual({ lat: 24.5, lng: 46.6 });
+    // a dropped pin shared on WhatsApp ends up as /maps/search/<lat>,+<lng>
+    expect(parseMapCoords("https://www.google.com/maps/search/24.774265,+46.738586?entry=tts")).toEqual({ lat: 24.774265, lng: 46.738586 });
+    expect(parseMapCoords("https://www.google.com/maps/place/24.774265,46.738586")).toEqual({ lat: 24.774265, lng: 46.738586 });
   });
   it("prefers the place pin (!3d!4d) over the view centre (@)", () => {
     expect(parseMapCoords("https://www.google.com/maps/place/x/@24.80,46.61,17z/data=!3d24.8031!4d46.6105")).toEqual({ lat: 24.8031, lng: 46.6105 });
@@ -55,10 +58,20 @@ describe("following a short link (server)", () => {
 });
 
 describe("pins", () => {
-  it("the site: stored coordinates first, else read from the link", () => {
-    expect(siteOf({ latitude: 24.1, longitude: 46.2, location_url: "https://maps.google.com/?q=1,2" })).toEqual({ lat: 24.1, lng: 46.2 });
-    expect(siteOf({ latitude: null, longitude: null, location_url: "https://maps.google.com/?q=24.5,46.5" })).toEqual({ lat: 24.5, lng: 46.5 });
-    expect(siteOf({ latitude: null, longitude: null, location_url: null })).toBeNull();
+  it("the site is the stored pin only (one source of truth: cleared = none, even if the link has coordinates)", () => {
+    expect(siteOf({ latitude: 24.1, longitude: 46.2 })).toEqual({ lat: 24.1, lng: 46.2 });
+    expect(siteOf({ latitude: "24.5", longitude: "46.5" })).toEqual({ lat: 24.5, lng: 46.5 });
+    expect(siteOf({ latitude: null, longitude: null })).toBeNull();
+  });
+  it("which pin a saved client gets", () => {
+    const link = { lat: 24.5, lng: 46.5 };
+    // set on the map / phone / «من الرابط» → that pin
+    expect(pinToSave({ source: "map", pin: { lat: 1, lng: 2 } }, link)).toEqual({ lat: 1, lng: 2 });
+    // untouched, or the link was changed after → read from the (new) link
+    expect(pinToSave({ source: "auto", pin: { lat: 1, lng: 2 } }, link)).toEqual(link);
+    expect(pinToSave({ source: "auto", pin: null }, null)).toBeNull();
+    // «مسح الموقع» → none, whatever the link says
+    expect(pinToSave({ source: "none", pin: null }, link)).toBeNull();
   });
   it("visits are marked far beyond 300 m from the site", () => {
     const site = { lat: 24.8, lng: 46.6 };
@@ -80,5 +93,22 @@ describe("pins", () => {
   });
   it("a Google Maps link for a pin", () => {
     expect(mapLink({ lat: 24.8031, lng: 46.6105 })).toBe("https://www.google.com/maps/search/?api=1&query=24.8031%2C46.6105");
+  });
+});
+
+describe("check-in refusals and late projects", () => {
+  it("reads the database's refusal into a message key (with the distance)", async () => {
+    const { visitRefusal } = await import("@/lib/geo");
+    expect(visitRefusal("project site not set")).toEqual({ key: "visitNoSite" });
+    expect(visitRefusal("visit needs location")).toEqual({ key: "visitNeedsLocation" });
+    expect(visitRefusal("visit location inaccurate")).toEqual({ key: "visitInaccurate" });
+    expect(visitRefusal("visit too far:1183")).toEqual({ key: "visitTooFar", meters: 1183 });
+    expect(visitRefusal("something else")).toBeNull();
+  });
+  it("a project is late past its delivery (incl. additional works), never once handed over", async () => {
+    const { projectLate } = await import("@/lib/geo");
+    expect(projectLate({ done: false, start: "2026-11-01", days: 10, extraDays: 0, today: "2026-11-12" })).toBe(true);
+    expect(projectLate({ done: false, start: "2026-11-01", days: 10, extraDays: 5, today: "2026-11-12" })).toBe(false);
+    expect(projectLate({ done: true, start: "2026-11-01", days: 10, extraDays: 0, today: "2026-12-30" })).toBe(false);
   });
 });

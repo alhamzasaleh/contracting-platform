@@ -20,12 +20,15 @@ export function SitePinField({
   onChange,
   readLink,
   linkValue,
+  fromLinkOnSave,
 }: {
   value: LatLng | null;
   onChange: (p: LatLng | null) => void;
   readLink?: (input: { url: string }) => Promise<ActionResult<LatLng | null>>;
   /** the map link typed in the form (read when «من الرابط» is pressed) */
   linkValue: () => string;
+  /** no pin set here: the pin is read from the link when saving */
+  fromLinkOnSave?: boolean;
 }) {
   const t = useTranslations("maps");
   const failure = useFailureText();
@@ -58,7 +61,7 @@ export function SitePinField({
     setBusy("link");
     const r = await settle(() => readLink({ url }));
     setBusy(null);
-    if (!r.ok) return setNote(failure(r.error) ?? t("linkFailed"));
+    if (!r.ok) return setNote(failure(r.error) ?? (r.error === "rateLimited" ? t("linkRateLimited") : t("linkFailed")));
     if (!r.data) return setNote(t("linkNoPin"));
     onChange(r.data);
   };
@@ -91,7 +94,7 @@ export function SitePinField({
           </a>
         </p>
       ) : (
-        <p className="text-[12px] text-muted-foreground">{t("pinNotSet")}</p>
+        <p className="text-[12px] text-muted-foreground">{fromLinkOnSave ? t("pinFromLink") : t("pinNotSet")}</p>
       )}
       {note && <p className="rounded-xl bg-warning-soft px-3 py-2 text-[12px]">{note}</p>}
     </div>

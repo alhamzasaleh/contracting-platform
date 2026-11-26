@@ -9,13 +9,18 @@ comment on column public.clients.latitude is 'project site pin (with longitude);
 
 -- Backfill from links that already carry the coordinates (…!3d…!4d…, ?q=…, @…); short links are
 -- resolved by the app when the client is next saved.
+-- each pair comes from one pattern (the place pin first, then ?q=…, a dropped pin path, @…); 0,0 refused
 update public.clients c
-   set latitude = p.lat, longitude = p.lng
+   set latitude = p.pair[1]::numeric, longitude = p.pair[2]::numeric
   from (
-    select id,
-      coalesce(substring(location_url from '!3d(-?\d{1,2}\.\d+)!4d'), substring(location_url from '[?&](?:q|query|ll|destination)=(-?\d{1,2}\.\d+),'), substring(location_url from '@(-?\d{1,2}\.\d+),'))::numeric as lat,
-      coalesce(substring(location_url from '!3d-?\d{1,2}\.\d+!4d(-?\d{1,3}\.\d+)'), substring(location_url from '[?&](?:q|query|ll|destination)=-?\d{1,2}\.\d+,\+?(-?\d{1,3}\.\d+)'), substring(location_url from '@-?\d{1,2}\.\d+,(-?\d{1,3}\.\d+)'))::numeric as lng
-    from public.clients
-    where latitude is null and location_url is not null
+    select id, coalesce(
+      regexp_match(u, '!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)'),
+      regexp_match(u, '[?&](?:q|query|ll|destination|daddr)=(-?\d{1,2}\.\d+),\s*\+?(-?\d{1,3}\.\d+)'),
+      regexp_match(u, '/maps/(?:search|place|dir)/(-?\d{1,2}\.\d+),\s*\+?(-?\d{1,3}\.\d+)'),
+      regexp_match(u, '@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)')
+    ) as pair
+    from (select id, replace(replace(location_url, '%2C', ','), '%2c', ',') as u from public.clients where latitude is null and location_url is not null) x
   ) p
- where c.id = p.id and p.lat between -90 and 90 and p.lng between -180 and 180;
+ where c.id = p.id and p.pair is not null
+   and p.pair[1]::numeric between -90 and 90 and p.pair[2]::numeric between -180 and 180
+   and not (p.pair[1]::numeric = 0 and p.pair[2]::numeric = 0);

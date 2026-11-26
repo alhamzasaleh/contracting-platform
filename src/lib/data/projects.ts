@@ -1,5 +1,5 @@
 import "server-only";
-import { siteOf, type LatLng } from "@/lib/geo";
+import { projectLate, siteOf, type LatLng } from "@/lib/geo";
 import { loadContractCommission, type ContractCommission } from "@/lib/data/marketers";
 import { notFound } from "next/navigation";
 import { aiConfigured } from "@/lib/ai/invoice";
@@ -23,16 +23,27 @@ export type ProjectListItem = {
   late?: boolean;
 };
 
+/**
+ * The projects' sites (their own pin, else the client's) through public.project_site_list —
+ * projects.view is enough, so a supervisor without clients.view still sees where a project is.
+ */
+export async function loadProjectSites(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string): Promise<Map<string, { site: LatLng | null; own: boolean }>> {
+  const { data, error } = await supabase.rpc("project_site_list", { p_org: orgId });
+  if (error) return new Map();
+  return new Map((data ?? []).map((r) => [r.contract_id, { site: siteOf(r), own: r.own }]));
+}
+
 export async function loadProjects(session: SessionContext): Promise<ProjectListItem[]> {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const [{ data: contracts }, { data: clients }, { data: stages }, { data: visits }, { data: notes }, { data: addenda }] = await Promise.all([
+  const [{ data: contracts }, { data: clients }, { data: stages }, { data: visits }, { data: notes }, { data: addenda }, sites] = await Promise.all([
     supabase.from("contracts").select("id, number, client_id, service, start_date, duration_days").eq("organization_id", orgId).eq("status", "accepted").order("start_date", { ascending: false }),
-    supabase.from("clients").select("id, number, name, latitude, longitude, location_url").eq("organization_id", orgId),
+    supabase.from("clients").select("id, number, name").eq("organization_id", orgId),
     supabase.from("project_stages").select("contract_id, seq, name, status, progress, is_final").eq("organization_id", orgId),
     supabase.from("site_visits").select("contract_id, checked_in_at").eq("organization_id", orgId).order("checked_in_at", { ascending: false }).limit(2000),
     supabase.from("client_notes").select("contract_id").eq("organization_id", orgId).eq("status", "new"),
     supabase.from("addenda").select("contract_id, extra_days").eq("organization_id", orgId).eq("status", "accepted"),
+    loadProjectSites(supabase, orgId),
   ]);
   const byId = new Map((clients ?? []).map((c) => [c.id, c]));
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
@@ -45,9 +56,9 @@ export async function loadProjects(session: SessionContext): Promise<ProjectList
       lastVisit: (visits ?? []).find((v) => v.contract_id === c.id)?.checked_in_at ?? null,
       newNotes: (notes ?? []).filter((n) => n.contract_id === c.id).length,
       done: own.length > 0 && !cur,
-      site: (() => { const cl = byId.get(c.client_id); return cl ? siteOf({ latitude: cl.latitude ?? null, longitude: cl.longitude ?? null, location_url: cl.location_url }) : null; })(),
+      site: sites.get(c.id)?.site ?? null,
       clientNumber: byId.get(c.client_id)?.number,
-      late: !(own.length > 0 && !cur) && deliveryDate(c.start_date, c.duration_days, (addenda ?? []).filter((a) => a.contract_id === c.id).reduce((x, a) => x + (a.extra_days ?? 0), 0)) < today,
+      late: projectLate({ done: own.length > 0 && !cur, start: c.start_date, days: c.duration_days, extraDays: (addenda ?? []).filter((a) => a.contract_id === c.id).reduce((x, a) => x + (a.extra_days ?? 0), 0), today }),
     };
   });
 }
@@ -59,7 +70,14 @@ export type StageView = {
 };
 export type ProjectDetail = {
   contract: { id: string; number: string; service: ServiceKind; start_date: string; duration_days: number; warranty_months: number; accepted_at: string | null };
-  client: { name: string; phone: string | null; city: string | null; district: string | null; location_url: string | null; latitude?: number | null; longitude?: number | null };
+  client: { number?: string; name: string; phone: string | null; city: string | null; district: string | null; location_url: string | null };
+  /** where the project is: its own pin (siteOwn), else the client's; null = not set */
+  site?: LatLng | null;
+  siteOwn?: boolean;
+  /** projects.manage: may set this project's own site */
+  canSetSite?: boolean;
+  /** clients.view: the client's name links to his page */
+  canOpenClient?: boolean;
   /** company name, signs the ready WhatsApp messages */
   orgName?: string;
   stages: StageView[];
@@ -99,9 +117,9 @@ export async function loadProject(session: SessionContext, number: string): Prom
   const notesP = Promise.resolve(supabase.from("client_notes").select("id, body, photos, status, reply, stage_id, created_at").eq("contract_id", c.id).order("created_at", { ascending: false }));
   const [
     { data: client }, { data: stages }, { data: updates }, { data: visits }, { data: notes }, { data: payments }, who,
-    { data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam, signed, reward,
+    { data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam, signed, reward, sites,
   ] = await Promise.all([
-    supabase.from("clients").select("name, phone, city, district, location_url, latitude, longitude").eq("id", c.client_id).maybeSingle(),
+    supabase.from("clients").select("number, name, phone, city, district, location_url").eq("id", c.client_id).maybeSingle(),
     supabase.from("project_stages").select("*").eq("contract_id", c.id).order("seq"),
     updatesP,
     visitsP,
@@ -124,6 +142,8 @@ export async function loadProject(session: SessionContext, number: string): Prom
     }),
     // the success partner's reward on this project (internal: costs.view)
     can(session, "costs.view") ? loadContractCommission(session, c.id) : Promise.resolve(null),
+    // the site (this project's own pin, else the client's) — projects.view is enough
+    loadProjectSites(supabase, orgId),
   ]);
   const extraDays = (addenda ?? []).reduce((s, a) => s + a.extra_days, 0);
   const own = costs?.find((x) => x.id === c.id);
@@ -132,6 +152,10 @@ export async function loadProject(session: SessionContext, number: string): Prom
   return {
     contract: { id: c.id, number: c.number, service: c.service, start_date: c.start_date, duration_days: c.duration_days, warranty_months: c.warranty_months, accepted_at: c.accepted_at },
     client: client ?? { name: "—", phone: null, city: null, district: null, location_url: null },
+    site: sites.get(c.id)?.site ?? null,
+    siteOwn: sites.get(c.id)?.own ?? false,
+    canSetSite: can(session, "projects.manage"),
+    canOpenClient: can(session, "clients.view"),
     orgName: session.organization.name,
     stages: (stages ?? []).map((s) => ({
       id: s.id, seq: s.seq, name: s.name, status: s.status, progress: s.progress, is_final: s.is_final, payment_event: s.payment_event,

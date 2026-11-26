@@ -11,7 +11,7 @@ export default async function ProjectsMapPage() {
   return (
     <div className="min-w-0">
       <PageHeader title={t("projectsMap")} description={t("projectsMapSub")} />
-      <ProjectsMapView projects={await loadProjects(session)} canSetSite={can(session, "clients.manage")} />
+      <ProjectsMapView projects={await loadProjects(session)} canSetSite={can(session, "projects.manage")} />
     </div>
   );
 }

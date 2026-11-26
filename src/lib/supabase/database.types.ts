@@ -638,6 +638,8 @@ export type ProjectStageRow = OrgRow & Upd & {
   confirmed_signature: string | null;
 };
 export type SiteVisitRow = OrgRow & { contract_id: string; latitude: number | null; longitude: number | null; accuracy_m: number | null; note: string | null; checked_in_at: string };
+/** a project's own site pin (else the client's) */
+export type ProjectSiteRow = { contract_id: string; organization_id: string; latitude: number; longitude: number; created_at: string; created_by: string | null; updated_at: string };
 export type ProgressUpdateRow = OrgRow & { contract_id: string; stage_id: string; progress: number; note: string | null; photos: string[]; visible_to_client: boolean };
 export type ClientNoteRow = OrgRow & Upd & { contract_id: string; stage_id: string | null; body: string; photos: string[]; status: "new" | "seen" | "resolved"; reply: string | null };
 
@@ -828,6 +830,7 @@ export type Database = {
       inventory_movements: Table<InventoryMovementRow>;
       project_stages: Table<ProjectStageRow>;
       site_visits: Table<SiteVisitRow>;
+      project_sites: Table<ProjectSiteRow, Partial<ProjectSiteRow> & { contract_id: string; organization_id: string; latitude: number; longitude: number }>;
       progress_updates: Table<ProgressUpdateRow>;
       client_notes: Table<ClientNoteRow>;
       addenda: Table<AddendumRow>;
@@ -871,6 +874,7 @@ export type Database = {
       my_permissions: { Args: { p_org: string }; Returns: string[] };
       session_context: { Args: Record<string, never>; Returns: Json | null };
       quote_version_quantities: { Args: { p_version: string }; Returns: Json };
+      project_site_list: { Args: { p_org: string }; Returns: { contract_id: string; latitude: number | null; longitude: number | null; own: boolean }[] };
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };

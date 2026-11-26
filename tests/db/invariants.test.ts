@@ -15,7 +15,7 @@ const rows = (sql: string) => asAdmin((q) => q<{ name: string }>(sql)).then((r) 
 const AUTHENTICATED_DEFINER = [
   "accept_pending_invitations", "approve_payroll_run", "can_create_organization", "claim_push_subscription", "contract_warranties", "create_organization", "create_payroll_run",
   "delete_client", "delete_marketer", "delete_quote", "delete_survey",
-  "issue_marketer_link", "issue_portal_link", "issue_quote", "issue_quote_link", "marketer_choices", "log_event", "mark_payroll_paid", "move_stock", "my_permissions", "project_labour_costs", "qoyod_backfill", "quote_version_quantities", "qoyod_retry", "qoyod_set_key", "qoyod_wake_waiting",
+  "issue_marketer_link", "issue_portal_link", "issue_quote", "issue_quote_link", "marketer_choices", "log_event", "mark_payroll_paid", "move_stock", "my_permissions", "project_labour_costs", "project_site_list", "qoyod_backfill", "quote_version_quantities", "qoyod_retry", "qoyod_set_key", "qoyod_wake_waiting",
   "record_addendum_payment", "record_client_payment", "record_commission_payment", "revoke_marketer_links", "record_purchase_payment", "request_contract_payment", "requestable_payments", "save_contract_schedule",
   "link_member_employee", "member_employee_links", "schedule_roster", "staff_employee_names", "unlink_employee_account", "seed_employee_cost_items", "seed_pricing_engine", "seed_starter_catalogue", "submit_addendum", "submit_purchase", "team_cost_month",
 ];
@@ -24,7 +24,7 @@ const AUTHENTICATED_DEFINER = [
 // policies and invoker triggers call them as the user. Each answers only about the caller's own
 // organizations (membership filter, or auth.uid()-based). Adding one here means you checked that.
 const AUTHENTICATED_PRIVATE_DEFINER = [
-  "agreement_contract", "can_access_contract", "has_permission", "is_member", "is_owner", "member_permissions",
+  "agreement_contract", "can_access_contract", "contract_site", "has_permission", "is_member", "is_owner", "member_permissions",
   "purchase_contract", "quote_has_open_approvals", "quote_status", "quote_version_total", "shares_organization",
 ];
 

@@ -8,6 +8,8 @@ import { draftStageReport } from "@/lib/ai/stage-report";
 import { can, getSession } from "@/lib/auth/session";
 import { rateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
+import { visitRefusal } from "@/lib/geo";
+import { linkCoords } from "@/lib/geo-server";
 
 const id = z.uuid();
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -58,8 +60,47 @@ export async function checkIn(input: unknown): Promise<ActionResult> {
     organization_id: ctx.orgId, contract_id: v.contract_id, latitude: v.latitude, longitude: v.longitude,
     accuracy_m: v.accuracy_m == null ? null : Math.round(v.accuracy_m * 10) / 10, note: v.note || null,
   });
-  if (error) return fail(error, "check in");
+  if (error) {
+    // check-in only on site (owner, Nov 2026): the database says why — far (with the distance), no site, no / poor position
+    const refused = visitRefusal(error.message);
+    if (refused) return { ok: false, error: "meters" in refused ? `${refused.key}:${refused.meters}` : refused.key };
+    return fail(error, "check in");
+  }
   return done();
+}
+
+/** «موقع هذا المشروع» (projects.manage): its own pin (a client with two villas); null = back to the client's. */
+export async function saveProjectSite(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize();
+  if (!isCtx(ctx)) return ctx;
+  const parsed = z
+    .object({ contract_id: id, latitude: z.number().min(-90).max(90).nullable(), longitude: z.number().min(-180).max(180).nullable() })
+    .strict()
+    .refine((v) => (v.latitude == null) === (v.longitude == null))
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const v = parsed.data;
+  if (!(await contractOf(ctx, v.contract_id))) return { ok: false, error: "notAccepted" };
+  const { error } =
+    v.latitude == null || v.longitude == null
+      ? await ctx.supabase.from("project_sites").delete().eq("contract_id", v.contract_id).eq("organization_id", ctx.orgId)
+      : await ctx.supabase.from("project_sites").upsert({
+          contract_id: v.contract_id, organization_id: ctx.orgId,
+          latitude: Math.round(v.latitude * 1e6) / 1e6, longitude: Math.round(v.longitude * 1e6) / 1e6,
+        });
+  if (error) return fail(error, "save site");
+  return done();
+}
+
+/** «من الرابط» on the project page (projects.manage). */
+export async function readSiteLink(input: unknown): Promise<ActionResult<{ lat: number; lng: number } | null>> {
+  const ctx = await authorize();
+  if (!isCtx(ctx)) return ctx;
+  const parsed = z.object({ url: z.url({ protocol: /^https$/ }).max(500) }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "urlInvalid" };
+  const r = await linkCoords(ctx.userId, parsed.data.url);
+  if (r.rateLimited) return { ok: false, error: "rateLimited" };
+  return { ok: true, data: r.pin };
 }
 
 /** One site photo (already shrunk to JPEG in the browser) → private bucket. */

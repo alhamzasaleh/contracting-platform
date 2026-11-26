@@ -52,7 +52,7 @@ export function SiteMap({
       if (cancelled || !box.current || map.current) return;
       lib.current = L;
       const m = L.map(box.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false }).setView([RIYADH.lat, RIYADH.lng], 11);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(m);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors' }).addTo(m);
       m.attributionControl.setPrefix(false);
       m.on("click", (e: Leaflet.LeafletMouseEvent) => onPick.current?.({ lat: round6(e.latlng.lat), lng: round6(e.latlng.lng) }));
       layer.current = L.layerGroup().addTo(m);
@@ -129,7 +129,7 @@ function text(s: string): HTMLElement {
 /** The pin's popup: its label and, for in-app links only, a link. */
 function popup(p: MapPin, openLabel?: string): HTMLElement {
   const el = document.createElement("div");
-  el.style.direction = "rtl";
+  el.dir = document.documentElement.dir || "rtl";
   if (p.label) {
     const b = document.createElement("strong");
     b.textContent = p.label;

@@ -4,6 +4,8 @@
  * short WhatsApp links (maps.app.goo.gl) are followed on the server, to Google hosts only.
  * Pure (the fetch is passed in), so the rules are unit-tested.
  */
+import { deliveryDate } from "@/lib/contracts";
+
 export type LatLng = { lat: number; lng: number };
 
 /** Distance in metres (haversine). */
@@ -37,6 +39,9 @@ export function parseMapCoords(url: string | null | undefined): LatLng | null {
   if (geo) return valid(Number(geo[1]), Number(geo[2]));
   const param = s.match(/[?&](?:q|query|destination|ll|daddr)=(-?\d{1,2}\.\d+),\s*\+?(-?\d{1,3}\.\d+)/);
   if (param) return valid(Number(param[1]), Number(param[2]));
+  // a dropped pin: /maps/search|place|dir/<lat>,+<lng>
+  const path = s.match(/\/maps\/(?:search|place|dir)\/(-?\d{1,2}\.\d+),\s*\+?(-?\d{1,3}\.\d+)/);
+  if (path) return valid(Number(path[1]), Number(path[2]));
   const at = s.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);
   if (at) return valid(Number(at[1]), Number(at[2]));
   return null;
@@ -91,10 +96,21 @@ export async function resolveShortMapLink(url: string, fetchFn: (u: string, init
   return null;
 }
 
-/** The project's site: the stored pin, else coordinates in its map link. */
-export function siteOf(c: { latitude: number | null; longitude: number | null; location_url: string | null }): LatLng | null {
-  if (c.latitude != null && c.longitude != null) return valid(Number(c.latitude), Number(c.longitude));
-  return parseMapCoords(c.location_url);
+/** The site: the stored pin only — one source of truth (the link is read into it when saved). */
+export function siteOf(c: { latitude: number | string | null | undefined; longitude: number | string | null | undefined }): LatLng | null {
+  if (c.latitude == null || c.longitude == null) return null;
+  return valid(Number(c.latitude), Number(c.longitude));
+}
+
+/**
+ * The pin a saved client gets: «map» = set on the map / phone / «من الرابط» (kept as is);
+ * «auto» = not touched since the link last changed → read from the link; «none» = cleared.
+ */
+export type PinSource = "map" | "auto" | "none";
+export function pinToSave(form: { source: PinSource; pin: LatLng | null }, fromLink: LatLng | null): LatLng | null {
+  if (form.source === "none") return null;
+  if (form.source === "map") return form.pin;
+  return fromLink;
 }
 
 /** Beyond this from the site a check-in reads «far». */
@@ -121,3 +137,19 @@ export function activePins<T extends { site: LatLng | null }>(projects: T[]): { 
 
 /** A Google Maps link that opens on the pin (navigation from the phone). */
 export const mapLink = (p: LatLng) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.lat},${p.lng}`)}`;
+
+/** Past its delivery date (start + days + accepted additional-works days) and not handed over. */
+export function projectLate(p: { done: boolean; start: string; days: number; extraDays: number; today: string }): boolean {
+  return !p.done && deliveryDate(p.start, p.days, p.extraDays) < p.today;
+}
+
+/** The database's check-in refusal (private.visit_on_site) → message key, with the distance when too far. */
+export function visitRefusal(message: string | undefined | null): { key: "visitNoSite" | "visitNeedsLocation" | "visitInaccurate" } | { key: "visitTooFar"; meters: number } | null {
+  if (!message) return null;
+  if (message.includes("project site not set")) return { key: "visitNoSite" };
+  if (message.includes("visit needs location")) return { key: "visitNeedsLocation" };
+  if (message.includes("visit location inaccurate")) return { key: "visitInaccurate" };
+  const far = message.match(/visit too far:(\d+)/);
+  if (far) return { key: "visitTooFar", meters: Number(far[1]) };
+  return null;
+}

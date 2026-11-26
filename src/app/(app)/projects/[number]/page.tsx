@@ -3,7 +3,7 @@ import { ProjectView } from "@/components/projects/project-views";
 import { PageHeader } from "@/components/shell/app-shell";
 import { requirePermission } from "@/lib/auth/session";
 import { loadProject } from "@/lib/data/projects";
-import { checkIn, draftReport, saveProgress, sendStage, updateNote, uploadPhoto } from "../actions";
+import { checkIn, draftReport, readSiteLink, saveProgress, saveProjectSite, sendStage, updateNote, uploadPhoto } from "../actions";
 
 export default async function ProjectPage({ params }: { params: Promise<{ number: string }> }) {
   const session = await requirePermission("projects.view");
@@ -13,7 +13,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ number
   return (
     <div className="min-w-0">
       <PageHeader title={t("projectTitle")} />
-      <ProjectView data={data} actions={{ checkIn, uploadPhoto, saveProgress, draftReport, sendStage, updateNote }} />
+      <ProjectView data={data} actions={{ checkIn, uploadPhoto, saveProgress, draftReport, sendStage, updateNote, saveSite: saveProjectSite, readSiteLink }} />
     </div>
   );
 }

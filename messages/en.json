@@ -288,7 +288,8 @@
       "marketers": "Success partner",
       "marketer_commissions": "Success partner reward",
       "commission_payments": "Reward payment voucher",
-      "marketer_portal_links": "Partner page link"
+      "marketer_portal_links": "Partner page link",
+      "project_sites": "Project site"
     },
     "fields": {
       "marketer_id": "Success partner",
@@ -297,7 +298,10 @@
       "commission_amount": "Reward amount",
       "commission_id": "Reward",
       "commission_account_id": "Rewards account",
-      "commission_setup_at": "Rewards account setup"
+      "commission_setup_at": "Rewards account setup",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "location_url": "Location link"
     }
   },
   "permissions": {
@@ -3157,7 +3161,23 @@
     "noRunningBody": "Accepted projects not yet handed over show here.",
     "openProject": "Open project",
     "withoutSite": "Projects without a site ({n})",
-    "withoutSiteHint": "They show on the map once their site is set from the client page.",
-    "setSite": "Set its site"
+    "withoutSiteHint": "They show on the map once their site is set (from the project or client page).",
+    "setSite": "Set its site",
+    "visitNoSite": "The project site isn't set — no check-in before it is.",
+    "visitNeedsLocation": "Allow location to check in.",
+    "visitInaccurate": "Weak location accuracy — step outside or turn on GPS and try again.",
+    "visitTooFar": "You're {m} m from the project site — check-in works within {max} m only.",
+    "visitRecorded": "Checked in on site.",
+    "noSiteSetHere": "The project site isn't set — set it here so the supervisor can check in.",
+    "setProjectSite": "Set this project's site",
+    "editProjectSite": "Edit the project site",
+    "siteIsProject": "This project's own site.",
+    "siteIsClient": "The site comes from the client — if the client has more than one project, set this project's site.",
+    "projectSiteTitle": "This project's site",
+    "projectSiteHint": "For a client with more than one villa: set this project's own site. Supervisor check-ins are measured against it.",
+    "linkLabel": "Location link (Google Maps)",
+    "useClientSite": "Back to the client's site",
+    "pinFromLink": "The site is read from the link on save.",
+    "linkRateLimited": "Too many tries — set the site on the map or try again shortly."
   }
 }

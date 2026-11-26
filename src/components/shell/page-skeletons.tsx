@@ -66,6 +66,19 @@ export function ListPageSkeleton({ kpis = 0, actions = true }: { kpis?: number; 
   );
 }
 
+/** A page that is a big map under its header (the projects map). */
+export function MapPageSkeleton() {
+  return (
+    <div aria-busy="true">
+      <Header actions={false} />
+      <div className="grid gap-4">
+        <Skeleton className="h-8 w-64 rounded-full" />
+        <Skeleton className="h-[60vh] min-h-80 w-full rounded-3xl" />
+      </div>
+    </div>
+  );
+}
+
 /** Content under a section's own header and tabs (catalogue, purchases, team): a toolbar and a list. */
 export function SectionContentSkeleton({ kpis = 0 }: { kpis?: number }) {
   return (

@@ -139,6 +139,8 @@ export function layoutIssues(): string[] {
     const s = getComputedStyle(n);
     if (!(s.overflowX === "hidden" || s.overflowX === "clip")) continue;
     if (s.textOverflow === "ellipsis" || n.clientWidth <= 2) continue;
+    // a map: its tiles reach past the frame on purpose (panned by dragging) — not cut content
+    if (n.closest(".leaflet-container") || n.querySelector(":scope > .leaflet-container, :scope > [role=region].leaflet-container")) continue;
     if (n.scrollWidth > n.clientWidth + 1) out.push(`content cut off sideways (hidden, can't be reached): ${n.tagName.toLowerCase()} «${name(n)}» (${n.scrollWidth} > ${n.clientWidth})`);
   }
   // the dialog panel itself must fit the screen

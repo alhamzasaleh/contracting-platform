@@ -19,7 +19,10 @@ const stage = (seq: number, name: string, status: ProjectDetail["stages"][number
 
 export const SAMPLE_PROJECT: ProjectDetail = {
   contract: { id: "k0", number: "C-2026-003", service: "gypsum", start_date: "2026-11-21", duration_days: 14, warranty_months: 6, accepted_at: "2026-11-19T10:00:00Z" },
-  client: { name: "شركة البناء المتقن", phone: "966551234567", city: "الرياض", district: "الملقا", location_url: "https://www.google.com/maps/place/x/@24.8031,46.6105,17z", latitude: 24.8031, longitude: 46.6105 },
+  client: { name: "شركة البناء المتقن", phone: "966551234567", city: "الرياض", district: "الملقا", number: "CL-2026-001", location_url: "https://www.google.com/maps/place/x/@24.8031,46.6105,17z" },
+  site: { lat: 24.8031, lng: 46.6105 },
+  siteOwn: false,
+  canSetSite: true,
   canManage: true,
   canPurchase: true,
   canViewContract: true,
@@ -38,6 +41,8 @@ export const SAMPLE_PROJECT: ProjectDetail = {
   visits: [
     { id: "v1", checked_in_at: "2026-11-22T07:30:00Z", latitude: 24.8032, longitude: 46.6107, accuracy_m: 9, note: null, by: "صالح العتيبي" },
     { id: "v2", checked_in_at: "2026-11-21T07:10:00Z", latitude: null, longitude: null, accuracy_m: null, note: null, by: "محمد القحطاني · مشرف" },
+    // an older visit recorded before check-in had to be on site: far from it (red on the map)
+    { id: "v3", checked_in_at: "2026-11-20T09:00:00Z", latitude: 24.8095, longitude: 46.6131, accuracy_m: 18, note: null, by: "محمد القحطاني · مشرف" },
   ],
   notes: [{ id: "n1", body: "نبي فتحة التكييف في المجلس أكبر شوي لو سمحتوا.", photos: [{ path: "c", url: ph("#b8b1a3") }], status: "new", reply: null, stage_id: "s3", created_at: "2026-11-22T16:00:00Z" }],
   payments: [

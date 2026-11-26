@@ -67,6 +67,8 @@ describe("loading skeletons", () => {
       "contracts/[number]": "<DocumentPageSkeleton />",
       "contracts/new": "<DetailPageSkeleton />",
       "projects/[number]": "<DetailPageSkeleton />",
+      // the projects map: a header and a big map
+      "projects/map": "<MapPageSkeleton />",
       "invoices/[number]": "<DocumentPageSkeleton />",
       // a document inside a section that already draws its header and tabs (purchases)
       "purchases/[number]": "<PurchaseViewSkeleton />",
