@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
+import { SurveySiteCard, type ReadMapLink, type ReadPlace } from "@/components/clients/survey-site";
 import { useFormatter } from "@/components/formatter-provider";
 import { FormDialog, NumberInput, str, useActionRunner, useUnitText } from "@/components/forms/form-kit";
 import { Pills } from "./pills";
@@ -50,7 +51,7 @@ export function SurveyView({
   canManage: boolean;
   canQuote: boolean;
   /** deleteSurvey: owner only (detail.canDelete) */
-  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>>; readPlan?: (fd: FormData) => Promise<ActionResult<PlanReading>>; bulkRooms?: (input: Record<string, unknown>) => Promise<ActionResult<{ n: number }>>; deleteSurvey?: Act };
+  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>>; readPlan?: (fd: FormData) => Promise<ActionResult<PlanReading>>; bulkRooms?: (input: Record<string, unknown>) => Promise<ActionResult<{ n: number }>>; deleteSurvey?: Act; saveSite?: Act; readLink?: ReadMapLink; readPlace?: ReadPlace };
 }) {
   const unitText = useUnitText();
   const t = useTranslations("survey");
@@ -63,7 +64,7 @@ export function SurveyView({
 
   const [mode, setMode] = React.useState<SurveyMode>(survey.mode);
   const [totals, setTotals] = React.useState<SurveyTotals>(survey.totals);
-  const [meta, setMeta] = React.useState({ title: survey.title ?? "", visit_date: survey.visit_date ?? "", notes: survey.notes ?? "" });
+  const [meta, setMeta] = React.useState({ title: survey.title ?? "", visit_date: survey.visit_date ?? "", visit_time: survey.visit_time?.slice(0, 5) ?? "", notes: survey.notes ?? "" });
   const [dirty, setDirty] = React.useState(false);
   const [room, setRoom] = React.useState<Partial<SurveyRoom> | null>(null);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -108,6 +109,7 @@ export function SurveyView({
             title: meta.title || null,
             mode,
             visit_date: meta.visit_date || null,
+            visit_time: meta.visit_time || null,
             notes: meta.notes || null,
             totals: Object.fromEntries(Object.entries(totals).filter(([, v]) => v !== undefined && v !== null)),
           })),
@@ -249,15 +251,20 @@ export function SurveyView({
             ]}
           />
         </div>
-        <div className="field-row grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,16rem)]">
-          <Field id="sv-title" label={t("title")} optional={tc("optional")}>
+        <div className="field-row grid gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(11rem,14rem)_minmax(9rem,11rem)]">
+          <Field id="sv-title" label={t("title")} optional={tc("optional")} className="sm:col-span-2 xl:col-span-1">
             <Input value={meta.title} onChange={(e) => (setMeta({ ...meta, title: e.target.value }), setDirty(true))} placeholder={t("titlePh")} disabled={!canManage} />
           </Field>
           <Field id="sv-date" label={t("visitDate")}>
             <Input type="date" value={meta.visit_date} onChange={(e) => (setMeta({ ...meta, visit_date: e.target.value }), setDirty(true))} disabled={!canManage} />
           </Field>
+          <Field id="sv-time" label={t("visitTime")}>
+            <Input type="time" value={meta.visit_time} onChange={(e) => (setMeta({ ...meta, visit_time: e.target.value }), setDirty(true))} disabled={!canManage} />
+          </Field>
         </div>
       </section>
+
+      <SurveySiteCard survey={survey} client={client} canManage={canManage} save={actions?.saveSite} readLink={actions?.readLink} readPlace={actions?.readPlace} />
 
       {mode === "rooms" && (
         <section className="grid gap-3">

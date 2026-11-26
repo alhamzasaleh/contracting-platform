@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
-import { Input, Textarea } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
@@ -327,7 +327,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
                 <MapPin /> {site ? (data.siteOwn ? tm("editProjectSite") : tm("setProjectSite")) : tm("setProjectSite")}
               </Button>
             )}
-            {site && <p className="text-[12px] text-muted-foreground">{data.siteOwn ? tm("siteIsProject") : tm("siteIsClient")}</p>}
+            {site && <p className="text-[12px] text-muted-foreground">{data.siteOwn ? tm("siteIsProject") : data.siteSource === "survey" ? tm("siteIsSurvey") : tm("siteIsClient")}</p>}
             {editSite && (
               <ProjectSiteDialog
                 initial={data.siteOwn ? site : null}
@@ -730,17 +730,7 @@ function ProjectSiteDialog({
           <DialogDescription>{tm("projectSiteHint")}</DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-3">
-          <Field id="ps-link" label={tm("linkLabel")} optional={tc("optional")}>
-            <Input
-              dir="ltr"
-              className="font-latin rtl:text-right"
-              inputMode="url"
-              placeholder="https://maps.app.goo.gl/…"
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-            />
-          </Field>
-          <SitePinField value={pin} onChange={setPin} readLink={readLink} linkValue={() => link} />
+          <SitePinField id="ps-site" value={pin} onChange={setPin} link={link} onLinkChange={setLink} readLink={readLink} />
         </DialogBody>
         <DialogFooter>
           <Button loading={pending} disabled={!pin} onClick={() => run(save && (() => save(pin)), { onSuccess: onClose })}>

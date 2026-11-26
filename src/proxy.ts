@@ -25,7 +25,7 @@ function buildCsp(nonce: string, supabaseUrl?: string) {
     // Inline style attributes are needed by animation libraries; scripts stay strict.
     "style-src 'self' 'unsafe-inline'",
     // map tiles (OpenStreetMap) — images only, no scripts
-    `img-src 'self' blob: data: https://tile.openstreetmap.org ${supabase}`.trim(),
+    `img-src 'self' blob: data: https://tile.openstreetmap.org https://server.arcgisonline.com ${supabase}`.trim(),
     "font-src 'self' data:",
     `connect-src 'self' ${supabase} ${supabaseWs}`.trim(),
     "media-src 'self' blob:",

@@ -4,10 +4,12 @@ import type * as Leaflet from "leaflet";
 import * as React from "react";
 import type { LatLng } from "@/lib/geo";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import { PIN_TONE, type PinTone } from "./map-tones";
+import { TILE_LAYERS, type MapLayer } from "./tiles";
 
 /**
- * Map (owner, Nov 2026): OpenStreetMap tiles drawn with Leaflet — no account, no key. Pins are
+ * Map (owner, Nov 2026): street map or satellite (`tiles.ts`) drawn with Leaflet — no account, no key. Pins are
  * coloured dots (no image files); labels and links are set as text (never HTML), so a client's or
  * project's name can't inject anything. `pick` turns it into a picker: tap the map or drag the pin.
  */
@@ -43,6 +45,16 @@ export function SiteMap({
     onPick.current = pick?.onChange;
   });
   const [ready, setReady] = React.useState(false);
+  const t = useTranslations("maps");
+  const tiles = React.useRef<Leaflet.TileLayer | null>(null);
+  // the chosen background is remembered on this device (a convenience only)
+  const [bg, setBg] = React.useState<MapLayer>(() => {
+    try {
+      return typeof window !== "undefined" && window.localStorage.getItem("map-layer") === "satellite" ? "satellite" : "map";
+    } catch {
+      return "map";
+    }
+  });
 
   // create the map once (Leaflet touches window: loaded in the browser only)
   React.useEffect(() => {
@@ -52,7 +64,6 @@ export function SiteMap({
       if (cancelled || !box.current || map.current) return;
       lib.current = L;
       const m = L.map(box.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false }).setView([RIYADH.lat, RIYADH.lng], 11);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors' }).addTo(m);
       m.attributionControl.setPrefix(false);
       m.on("click", (e: Leaflet.LeafletMouseEvent) => onPick.current?.({ lat: round6(e.latlng.lat), lng: round6(e.latlng.lng) }));
       layer.current = L.layerGroup().addTo(m);
@@ -64,8 +75,25 @@ export function SiteMap({
       map.current?.remove();
       map.current = null;
       layer.current = null;
+      tiles.current = null;
     };
   }, []);
+
+  // the background: street map or satellite
+  React.useEffect(() => {
+    const L = lib.current;
+    const m = map.current;
+    if (!ready || !L || !m) return;
+    tiles.current?.remove();
+    const cfg = TILE_LAYERS[bg];
+    tiles.current = L.tileLayer(cfg.url, { maxZoom: cfg.maxZoom, attribution: cfg.attribution }).addTo(m);
+    tiles.current.bringToBack();
+    try {
+      window.localStorage.setItem("map-layer", bg);
+    } catch {
+      /* private mode */
+    }
+  }, [ready, bg]);
 
   // draw pins / circle / picker, and fit the view
   const key = JSON.stringify([pins, circle, pick?.value ?? null]);
@@ -113,6 +141,19 @@ export function SiteMap({
   return (
     <div dir="ltr" className={cn("relative isolate z-0 overflow-hidden rounded-2xl border border-border bg-surface-sunken", className ?? "h-72")}>
       <div ref={box} role="region" aria-label={label} className="size-full" />
+      <div className="absolute end-2 top-2 z-[1000] flex overflow-hidden rounded-full border border-border bg-surface text-[12px] font-semibold shadow-sm">
+        {(["map", "satellite"] as const).map((l) => (
+          <button
+            key={l}
+            type="button"
+            aria-pressed={bg === l}
+            onClick={() => setBg(l)}
+            className={cn("min-h-8 px-3", bg === l ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-surface-sunken")}
+          >
+            {l === "map" ? t("layerMap") : t("layerSatellite")}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

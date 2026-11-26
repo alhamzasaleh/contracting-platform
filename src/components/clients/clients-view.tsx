@@ -21,13 +21,15 @@ import { DeleteRecord } from "@/components/forms/delete-record";
 import { clientDeleteBlock, surveyDeleteBlock } from "@/lib/deletion";
 import { ltr } from "@/lib/utils";
 import { SitePinField } from "@/components/maps/site-pin-field";
+import { PlaceOffer } from "@/components/maps/place-offer";
+import { NewSurveyDialog, type ReadMapLink, type ReadPlace } from "@/components/clients/survey-site";
+import { fillPlace, type Place } from "@/lib/geo-place";
 import { mapLink, siteOf, type LatLng, type PinSource } from "@/lib/geo";
 import dynamic from "next/dynamic";
 
 const SiteMap = dynamic(() => import("@/components/maps/site-map").then((m) => m.SiteMap), { ssr: false, loading: () => <div className="h-56 animate-pulse rounded-2xl bg-surface-sunken" /> });
 
 type SaveClient = (i: Record<string, unknown>) => Promise<ActionResult<{ number: string }>>;
-type ReadMapLink = (i: { url: string }) => Promise<ActionResult<LatLng | null>>;
 
 /** 966551234567 → 055 123 4567 */
 export function displayPhone(p: string | null) {
@@ -41,6 +43,7 @@ function ClientDialog({
   onClose,
   onSave,
   onReadLink,
+  onReadPlace,
   base = "",
   marketers = [],
 }: {
@@ -51,6 +54,7 @@ function ClientDialog({
   onClose: () => void;
   onSave?: SaveClient;
   onReadLink?: ReadMapLink;
+  onReadPlace?: ReadPlace;
 }) {
   const t = useTranslations("clients");
   const tc = useTranslations("common");
@@ -62,6 +66,9 @@ function ClientDialog({
   // map = set here (kept) · auto = read from the link on save (a new link replaces the old pin) · none = cleared
   const [source, setSource] = React.useState<PinSource>(pin ? "map" : "auto");
   const [linkText, setLinkText] = React.useState(client?.location_url ?? "");
+  // city and district: typed, or filled from the pin (only when empty; a different one is offered)
+  const [place, setPlace] = React.useState({ city: client?.city ?? "", district: client?.district ?? "" });
+  const [placeOffer, setPlaceOffer] = React.useState<Place | null>(null);
   return (
     <FormDialog
       open
@@ -79,7 +86,7 @@ function ClientDialog({
                 city: str(fd, "city") || null,
                 district: str(fd, "district") || null,
                 id_number: str(fd, "id_number"),
-                location_url: str(fd, "location_url"),
+                location_url: linkText.trim(),
                 latitude: source === "map" ? (pin?.lat ?? null) : null,
                 longitude: source === "map" ? (pin?.lng ?? null) : null,
                 pin_source: source,
@@ -105,35 +112,39 @@ function ClientDialog({
       </Field>
       <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="cl-city" label={t("city")} optional={tc("optional")}>
-          <Input name="city" defaultValue={client?.city ?? ""} />
+          <Input name="city" value={place.city} onChange={(e) => setPlace({ ...place, city: e.target.value })} />
         </Field>
         <Field id="cl-district" label={t("district")} optional={tc("optional")}>
-          <Input name="district" defaultValue={client?.district ?? ""} />
+          <Input name="district" value={place.district} onChange={(e) => setPlace({ ...place, district: e.target.value })} />
         </Field>
       </div>
+      <PlaceOffer offer={placeOffer} onUse={(o) => (setPlace({ city: o.city ?? place.city, district: o.district ?? place.district }), setPlaceOffer(null))} />
       <Field id="cl-id" label={t("idNumber")} hint={t("idHint")} optional={tc("optional")} error={errors.id_number ? t("idInvalid") : undefined}>
         <Input name="id_number" defaultValue={client?.id_number ?? ""} inputMode="numeric" dir="ltr" maxLength={10} className="font-latin rtl:text-right" />
       </Field>
-      <Field id="cl-loc" label={t("location")} hint={t("locationHint")} optional={tc("optional")} error={errors.location_url ? t("urlInvalid") : undefined}>
-        <Input
-          name="location_url"
-          defaultValue={client?.location_url ?? ""}
-          // a changed link is read again on save (unless a pin is then set on the map)
-          onChange={(e) => {
-            setLinkText(e.target.value);
-            if (e.target.value.trim() !== (client?.location_url ?? "")) setSource("auto");
-          }} dir="ltr" inputMode="url" placeholder="https://maps.app.goo.gl/…" className="font-latin rtl:text-right" />
-      </Field>
       <SitePinField
+        id="cl-site"
         value={source === "auto" ? null : pin}
         onChange={(p) => {
           setPin(p);
           setSource(p ? "map" : "none");
         }}
+        link={linkText}
+        // a changed link is read at once; until then (or if it can't be) the server reads it on save
+        onLinkChange={(text) => {
+          setLinkText(text);
+          if (text.trim() !== (client?.location_url ?? "")) setSource("auto");
+        }}
         readLink={onReadLink}
-        linkValue={() => linkText}
+        readPlace={onReadPlace}
+        onPlace={(found) => {
+          const r = fillPlace(place, found);
+          setPlace({ city: r.city, district: r.district });
+          setPlaceOffer(r.offer);
+        }}
         fromLinkOnSave={source === "auto" && !!linkText.trim()}
       />
+      {errors.location_url && <p className="text-[12px] text-danger">{t("urlInvalid")}</p>}
       {marketers.length > 0 && (
         <Field id="cl-marketer" label={t("cameThrough")} hint={t("cameThroughHint")} optional={tc("optional")}>
           <NativeSelect name="marketer_id" defaultValue={client?.marketer_id ?? ""}>
@@ -153,7 +164,7 @@ function ClientDialog({
   );
 }
 
-export function ClientsView({ clients, canManage, onSave, onReadLink, base = "", marketers }: { clients: ClientListItem[]; canManage: boolean; onSave?: SaveClient; onReadLink?: ReadMapLink; base?: string; marketers?: MarketerChoice[] }) {
+export function ClientsView({ clients, canManage, onSave, onReadLink, onReadPlace, base = "", marketers }: { clients: ClientListItem[]; canManage: boolean; onSave?: SaveClient; onReadLink?: ReadMapLink; onReadPlace?: ReadPlace; base?: string; marketers?: MarketerChoice[] }) {
   const t = useTranslations("clients");
   const { fmt } = useFormatter();
   const [query, setQuery] = React.useState("");
@@ -220,7 +231,7 @@ export function ClientsView({ clients, canManage, onSave, onReadLink, base = "",
           {list.length === 0 && <p className="py-10 text-center text-muted-foreground">{t("noResults")}</p>}
         </>
       )}
-      {creating && <ClientDialog onClose={() => setCreating(false)} onSave={onSave} onReadLink={onReadLink} base={base} marketers={marketers} />}
+      {creating && <ClientDialog onClose={() => setCreating(false)} onSave={onSave} onReadLink={onReadLink} onReadPlace={onReadPlace} base={base} marketers={marketers} />}
     </div>
   );
 }
@@ -231,6 +242,7 @@ export function ClientDetailView({
   canQuote,
   onSave,
   onReadLink,
+  onReadPlace,
   onNewSurvey,
   onDelete,
   onDeleteSurvey,
@@ -242,6 +254,7 @@ export function ClientDetailView({
   canQuote: boolean;
   onSave?: SaveClient;
   onReadLink?: ReadMapLink;
+  onReadPlace?: ReadPlace;
   onNewSurvey?: (i: Record<string, unknown>) => Promise<ActionResult<{ number: string }>>;
   /** owner only (detail.canDelete) */
   onDelete?: (i: Record<string, unknown>) => Promise<ActionResult>;
@@ -252,19 +265,14 @@ export function ClientDetailView({
   const tq = useTranslations("quotes");
   const tcn = useTranslations("contract");
   const { fmt } = useFormatter();
-  const router = useRouter();
-  const { run, pending } = useActionRunner();
   const [editing, setEditing] = React.useState(false);
   const { client, surveys, quotes } = detail;
   const wa = client.phone ? `https://wa.me/${client.phone}` : null;
   const tm = useTranslations("maps");
   const site = siteOf({ latitude: client.latitude, longitude: client.longitude });
 
-  const newSurvey = (mode: "rooms" | "total") =>
-    run(onNewSurvey && (() => onNewSurvey({ client_id: client.id, mode })), {
-      silent: true,
-      onSuccess: (r) => r.ok && r.data && router.push(`${base}/clients/${client.number}/surveys/${r.data.number}`),
-    });
+  // «معاينة جديدة»: booked with its date, time and site before the visit
+  const [newSurvey, setNewSurvey] = React.useState<"rooms" | "total" | null>(null);
 
   return (
     <div className="grid gap-6">
@@ -341,10 +349,10 @@ export function ClientDetailView({
             <h3 className="text-[17px] font-bold">{t("surveys")}</h3>
             {canManage && (
               <div className="flex gap-2">
-                <Button size="sm" loading={pending} onClick={() => newSurvey("rooms")}>
+                <Button size="sm" onClick={() => setNewSurvey("rooms")}>
                   <Plus /> {t("newSurveyRooms")}
                 </Button>
-                <Button size="sm" variant="secondary" loading={pending} onClick={() => newSurvey("total")}>
+                <Button size="sm" variant="secondary" onClick={() => setNewSurvey("total")}>
                   {t("newSurveyTotal")}
                 </Button>
               </div>
@@ -360,6 +368,8 @@ export function ClientDetailView({
                     <span className="text-[12px] text-muted-foreground">
                       {s.mode === "rooms" ? t("roomsCount", { n: s.rooms }) : t("totalMode")}
                       {s.visit_date && ` · ${fmt.date(s.visit_date)}`}
+                      {s.visit_time && <span className="font-latin tabular-nums" dir="ltr"> {s.visit_time.slice(0, 5)}</span>}
+                      {s.ownSite && ` · ${t("surveyOwnSite")}`}
                     </span>
                   </span>
                   <DocNo className="text-[12px] text-muted-foreground">{s.number}</DocNo>
@@ -468,7 +478,20 @@ export function ClientDetailView({
           )}
         </div>
       )}
-      {editing && <ClientDialog client={client} onClose={() => setEditing(false)} onSave={onSave} onReadLink={onReadLink} marketers={detail.marketers} />}
+      {editing && <ClientDialog client={client} onClose={() => setEditing(false)} onSave={onSave} onReadLink={onReadLink} onReadPlace={onReadPlace} marketers={detail.marketers} />}
+      {newSurvey && (
+        <NewSurveyDialog
+          mode={newSurvey}
+          clientId={client.id}
+          clientNumber={client.number}
+          clientHasSite={!!site}
+          base={base}
+          onClose={() => setNewSurvey(null)}
+          create={onNewSurvey}
+          readLink={onReadLink}
+          readPlace={onReadPlace}
+        />
+      )}
     </div>
   );
 }

@@ -26,13 +26,16 @@ export type ProjectListItem = {
 };
 
 /**
- * The projects' sites (their own pin, else the client's) through public.project_site_list —
+ * The projects' sites (their own pin, else their survey's, else the client's) through public.project_site_list —
  * projects.view is enough, so a supervisor without clients.view still sees where a project is.
  */
-export async function loadProjectSites(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string): Promise<Map<string, { site: LatLng | null; own: boolean }>> {
+/** where a project's site comes from: its own pin, its survey's or the client's */
+export type SiteSource = "project" | "survey" | "client";
+
+export async function loadProjectSites(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string): Promise<Map<string, { site: LatLng | null; own: boolean; source: SiteSource | null }>> {
   const { data, error } = await supabase.rpc("project_site_list", { p_org: orgId });
   if (error) return new Map();
-  return new Map((data ?? []).map((r) => [r.contract_id, { site: siteOf(r), own: r.own }]));
+  return new Map((data ?? []).map((r) => [r.contract_id, { site: siteOf(r), own: r.own, source: r.source ?? null }]));
 }
 
 /** Read the organization's pending map links after the response (outside a request: skipped). */
@@ -87,6 +90,8 @@ export type ProjectDetail = {
   /** where the project is: its own pin (siteOwn), else the client's; null = not set */
   site?: LatLng | null;
   siteOwn?: boolean;
+  /** where the site comes from (project / survey / client) */
+  siteSource?: SiteSource | null;
   /** projects.manage: may set this project's own site */
   canSetSite?: boolean;
   /** clients.view: the client's name links to his page */
@@ -168,6 +173,7 @@ export async function loadProject(session: SessionContext, number: string): Prom
     client: client ?? { name: "—", phone: null, city: null, district: null, location_url: null },
     site: sites.get(c.id)?.site ?? null,
     siteOwn: sites.get(c.id)?.own ?? false,
+    siteSource: sites.get(c.id)?.source ?? null,
     canSetSite: can(session, "projects.manage"),
     canOpenClient: can(session, "clients.view"),
     orgName: session.organization.name,

@@ -15,3 +15,15 @@ export async function previewNoop(_input?: unknown): Promise<ActionResult> {
   void _input;
   return { ok: true };
 }
+
+/** Design preview only: the city and district of a pin (fixed). */
+export async function previewPlace(_input?: unknown): Promise<ActionResult<{ city: string | null; district: string | null } | null>> {
+  void _input;
+  return { ok: true, data: { city: "الرياض", district: "الملقا" } };
+}
+
+/** Design preview only: «إنشاء المعاينة» answers with the sample survey's number. */
+export async function previewNewSurvey(_input?: unknown): Promise<ActionResult<{ number: string }>> {
+  void _input;
+  return { ok: true, data: { number: "SV-2026-004" } };
+}

@@ -17,6 +17,7 @@ import { cleanPlanDraft, planSheetSchema, PLAN_SHEET_MAX_BYTES, PLAN_TILE_MAX_BY
 import { clientDbError } from "@/lib/marketers";
 import { pinToSave, type LatLng } from "@/lib/geo";
 import { linkCoords } from "@/lib/geo-server";
+import { reversePlace, type Place } from "@/lib/geo-place";
 
 type Ctx = { orgId: string; userId: string; supabase: Awaited<ReturnType<typeof createClient>> };
 async function authorize(perm: Permission): Promise<Ctx | ActionResult> {
@@ -39,6 +40,7 @@ const done = <T,>(data?: T): ActionResult<T> => {
   return { ok: true, data };
 };
 const id = z.uuid();
+const optionalTime = z.preprocess((v) => (v === "" ? null : v), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable());
 const digits = (v: unknown) => (typeof v === "string" ? v.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/\D/g, "") : v);
 
 // --- Clients -------------------------------------------------------------------------
@@ -104,14 +106,40 @@ export async function saveClient(input: unknown): Promise<ActionResult<{ number:
 
 // --- Surveys -------------------------------------------------------------------------
 
+const pinFields = {
+  latitude: z.number().min(-90).max(90).nullable(),
+  longitude: z.number().min(-180).max(180).nullable(),
+  site_city: optionalText(80),
+  site_district: optionalText(80),
+};
+const pinPair = (v: { latitude: number | null; longitude: number | null }) => (v.latitude == null) === (v.longitude == null);
+const round6 = (x: number | null) => (x == null ? null : Math.round(x * 1e6) / 1e6);
+/** «نفس موقع العميل» = no pin and no place of its own */
+const sitePart = (v: { latitude: number | null; longitude: number | null; site_city?: string | null; site_district?: string | null }) =>
+  v.latitude == null
+    ? { latitude: null, longitude: null, site_city: null, site_district: null }
+    : { latitude: round6(v.latitude), longitude: round6(v.longitude), site_city: v.site_city ?? null, site_district: v.site_district ?? null };
+
 export async function createSurvey(input: unknown): Promise<ActionResult<{ number: string }>> {
   const ctx = await authorize("clients.manage");
   if (!isCtx(ctx)) return ctx;
-  const parsed = z.object({ client_id: id, mode: z.enum(["total", "rooms"]) }).strict().safeParse(input);
+  // booked before the visit (owner): date + optional time, and «the client's site» or another one
+  const parsed = z
+    .object({ client_id: id, mode: z.enum(["total", "rooms"]), visit_date: optionalDate.optional(), visit_time: optionalTime.optional(), ...pinFields })
+    .partial({ latitude: true, longitude: true, site_city: true, site_district: true })
+    .strict()
+    .refine((v) => pinPair({ latitude: v.latitude ?? null, longitude: v.longitude ?? null }))
+    .safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
+  const v = parsed.data;
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
   const { data, error } = await ctx.supabase
     .from("surveys")
-    .insert({ organization_id: ctx.orgId, client_id: parsed.data.client_id, mode: parsed.data.mode, visit_date: new Date().toISOString().slice(0, 10) })
+    .insert({
+      organization_id: ctx.orgId, client_id: v.client_id, mode: v.mode,
+      visit_date: v.visit_date ?? today, visit_time: v.visit_time ?? null,
+      ...sitePart({ latitude: v.latitude ?? null, longitude: v.longitude ?? null, site_city: v.site_city ?? null, site_district: v.site_district ?? null }),
+    })
     .select("number")
     .single();
   return dbError(error) ?? done({ number: data!.number });
@@ -123,6 +151,7 @@ const surveySchema = z
     title: optionalText(160),
     mode: z.enum(["total", "rooms"]),
     visit_date: optionalDate,
+    visit_time: optionalTime.optional(),
     notes: optionalText(4000),
     totals: surveyTotalsSchema,
   })
@@ -136,6 +165,27 @@ export async function saveSurvey(input: unknown): Promise<ActionResult> {
   const { id: surveyId, ...data } = parsed.data;
   const { error } = await ctx.supabase.from("surveys").update(data).eq("id", surveyId).eq("organization_id", ctx.orgId);
   return dbError(error) ?? done();
+}
+
+/** The survey's site: its own pin (a second villa) or null = the client's site. */
+export async function saveSurveySite(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize("clients.manage");
+  if (!isCtx(ctx)) return ctx;
+  const parsed = z.object({ id, ...pinFields }).strict().refine(pinPair).safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { id: surveyId, ...v } = parsed.data;
+  const { error } = await ctx.supabase.from("surveys").update(sitePart(v)).eq("id", surveyId).eq("organization_id", ctx.orgId);
+  return dbError(error) ?? done();
+}
+
+/** City and district of a pin (OpenStreetMap reverse lookup, coordinates only) — a suggestion for the form. */
+export async function readPlace(input: unknown): Promise<ActionResult<Place | null>> {
+  const ctx = await authorize("clients.manage");
+  if (!isCtx(ctx)) return ctx;
+  const parsed = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  if ((await rateLimit(`place:${ctx.userId}`, 60, 3600)) !== "ok") return { ok: false, error: "rateLimited" };
+  return { ok: true, data: await reversePlace(parsed.data, (u, init) => fetch(u, init)) };
 }
 
 const roomSchema = z

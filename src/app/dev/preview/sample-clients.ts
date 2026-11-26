@@ -11,7 +11,7 @@ export const SAMPLE_CLIENT_DETAIL: ClientDetail = {
   client: { id: "c1", number: "CL-2026-003", name: "أبو محمد العتيبي", phone: "966551234567", city: "الرياض", district: "النرجس", id_number: "1012345678", location_url: "https://maps.app.goo.gl/example", latitude: 24.8031, longitude: 46.6105, notes: "فيلا دورين، يفضّل التواصل بالواتساب بعد العصر.", marketer_id: "mk1" },
   marketers: [{ id: "mk1", number: "MK-2026-001", name: "سعد بن فهد الدوسري", is_active: true, commission_percent: 5 }],
   canOpenPartners: true,
-  surveys: [{ id: "s1", number: "SV-2026-004", title: "فيلا النرجس", mode: "rooms", visit_date: "2026-11-21", rooms: 6 }],
+  surveys: [{ id: "s1", number: "SV-2026-004", title: "فيلا النرجس", mode: "rooms", visit_date: "2026-11-21", visit_time: "09:30:00", ownSite: true, rooms: 6 }],
   quotes: [
     { id: "q1", number: "Q-2026-007", service: "gypsum", status: "issued", version: 2, total: 31840, created_at: "2026-11-21T10:00:00Z" },
     { id: "q2", number: "Q-2026-008", service: "interior", status: "draft", version: 1, total: 28400, created_at: "2026-11-21T11:00:00Z" },
@@ -34,8 +34,8 @@ const r = (id: string, name: string, L: number, W: number, extra: Partial<Survey
 });
 
 export const SAMPLE_SURVEY: SurveyDetail = {
-  survey: { id: "s1", number: "SV-2026-004", title: "فيلا النرجس", mode: "rooms", visit_date: "2026-11-21", notes: null, totals: { partitions: 24, troughM: 30, shadowM: 40, hatches: { "40x40": 2 }, colours: 2, facade: 420 } },
-  client: { id: "c1", number: "CL-2026-003", name: "أبو محمد العتيبي" },
+  survey: { id: "s1", number: "SV-2026-004", title: "فيلا النرجس", mode: "rooms", visit_date: "2026-11-21", visit_time: "09:30:00", latitude: 24.8031, longitude: 46.6105, site_city: "الرياض", site_district: "النرجس", notes: null, totals: { partitions: 24, troughM: 30, shadowM: 40, hatches: { "40x40": 2 }, colours: 2, facade: 420 } },
+  client: { id: "c1", number: "CL-2026-003", name: "أبو محمد العتيبي", latitude: 24.7136, longitude: 46.6753, city: "الرياض", district: "العليا" },
   rooms: [
     r("r1", "المجلس", 8, 6, { openings_m2: 8 }),
     r("r2", "الصالة", 7, 6, { c_along: "width" }),

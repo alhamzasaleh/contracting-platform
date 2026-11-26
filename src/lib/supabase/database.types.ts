@@ -394,6 +394,13 @@ export type SurveyRow = OrgRow & Upd & {
   title: string | null;
   mode: "total" | "rooms";
   visit_date: string | null;
+  /** booked visit time ("HH:MM:SS") */
+  visit_time?: string | null;
+  /** the survey's own site (a second villa); null = the client's */
+  latitude?: number | null;
+  longitude?: number | null;
+  site_city?: string | null;
+  site_district?: string | null;
   totals: Json;
   notes: string | null;
 };
@@ -879,7 +886,7 @@ export type Database = {
       my_permissions: { Args: { p_org: string }; Returns: string[] };
       session_context: { Args: Record<string, never>; Returns: Json | null };
       quote_version_quantities: { Args: { p_version: string }; Returns: Json };
-      project_site_list: { Args: { p_org: string }; Returns: { contract_id: string; latitude: number | null; longitude: number | null; own: boolean }[] };
+      project_site_list: { Args: { p_org: string }; Returns: { contract_id: string; latitude: number | null; longitude: number | null; own: boolean; source: "project" | "survey" | "client" | null }[] };
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };
       seed_starter_catalogue: { Args: { p_org: string }; Returns: number };

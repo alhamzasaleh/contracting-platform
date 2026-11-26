@@ -1204,7 +1204,8 @@
     "cameThrough": "Came through",
     "cameThroughHint": "The success partner who brought this client — suggested on their quotes, changeable per quote.",
     "cameThroughNone": "Nobody",
-    "cameThroughValue": "Came through: {name}"
+    "cameThroughValue": "Came through: {name}",
+    "surveyOwnSite": "own site"
   },
   "survey": {
     "pageTitle": "Survey",
@@ -1367,7 +1368,24 @@
     "bulk_yes": "Yes",
     "bulk_no": "No",
     "bulkApply": "Apply to {n} rooms",
-    "bulkDone": "Updated {n} rooms"
+    "bulkDone": "Updated {n} rooms",
+    "siteWhere": "Survey location",
+    "siteClient": "Client's site",
+    "siteOther": "Another site",
+    "siteClientHint": "The survey is at the client's saved site.",
+    "siteClientMissing": "The client has no saved site — set it on the client, or choose «Another site» and set it here.",
+    "siteOtherNeedsPin": "Set the other site on the map or with a link before saving.",
+    "newRooms": "New survey — room by room",
+    "newTotal": "New survey — total areas",
+    "newHint": "Set when and where the visit is; it's kept even if no quote or contract follows. Measurements are filled in at the visit.",
+    "create": "Create survey",
+    "visitTime": "Time",
+    "siteTitle": "Survey site",
+    "directions": "Open in Maps",
+    "changeSite": "Change site",
+    "siteIsOwn": "This survey's own site",
+    "siteIsClient": "Client's site",
+    "siteNone": "No site set — set it so the supervisor can get there"
   },
   "quotes": {
     "service_gypsum": "Gypsum",
@@ -3128,11 +3146,10 @@
     "legendAngle": "Edge angle"
   },
   "maps": {
-    "sitePin": "Project site on the map",
-    "sitePinHint": "Tap the map or drag the pin to the villa, press «My location» on site, or «From link» for a Google Maps link (short WhatsApp links too).",
+    "sitePin": "Site on the map",
+    "sitePinHint": "Paste the link, or tap the map and drag the pin to the villa, or press «My location» when you're on site.",
     "pickLabel": "Map to pick the project site",
     "myLocation": "My location",
-    "fromLink": "From link",
     "clearPin": "Clear location",
     "pinSet": "Location set.",
     "pinNotSet": "No location yet — if there's a link, it's read from it on save.",
@@ -3140,7 +3157,6 @@
     "gpsUnavailable": "This device can't give its location.",
     "gpsDenied": "Couldn't get your location — allow location for the app in the device settings.",
     "gpsWeak": "Weak location accuracy (± {m} m) — check the pin and drag it to the right place.",
-    "linkEmpty": "Type the location link in the field above first.",
     "linkNoPin": "Couldn't read a location from this link — set it on the map.",
     "linkFailed": "Couldn't read the link — set the location on the map.",
     "siteMapLabel": "Site of {name}",
@@ -3176,8 +3192,15 @@
     "projectSiteTitle": "This project's site",
     "projectSiteHint": "For a client with more than one villa: set this project's own site. Supervisor check-ins are measured against it.",
     "linkLabel": "Location link (Google Maps)",
-    "useClientSite": "Back to the client's site",
+    "useClientSite": "Back to the main site (survey or client)",
     "pinFromLink": "The site is read from the link on save.",
-    "linkRateLimited": "Too many tries — set the site on the map or try again shortly."
+    "linkRateLimited": "Too many tries — set the site on the map or try again shortly.",
+    "linkHint": "Paste a Google Maps link (short WhatsApp links too) and the pin is set at once.",
+    "linkReading": "Reading the link…",
+    "placeFromMap": "From the map: {place}",
+    "usePlace": "Use it",
+    "siteIsSurvey": "The site comes from the survey.",
+    "layerMap": "Map",
+    "layerSatellite": "Satellite"
   }
 }

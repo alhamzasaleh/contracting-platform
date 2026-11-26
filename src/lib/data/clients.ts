@@ -39,7 +39,7 @@ export type ClientDetail = {
   /** may open /partners (marketers.manage or finance.view) */
   canOpenPartners?: boolean;
   /** quotes = quotes built on this survey (it can't be deleted while there are any) */
-  surveys: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; rooms: number; quotes?: number }[];
+  surveys: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; visit_time?: string | null; ownSite?: boolean; rooms: number; quotes?: number }[];
   /** hasContract = any contract, even cancelled (owner only — for «حذف») */
   quotes: { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; version: number; total: number | null; created_at: string; clientDecision?: "accepted" | "changes_requested" | "rejected" | null; hasContract?: boolean }[];
   /** contracts (quotes.view) — accepted ones are projects; openMaintenance = open requests */
@@ -72,7 +72,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
     if (pin) Object.assign(client, { latitude: pin.lat, longitude: pin.lng });
   }
   const finance = can(session, "finance.view");
-  const surveysP = once(supabase.from("surveys").select("id, number, title, mode, visit_date").eq("client_id", client.id).order("created_at", { ascending: false }));
+  const surveysP = once(supabase.from("surveys").select("id, number, title, mode, visit_date, visit_time, latitude").eq("client_id", client.id).order("created_at", { ascending: false }));
   const owner = session.role === "owner";
   const quotesP = once(supabase.from("quotes").select("id, number, service, status, current_version, created_at, client_decision, survey_id").eq("client_id", client.id).order("created_at", { ascending: false }));
   const contractsP: Promise<{ data: { id: string; number: string; service: "gypsum" | "interior" | "exterior"; status: string; total: number }[] | null }> = can(session, "quotes.view")
@@ -114,7 +114,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
     client,
     marketers,
     canOpenPartners: can(session, "marketers.manage") || can(session, "finance.view"),
-    surveys: (surveys ?? []).map((s) => ({ ...s, rooms: (rooms ?? []).filter((r) => r.survey_id === s.id).length, quotes: (quotes ?? []).filter((q) => q.survey_id === s.id).length })),
+    surveys: (surveys ?? []).map(({ latitude, ...s }) => ({ ...s, ownSite: latitude != null, rooms: (rooms ?? []).filter((r) => r.survey_id === s.id).length, quotes: (quotes ?? []).filter((q) => q.survey_id === s.id).length })),
     quotes: (quotes ?? []).map((q) => ({
       id: q.id,
       number: q.number,
@@ -139,8 +139,8 @@ export async function loadClientDetail(session: SessionContext, number: string):
 }
 
 export type SurveyDetail = {
-  survey: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; notes: string | null; totals: SurveyTotals };
-  client: { id: string; number: string; name: string };
+  survey: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; visit_time?: string | null; latitude?: number | null; longitude?: number | null; site_city?: string | null; site_district?: string | null; notes: string | null; totals: SurveyTotals };
+  client: { id: string; number: string; name: string; latitude?: number | null; longitude?: number | null; city?: string | null; district?: string | null };
   rooms: SurveyRoom[];
   /** the owner may delete it (public.delete_survey) — not while quotes are built on it */
   canDelete?: boolean;
@@ -152,14 +152,14 @@ export async function loadSurvey(session: SessionContext, clientNumber: string, 
   const orgId = session.organization.id;
   const { data: survey } = await supabase
     .from("surveys")
-    .select("id, number, title, mode, visit_date, notes, totals, client_id")
+    .select("id, number, title, mode, visit_date, visit_time, latitude, longitude, site_city, site_district, notes, totals, client_id")
     .eq("organization_id", orgId)
     .eq("number", surveyNumber)
     .maybeSingle();
   if (!survey) notFound();
   const owner = session.role === "owner";
   const [{ data: client }, { data: rooms }, onSurvey] = await Promise.all([
-    supabase.from("clients").select("id, number, name").eq("id", survey.client_id).maybeSingle(),
+    supabase.from("clients").select("id, number, name, latitude, longitude, city, district").eq("id", survey.client_id).maybeSingle(),
     supabase.from("survey_rooms").select("*").eq("survey_id", survey.id).order("sort_order").order("created_at"),
     owner ? rows(supabase.from("quotes").select("id").eq("survey_id", survey.id)) : Promise.resolve([] as { id: string }[]),
   ]);
