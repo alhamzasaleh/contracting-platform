@@ -95,15 +95,19 @@ export function SurveyPlanImport({
     }
   };
 
-  const read = async (found: Found[]) => {
-    if (!readPlan || !doc.current) return;
-    const { sheetPayload } = await import("@/lib/client/plan-pdf");
-    const chosen = found.filter((f) => f.pick);
+  /**
+   * Read the given pages one by one. A sheet that fails (AI busy, a dropped request) is tried once
+   * more by itself before it counts as not read; a stop for every sheet (offline, hourly limit, AI
+   * off, no access) keeps what was read so far and lists the rest as not read.
+   */
+  const readPages = async (pages: number[]): Promise<{ readings: (PlanReading & { page: number })[]; failed: number[] }> => {
     const readings: (PlanReading & { page: number })[] = [];
     const failed: number[] = [];
-    for (const [i, f] of chosen.entries()) {
-      setBusy(t("planReading", { i: i + 1, n: chosen.length, page: f.page }));
-      const sheet = doc.current.sheets.find((s) => s.page === f.page)!;
+    if (!readPlan || !doc.current) return { readings, failed: pages };
+    const { sheetPayload } = await import("@/lib/client/plan-pdf");
+    for (const [i, page] of pages.entries()) {
+      setBusy(t("planReading", { i: i + 1, n: pages.length, page }));
+      const sheet = doc.current.sheets.find((s) => s.page === page)!;
       let fd: FormData;
       try {
         const { meta, tiles } = await sheetPayload(doc.current.doc, sheet, surveyId);
@@ -111,26 +115,46 @@ export function SurveyPlanImport({
         fd.set("meta", JSON.stringify(meta));
         tiles.forEach((b, j) => fd.append("tiles", b, `tile-${j + 1}.jpg`));
       } catch {
-        failed.push(f.page);
+        failed.push(page);
         continue;
       }
-      const r = await settle(() => readPlan(fd));
-      // a stop for every sheet (connection gone, hourly limit, AI off, no access): keep what was
-      // read so far, list the rest as not read, and say why
+      let r = await settle(() => readPlan(fd));
+      if (!r.ok && (r.error === "aiFailed" || r.error === "connection")) {
+        setBusy(t("planRetrying", { page }));
+        await new Promise((res) => setTimeout(res, 3000));
+        r = await settle(() => readPlan(fd));
+      }
       const stop = !r.ok ? failure(r.error) ?? (["rateLimited", "aiNotConfigured"].includes(r.error) ? t(`ai_${r.error}`) : r.error === "noAccess" ? tErr("noAccess") : null) : null;
       if (stop) {
         toast.error(stop);
-        failed.push(...chosen.slice(i).map((x) => x.page));
+        failed.push(...pages.slice(i));
         break;
       }
       if (!r.ok || !r.data) {
-        failed.push(f.page);
+        failed.push(page);
         continue;
       }
-      readings.push({ ...r.data, page: f.page });
+      readings.push({ ...r.data, page });
     }
     setBusy(null);
+    return { readings, failed };
+  };
+
+  const read = async (found: Found[]) => {
+    const { readings, failed } = await readPages(found.filter((f) => f.pick).map((f) => f.page));
     setStep({ kind: "review", floors: toFloors(readings), failed });
+  };
+
+  /** Read only the pages that failed; the floors already reviewed (and edited) stay as they are. */
+  const retryFailed = async () => {
+    if (step.kind !== "review") return;
+    const { readings, failed } = await readPages(step.failed);
+    setStep((s) => {
+      if (s.kind !== "review") return s;
+      const seen = new Set(s.floors.flatMap((f) => f.rows.map((r) => r.label)));
+      const added = toFloors(readings).map((f) => ({ ...f, rows: f.rows.map((r) => (seen.has(r.label) ? { ...r, repeated: true, pick: false } : r)) }));
+      return { ...s, floors: [...s.floors, ...added].sort((a, b) => a.page - b.page), failed };
+    });
   };
 
   const back = () => {
@@ -239,7 +263,16 @@ export function SurveyPlanImport({
             )}
             {step.kind === "review" && !busy && (
               <div className="grid gap-4">
-                {step.failed.length > 0 && <p className="rounded-2xl bg-warning-soft p-3 text-[13px]">{t("planFailedPages", { pages: step.failed.join(sep) })}</p>}
+                {step.failed.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-warning-soft p-3 text-[13px]">
+                    <span>{t("planFailedPages", { pages: step.failed.join(sep) })}</span>
+                    {!preview && (
+                      <Button size="sm" variant="secondary" onClick={retryFailed}>
+                        <FileScan /> {t("planRetryFailed", { n: step.failed.length })}
+                      </Button>
+                    )}
+                  </div>
+                )}
                 {floors.length === 0 && <p className="text-sm text-muted-foreground">{t("aiNoRooms")}</p>}
                 {floors.map((f, fi) => (
                   <section key={`${f.page}-${fi}`} className="grid gap-2 rounded-2xl border border-border p-3">

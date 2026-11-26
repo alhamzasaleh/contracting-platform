@@ -28,8 +28,9 @@ export type PlanTile = { bytes: Uint8Array };
 
 export async function readPlan(sheet: PlanSheet, tiles: PlanTile[]): Promise<{ ok: true; draft: PlanDraft } | { ok: false; error: "aiNotConfigured" | "aiFailed" | "aiRefused" }> {
   if (!aiConfigured()) return { ok: false, error: "aiNotConfigured" };
-  // one attempt that ends before the page function does (maxDuration 300 s): a cut-off request would lose the answer anyway
-  const client = new Anthropic({ maxRetries: 0, timeout: 270_000 });
+  // one attempt that ends well before the page function does (maxDuration 300 s); the browser
+  // retries a failed sheet once by itself
+  const client = new Anthropic({ maxRetries: 0, timeout: 240_000 });
   const content: Anthropic.Beta.BetaContentBlockParam[] = [];
   tiles.forEach((t, i) => {
     const b = sheet.tiles[i];
@@ -49,20 +50,24 @@ export async function readPlan(sheet: PlanSheet, tiles: PlanTile[]): Promise<{ o
   try {
     const response = await client.beta.messages.parse({
       model: "claude-opus-5-5",
-      max_tokens: 32000,
+      max_tokens: 16000,
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       system: SYSTEM,
       messages: [{ role: "user", content }],
-      output_config: { effort: "high", format: betaZodOutputFormat(planDraftSchema) },
+      // medium: the sizes are printed — reading them doesn't need long thinking, and a sheet must answer in time
+      output_config: { effort: "medium", format: betaZodOutputFormat(planDraftSchema) },
     });
     if (response.stop_reason === "refusal") return { ok: false, error: "aiRefused" };
-    if (!response.parsed_output) return { ok: false, error: "aiFailed" };
+    if (!response.parsed_output) {
+      console.error("[ai] plan read gave no result", { stop: response.stop_reason });
+      return { ok: false, error: "aiFailed" };
+    }
     return { ok: true, draft: response.parsed_output };
   } catch (error) {
     // never log the drawing, its text or the key
     if (error instanceof Anthropic.APIError) console.error("[ai] plan read failed", { status: error.status });
-    else console.error("[ai] plan read failed");
+    else console.error("[ai] plan read failed", { kind: error instanceof Error ? error.name : typeof error });
     return { ok: false, error: "aiFailed" };
   }
 }

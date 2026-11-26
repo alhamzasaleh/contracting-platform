@@ -1331,7 +1331,7 @@
     "planSheetInfo": "page {page} · {rooms} rooms",
     "planRead": "Read sizes ({n})",
     "planReading": "Reading sheet {i} of {n} (page {page})… this can take a minute or two",
-    "planFailedPages": "Couldn't read pages: {pages} — try them again.",
+    "planFailedPages": "Couldn't read pages: {pages}. Press «read again» — what was read stays as it is.",
     "planFloorName": "Floor name",
     "planFloorArea": "{area} m² selected · page {page}",
     "planHeight": "Height m",
@@ -1343,7 +1343,9 @@
     "planTotal": "Selected total: {area} m²",
     "planReview": "Check every number before adding — this is a draft. Rooms are added without gypsum and without deducting door and window openings; set each room's services and openings afterwards.",
     "planAdding": "Adding the rooms…",
-    "planSaved": "Added"
+    "planSaved": "Added",
+    "planRetrying": "Reading page {page} stumbled — trying again automatically…",
+    "planRetryFailed": "Read the pages that failed again ({n})"
   },
   "quotes": {
     "service_gypsum": "Gypsum",
