@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { normalizeSupabaseUrl } from "@/env";
+import { TILE_HOSTS, VECTOR_HOSTS } from "@/components/maps/tiles";
 
 /**
  * Runs before every page request:
@@ -24,10 +25,10 @@ function buildCsp(nonce: string, supabaseUrl?: string) {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     // Inline style attributes are needed by animation libraries; scripts stay strict.
     "style-src 'self' 'unsafe-inline'",
-    // map tiles (OpenStreetMap) — images only, no scripts
-    `img-src 'self' blob: data: https://tile.openstreetmap.org https://server.arcgisonline.com ${supabase}`.trim(),
+    // map backgrounds (src/components/maps/tiles.ts) — images and data only, never scripts
+    `img-src 'self' blob: data: ${TILE_HOSTS.join(" ")} ${supabase}`.trim(),
     "font-src 'self' data:",
-    `connect-src 'self' ${supabase} ${supabaseWs}`.trim(),
+    `connect-src 'self' ${VECTOR_HOSTS.join(" ")} ${supabase} ${supabaseWs}`.trim(),
     "media-src 'self' blob:",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
@@ -98,7 +99,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: "/((?!api|_next/static|_next/image|favicon.ico|icons/|manifest.webmanifest|sw.js|robots.txt).*)",
+      source: "/((?!api|_next/static|_next/image|favicon.ico|icons/|manifest.webmanifest|sw.js|robots.txt|maplibre/).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

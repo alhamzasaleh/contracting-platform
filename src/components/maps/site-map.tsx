@@ -1,15 +1,17 @@
 "use client";
 import "leaflet/dist/leaflet.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 import type * as Leaflet from "leaflet";
 import * as React from "react";
 import type { LatLng } from "@/lib/geo";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { PIN_TONE, type PinTone } from "./map-tones";
-import { TILE_LAYERS, type MapLayer } from "./tiles";
+import { arabicStyle, MAP_LAYERS, storedLayer, TILE_LAYERS, VECTOR_STYLES, type MapLayer } from "./tiles";
 
 /**
- * Map (owner, Nov 2026): street map or satellite (`tiles.ts`) drawn with Leaflet — no account, no key. Pins are
+ * Map (owner, Nov 2026): OpenFreeMap street / quiet maps or satellite (`tiles.ts`) drawn with Leaflet (+ MapLibre
+ * for the vector maps, falling back to OpenStreetMap images when they can't load) — no account, no key. Pins are
  * coloured dots (no image files); labels and links are set as text (never HTML), so a client's or
  * project's name can't inject anything. `pick` turns it into a picker: tap the map or drag the pin.
  */
@@ -46,11 +48,13 @@ export function SiteMap({
   });
   const [ready, setReady] = React.useState(false);
   const t = useTranslations("maps");
-  const tiles = React.useRef<Leaflet.TileLayer | null>(null);
+  const background = React.useRef<Leaflet.Layer | null>(null);
+  // a vector map that couldn't load this visit → the OpenStreetMap images instead
+  const [vectorDown, setVectorDown] = React.useState(false);
   // the chosen background is remembered on this device (a convenience only)
   const [bg, setBg] = React.useState<MapLayer>(() => {
     try {
-      return typeof window !== "undefined" && window.localStorage.getItem("map-layer") === "satellite" ? "satellite" : "map";
+      return typeof window !== "undefined" ? storedLayer(window.localStorage.getItem("map-layer")) : "map";
     } catch {
       return "map";
     }
@@ -75,25 +79,48 @@ export function SiteMap({
       map.current?.remove();
       map.current = null;
       layer.current = null;
-      tiles.current = null;
+      background.current = null;
     };
   }, []);
 
-  // the background: street map or satellite
+  // the background: vector street / quiet map (OpenFreeMap), or satellite / OpenStreetMap images
   React.useEffect(() => {
     const L = lib.current;
     const m = map.current;
     if (!ready || !L || !m) return;
-    tiles.current?.remove();
-    const cfg = TILE_LAYERS[bg];
-    tiles.current = L.tileLayer(cfg.url, { maxZoom: cfg.maxZoom, attribution: cfg.attribution }).addTo(m);
-    tiles.current.bringToBack();
+    let stop = false;
+    const put = (next: Leaflet.Layer) => {
+      background.current?.remove();
+      background.current = next.addTo(m);
+      (next as Leaflet.TileLayer).bringToBack?.();
+    };
+    const raster = (k: "map" | "satellite") => {
+      const cfg = TILE_LAYERS[k];
+      put(L.tileLayer(cfg.url, { maxZoom: cfg.maxZoom, attribution: cfg.attribution }));
+    };
+    const vector = VECTOR_STYLES[bg];
+    if (!vector || vectorDown || !webglOk()) raster(bg === "satellite" ? "satellite" : "map");
+    else
+      void vectorLayer(L, vector.style, vector.attribution).then(
+        (layer) => {
+          if (stop) return;
+          try {
+            put(layer);
+          } catch {
+            setVectorDown(true); // the GPU refused the map
+          }
+        },
+        () => !stop && setVectorDown(true),
+      );
     try {
       window.localStorage.setItem("map-layer", bg);
     } catch {
       /* private mode */
     }
-  }, [ready, bg]);
+    return () => {
+      stop = true;
+    };
+  }, [ready, bg, vectorDown]);
 
   // draw pins / circle / picker, and fit the view
   const key = JSON.stringify([pins, circle, pick?.value ?? null]);
@@ -142,7 +169,7 @@ export function SiteMap({
     <div dir="ltr" className={cn("relative isolate z-0 overflow-hidden rounded-2xl border border-border bg-surface-sunken", className ?? "h-72")}>
       <div ref={box} role="region" aria-label={label} className="size-full" />
       <div className="absolute end-2 top-2 z-[1000] flex overflow-hidden rounded-full border border-border bg-surface text-[12px] font-semibold shadow-sm">
-        {(["map", "satellite"] as const).map((l) => (
+        {MAP_LAYERS.map((l) => (
           <button
             key={l}
             type="button"
@@ -150,7 +177,7 @@ export function SiteMap({
             onClick={() => setBg(l)}
             className={cn("min-h-8 px-3", bg === l ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-surface-sunken")}
           >
-            {l === "map" ? t("layerMap") : t("layerSatellite")}
+            {l === "map" ? t("layerMap") : l === "light" ? t("layerLight") : t("layerSatellite")}
           </button>
         ))}
       </div>
@@ -159,6 +186,40 @@ export function SiteMap({
 }
 
 const round6 = (x: number) => Math.round(x * 1e6) / 1e6;
+
+/** WebGL is needed for the vector maps (very old devices: the image map instead). */
+function webglOk(): boolean {
+  try {
+    const c = document.createElement("canvas");
+    return !!(c.getContext("webgl2") ?? c.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
+
+const styles = new Map<string, Promise<unknown>>();
+/** The style, in Arabic — fetched once per visit; no answer within 8 s = not available. */
+function loadStyle(url: string): Promise<unknown> {
+  let p = styles.get(url);
+  if (!p) {
+    p = fetch(url, { signal: AbortSignal.timeout(8000) })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((json: { layers?: [] }) => arabicStyle(json));
+    p.catch(() => styles.delete(url));
+    styles.set(url, p);
+  }
+  return p;
+}
+
+/** A Leaflet layer drawing an OpenFreeMap vector style (MapLibre loaded only when needed). */
+async function vectorLayer(L: typeof Leaflet, styleUrl: string, attribution: string): Promise<Leaflet.Layer> {
+  const [style, gl] = await Promise.all([loadStyle(styleUrl), import("maplibre-gl")]);
+  // the worker comes from our own origin (public/maplibre), same file as the installed library
+  gl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
+  await import("@maplibre/maplibre-gl-leaflet");
+  // the credit line goes to Leaflet's (the plugin reads `customAttribution`)
+  return L.maplibreGL({ style: style as never, attributionControl: { customAttribution: attribution } });
+}
 
 /** A text node (never HTML). */
 function text(s: string): HTMLElement {

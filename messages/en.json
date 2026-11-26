@@ -3267,6 +3267,7 @@
     "usePlace": "Use it",
     "siteIsSurvey": "The site comes from the survey.",
     "layerMap": "Map",
+    "layerLight": "Quiet",
     "layerSatellite": "Satellite"
   }
 }
