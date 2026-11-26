@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import type * as React from "react";
 import { useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand-logo";
 import { DocNo } from "@/components/doc-no";
@@ -12,6 +13,32 @@ import { PrintButton } from "./print-button";
 import type { DocOrg } from "./quote-document";
 
 const cm = (m: number) => Math.round(m * 100);
+
+/**
+ * Drawing colours (owner, Nov 2026): strongly contrasting so each part reads at a glance on site and
+ * in print — a technical drawing, not brand decoration. C red, omega blue, hangers black, angle green.
+ */
+const INK = { c: "#C62828", omega: "#1565C0", hanger: "#111111", angle: "#2E7D32", room: "#FFFFFF" } as const;
+
+function Legend() {
+  const t = useTranslations("framing");
+  const items: [string, React.ReactNode][] = [
+    [t("legendC"), <span key="c" className="inline-block h-1.5 w-7 rounded-full" style={{ background: INK.c }} />],
+    [t("legendOmega"), <span key="o" className="inline-block h-0.5 w-7" style={{ background: INK.omega }} />],
+    [t("legendHanger"), <span key="h" className="inline-block size-2.5 rounded-full" style={{ background: INK.hanger }} />],
+    [t("legendAngle"), <span key="a" className="inline-block h-2 w-7 border-2" style={{ borderColor: INK.angle }} />],
+  ];
+  return (
+    <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
+      {items.map(([label, mark]) => (
+        <li key={label} className="flex items-center gap-2">
+          {mark}
+          <span>{label}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /**
  * رسمة الهيكل الحديدي — for the technician (owner, Nov 2026): per room a top view (C channels, omegas,
@@ -63,6 +90,7 @@ export function FramingDocument({ org, doc }: { org: DocOrg; doc: FramingDoc }) 
           <Summary f={f} />
           <section className="grid gap-3">
             <h2 className="text-[16px] font-extrabold">{t("rooms")}</h2>
+            <Legend />
             <p className="text-[12px] text-doc-muted">{t("legend")}</p>
             <div className="grid gap-4 sm:grid-cols-2 print:grid-cols-2">
               {f.rooms.map((r) => (
@@ -149,18 +177,18 @@ export function RoomDrawing({ r, f }: { r: FramingRoom; f: GypsumFraming }) {
   const first = cPos[0];
   return (
     <svg viewBox={`${-pad} ${-pad} ${L + 2 * pad} ${W + 2 * pad}`} className="h-auto w-full" role="img" aria-label={t("drawingLabel", { name: roomLabel(r) })}>
-      <rect x={0} y={0} width={L} height={W} style={{ fill: "var(--gypsum)" }} />
+      <rect x={0} y={0} width={L} height={W} fill={INK.room} />
       {/* omegas */}
-      {oPos.map((p) => (along ? <line key={`o${p}`} x1={p} y1={0} x2={p} y2={W} style={{ stroke: "var(--basalt)" }} strokeWidth={s * 0.003} /> : <line key={`o${p}`} x1={0} y1={p} x2={L} y2={p} style={{ stroke: "var(--basalt)" }} strokeWidth={s * 0.003} />))}
+      {oPos.map((p) => (along ? <line key={`o${p}`} x1={p} y1={0} x2={p} y2={W} stroke={INK.omega} strokeWidth={s * 0.004} /> : <line key={`o${p}`} x1={0} y1={p} x2={L} y2={p} stroke={INK.omega} strokeWidth={s * 0.004} />))}
       {/* C channels + hangers */}
       {cPos.map((p) => (
         <g key={`c${p}`}>
-          {along ? <line x1={0} y1={p} x2={L} y2={p} style={{ stroke: "var(--clay)" }} strokeWidth={s * 0.009} /> : <line x1={p} y1={0} x2={p} y2={W} style={{ stroke: "var(--clay)" }} strokeWidth={s * 0.009} />}
-          {hPos.map((h) => (along ? <circle key={h} cx={h} cy={p} r={s * 0.008} style={{ fill: "var(--basalt)" }} /> : <circle key={h} cx={p} cy={h} r={s * 0.008} style={{ fill: "var(--basalt)" }} />))}
+          {along ? <line x1={0} y1={p} x2={L} y2={p} stroke={INK.c} strokeWidth={s * 0.01} /> : <line x1={p} y1={0} x2={p} y2={W} stroke={INK.c} strokeWidth={s * 0.01} />}
+          {hPos.map((h) => (along ? <circle key={h} cx={h} cy={p} r={s * 0.009} fill={INK.hanger} /> : <circle key={h} cx={p} cy={h} r={s * 0.009} fill={INK.hanger} />))}
         </g>
       ))}
       {/* edge angle */}
-      <rect x={0} y={0} width={L} height={W} fill="none" style={{ stroke: "var(--basalt)" }} strokeOpacity={0.55} strokeWidth={s * 0.012} />
+      <rect x={0} y={0} width={L} height={W} fill="none" stroke={INK.angle} strokeWidth={s * 0.014} />
       {/* dimensions */}
       <g fontSize={font} style={{ fill: "var(--basalt)" }} fontFamily="Inter, Almarai, sans-serif" direction="ltr">
         <text x={L / 2} y={W + pad * 0.7} textAnchor="middle">{qn(r.L)}</text>

@@ -3083,7 +3083,7 @@
     "susp_rod": "Rod & washer",
     "susp_vertical_c": "Vertical C hangers",
     "rooms": "Rooms",
-    "legend": "C channels thick brown, omegas thin, dots = hangers, frame = edge angle. The number by the first channel = its distance from the wall in cm.",
+    "legend": "The number by the first channel = its distance from the wall in cm.",
     "roomC": "C: {n} lines × {len} m ({dir})",
     "roomOmega": "Omega: {n} lines × {len} m",
     "roomHangers": "Hangers: {n} ({per} per channel)",
@@ -3110,6 +3110,10 @@
     "notListed": "not in the bill of quantities",
     "notListedNote": "Items marked «not in the bill of quantities» are supplied by the client or excluded from supply, but drawn for the technician.",
     "hangerLonger": "{total} pieces of {piece} cm, longer than the bar ({bar} cm): each hanger needs a joint.",
-    "footnoteOld": "The first channel and omega sit {grid} cm from the wall. This version was priced before the «hangers inside the channel only» rule, so hangers are drawn at their priced count up to the channel ends."
+    "footnoteOld": "The first channel and omega sit {grid} cm from the wall. This version was priced before the «hangers inside the channel only» rule, so hangers are drawn at their priced count up to the channel ends.",
+    "legendC": "C channel",
+    "legendOmega": "Omega",
+    "legendHanger": "Hanger",
+    "legendAngle": "Edge angle"
   }
 }
