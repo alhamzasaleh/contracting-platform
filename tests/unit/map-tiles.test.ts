@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
-import { arabicStyle, MAP_LAYERS, storedLayer, TILE_HOSTS, VECTOR_HOSTS, VECTOR_STYLES } from "@/components/maps/tiles";
+import { localStyle, MAP_LAYERS, storedLayer, TILE_HOSTS, VECTOR_HOSTS, VECTOR_STYLES } from "@/components/maps/tiles";
 
 describe("vector maps (OpenFreeMap) — owner, Nov 2026", () => {
   it("place, street and water names show in Arabic; house numbers and other text stay", () => {
-    const s = arabicStyle({
+    const s = localStyle({
       version: 8,
       layers: [
         { id: "bg", type: "background" },
@@ -13,13 +13,16 @@ describe("vector maps (OpenFreeMap) — owner, Nov 2026", () => {
         { id: "nums", type: "symbol", "source-layer": "housenumber", layout: { "text-field": "{housenumber}" } },
         { id: "shield", type: "symbol", "source-layer": "transportation_name", layout: { "text-field": "{ref}" } },
       ],
-    });
+    }, "ar");
     const field = (id: string) => s.layers!.find((l) => (l as { id: string }).id === id)!.layout?.["text-field"];
     expect(field("road")).toEqual(["coalesce", ["get", "name:ar"], ["get", "name"]]);
     expect(field("city")).toEqual(["coalesce", ["get", "name:ar"], ["get", "name"]]);
     expect(field("nums")).toBe("{housenumber}");
     expect(field("shield")).toBe("{ref}");
     expect(s.layers![1].layout?.["text-size"]).toBe(12);
+    // an English user reads the English names
+    const en = localStyle({ layers: [{ type: "symbol", "source-layer": "place", layout: { "text-field": "{name}" } }] }, "en");
+    expect(en.layers![0].layout?.["text-field"]).toEqual(["coalesce", ["get", "name:en"], ["get", "name"]]);
   });
   it("three backgrounds; the remembered one is kept, anything else is the street map", () => {
     expect(MAP_LAYERS).toEqual(["map", "light", "satellite"]);

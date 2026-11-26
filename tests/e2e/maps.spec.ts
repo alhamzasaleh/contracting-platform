@@ -58,5 +58,49 @@ test("when OpenFreeMap doesn't answer, the OpenStreetMap images come back by the
   await page.addInitScript(() => localStorage.setItem("map-layer", "light"));
   await page.goto("/dev/preview/projects/map");
   await expect(page.locator('img.leaflet-tile[src*="tile.openstreetmap.org"]').first()).toBeAttached({ timeout: 15_000 });
-  await expect(page.getByRole("button", { name: "هادئة" }).first()).toHaveAttribute("aria-pressed", "true");
+  // «هادئة» exists only as a vector map: it's off, with the reason
+  await expect(page.getByRole("button", { name: "هادئة" }).first()).toBeDisabled();
+});
+
+test("a device without WebGL2: the image map, and zooming still works (no broken layer left)", async ({ page }) => {
+  await page.route("https://tiles.openfreemap.org/styles/**", (r) => r.fulfill({ json: STYLE }));
+  await page.route("https://tile.openstreetmap.org/**", (r) => r.abort());
+  const errors = watchErrors(page);
+  await page.addInitScript(() => {
+    localStorage.removeItem("map-layer");
+    const get = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+      return type === "webgl2" ? null : (get as (...a: unknown[]) => unknown).call(this, type, ...rest);
+    } as typeof get;
+  });
+  await page.goto("/dev/preview/projects/map");
+  await expect(page.locator('img.leaflet-tile[src*="tile.openstreetmap.org"]').first()).toBeAttached({ timeout: 15_000 });
+  await page.locator(".leaflet-control-zoom-in").first().click();
+  await page.waitForTimeout(800);
+  await expect(page.locator(".leaflet-gl-layer")).toHaveCount(0);
+  expect(errors.filter((e) => !/Failed to load resource|ERR_FAILED/.test(e))).toEqual([]);
+});
+
+test("the style answers but its map data doesn't: the image map comes back", async ({ page }) => {
+  const withTiles = { version: 8, sources: { openmaptiles: { type: "vector", tiles: ["https://tiles.openfreemap.org/planet/test/{z}/{x}/{y}.pbf"], maxzoom: 14 } }, layers: [{ id: "bg", type: "background", paint: { "background-color": "#d9cbb5" } }, { id: "water", type: "fill", source: "openmaptiles", "source-layer": "water" }] };
+  await page.route("https://tiles.openfreemap.org/styles/**", (r) => r.fulfill({ json: withTiles }));
+  await page.route("https://tiles.openfreemap.org/planet/**", (r) => r.abort());
+  await page.route("https://tile.openstreetmap.org/**", (r) => r.abort());
+  await page.addInitScript(() => localStorage.removeItem("map-layer"));
+  await page.goto("/dev/preview/projects/map");
+  await expect(page.locator('img.leaflet-tile[src*="tile.openstreetmap.org"]').first()).toBeAttached({ timeout: 20_000 });
+  await expect(page.locator(".leaflet-gl-layer")).toHaveCount(0);
+});
+
+test("picking a site on the new map: a tap puts the pin (client dialog)", async ({ page }) => {
+  await page.route("https://tiles.openfreemap.org/styles/**", (r) => r.fulfill({ json: STYLE }));
+  await page.route("https://tile.openstreetmap.org/**", (r) => r.abort());
+  await page.addInitScript(() => localStorage.removeItem("map-layer"));
+  await page.goto("/dev/preview/clients");
+  await page.getByRole("button", { name: /عميل جديد/ }).first().click();
+  const map = page.getByRole("dialog").locator(".leaflet-container").first();
+  await expect(map.locator(".leaflet-gl-layer")).toBeAttached({ timeout: 15_000 });
+  await map.click({ position: { x: 120, y: 100 } });
+  await expect(map.locator(".leaflet-marker-icon")).toHaveCount(1);
+  await expect(page.getByText("تم تحديد الموقع.")).toBeVisible();
 });

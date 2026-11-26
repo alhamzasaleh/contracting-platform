@@ -5,9 +5,9 @@ import type * as Leaflet from "leaflet";
 import * as React from "react";
 import type { LatLng } from "@/lib/geo";
 import { cn } from "@/lib/utils";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { PIN_TONE, type PinTone } from "./map-tones";
-import { arabicStyle, MAP_LAYERS, storedLayer, TILE_LAYERS, VECTOR_STYLES, type MapLayer } from "./tiles";
+import { localStyle, MAP_LAYERS, storedLayer, TILE_LAYERS, VECTOR_STYLES, type MapLayer } from "./tiles";
 
 /**
  * Map (owner, Nov 2026): OpenFreeMap street / quiet maps or satellite (`tiles.ts`) drawn with Leaflet (+ MapLibre
@@ -48,6 +48,7 @@ export function SiteMap({
   });
   const [ready, setReady] = React.useState(false);
   const t = useTranslations("maps");
+  const locale = useLocale();
   const background = React.useRef<Leaflet.Layer | null>(null);
   // a vector map that couldn't load this visit → the OpenStreetMap images instead
   const [vectorDown, setVectorDown] = React.useState(false);
@@ -91,7 +92,9 @@ export function SiteMap({
     let stop = false;
     const put = (next: Leaflet.Layer) => {
       background.current?.remove();
-      background.current = next.addTo(m);
+      background.current = null;
+      next.addTo(m);
+      background.current = next;
       (next as Leaflet.TileLayer).bringToBack?.();
     };
     const raster = (k: "map" | "satellite") => {
@@ -101,14 +104,25 @@ export function SiteMap({
     const vector = VECTOR_STYLES[bg];
     if (!vector || vectorDown || !webglOk()) raster(bg === "satellite" ? "satellite" : "map");
     else
-      void vectorLayer(L, vector.style, vector.attribution).then(
+      void vectorLayer(L, vector.style, vector.attribution, locale).then(
         (layer) => {
           if (stop) return;
           try {
             put(layer);
           } catch {
-            setVectorDown(true); // the GPU refused the map
+            // the GPU refused the map: take the half-added layer out of Leaflet, then the images
+            dropBroken(m, L, layer);
+            setVectorDown(true);
+            return;
           }
+          watchVector(layer, () => {
+            if (stop) return;
+            if (background.current === layer) {
+              background.current = null;
+              dropBroken(m, L, layer);
+            }
+            setVectorDown(true);
+          });
         },
         () => !stop && setVectorDown(true),
       );
@@ -120,7 +134,7 @@ export function SiteMap({
     return () => {
       stop = true;
     };
-  }, [ready, bg, vectorDown]);
+  }, [ready, bg, vectorDown, locale]);
 
   // draw pins / circle / picker, and fit the view
   const key = JSON.stringify([pins, circle, pick?.value ?? null]);
@@ -174,8 +188,11 @@ export function SiteMap({
             key={l}
             type="button"
             aria-pressed={bg === l}
+            // «هادئة» exists only as a vector map: when those can't load here it's off, with the reason
+            disabled={l === "light" && vectorDown}
+            title={l === "light" && vectorDown ? t("layerLightDown") : undefined}
             onClick={() => setBg(l)}
-            className={cn("min-h-8 px-3", bg === l ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-surface-sunken")}
+            className={cn("min-h-8 px-3 disabled:opacity-50", bg === l ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-surface-sunken")}
           >
             {l === "map" ? t("layerMap") : l === "light" ? t("layerLight") : t("layerSatellite")}
           </button>
@@ -190,30 +207,82 @@ const round6 = (x: number) => Math.round(x * 1e6) / 1e6;
 /** WebGL is needed for the vector maps (very old devices: the image map instead). */
 function webglOk(): boolean {
   try {
-    const c = document.createElement("canvas");
-    return !!(c.getContext("webgl2") ?? c.getContext("webgl"));
+    // MapLibre 6 draws with WebGL2 only; the test context is freed at once (browsers cap live contexts)
+    const g = document.createElement("canvas").getContext("webgl2");
+    g?.getExtension("WEBGL_lose_context")?.loseContext();
+    return !!g;
   } catch {
     return false;
   }
 }
 
+/**
+ * The vector map can still fail after it was added: its map data doesn't load (an error from a
+ * tile source before any tile arrived, or nothing within 12 s), or the GPU drops it later.
+ */
+function watchVector(layer: Leaflet.MaplibreGL, down: () => void) {
+  const gl = layer.getMaplibreMap();
+  if (!gl) return down();
+  let tiles = false;
+  let done = false;
+  const fail = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    down();
+  };
+  const hasSources = () => Object.keys(gl.getStyle()?.sources ?? {}).length > 0;
+  gl.on("sourcedata", (e) => {
+    if ((e as { tile?: unknown }).tile) tiles = true;
+  });
+  gl.on("error", (e) => {
+    if ((e as { sourceId?: string }).sourceId && !tiles) fail();
+  });
+  gl.getCanvas().addEventListener("webglcontextlost", fail);
+  const timer = setTimeout(() => !tiles && hasSources() && fail(), 12_000);
+  gl.once("remove", () => {
+    done = true;
+    clearTimeout(timer);
+  });
+}
+
+/** Take a vector layer out of Leaflet when MapLibre itself is broken (its own remove would throw). */
+function dropBroken(m: Leaflet.Map, L: typeof Leaflet, layer: Leaflet.MaplibreGL) {
+  const raw = layer as unknown as { _glMap?: { remove(): void }; getEvents?: () => Record<string, Leaflet.LeafletEventHandlerFn>; _container?: HTMLElement };
+  try {
+    if (raw._glMap) raw._glMap.remove();
+  } catch {
+    /* already broken */
+  }
+  raw._glMap = { remove() {} } as never;
+  try {
+    m.removeLayer(layer);
+  } catch {
+    // Leaflet may have stopped half-way: undo what it did by hand
+    if (raw.getEvents) (m.off as (events: object, ctx: unknown) => void)(raw.getEvents(), layer);
+    delete (m as unknown as { _layers: Record<number, unknown> })._layers[L.stamp(layer)];
+  }
+  raw._container?.remove();
+}
+
 const styles = new Map<string, Promise<unknown>>();
-/** The style, in Arabic — fetched once per visit; no answer within 8 s = not available. */
-function loadStyle(url: string): Promise<unknown> {
-  let p = styles.get(url);
+/** The style, labels in the user's language — fetched once per visit; no answer within 8 s = not available. */
+function loadStyle(url: string, locale: string): Promise<unknown> {
+  const key = `${url}|${locale}`;
+  let p = styles.get(key);
   if (!p) {
     p = fetch(url, { signal: AbortSignal.timeout(8000) })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((json: { layers?: [] }) => arabicStyle(json));
-    p.catch(() => styles.delete(url));
-    styles.set(url, p);
+      .then((json: { layers?: [] }) => localStyle(json, locale));
+    p.catch(() => styles.delete(key));
+    styles.set(key, p);
   }
   return p;
 }
 
 /** A Leaflet layer drawing an OpenFreeMap vector style (MapLibre loaded only when needed). */
-async function vectorLayer(L: typeof Leaflet, styleUrl: string, attribution: string): Promise<Leaflet.Layer> {
-  const [style, gl] = await Promise.all([loadStyle(styleUrl), import("maplibre-gl")]);
+async function vectorLayer(L: typeof Leaflet, styleUrl: string, attribution: string, locale: string): Promise<Leaflet.MaplibreGL> {
+  const [style, gl] = await Promise.all([loadStyle(styleUrl, locale), import("maplibre-gl")]);
   // the worker comes from our own origin (public/maplibre), same file as the installed library
   gl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
   await import("@maplibre/maplibre-gl-leaflet");

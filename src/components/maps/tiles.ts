@@ -1,6 +1,6 @@
 /**
  * Map backgrounds (owner, Nov 2026): «خريطة» and «هادئة» = OpenFreeMap vector maps (free, no key,
- * commercial use allowed; styles Liberty / Positron, labels switched to Arabic), «ستلايت» = Esri
+ * commercial use allowed; styles Liberty / Positron, labels in the user's language), «ستلايت» = Esri
  * World Imagery. When a vector map can't load (no WebGL, the style doesn't answer) the map falls
  * back to the OpenStreetMap raster tiles by itself. One place to change the provider — e.g. Google
  * Maps once the owner's CNTXT account is ready (then the CSP in src/proxy.ts changes with it).
@@ -42,18 +42,19 @@ export function storedLayer(v: string | null): MapLayer {
 }
 
 type StyleLayer = { type?: string; "source-layer"?: string; layout?: Record<string, unknown> };
-const ARABIC_NAME = ["coalesce", ["get", "name:ar"], ["get", "name"]];
 /**
- * Labels in Arabic: every symbol layer whose text is a place / street / water name shows `name:ar`
- * (else the local name) — house numbers and other labels stay as they are. Returns a copy.
+ * Labels in the user's language: every symbol layer whose text is a place / street / water name
+ * shows `name:ar` (Arabic) or `name:en` (English), else the local name — house numbers and other
+ * labels stay as they are. Returns a copy.
  */
-export function arabicStyle<S extends { layers?: StyleLayer[] }>(style: S): S {
+export function localStyle<S extends { layers?: StyleLayer[] }>(style: S, locale: string): S {
+  const name = ["coalesce", ["get", locale === "en" ? "name:en" : "name:ar"], ["get", "name"]];
   return {
     ...style,
     layers: style.layers?.map((l) => {
       const field = l.layout?.["text-field"];
       if (l.type !== "symbol" || field == null || l["source-layer"] === "housenumber" || !/name/.test(JSON.stringify(field))) return l;
-      return { ...l, layout: { ...l.layout, "text-field": ARABIC_NAME } };
+      return { ...l, layout: { ...l.layout, "text-field": name } };
     }),
   };
 }

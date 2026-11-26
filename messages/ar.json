@@ -3268,6 +3268,7 @@
     "siteIsSurvey": "الموقع مأخوذ من المعاينة.",
     "layerMap": "خريطة",
     "layerLight": "هادئة",
+    "layerLightDown": "الخريطة الهادئة ما تشتغل على هذا الجهاز أو الشبكة الحين",
     "layerSatellite": "ستلايت"
   }
 }

@@ -3268,6 +3268,7 @@
     "siteIsSurvey": "The site comes from the survey.",
     "layerMap": "Map",
     "layerLight": "Quiet",
+    "layerLightDown": "The quiet map isn't available on this device or network right now",
     "layerSatellite": "Satellite"
   }
 }
