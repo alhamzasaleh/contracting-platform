@@ -131,12 +131,12 @@ describe("gypsum — brands for boards and metal", () => {
     expect(o.result.lines.find((l) => l.key === "c_channel")?.unitPrice).toBe(13);
   });
 
-  it("options as buttons: hanging height and C spacing change quantities", () => {
+  it("options as buttons: the grid spacing changes C and omega quantities", () => {
     const c = ctx();
     const sel = defaultSelection("gypsum", c.catalogue);
-    const a = priceSelection(sel, Q({ ceilNormal: 100 }), c);
-    const b = priceSelection({ ...sel, options: { ...sel.options, cSpacing: 0.6 } }, Q({ ceilNormal: 100 }), c);
-    expect(b.result.lines.find((l) => l.key === "c_channel")!.qty).toBeGreaterThan(a.result.lines.find((l) => l.key === "c_channel")!.qty);
+    const a = priceSelection({ ...sel, options: { ...sel.options, cSpacing: 0.6, omegaSpacing: 0.6 } }, Q({ ceilNormal: 100 }), c);
+    const b = priceSelection(sel, Q({ ceilNormal: 100 }), c); // 40 cm
+    for (const k of ["c_channel", "omega"]) expect(b.result.lines.find((l) => l.key === k)!.qty).toBeGreaterThan(a.result.lines.find((l) => l.key === k)!.qty);
   });
 });
 

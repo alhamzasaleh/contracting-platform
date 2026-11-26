@@ -12,11 +12,13 @@ export const selectionSchema = z
         suspension: z.enum(["rod", "vertical_c"]),
         layers: z.number().int().min(1).max(3),
         hangingHeight: z.number().min(0.05).max(3),
-        cSpacing: z.number().min(0.2).max(2),
+        cSpacing: z.number().min(0.1).max(2),
         omegaSpacing: z.number().min(0.1).max(1),
         projectType: z.enum(["full", "labour", "supply"]).optional(),
       })
-      .strict(),
+      .strict()
+      // square grid (owner, Nov 2026): C channels at the omega spacing — stored that way too
+      .transform((o) => ({ ...o, cSpacing: o.omegaSpacing })),
     steps: z.record(
       key,
       z

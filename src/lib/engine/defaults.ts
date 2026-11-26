@@ -8,7 +8,7 @@ import type { ExteriorParams, InteriorParams, PaintProduct } from "./paint";
  */
 
 export const GYPSUM_PARAMS: GypsumParams = {
-  cSpacing: 1.0,
+  cSpacing: 0.4, // square grid with the omegas (owner, Nov 2026 — replaces A.6's 100 cm)
   omegaSpacing: 0.4,
   hangerSpacing: 1.0,
   studSpacing: 0.6,

@@ -23,7 +23,10 @@ describe("seed ↔ engine defaults stay in sync", () => {
   });
 
   it("seeds exactly the rates the engine reads, with the A.6 values", () => {
-    expect(seededRates()).toEqual(defaultRates());
+    // gypsum.cSpacing stays in old seeds but is no longer read: C channels use the omega spacing (square grid, owner Nov 2026)
+    const { ["gypsum.cSpacing"]: legacy, ...seeded } = seededRates();
+    expect(legacy).toBe(1);
+    expect(seeded).toEqual(defaultRates());
   });
 });
 
@@ -67,8 +70,8 @@ describe("buildEngineConfig", () => {
     };
     const r = computeGypsum(input, cfg.gypsum.catalogue, cfg.gypsum.params);
     const p = priceProject([r], { contingencyPercent: 5, marginPercent: 28, roundingStep: 1, method: "unit", vatPercent: 0 });
-    expect(p.cost).toBeCloseTo(21719, 6);
-    expect(p.subtotal).toBe(31840);
+    expect(p.cost).toBeCloseTo(24549, 6);
+    expect(p.subtotal).toBe(35840);
     expect(r.lines.find((l) => l.key === "board_normal")?.productId).toBe("board_normal");
   });
 
@@ -84,7 +87,7 @@ describe("buildEngineConfig", () => {
     const empty = buildEngineConfig({ products: [], rates: {} });
     expect(empty.gypsum.catalogue.cChannel.price).toBe(11);
     expect(empty.warnings).toContainEqual({ kind: "missing_product", role: "c_channel" });
-    expect(empty.warnings).toContainEqual({ kind: "missing_rate", key: "gypsum.cSpacing" });
+    expect(empty.warnings).toContainEqual({ kind: "missing_rate", key: "gypsum.omegaSpacing" });
   });
 
   it("lists each brand's paint as its own product (equivalence groups)", () => {

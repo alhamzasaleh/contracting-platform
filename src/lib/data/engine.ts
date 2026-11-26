@@ -125,6 +125,7 @@ export async function loadRates(session: SessionContext): Promise<RateItem[]> {
     .from("consumption_rates")
     .select("id, key, value, unit, label, section, sort_order, last_reviewed_at, updated_at")
     .eq("organization_id", session.organization.id)
+    .neq("key", "gypsum.cSpacing") // no longer read: C channels use the grid (omega) spacing
     .order("section")
     .order("sort_order");
   return (data ?? []).map((r) => ({ ...r, value: Number(r.value) }));

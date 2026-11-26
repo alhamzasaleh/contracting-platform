@@ -152,8 +152,8 @@ export const EMPTY_QUANTITIES: Quantities = {
 export const PRESETS = {
   hatches: ["30x30", "40x40", "50x50", "60x60", "60x120"],
   hangingHeight: [0.2, 0.4, 0.6, 0.8, 1.0],
-  cSpacing: [0.6, 0.8, 1.0, 1.2],
-  omegaSpacing: [0.3, 0.4, 0.5, 0.6],
+  /** ceiling grid: C channels and omegas at the same spacing — a square grid (owner, Nov 2026) */
+  grid: [0.4, 0.5, 0.6],
   layers: [1, 2],
 };
 
@@ -202,10 +202,12 @@ export function defaultSelection(kind: ServiceKind, c: CatalogueData, template?:
   const options: Options = {
     method: "roller", variant: "new", suspension: "rod", layers: 1, projectType: "full",
     hangingHeight: c.rates["gypsum.hangingHeight"] ?? 0.4,
-    cSpacing: c.rates["gypsum.cSpacing"] ?? 1,
+    cSpacing: c.rates["gypsum.omegaSpacing"] ?? 0.4,
     omegaSpacing: c.rates["gypsum.omegaSpacing"] ?? 0.4,
     ...(template?.options ?? {}),
   };
+  // square grid: one spacing for C and omega (older templates may carry another C spacing)
+  options.cSpacing = options.omegaSpacing;
   const steps: Record<string, StepChoice> = {};
   for (const s of STEPS[kind]) {
     const saved = template?.steps?.[s.key];
@@ -353,7 +355,7 @@ export function priceSelection(sel: Selection, q: Quantities, ctx: PricingContex
         troughM: q.troughM, shadowM: q.shadowM, hatches: q.hatches, scope, executeOnly: o.projectType === "labour",
       },
       cfg.gypsum.catalogue,
-      { ...cfg.gypsum.params, suspension: o.suspension, layers: Math.max(1, o.layers), hangingHeight: o.hangingHeight, cSpacing: o.cSpacing, omegaSpacing: o.omegaSpacing },
+      { ...cfg.gypsum.params, suspension: o.suspension, layers: Math.max(1, o.layers), hangingHeight: o.hangingHeight, cSpacing: o.omegaSpacing, omegaSpacing: o.omegaSpacing },
     );
   }
 

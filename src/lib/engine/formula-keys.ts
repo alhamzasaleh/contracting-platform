@@ -3,6 +3,11 @@ export const FORMULA_KEYS: Record<string, string> = {
   "ceil((ceiling area × layers + trough board + partition faces × layers) ÷ board area × (1 + waste))": "boards",
   "runs = ceil(W ÷ C spacing) + 1 per room, each L long; cut onto bars (FFD)": "cRuns",
   "runs = ceil(L ÷ omega spacing) + 1 per room, each W long + trough m × extra omega; cut onto bars": "omegaRuns",
+  // square grid (owner, Nov 2026); the two above stay for quote versions saved before it
+  "per room: lines one spacing apart, the first one spacing from the wall (none against it), across the cheaper side; cut onto bars (FFD)": "cGrid",
+  "per room: lines one spacing apart, the first one spacing from the wall, across the channels + trough m × extra omega; cut onto bars": "omegaGrid",
+  "ceiling area ÷ grid spacing, onto bars": "cQuick",
+  "ceiling area ÷ grid spacing + trough m × extra omega, onto bars": "omegaQuick",
   "hangers × (hanging height + cutting allowance), cut onto rods": "rods",
   "hangers × (hanging height + cutting allowance), cut onto C bars": "vhangers",
   "one set per hanger": "washers",

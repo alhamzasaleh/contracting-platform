@@ -61,8 +61,9 @@ describe("golden — gypsum villa (A.7)", () => {
   });
 
   it("lays metal runs per room onto 3 m bars", () => {
-    expect(qty(r, "c_channel")).toBe(160);
-    expect(qty(r, "omega")).toBe(432);
+    // square grid 40 cm (owner, Nov 2026): first line one spacing from the wall, offcuts reused across rooms
+    expect(qty(r, "c_channel")).toBe(325); // 956 m: 10 m runs = 3 bars + 1 m, 13 m = 4 + 1 m, 5 m = 1 + 2 m; 2 m + 1 m pieces share bars
+    expect(qty(r, "omega")).toBe(392); // 236 full bars + 120 m trough (40) + 2 m / 1 m pieces (116)
     expect(qty(r, "edge_angle")).toBe(88);
     expect(qty(r, "trough_angle")).toBe(40); // 60 × 2 = 120 m
     expect(qty(r, "shadow")).toBe(27); // 80 m
@@ -72,12 +73,12 @@ describe("golden — gypsum villa (A.7)", () => {
 
   it("counts hangers, rods, washers, anchors and clips", () => {
     const rod = r.lines.find((l) => l.key === "rod")!;
-    expect(rod.inputs.hangers).toBe(592); // per-room C runs × (ceil(L ÷ 1) + 1) + 60 trough hangers
-    expect(rod.qty).toBe(119); // 0.55 m pieces, 5 per 3 m rod
-    expect(qty(r, "washers")).toBe(6);
-    expect(qty(r, "anchors")).toBe(6);
-    expect(r.lines.find((l) => l.key === "clips")!.inputs.crossings).toBe(1256);
-    expect(qty(r, "clips")).toBe(13);
+    expect(rod.inputs.hangers).toBe(1145); // per-room C lines × (ceil(run ÷ 1) + 1) = 1085 + 60 trough hangers
+    expect(rod.qty).toBe(229); // 0.55 m pieces, 5 per 3 m rod
+    expect(qty(r, "washers")).toBe(12);
+    expect(qty(r, "anchors")).toBe(12);
+    expect(r.lines.find((l) => l.key === "clips")!.inputs.crossings).toBe(2304); // Σ C lines × omega lines per room
+    expect(qty(r, "clips")).toBe(24);
   });
 
   it("counts screws, tape and compound per finished m²", () => {
@@ -89,22 +90,22 @@ describe("golden — gypsum villa (A.7)", () => {
 
   it("prices materials, labour and hatches", () => {
     const p = priceProject([r], PRICE);
-    expect(p.materials).toBeCloseTo(14259, 6);
+    expect(p.materials).toBeCloseTo(17089, 6); // + 2830 vs the old 100 cm C spacing
     expect(p.labour).toBeCloseTo(6940, 6); // 400×12 + 40×15 + 60×15 + 80×8
     expect(p.hatches).toBe(520); // 4×75 + 2×110
-    expect(p.cost).toBeCloseTo(21719, 6);
+    expect(p.cost).toBeCloseTo(24549, 6);
   });
 
   it("gives price per m² per work type (contingency 5 %, margin 28 % on price, round up 1 SAR)", () => {
     const p = priceProject([r], PRICE);
     const ceilings = p.byWorkType.find((w) => w.workType === "ceilings")!;
     const partitions = p.byWorkType.find((w) => w.workType === "partitions")!;
-    expect(ceilings.cost).toBeCloseTo(19920.1273, 3);
-    expect(ceilings.rawPrice).toBeCloseTo(29050.1856, 3);
-    expect(ceilings.pricePerM2).toBe(73);
+    expect(ceilings.cost).toBeCloseTo(22750.1273, 3);
+    expect(ceilings.rawPrice).toBeCloseTo(33177.2689, 3);
+    expect(ceilings.pricePerM2).toBe(83);
     expect(partitions.cost).toBeCloseTo(1798.8727, 3);
     expect(partitions.pricePerM2).toBe(66);
-    expect(p.subtotal).toBe(31840); // 73 × 400 + 66 × 40
+    expect(p.subtotal).toBe(35840); // 83 × 400 + 66 × 40
     expect(p.marginPercent).toBeGreaterThanOrEqual(28);
     expect(p.targetMarkupPercent).toBeCloseTo(38.888, 2);
   });
@@ -119,7 +120,7 @@ describe("golden — gypsum villa (A.7)", () => {
   it("switches suspension to vertical C hangers (no washers)", () => {
     const v = computeGypsum(GYPSUM_INPUT, GYPSUM_CATALOGUE, { ...GYPSUM_PARAMS, suspension: "vertical_c" });
     expect(qty(v, "washers")).toBeUndefined();
-    expect(qty(v, "vertical_c")).toBe(119);
+    expect(qty(v, "vertical_c")).toBe(229);
   });
 
   it("excludes materials for execute-only projects", () => {

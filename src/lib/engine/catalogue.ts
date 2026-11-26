@@ -170,12 +170,19 @@ export function buildEngineConfig(data: CatalogueData, opts: { gypsumBrand?: str
   };
 
   const G = GYPSUM_PARAMS;
+  // a spacing of 0 (or less) would divide by zero — keep the default instead
+  const spacing = (key: string, fallback: number) => {
+    const v = rate(key, fallback);
+    return v > 0 ? v : fallback;
+  };
+  // square grid (owner, Nov 2026): C channels at the omega spacing; the old gypsum.cSpacing rate is ignored
+  const grid = spacing("gypsum.omegaSpacing", G.omegaSpacing);
   const params: GypsumParams = {
     ...G,
-    cSpacing: rate("gypsum.cSpacing", G.cSpacing),
-    omegaSpacing: rate("gypsum.omegaSpacing", G.omegaSpacing),
-    hangerSpacing: rate("gypsum.hangerSpacing", G.hangerSpacing),
-    studSpacing: rate("gypsum.studSpacing", G.studSpacing),
+    cSpacing: grid,
+    omegaSpacing: grid,
+    hangerSpacing: spacing("gypsum.hangerSpacing", G.hangerSpacing),
+    studSpacing: spacing("gypsum.studSpacing", G.studSpacing),
     partitionHeight: rate("gypsum.partitionHeight", G.partitionHeight),
     hangingHeight: rate("gypsum.hangingHeight", G.hangingHeight),
     screwsPerM2PerLayer: rate("gypsum.screwsPerM2PerLayer", G.screwsPerM2PerLayer),
@@ -304,7 +311,7 @@ export function buildEngineConfig(data: CatalogueData, opts: { gypsumBrand?: str
 export function defaultRates(): Record<string, number> {
   const G = GYPSUM_PARAMS, I = INTERIOR_PARAMS, E = EXTERIOR_PARAMS, L = GYPSUM_CATALOGUE.labour, C = COMMERCIAL_DEFAULTS;
   return {
-    "gypsum.cSpacing": G.cSpacing, "gypsum.omegaSpacing": G.omegaSpacing, "gypsum.hangerSpacing": G.hangerSpacing,
+    "gypsum.omegaSpacing": G.omegaSpacing, "gypsum.hangerSpacing": G.hangerSpacing,
     "gypsum.studSpacing": G.studSpacing, "gypsum.partitionHeight": G.partitionHeight, "gypsum.hangingHeight": G.hangingHeight,
     "gypsum.screwsPerM2PerLayer": G.screwsPerM2PerLayer, "gypsum.tapePerM2": G.tapePerM2, "gypsum.compoundPerM2": G.compoundPerM2,
     "gypsum.angleScrewsPerM": G.angleScrewsPerM, "gypsum.perimeterFactor": G.perimeterFactor,

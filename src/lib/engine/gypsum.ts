@@ -54,7 +54,48 @@ export type GypsumParams = {
   layers: number;
 };
 
-export type CeilingRoom = { id: string; name: string; L: number; W: number; boardType: BoardType; zone?: string };
+export type CeilingRoom = { id: string; name: string; L: number; W: number; boardType: BoardType; zone?: string; cAlong?: "length" | "width" };
+
+/**
+ * Grid lines across a span (owner, Nov 2026): channels and omegas are a square grid at one spacing;
+ * the edge angle carries the ceiling at the walls, so the first line is one spacing from the wall and
+ * none sits against it (lines at s, 2s … strictly inside). A strip narrower than the spacing still
+ * gets one line.
+ */
+export function gridLines(span: number, spacing: number): number {
+  if (span <= 0 || spacing <= 0) return 0;
+  return Math.max(1, Math.ceil(span / spacing - 1e-9) - 1);
+}
+
+export type CeilingLayout = { cAlong: "length" | "width"; channels: number; omegas: number; channelLength: number; omegaLength: number; hangers: number };
+
+/**
+ * One room's grid, with the main channels along the side that costs less (metal by length at the bar
+ * price + hangers with their rod, washers and anchor) — or along the side the owner chose.
+ */
+export function ceilingLayout(
+  r: { L: number; W: number; cAlong?: "length" | "width" },
+  p: Pick<GypsumParams, "cSpacing" | "omegaSpacing" | "hangerSpacing" | "hangingHeight" | "cutAllowance" | "suspension">,
+  cat: Pick<GypsumCatalogue, "cChannel" | "omega" | "rod" | "verticalHanger" | "washers" | "anchors">,
+): CeilingLayout {
+  const build = (cAlong: "length" | "width"): CeilingLayout => {
+    const [run, across] = cAlong === "length" ? [r.L, r.W] : [r.W, r.L];
+    const channels = gridLines(across, p.cSpacing);
+    const omegas = gridLines(run, p.omegaSpacing);
+    return { cAlong, channels, omegas, channelLength: run, omegaLength: across, hangers: channels * (ceilInt(run / p.hangerSpacing) + 1) };
+  };
+  if (r.cAlong) return build(r.cAlong);
+  const piece = p.hangingHeight + p.cutAllowance;
+  const hangerCost =
+    p.suspension === "rod"
+      ? (piece / cat.rod.length) * cat.rod.price + cat.washers.price / cat.washers.count + cat.anchors.price / cat.anchors.count
+      : (piece / cat.verticalHanger.length) * cat.verticalHanger.price + cat.anchors.price / cat.anchors.count;
+  const cost = (l: CeilingLayout) =>
+    ((l.channels * l.channelLength) / cat.cChannel.length) * cat.cChannel.price + ((l.omegas * l.omegaLength) / cat.omega.length) * cat.omega.price + l.hangers * hangerCost;
+  const a = build("length");
+  const b = build("width");
+  return cost(b) < cost(a) - 1e-9 ? b : a;
+}
 export type Partition = { id: string; area?: number; length?: number; height?: number; boardType: BoardType; layersPerFace: number; insulation?: boolean };
 
 export type GypsumInput = {
@@ -125,7 +166,7 @@ function primaryOf(parts: Record<string, number>): string {
   return Object.entries(parts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "ceilings";
 }
 
-export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: GypsumParams): EngineResult {
+export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: GypsumParams): EngineResult & { layouts: (CeilingLayout & { id: string })[] } {
   const lines: Line[] = [];
   const warnings: string[] = [];
   const w = 1 + p.wastePercent / 100;
@@ -146,6 +187,7 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
   const cRuns: number[] = [];
   const omegaRuns: number[] = [];
   const angleRuns: number[] = [];
+  const layouts: (CeilingLayout & { id: string })[] = [];
 
   if (measured) {
     for (const r of rooms) {
@@ -153,12 +195,12 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
       ceilingArea += area;
       areaByType[r.boardType] += area;
       perimeter += 2 * (r.L + r.W);
-      const nC = ceilInt(r.W / p.cSpacing) + 1;
-      const nO = ceilInt(r.L / p.omegaSpacing) + 1;
-      for (let i = 0; i < nC; i++) cRuns.push(r.L);
-      for (let i = 0; i < nO; i++) omegaRuns.push(r.W);
-      hangers += nC * (ceilInt(r.L / p.hangerSpacing) + 1);
-      clips += nC * nO;
+      const g = ceilingLayout(r, p, cat);
+      layouts.push({ id: r.id, ...g });
+      for (let i = 0; i < g.channels; i++) cRuns.push(g.channelLength);
+      for (let i = 0; i < g.omegas; i++) omegaRuns.push(g.omegaLength);
+      hangers += g.hangers;
+      clips += g.channels * g.omegas;
       angleRuns.push(r.L, r.L, r.W, r.W);
     }
   } else if (input.quickAreas) {
@@ -230,8 +272,8 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
     }
 
     if (ceilingArea > 0 || troughM > 0) {
-      lines.push(barLine("c_channel", "قطاع C رئيسي", cat.cChannel, cutToBars(cRuns, cat.cChannel.length), "runs = ceil(W ÷ C spacing) + 1 per room, each L long; cut onto bars (FFD)", { cSpacing: p.cSpacing, runs: cRuns.length }, "ceilings"));
-      lines.push(barLine("omega", "قطاع أوميغا", cat.omega, cutToBars(omegaRuns, cat.omega.length), "runs = ceil(L ÷ omega spacing) + 1 per room, each W long + trough m × extra omega; cut onto bars", { omegaSpacing: p.omegaSpacing, troughExtra: troughM * p.trough.omegaPerM }, "ceilings"));
+      lines.push(barLine("c_channel", "قطاع C رئيسي", cat.cChannel, cutToBars(cRuns, cat.cChannel.length), measured ? "per room: lines one spacing apart, the first one spacing from the wall (none against it), across the cheaper side; cut onto bars (FFD)" : "ceiling area ÷ grid spacing, onto bars", { grid: p.cSpacing, runs: cRuns.length, ...(measured ? { roomsAlongLength: layouts.filter((l) => l.cAlong === "length").length, roomsAlongWidth: layouts.filter((l) => l.cAlong === "width").length } : {}) }, "ceilings"));
+      lines.push(barLine("omega", "قطاع أوميغا", cat.omega, cutToBars(omegaRuns, cat.omega.length), measured ? "per room: lines one spacing apart, the first one spacing from the wall, across the channels + trough m × extra omega; cut onto bars" : "ceiling area ÷ grid spacing + trough m × extra omega, onto bars", { grid: p.omegaSpacing, troughExtra: troughM * p.trough.omegaPerM }, "ceilings"));
       const pieceLen = p.hangingHeight + p.cutAllowance;
       if (p.suspension === "rod") {
         lines.push(barLine("rod", "سيخ تعليق مسنن", cat.rod, cutIdentical(hangers, pieceLen, cat.rod.length), "hangers × (hanging height + cutting allowance), cut onto rods", { hangers, pieceLength: pieceLen }, "ceilings"));
@@ -337,5 +379,6 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
     areas: { ceilings: ceilingArea, partitions: partitionArea },
     status: measured || !(input.quickAreas && ceilingArea > 0) ? "measured" : "estimated",
     warnings,
+    layouts,
   };
 }

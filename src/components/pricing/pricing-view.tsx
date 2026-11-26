@@ -604,26 +604,14 @@ export function PricingView({
                   }
                 />
               </OptionRow>
-              <OptionRow label={t("cSpacing")}>
+              <OptionRow label={t("gridSpacing")}>
                 <Chips
-                  label={t("cSpacing")}
-                  value={sel.options.cSpacing}
-                  options={PRESETS.cSpacing}
-                  render={(v) => `${Math.round(v * 100)}`}
-                  onChange={(m) => setOpt("cSpacing", m)}
-                  modified={sel.options.cSpacing !== tpl.options.cSpacing}
-                />
-              </OptionRow>
-              <OptionRow label={t("omegaSpacing")}>
-                <Chips
-                  label={t("omegaSpacing")}
+                  label={t("gridSpacing")}
                   value={sel.options.omegaSpacing}
-                  options={PRESETS.omegaSpacing}
+                  options={PRESETS.grid.includes(sel.options.omegaSpacing) ? PRESETS.grid : [...PRESETS.grid, sel.options.omegaSpacing]}
                   render={(v) => `${Math.round(v * 100)}`}
-                  onChange={(m) => setOpt("omegaSpacing", m)}
-                  modified={
-                    sel.options.omegaSpacing !== tpl.options.omegaSpacing
-                  }
+                  onChange={(m) => setSel((s) => ({ ...s, options: { ...s.options, cSpacing: m, omegaSpacing: m } }))}
+                  modified={sel.options.omegaSpacing !== tpl.options.omegaSpacing}
                 />
               </OptionRow>
               <p className="text-[11px] text-subtle-foreground">

@@ -80,8 +80,7 @@ export const SAMPLE_BRANDS: { id: string; name: string; families: ("paint" | "gy
 export const SAMPLE_GROUPS = [...new Map(SAMPLE_PRODUCTS.filter((p) => p.group_id).map((p) => [p.group_id!, { id: p.group_id!, role: p.role!, name: p.group_name! }])).values()];
 
 const LABELS: Record<string, [RateItem["section"], string]> = {
-  "gypsum.cSpacing": ["gypsum", "تباعد القطاع الرئيسي C"],
-  "gypsum.omegaSpacing": ["gypsum", "تباعد الأوميغا"],
+  "gypsum.omegaSpacing": ["gypsum", "تباعد شبكة الحديد (C والأوميغا)"],
   "gypsum.hangerSpacing": ["gypsum", "تباعد العلاقات على C"],
   "gypsum.hangingHeight": ["gypsum", "ارتفاع التعليق"],
   "gypsum.screwsPerM2PerLayer": ["gypsum", "مسامير لكل م² لكل طبقة"],
