@@ -378,6 +378,8 @@ export type ClientRow = OrgRow & Upd & {
   /** project site pin (with longitude); null = not set */
   latitude?: number | null;
   longitude?: number | null;
+  /** the map link still has to be read on the server (short link) */
+  pin_pending?: boolean;
   notes: string | null;
   is_active: boolean;
   /** «جاء عن طريق» — the success partner (marketers) */

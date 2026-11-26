@@ -9,6 +9,7 @@ import { currentStage, overallProgress } from "@/lib/execution";
 import { deliveryDate } from "@/lib/contracts";
 import { loadBookingTeam, loadWarrantyEnd } from "@/lib/data/contracts";
 import { loadStaffNames } from "@/lib/data/staff";
+import { readPendingPins } from "@/lib/geo-pins";
 import type { ServiceKind } from "@/lib/pricing";
 import type { StageStatus } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -43,7 +44,8 @@ export async function loadProjects(session: SessionContext): Promise<ProjectList
     supabase.from("site_visits").select("contract_id, checked_in_at").eq("organization_id", orgId).order("checked_in_at", { ascending: false }).limit(2000),
     supabase.from("client_notes").select("contract_id").eq("organization_id", orgId).eq("status", "new"),
     supabase.from("addenda").select("contract_id, extra_days").eq("organization_id", orgId).eq("status", "accepted"),
-    loadProjectSites(supabase, orgId),
+    // a client's short map link not read yet is read first (owner: «حطيت رابط موقعه»)
+    readPendingPins(orgId).then(() => loadProjectSites(supabase, orgId)),
   ]);
   const byId = new Map((clients ?? []).map((c) => [c.id, c]));
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
@@ -143,7 +145,8 @@ export async function loadProject(session: SessionContext, number: string): Prom
     // the success partner's reward on this project (internal: costs.view)
     can(session, "costs.view") ? loadContractCommission(session, c.id) : Promise.resolve(null),
     // the site (this project's own pin, else the client's) — projects.view is enough
-    loadProjectSites(supabase, orgId),
+    // a client's short map link not read yet is read first (owner: «حطيت رابط موقعه»)
+    readPendingPins(orgId).then(() => loadProjectSites(supabase, orgId)),
   ]);
   const extraDays = (addenda ?? []).reduce((s, a) => s + a.extra_days, 0);
   const own = costs?.find((x) => x.id === c.id);

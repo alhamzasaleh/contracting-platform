@@ -30,3 +30,27 @@ describe("clients site pin", () => {
     expect((await pin()).latitude).toBe("24.803123");
   });
 });
+
+/**
+ * A short WhatsApp link (maps.app.goo.gl) can only be read on the server: until it is, the client is
+ * «pin_pending» and the server reads it (page load / daily job). A pin set, or no link, is never pending.
+ */
+describe("client pin waiting for its link to be read", () => {
+  const pending = () => asAdmin((q) => q<{ pin_pending: boolean }>("select pin_pending from public.clients where id = $1", [client])).then((r) => r.rows[0].pin_pending);
+  it("is off by default, and never with a pin or without a link", async () => {
+    expect(await pending()).toBe(false);
+    await as({ userId: owner }, (q) => q("update public.clients set location_url = 'https://maps.app.goo.gl/AbC', pin_pending = true where id = $1", [client]));
+    // the client still has a pin from the tests above → not pending
+    expect(await pending()).toBe(false);
+    await as({ userId: owner }, (q) => q("update public.clients set latitude = null, longitude = null, pin_pending = true where id = $1", [client]));
+    expect(await pending()).toBe(true);
+    await as({ userId: owner }, (q) => q("update public.clients set location_url = null where id = $1", [client]));
+    expect(await pending()).toBe(false);
+  });
+  it("setting the pin clears it", async () => {
+    await as({ userId: owner }, (q) => q("update public.clients set location_url = 'https://maps.app.goo.gl/AbC', pin_pending = true where id = $1", [client]));
+    expect(await pending()).toBe(true);
+    await asAdmin((q) => q("update public.clients set latitude = 24.7, longitude = 46.7 where id = $1", [client]));
+    expect(await pending()).toBe(false);
+  });
+});

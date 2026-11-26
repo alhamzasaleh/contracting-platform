@@ -93,7 +93,8 @@ export async function saveClient(input: unknown): Promise<ActionResult<{ number:
   // older callers without pin_source: a pin sent = map, none = read the link
   const source = pin_source ?? (formPin ? "map" : "auto");
   const pin = pinToSave({ source, pin: formPin }, source === "auto" ? (await linkCoords(ctx.userId, rest.location_url)).pin : null);
-  const data = { ...rest, latitude: pin ? Math.round(pin.lat * 1e6) / 1e6 : null, longitude: pin ? Math.round(pin.lng * 1e6) / 1e6 : null };
+  // a link that couldn't be read now (short link, Google slow, limit) is read later by the server (geo-pins)
+  const data = { ...rest, latitude: pin ? Math.round(pin.lat * 1e6) / 1e6 : null, longitude: pin ? Math.round(pin.lng * 1e6) / 1e6 : null, pin_pending: source === "auto" && !pin && !!rest.location_url?.trim() };
   const q = clientId
     ? ctx.supabase.from("clients").update(data).eq("id", clientId).eq("organization_id", ctx.orgId).select("number").single()
     : ctx.supabase.from("clients").insert({ ...data, organization_id: ctx.orgId }).select("number").single();

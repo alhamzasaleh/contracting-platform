@@ -5,6 +5,7 @@ import { can, type SessionContext } from "@/lib/auth/session";
 import type { SurveyRoom, SurveyTotals } from "@/lib/survey";
 import { once, rows } from "@/lib/data/query";
 import { createClient } from "@/lib/supabase/server";
+import { readPendingPins } from "@/lib/geo-pins";
 
 const n = (v: unknown) => Number(v ?? 0);
 
@@ -57,6 +58,8 @@ export type ClientDetail = {
 export async function loadClientDetail(session: SessionContext, number: string): Promise<ClientDetail> {
   const supabase = await createClient();
   const orgId = session.organization.id;
+  // a short map link not read yet is read first, so the page shows the pin
+  await readPendingPins(orgId);
   const { data: client } = await supabase
     .from("clients")
     .select("id, number, name, phone, city, district, id_number, location_url, notes, marketer_id, latitude, longitude")
