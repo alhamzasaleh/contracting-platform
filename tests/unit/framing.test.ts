@@ -91,3 +91,39 @@ describe("framing PDF", () => {
     expect(pdfDocName("contracts/C-2026-003/framing")).toBe("C-2026-003-framing");
   });
 });
+
+describe("review fixes (framing)", () => {
+  it("cuts with exact lengths like cutToBars (no rounding before packing)", () => {
+    const runs = [{ length: 3.83, label: "a" }, { length: 28.5703, label: "trough" }];
+    expect(cutPlan(runs, 3.6).bars).toBe(cutToBars(runs.map((r) => r.length), 3.6).bars);
+  });
+  it("random runs: the plan always needs exactly cutToBars' bars", () => {
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let k = 0; k < 300; k++) {
+      const stock = [3, 3.6, 4][k % 3];
+      const runs = Array.from({ length: 1 + Math.floor(rnd() * 12) }, (_, i) => ({ length: Math.round(rnd() * 120000) / 10000, label: `r${i % 3}` }));
+      expect(cutPlan(runs, stock).bars).toBe(cutToBars(runs.map((r) => r.length), stock).bars);
+    }
+  });
+  it("a hanger piece longer than the bar is said so (no «1 per bar, no offcut»)", () => {
+    const f = { ...villa.framing!, hangingHeight: 3, cutAllowance: 0.15, bars: { ...villa.framing!.bars, hanger: 3 } };
+    expect(hangerCut(f)).toMatchObject({ piece: 3.15, perBar: 0, longer: true });
+  });
+  it("rooms carry their floor, so two «bedroom 1» on two floors stay apart", async () => {
+    const { surveyQuantities } = await import("@/lib/survey");
+    const base = { height_m: 3, openings_m2: 0, gypsum_ceiling: true, ceiling_board: "normal" as const, paint_walls: false, paint_ceiling: false, wall_zone: "normal" as const };
+    const q = surveyQuantities("gypsum", "rooms", [{ ...base, id: "a", name: "نوم 1", unit_label: "الأرضي", length_m: 4, width_m: 3 }, { ...base, id: "b", name: "نوم 1", unit_label: "الأول", length_m: 4, width_m: 3 }], {});
+    const r = computeGypsum({ rooms: q.gypsumRooms! }, GYPSUM_CATALOGUE, GYPSUM_PARAMS);
+    expect(r.framing!.rooms.map((x) => x.unit)).toEqual(["الأرضي", "الأول"]);
+    const labels = new Set(framingRuns(r.framing!, "t").c.map((p) => p.label));
+    expect(labels.size).toBe(2);
+  });
+  it("says which metal is not in the bill of quantities (supplied by the client / labour only)", () => {
+    const labourOnly = computeGypsum({ rooms: ROOMS, executeOnly: true }, GYPSUM_CATALOGUE, GYPSUM_PARAMS);
+    expect(labourOnly.framing!.listed).toEqual({ c: false, omega: false, angle: false, hanger: false });
+    expect(villa.framing!.listed).toEqual({ c: true, omega: true, angle: true, hanger: true });
+    const noAngle = computeGypsum({ rooms: ROOMS, scope: { edge_angle: false } }, GYPSUM_CATALOGUE, GYPSUM_PARAMS);
+    expect(noAngle.framing!.listed.angle).toBe(false);
+  });
+});

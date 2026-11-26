@@ -28,7 +28,7 @@ export type SurveyRoom = {
 };
 
 /** Totals entered directly (always used for what rooms don't cover). */
-export type SurveyTotals = Partial<Omit<Quantities, "gypsumRooms">>;
+export type SurveyTotals = Partial<Omit<Quantities, "gypsumRooms" | "framing">>;
 
 export type SurveyMode = "total" | "rooms";
 
@@ -50,7 +50,7 @@ export function surveyQuantities(kind: ServiceKind, mode: SurveyMode, rooms: Sur
     q.ceilMoisture = round2(g.filter((r) => r.ceiling_board === "moisture").reduce((s, r) => s + roomCeiling(r), 0));
     q.ceilFire = round2(g.filter((r) => r.ceiling_board === "fire").reduce((s, r) => s + roomCeiling(r), 0));
     // real dimensions → metal runs per room, real perimeters (A.4)
-    q.gypsumRooms = g.map((r) => ({ id: r.id, name: r.name, L: r.length_m, W: r.width_m, boardType: r.ceiling_board, ...(r.c_along ? { cAlong: r.c_along } : {}) }));
+    q.gypsumRooms = g.map((r) => ({ id: r.id, name: r.name, L: r.length_m, W: r.width_m, boardType: r.ceiling_board, ...(r.c_along ? { cAlong: r.c_along } : {}), ...(r.unit_label ? { unit: r.unit_label } : {}) }));
   }
   if (kind === "interior") {
     const walls = rooms.filter((r) => r.paint_walls);

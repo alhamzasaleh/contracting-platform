@@ -38,6 +38,7 @@ export const bulkRoomsSchema = z
         paint_walls: z.boolean(),
         paint_ceiling: z.boolean(),
         wall_zone: z.enum(["normal", "wet", "decorative"]),
+        c_along: z.enum(["length", "width"]).nullable(),
         height_m: height,
       })
       .partial()
@@ -63,12 +64,17 @@ export type BulkChoice = {
   zone: "keep" | "normal" | "wet" | "decorative";
   ceiling: "keep" | "yes" | "no";
   height: number | null;
+  /** C channel direction: «بدون تغيير» / automatic / along the length / width */
+  dir?: "keep" | "auto" | "length" | "width";
 };
 
 /** The settings to send: «بدون تغيير» and choices hidden on screen (board with gypsum «no», wall zone with wall paint «no») are left out. */
-export function bulkPatch(c: BulkChoice): Record<string, string | boolean> {
+export function bulkPatch(c: BulkChoice): Record<string, string | boolean | null> {
+  const dir = c.dir ?? "keep";
   return {
     ...(c.gypsum !== "keep" && { gypsum_ceiling: c.gypsum === "yes" }),
+    // gypsum off clears the direction (as the room dialog does); else the chosen one
+    ...(c.gypsum === "no" ? { c_along: null } : dir !== "keep" && { c_along: dir === "auto" ? null : dir }),
     ...(c.board !== "keep" && c.gypsum !== "no" && { ceiling_board: c.board }),
     ...(c.walls !== "keep" && { paint_walls: c.walls === "yes" }),
     ...(c.zone !== "keep" && c.walls !== "no" && { wall_zone: c.zone }),

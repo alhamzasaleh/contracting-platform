@@ -38,7 +38,7 @@ export function sampleProjectMaterials(prices: boolean, number = "C-2026-003"): 
 /** Framing plan samples: the sample survey's gypsum rooms as priced (frozen framing). */
 const gframing = freezeFraming(gq, priceSelection(gsel, gq, SAMPLE_PRICING_CTX)).framing ?? null;
 export function sampleQuoteFraming(): FramingDoc {
-  return { kind: "quote", number: "Q-2026-014", quoteNumber: "Q-2026-014", version: 2, option: null, date: SAMPLE_QUOTE.current!.created_at, client: { name: SAMPLE_QUOTE.client.name, city: SAMPLE_QUOTE.client.city }, service: "gypsum", framing: gframing };
+  return { kind: "quote", number: "Q-2026-014", quoteNumber: "Q-2026-014", version: 2, option: null, date: SAMPLE_QUOTE.current!.created_at, client: { name: SAMPLE_QUOTE.client.name, city: SAMPLE_QUOTE.client.city }, service: "gypsum", framing: gframing, missing: null };
 }
 export function sampleProjectFraming(): FramingDoc {
   return { ...sampleQuoteFraming(), kind: "project", number: "C-2026-003" };

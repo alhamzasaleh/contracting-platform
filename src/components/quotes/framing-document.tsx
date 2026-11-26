@@ -5,7 +5,8 @@ import { BrandLogo } from "@/components/brand-logo";
 import { DocNo } from "@/components/doc-no";
 import { useListSep, useUnitText } from "@/components/forms/form-kit";
 import type { FramingDoc } from "@/lib/data/framing";
-import { cutPlan, framingRuns, hangerCut, hangerPositions, linePositions, type CutPattern, type FramingRoom, type GypsumFraming } from "@/lib/engine";
+import { cutPlan, framingRuns, hangerCut, hangerPositions, linePositions, roomLabel, type FramingRoom, type GypsumFraming } from "@/lib/engine";
+import { useFormatter } from "@/components/formatter-provider";
 import { useQtyNumber } from "./buy-text";
 import { PrintButton } from "./print-button";
 import type { DocOrg } from "./quote-document";
@@ -23,6 +24,7 @@ export function FramingDocument({ org, doc }: { org: DocOrg; doc: FramingDoc }) 
   const td = useTranslations("doc");
   const sep = useListSep();
   const qn = useQtyNumber();
+  const { fmt } = useFormatter();
   const f = doc.framing;
 
   return (
@@ -50,12 +52,12 @@ export function FramingDocument({ org, doc }: { org: DocOrg; doc: FramingDoc }) 
         <dd className="font-semibold">{[doc.client.name, doc.client.city].filter(Boolean).join(sep)}</dd>
         <dt className="text-doc-muted">{t("quote")}</dt>
         <dd>
-          <DocNo>{doc.quoteNumber}</DocNo> · {t("version", { n: doc.version })}
+          <DocNo>{doc.quoteNumber}</DocNo> · {t("version", { n: doc.version })} · {fmt.date(doc.date)}
         </dd>
       </dl>
 
       {!f ? (
-        <p className="rounded-2xl bg-surface-sunken p-4 text-[14px]">{doc.service === "gypsum" ? t("none") : t("notGypsum")}</p>
+        <p className="rounded-2xl bg-surface-sunken p-4 text-[14px]">{doc.service !== "gypsum" ? t("notGypsum") : doc.missing === "total" ? t("noneTotal") : doc.kind === "project" ? t("noneProject") : t("none")}</p>
       ) : (
         <>
           <Summary f={f} />
@@ -70,6 +72,7 @@ export function FramingDocument({ org, doc }: { org: DocOrg; doc: FramingDoc }) 
           </section>
           <CutSection f={f} />
           <p className="text-[12px] text-doc-muted">{t("footnote", { grid: qn(cm(f.grid)) })}</p>
+          {Object.values(f.listed).some((x) => !x) && <p className="text-[12px] font-semibold">{t("notListedNote")}</p>}
         </>
       )}
     </article>
@@ -81,15 +84,16 @@ function Summary({ f }: { f: GypsumFraming }) {
   const qn = useQtyNumber();
   const runs = framingRuns(f, t("trough"));
   const h = hangerCut(f);
+  const off = (listed: boolean, v: string) => (listed ? v : `${v} · ${t("notListed")}`);
   const items = [
     [t("sumGrid"), t("cmValue", { n: qn(cm(f.grid)) })],
     [t("sumHangerSpacing"), t("cmValue", { n: qn(cm(f.hangerSpacing)) })],
     [t("sumSuspension"), t(`susp_${f.suspension}`)],
     [t("sumHanging"), t("cmValue", { n: qn(cm(f.hangingHeight)) })],
-    [t("sumC"), t("bars", { n: qn(cutPlan(runs.c, f.bars.c).bars), len: qn(f.bars.c) })],
-    [t("sumOmega"), t("bars", { n: qn(cutPlan(runs.omega, f.bars.omega).bars), len: qn(f.bars.omega) })],
-    [t("sumAngle"), t("bars", { n: qn(cutPlan(runs.angle, f.bars.angle).bars), len: qn(f.bars.angle) })],
-    [t("sumHangers"), t("hangers", { n: qn(h.total) })],
+    [t("sumC"), off(f.listed.c, t("bars", { n: qn(cutPlan(runs.c, f.bars.c).bars), len: qn(f.bars.c) }))],
+    [t("sumOmega"), off(f.listed.omega, t("bars", { n: qn(cutPlan(runs.omega, f.bars.omega).bars), len: qn(f.bars.omega) }))],
+    [t("sumAngle"), off(f.listed.angle, t("bars", { n: qn(cutPlan(runs.angle, f.bars.angle).bars), len: qn(f.bars.angle) }))],
+    [t("sumHangers"), off(f.listed.hanger, t("hangers", { n: qn(h.total) }))],
   ];
   return (
     <section className="grid gap-2">
@@ -113,7 +117,7 @@ function RoomCard({ r, f }: { r: FramingRoom; f: GypsumFraming }) {
   return (
     <figure className="grid min-w-0 gap-2 rounded-2xl border border-border p-3 break-inside-avoid">
       <figcaption className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <span className="text-[15px] font-bold">{r.name}</span>
+        <span className="text-[15px] font-bold">{roomLabel(r)}</span>
         <span className="text-[12px] text-doc-muted" dir="ltr">
           {qn(r.L)} × {qn(r.W)} {unit("m")}
         </span>
@@ -131,7 +135,7 @@ function RoomCard({ r, f }: { r: FramingRoom; f: GypsumFraming }) {
 /** Top view, the room's length left to right. C = clay (thick), omega = basalt (thin), hangers = dots, edge angle = frame. */
 export function RoomDrawing({ r, f }: { r: FramingRoom; f: GypsumFraming }) {
   const t = useTranslations("framing");
-  const unit = useUnitText();
+  const qn = useQtyNumber();
   const L = cm(r.L);
   const W = cm(r.W);
   const s = Math.max(L, W);
@@ -144,25 +148,25 @@ export function RoomDrawing({ r, f }: { r: FramingRoom; f: GypsumFraming }) {
   const hPos = hangerPositions(along ? r.L : r.W, f.hangerSpacing).map(cm);
   const first = cPos[0];
   return (
-    <svg viewBox={`${-pad} ${-pad} ${L + 2 * pad} ${W + 2 * pad}`} className="h-auto w-full" role="img" aria-label={t("drawingLabel", { name: r.name })}>
-      <rect x={0} y={0} width={L} height={W} fill="#F6F3EE" />
+    <svg viewBox={`${-pad} ${-pad} ${L + 2 * pad} ${W + 2 * pad}`} className="h-auto w-full" role="img" aria-label={t("drawingLabel", { name: roomLabel(r) })}>
+      <rect x={0} y={0} width={L} height={W} style={{ fill: "var(--gypsum)" }} />
       {/* omegas */}
-      {oPos.map((p) => (along ? <line key={`o${p}`} x1={p} y1={0} x2={p} y2={W} stroke="#22262A" strokeWidth={s * 0.003} /> : <line key={`o${p}`} x1={0} y1={p} x2={L} y2={p} stroke="#22262A" strokeWidth={s * 0.003} />))}
+      {oPos.map((p) => (along ? <line key={`o${p}`} x1={p} y1={0} x2={p} y2={W} style={{ stroke: "var(--basalt)" }} strokeWidth={s * 0.003} /> : <line key={`o${p}`} x1={0} y1={p} x2={L} y2={p} style={{ stroke: "var(--basalt)" }} strokeWidth={s * 0.003} />))}
       {/* C channels + hangers */}
       {cPos.map((p) => (
         <g key={`c${p}`}>
-          {along ? <line x1={0} y1={p} x2={L} y2={p} stroke="#B5653E" strokeWidth={s * 0.009} /> : <line x1={p} y1={0} x2={p} y2={W} stroke="#B5653E" strokeWidth={s * 0.009} />}
-          {hPos.map((h) => (along ? <circle key={h} cx={h} cy={p} r={s * 0.008} fill="#22262A" /> : <circle key={h} cx={p} cy={h} r={s * 0.008} fill="#22262A" />))}
+          {along ? <line x1={0} y1={p} x2={L} y2={p} style={{ stroke: "var(--clay)" }} strokeWidth={s * 0.009} /> : <line x1={p} y1={0} x2={p} y2={W} style={{ stroke: "var(--clay)" }} strokeWidth={s * 0.009} />}
+          {hPos.map((h) => (along ? <circle key={h} cx={h} cy={p} r={s * 0.008} style={{ fill: "var(--basalt)" }} /> : <circle key={h} cx={p} cy={h} r={s * 0.008} style={{ fill: "var(--basalt)" }} />))}
         </g>
       ))}
       {/* edge angle */}
-      <rect x={0} y={0} width={L} height={W} fill="none" stroke="#8A7F70" strokeWidth={s * 0.012} />
+      <rect x={0} y={0} width={L} height={W} fill="none" style={{ stroke: "var(--basalt)" }} strokeOpacity={0.55} strokeWidth={s * 0.012} />
       {/* dimensions */}
-      <g fontSize={font} fill="#22262A" fontFamily="Inter, Almarai, sans-serif" direction="ltr">
-        <text x={L / 2} y={W + pad * 0.7} textAnchor="middle">{`${(L / 100).toFixed(2)} ${unit("m")}`}</text>
-        <text x={-pad * 0.35} y={W / 2} textAnchor="middle" transform={`rotate(-90 ${-pad * 0.35} ${W / 2})`}>{`${(W / 100).toFixed(2)} ${unit("m")}`}</text>
+      <g fontSize={font} style={{ fill: "var(--basalt)" }} fontFamily="Inter, Almarai, sans-serif" direction="ltr">
+        <text x={L / 2} y={W + pad * 0.7} textAnchor="middle">{qn(r.L)}</text>
+        <text x={-pad * 0.35} y={W / 2} textAnchor="middle" transform={`rotate(-90 ${-pad * 0.35} ${W / 2})`}>{qn(r.W)}</text>
         {first != null && (
-          <text x={along ? L + pad * 0.1 : first} y={along ? first + font * 0.35 : -pad * 0.25} textAnchor={along ? "start" : "middle"}>{`${first}`}</text>
+          <text x={along ? L + pad * 0.1 : first} y={along ? first + font * 0.35 : -pad * 0.25} textAnchor={along ? "start" : "middle"}>{qn(first)}</text>
         )}
       </g>
     </svg>
@@ -174,19 +178,17 @@ function CutSection({ f }: { f: GypsumFraming }) {
   const qn = useQtyNumber();
   const runs = framingRuns(f, t("trough"));
   const h = hangerCut(f);
-  const blocks: [string, CutPattern[], number, number][] = [
-    [t("cutC"), ...((p) => [p.patterns, p.bars] as const)(cutPlan(runs.c, f.bars.c)), f.bars.c],
-    [t("cutOmega"), ...((p) => [p.patterns, p.bars] as const)(cutPlan(runs.omega, f.bars.omega)), f.bars.omega],
-    [t("cutAngle"), ...((p) => [p.patterns, p.bars] as const)(cutPlan(runs.angle, f.bars.angle)), f.bars.angle],
-  ];
+  const block = (title: string, runs: Parameters<typeof cutPlan>[0], len: number, listed: boolean) => ({ title, len, listed, ...cutPlan(runs, len) });
+  const blocks = [block(t("cutC"), runs.c, f.bars.c, f.listed.c), block(t("cutOmega"), runs.omega, f.bars.omega, f.listed.omega), block(t("cutAngle"), runs.angle, f.bars.angle, f.listed.angle)];
   return (
     <section className="grid gap-4">
       <h2 className="text-[16px] font-extrabold">{t("cutPlan")}</h2>
       <p className="text-[12px] text-doc-muted">{t("cutHint")}</p>
-      {blocks.map(([title, patterns, bars, len]) => (
+      {blocks.map(({ title, patterns, bars, len, listed }) => (
         <div key={title} className="grid gap-2 break-inside-avoid">
           <h3 className="text-[14px] font-bold">
             <bdi>{title}</bdi> — <bdi>{t("bars", { n: qn(bars), len: qn(len) })}</bdi>
+            {!listed && <span className="ms-2 text-[12px] font-normal text-doc-muted">{t("notListed")}</span>}
           </h3>
           <ul className="grid gap-1 text-[13px]">
             {patterns.map((p, i) => (
@@ -212,7 +214,10 @@ function CutSection({ f }: { f: GypsumFraming }) {
         <h3 className="text-[14px] font-bold">
           <bdi>{t(`cutHangers_${f.suspension}`)}</bdi> — <bdi>{t("bars", { n: qn(h.bars), len: qn(f.bars.hanger) })}</bdi>
         </h3>
-        <p className="text-[13px]">{t("hangerCut", { total: qn(h.total), piece: qn(cm(h.piece)), per: qn(h.perBar), offcut: qn(cm(h.offcut)) })}</p>
+        <p className="text-[13px]">
+          {h.longer ? t("hangerLonger", { total: qn(h.total), piece: qn(cm(h.piece)), bar: qn(cm(f.bars.hanger)) }) : t("hangerCut", { total: qn(h.total), piece: qn(cm(h.piece)), per: qn(h.perBar), offcut: qn(cm(h.offcut)) })}
+          {!f.listed.hanger && <span className="ms-2 text-[12px] text-doc-muted">{t("notListed")}</span>}
+        </p>
       </div>
     </section>
   );

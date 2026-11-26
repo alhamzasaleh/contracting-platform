@@ -39,9 +39,20 @@ describe("bulkPatch", () => {
   it("never sends a hidden choice: board only while gypsum isn't «no», wall zone only while wall paint isn't «no»", async () => {
     const { bulkPatch } = await import("@/lib/survey/schema");
     const base = { gypsum: "keep", board: "keep", walls: "keep", zone: "keep", ceiling: "keep", height: null } as const;
-    expect(bulkPatch({ ...base, gypsum: "no", board: "fire" })).toEqual({ gypsum_ceiling: false });
+    // gypsum off also clears the C direction (as the room dialog does), so switching it on again starts automatic
+    expect(bulkPatch({ ...base, gypsum: "no", board: "fire", dir: "width" })).toEqual({ gypsum_ceiling: false, c_along: null });
     expect(bulkPatch({ ...base, walls: "no", zone: "wet" })).toEqual({ paint_walls: false });
     expect(bulkPatch({ ...base, gypsum: "yes", board: "moisture", height: 3.2 })).toEqual({ gypsum_ceiling: true, ceiling_board: "moisture", height_m: "3.2" });
     expect(bulkPatch(base)).toEqual({});
+  });
+  it("sets the C channel direction for many rooms (automatic = null)", async () => {
+    const { bulkPatch, bulkRoomsSchema } = await import("@/lib/survey/schema");
+    const base = { gypsum: "keep", board: "keep", walls: "keep", zone: "keep", ceiling: "keep", height: null } as const;
+    expect(bulkPatch({ ...base, dir: "width" })).toEqual({ c_along: "width" });
+    expect(bulkPatch({ ...base, dir: "auto" })).toEqual({ c_along: null });
+    expect(bulkPatch({ ...base, dir: "keep" })).toEqual({});
+    const id = "00000000-0000-4000-8000-000000000001";
+    expect(bulkRoomsSchema.safeParse({ survey_id: id, ids: [id], patch: { c_along: null } }).success).toBe(true);
+    expect(bulkRoomsSchema.safeParse({ survey_id: id, ids: [id], patch: { c_along: "diagonal" } }).success).toBe(false);
   });
 });

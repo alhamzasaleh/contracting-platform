@@ -35,13 +35,14 @@ export function SurveyBulkRooms({ surveyId, rooms, bulk }: { surveyId: string; r
   const [walls, setWalls] = React.useState<Tri>("keep");
   const [zone, setZone] = React.useState<Zone>("keep");
   const [ceiling, setCeiling] = React.useState<Tri>("keep");
+  const [dir, setDir] = React.useState<"keep" | "auto" | "length" | "width">("keep");
   const [height, setHeight] = React.useState("");
 
   const floors = [...new Set(rooms.map((r) => r.unit_label ?? NO_FLOOR))];
   const target: BulkScope = scope === "all" ? { kind: "all" } : scope === "floor" ? { kind: "floor", floor: floor === NO_FLOOR ? null : floor } : { kind: "pick", ids: [...picked] };
   const ids = bulkTargets(rooms, target);
   const h = height.trim() ? roomSize(height, 30) : undefined;
-  const patch = bulkPatch({ gypsum, board, walls, zone, ceiling, height: h ?? null });
+  const patch = bulkPatch({ gypsum, board, walls, zone, ceiling, height: h ?? null, dir });
   const changes = Object.keys(patch).length;
 
   const reset = () => {
@@ -50,6 +51,7 @@ export function SurveyBulkRooms({ surveyId, rooms, bulk }: { surveyId: string; r
     setWalls("keep");
     setZone("keep");
     setCeiling("keep");
+    setDir("keep");
     setHeight("");
     setPicked(new Set());
     setScope("all");
@@ -122,6 +124,8 @@ export function SurveyBulkRooms({ surveyId, rooms, bulk }: { surveyId: string; r
                 <div className="grid gap-1.5">
                   <p className="text-[13px] font-semibold">{t("boardType")}</p>
                   <Pills label={t("boardType")} value={board} options={["keep", "normal", "moisture", "fire"] as const} render={(b) => (b === "keep" ? t("bulk_keep") : t(`board_${b}`))} onChange={setBoard} />
+                  <p className="text-[13px] font-semibold">{t("cAlong")}</p>
+                  <Pills label={t("cAlong")} value={dir} options={["keep", "auto", "length", "width"] as const} render={(d) => (d === "keep" ? t("bulk_keep") : t(`cAlong_${d}`))} onChange={setDir} />
                 </div>
               )}
               {tri(t("paintWalls"), walls, setWalls)}

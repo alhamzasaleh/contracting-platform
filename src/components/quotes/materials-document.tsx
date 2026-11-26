@@ -1,5 +1,5 @@
 "use client";
-import { ShoppingCart } from "lucide-react";
+import { Grid3x3, ShoppingCart } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand-logo";
@@ -240,7 +240,16 @@ export function MaterialsScreen({ org, doc, path, base = "" }: { org: DocOrg; do
             </Button>
           )}
         </div>
-        <PrintButton pdfHref={`/api/pdf/${current.split("/").slice(2).join("/")}`} />
+        <div className="flex flex-wrap items-center gap-2">
+          {doc.service === "gypsum" && (
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`${base}${path.replace(/\/materials$/, "/framing")}`}>
+                <Grid3x3 /> {t("framingLink")}
+              </Link>
+            </Button>
+          )}
+          <PrintButton pdfHref={`/api/pdf/${current.split("/").slice(2).join("/")}`} />
+        </div>
       </div>
       <div className="px-4 print:px-0">
         <MaterialsDocument org={org} doc={doc} />

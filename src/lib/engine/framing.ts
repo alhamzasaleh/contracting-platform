@@ -12,6 +12,8 @@ const r3 = (x: number) => Math.round(x * 1000) / 1000;
 export type FramingRoom = {
   id: string;
   name: string;
+  /** floor / villa (survey unit label), so two «bedroom 1» stay apart */
+  unit?: string | null;
   L: number;
   W: number;
   /** C channels run along the room's length or width */
@@ -35,7 +37,12 @@ export type GypsumFraming = {
   troughOmega: number;
   troughHangers: number;
   rooms: FramingRoom[];
+  /** which metal is in the bill of quantities (false = supplied by the client / labour only) */
+  listed: { c: boolean; omega: boolean; angle: boolean; hanger: boolean };
 };
+
+/** «name · floor» — the label the technician reads on the plan and the cut list. */
+export const roomLabel = (r: Pick<FramingRoom, "name" | "unit">) => (r.unit ? `${r.name} · ${r.unit}` : r.name);
 
 /** Offsets (m) of n grid lines from the start wall: one spacing apart, the first one spacing in. */
 export function linePositions(span: number, spacing: number): number[] {
@@ -71,7 +78,8 @@ export function cutPlan(runs: Piece[], stock: number): { bars: number; patterns:
     const whole = Math.floor((r.length + EPS) / stock);
     const rest = r.length - whole * stock;
     if (whole > 0) full.set(r.label, (full.get(r.label) ?? 0) + whole);
-    if (rest > EPS) rests.push({ length: r3(rest), label: r.label });
+    // exact rests, as cutToBars packs them (rounding first could fit one piece too many on a bar)
+    if (rest > EPS) rests.push({ length: rest, label: r.label });
   }
   // stable: longest first, then by room so a bar's pieces read in order
   rests.sort((a, b) => b.length - a.length || a.label.localeCompare(b.label));
@@ -87,10 +95,11 @@ export function cutPlan(runs: Piece[], stock: number): { bars: number; patterns:
   const byKey = new Map<string, CutPattern>();
   for (const b of bars) {
     const offcut = r3(Math.max(0, b.left));
-    const key = b.pieces.map((p) => `${p.length}@${p.label}`).join("|");
+    const pieces = b.pieces.map((p) => ({ length: r3(p.length), label: p.label }));
+    const key = pieces.map((p) => `${p.length}@${p.label}`).join("|");
     const hit = byKey.get(key);
     if (hit) hit.count += 1;
-    else byKey.set(key, { count: 1, pieces: b.pieces, offcut, full: false });
+    else byKey.set(key, { count: 1, pieces, offcut, full: false });
   }
   patterns.push(...byKey.values());
   const total = [...full.values()].reduce((a, b) => a + b, 0) + bars.length;
@@ -103,9 +112,10 @@ export function framingRuns(f: GypsumFraming, troughLabel: string) {
   const omega: Piece[] = [];
   const angle: Piece[] = [];
   for (const r of f.rooms) {
-    for (let i = 0; i < r.channels; i++) c.push({ length: r.channelLength, label: r.name });
-    for (let i = 0; i < r.omegas; i++) omega.push({ length: r.omegaLength, label: r.name });
-    angle.push({ length: r.L, label: r.name }, { length: r.L, label: r.name }, { length: r.W, label: r.name }, { length: r.W, label: r.name });
+    const label = roomLabel(r);
+    for (let i = 0; i < r.channels; i++) c.push({ length: r.channelLength, label });
+    for (let i = 0; i < r.omegas; i++) omega.push({ length: r.omegaLength, label });
+    angle.push({ length: r.L, label }, { length: r.L, label }, { length: r.W, label }, { length: r.W, label });
   }
   if (f.troughOmega > 0) omega.push({ length: f.troughOmega, label: troughLabel });
   return { c, omega, angle };
@@ -115,7 +125,9 @@ export function framingRuns(f: GypsumFraming, troughLabel: string) {
 export function hangerCut(f: GypsumFraming) {
   const piece = r3(f.hangingHeight + f.cutAllowance);
   const total = f.rooms.reduce((s, r) => s + r.hangers, 0) + f.troughHangers;
-  const perBar = piece > 0 ? Math.max(1, Math.floor((f.bars.hanger + EPS) / piece)) : 0;
+  // a piece longer than the bar can't come out of one: said apart (joined), never «1 per bar»
+  const longer = piece > f.bars.hanger + EPS;
+  const perBar = piece > 0 && !longer ? Math.floor((f.bars.hanger + EPS) / piece) : 0;
   // the bar count is the engine's own (cutIdentical), so it always matches the bill of quantities
-  return { piece, total, perBar, bars: cutIdentical(total, piece, f.bars.hanger).bars, offcut: r3(Math.max(0, f.bars.hanger - perBar * piece)) };
+  return { piece, total, perBar, longer, bars: cutIdentical(total, piece, f.bars.hanger).bars, offcut: longer ? 0 : r3(Math.max(0, f.bars.hanger - perBar * piece)) };
 }

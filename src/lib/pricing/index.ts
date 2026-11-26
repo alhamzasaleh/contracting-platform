@@ -136,7 +136,7 @@ export type Quantities = {
   ceilingColours: number;
   crackM: number;
   /** Measured gypsum rooms (real dimensions) — used instead of total ceiling areas when present. */
-  gypsumRooms?: { id: string; name: string; L: number; W: number; boardType: "normal" | "moisture" | "fire"; cAlong?: "length" | "width" }[];
+  gypsumRooms?: { id: string; name: string; L: number; W: number; boardType: "normal" | "moisture" | "fire"; cAlong?: "length" | "width"; unit?: string }[];
   /** frozen with a saved version: the framing the technician builds (rooms measured only) */
   framing?: GypsumFraming;
   // exterior

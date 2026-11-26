@@ -21,13 +21,17 @@ export type FramingDoc = {
   client: { name: string; city: string | null };
   service: ServiceKind;
   framing: GypsumFraming | null;
+  /** why there is no framing: the survey has totals only, or the version was saved before framing existed */
+  missing: "total" | "old" | null;
 };
 
 type Option = { version: number; label: string };
 const optionLabel = (options: unknown, version: number) => (Array.isArray(options) ? ((options as Option[]).find((o) => o.version === version)?.label ?? null) : null);
-const framingOf = (quantities: unknown): GypsumFraming | null => {
-  const f = (quantities as { framing?: GypsumFraming } | null)?.framing;
-  return f && Array.isArray(f.rooms) && f.rooms.length > 0 ? f : null;
+const framingOf = (quantities: unknown): Pick<FramingDoc, "framing" | "missing"> => {
+  const q = quantities as { framing?: GypsumFraming; gypsumRooms?: unknown[] } | null;
+  const f = q?.framing;
+  if (f && Array.isArray(f.rooms) && f.rooms.length > 0) return { framing: { ...f, listed: f.listed ?? { c: true, omega: true, angle: true, hanger: true } }, missing: null };
+  return { framing: null, missing: q?.gypsumRooms?.length ? "old" : "total" };
 };
 
 export async function loadQuoteFraming(session: SessionContext, number: string): Promise<FramingDoc> {
@@ -42,7 +46,7 @@ export async function loadQuoteFraming(session: SessionContext, number: string):
   if (!v) notFound();
   return {
     kind: "quote", number: q.number, quoteNumber: q.number, version: v.version, option: optionLabel(q.options, v.version), date: v.created_at,
-    client: client ?? { name: "—", city: null }, service: q.service, framing: framingOf(v.quantities),
+    client: client ?? { name: "—", city: null }, service: q.service, ...framingOf(v.quantities),
   };
 }
 
@@ -60,6 +64,6 @@ export async function loadProjectFraming(session: SessionContext, number: string
   if (!v) notFound();
   return {
     kind: "project", number: c.number, quoteNumber: quote?.number ?? "—", version: v.version, option: optionLabel(c.options, v.version), date: v.created_at,
-    client: client ?? { name: "—", city: null }, service: c.service as ServiceKind, framing: framingOf(v.quantities),
+    client: client ?? { name: "—", city: null }, service: c.service as ServiceKind, ...framingOf(v.quantities),
   };
 }

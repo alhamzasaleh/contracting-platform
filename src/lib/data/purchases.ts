@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const n = (v: unknown) => Number(v ?? 0);
 
-export type ProjectRef = { id: string; number: string; client: string; status: string };
+export type ProjectRef = { id: string; number: string; client: string; status: string; service?: string };
 export type PurchaseListItem = {
   id: string; number: string; status: PurchaseStatus; supplier: string | null; invoice_number: string | null; invoice_date: string | null;
   project: ProjectRef | null; total: number; created_at: string;
@@ -49,11 +49,11 @@ export type QuoteListLine = ListLine & { bought: number; remaining: number };
 async function projectsMap(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string, canSee: boolean) {
   if (!canSee) return new Map<string, ProjectRef>();
   const [{ data: contracts }, { data: clients }] = await Promise.all([
-    supabase.from("contracts").select("id, number, client_id, status").eq("organization_id", orgId).order("created_at", { ascending: false }),
+    supabase.from("contracts").select("id, number, client_id, status, service").eq("organization_id", orgId).order("created_at", { ascending: false }),
     supabase.from("clients").select("id, name").eq("organization_id", orgId),
   ]);
   const names = new Map((clients ?? []).map((c) => [c.id, c.name]));
-  return new Map((contracts ?? []).map((c) => [c.id, { id: c.id, number: c.number, client: names.get(c.client_id) ?? "—", status: c.status }]));
+  return new Map((contracts ?? []).map((c) => [c.id, { id: c.id, number: c.number, client: names.get(c.client_id) ?? "—", status: c.status, service: c.service }]));
 }
 
 /** Which project pages the viewer may open: the contract (quotes.view), else the project (projects.view). */

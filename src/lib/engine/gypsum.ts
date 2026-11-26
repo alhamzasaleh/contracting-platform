@@ -56,7 +56,7 @@ export type GypsumParams = {
 
 import type { FramingRoom, GypsumFraming } from "./framing";
 
-export type CeilingRoom = { id: string; name: string; L: number; W: number; boardType: BoardType; zone?: string; cAlong?: "length" | "width" };
+export type CeilingRoom = { id: string; name: string; L: number; W: number; boardType: BoardType; zone?: string; cAlong?: "length" | "width"; unit?: string | null };
 
 /**
  * Grid lines across a span (owner, Nov 2026): channels and omegas are a square grid at one spacing;
@@ -198,7 +198,7 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
       areaByType[r.boardType] += area;
       perimeter += 2 * (r.L + r.W);
       const g = ceilingLayout(r, p, cat);
-      layouts.push({ id: r.id, name: r.name, L: r.L, W: r.W, ...g });
+      layouts.push({ id: r.id, name: r.name, unit: r.unit ?? null, L: r.L, W: r.W, ...g });
       for (let i = 0; i < g.channels; i++) cRuns.push(g.channelLength);
       for (let i = 0; i < g.omegas; i++) omegaRuns.push(g.omegaLength);
       hangers += g.hangers;
@@ -376,8 +376,10 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
   // Components the owner marked as not included for this client are left out.
   const ROLE_OF: Record<string, string> = { studs: "stud", tracks: "track", vertical_c: "vertical_hanger" };
   const included = (l: Line) => l.group !== "material" || input.scope?.[ROLE_OF[l.key] ?? l.key] !== false;
+  const kept = lines.filter(included);
+  const has = (k: string) => kept.some((l) => l.key === k);
   return {
-    lines: lines.filter(included),
+    lines: kept,
     areas: { ceilings: ceilingArea, partitions: partitionArea },
     status: measured || !(input.quickAreas && ceilingArea > 0) ? "measured" : "estimated",
     warnings,
@@ -388,6 +390,7 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
             grid: p.cSpacing, hangerSpacing: p.hangerSpacing, hangingHeight: p.hangingHeight, cutAllowance: p.cutAllowance, suspension: p.suspension,
             bars: { c: cat.cChannel.length, omega: cat.omega.length, angle: cat.edgeAngle.length, hanger: p.suspension === "rod" ? cat.rod.length : cat.verticalHanger.length },
             troughOmega: troughM * p.trough.omegaPerM, troughHangers: ceilInt(troughM * p.trough.hangersPerM), rooms: layouts,
+            listed: { c: has("c_channel"), omega: has("omega"), angle: has("edge_angle"), hanger: has(p.suspension === "rod" ? "rod" : "vertical_c") },
           } satisfies GypsumFraming,
         }
       : {}),
