@@ -5,7 +5,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { DocNo } from "@/components/doc-no";
 import { useListSep, useUnitText } from "@/components/forms/form-kit";
 import type { FramingDoc } from "@/lib/data/framing";
-import { cutPlan, framingRuns, hangerCut, hangerPositions, linePositions, roomLabel, type FramingRoom, type GypsumFraming } from "@/lib/engine";
+import { cutPlan, framingRuns, hangerCut, linePositions, roomHangerPositions, roomLabel, type FramingRoom, type GypsumFraming } from "@/lib/engine";
 import { useFormatter } from "@/components/formatter-provider";
 import { useQtyNumber } from "./buy-text";
 import { PrintButton } from "./print-button";
@@ -71,7 +71,7 @@ export function FramingDocument({ org, doc }: { org: DocOrg; doc: FramingDoc }) 
             </div>
           </section>
           <CutSection f={f} />
-          <p className="text-[12px] text-doc-muted">{t("footnote", { grid: qn(cm(f.grid)) })}</p>
+          <p className="text-[12px] text-doc-muted">{t(f.hangerRule === "inside" ? "footnote" : "footnoteOld", { grid: qn(cm(f.grid)) })}</p>
           {Object.values(f.listed).some((x) => !x) && <p className="text-[12px] font-semibold">{t("notListedNote")}</p>}
         </>
       )}
@@ -145,7 +145,7 @@ export function RoomDrawing({ r, f }: { r: FramingRoom; f: GypsumFraming }) {
   // C lines: across the other side; omegas: across the C
   const cPos = linePositions(along ? r.W : r.L, f.grid).map(cm);
   const oPos = linePositions(along ? r.L : r.W, f.grid).map(cm);
-  const hPos = hangerPositions(along ? r.L : r.W, f.hangerSpacing).map(cm);
+  const hPos = roomHangerPositions(r, f).map(cm);
   const first = cPos[0];
   return (
     <svg viewBox={`${-pad} ${-pad} ${L + 2 * pad} ${W + 2 * pad}`} className="h-auto w-full" role="img" aria-label={t("drawingLabel", { name: roomLabel(r) })}>

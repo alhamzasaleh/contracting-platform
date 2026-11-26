@@ -1606,7 +1606,9 @@
     "unitPrice": "Unit price",
     "role": "Line",
     "walls": "Walls",
-    "ceilings": "Ceilings"
+    "ceilings": "Ceilings",
+    "hangerSpacing": "Hanger spacing",
+    "troughHangers": "Light-trough hangers"
   },
   "contract": {
     "invoicesTitle": "Invoices",
@@ -3107,6 +3109,7 @@
     "noneProject": "This project is on a quote version priced before the framing plan existed, and the quote is frozen after the contract. New projects get the plan.",
     "notListed": "not in the bill of quantities",
     "notListedNote": "Items marked «not in the bill of quantities» are supplied by the client or excluded from supply, but drawn for the technician.",
-    "hangerLonger": "{total} pieces of {piece} cm, longer than the bar ({bar} cm): each hanger needs a joint."
+    "hangerLonger": "{total} pieces of {piece} cm, longer than the bar ({bar} cm): each hanger needs a joint.",
+    "footnoteOld": "The first channel and omega sit {grid} cm from the wall. This version was priced before the «hangers inside the channel only» rule, so hangers are drawn at their priced count up to the channel ends."
   }
 }

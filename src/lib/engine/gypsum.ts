@@ -212,7 +212,8 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
     perimeter = ceilingArea * p.perimeterFactor;
     cRuns.push(ceilingArea / p.cSpacing);
     omegaRuns.push(ceilingArea / p.omegaSpacing);
-    hangers = ceilInt(ceilingArea / (p.cSpacing * p.hangerSpacing));
+    // none at the channel ends (edge angle, owner Nov 2026): leave out the edge strip of the estimated perimeter
+    hangers = Math.max(0, ceilInt(ceilingArea / (p.cSpacing * p.hangerSpacing) - (perimeter / 2) * (1 / p.cSpacing + 1 / p.hangerSpacing) / 2));
     clips = ceilInt(ceilingArea / (p.cSpacing * p.omegaSpacing));
     angleRuns.push(perimeter);
     if (ceilingArea > 0) warnings.push("quick_estimate");
@@ -220,7 +221,8 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
 
   const troughM = input.troughM ?? 0;
   const shadowM = input.shadowM ?? 0;
-  hangers += ceilInt(troughM * p.trough.hangersPerM);
+  const troughHangers = ceilInt(troughM * p.trough.hangersPerM);
+  hangers += troughHangers;
   if (troughM > 0) omegaRuns.push(troughM * p.trough.omegaPerM);
   const troughBoardArea = troughM * p.trough.boardPerM;
 
@@ -279,12 +281,12 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
       lines.push(barLine("omega", "قطاع أوميغا", cat.omega, cutToBars(omegaRuns, cat.omega.length), measured ? "per room: lines one spacing apart, the first one spacing from the wall, across the channels + trough m × extra omega; cut onto bars" : "ceiling area ÷ grid spacing + trough m × extra omega, onto bars", { grid: p.omegaSpacing, troughExtra: troughM * p.trough.omegaPerM }, "ceilings"));
       const pieceLen = p.hangingHeight + p.cutAllowance;
       if (p.suspension === "rod") {
-        lines.push(barLine("rod", "سيخ تعليق مسنن", cat.rod, cutIdentical(hangers, pieceLen, cat.rod.length), "hangers × (hanging height + cutting allowance), cut onto rods", { hangers, pieceLength: pieceLen }, "ceilings"));
-        lines.push(boxLine("washers", "وردات وصواميل", cat.washers, hangers, "one set per hanger", { hangers }, "ceilings"));
+        lines.push(barLine("rod", "سيخ تعليق مسنن", cat.rod, cutIdentical(hangers, pieceLen, cat.rod.length), "hangers × (hanging height + cutting allowance), cut onto rods", { hangers, hangerSpacing: p.hangerSpacing, troughHangers, pieceLength: pieceLen }, "ceilings"));
+        lines.push(boxLine("washers", "وردات وصواميل", cat.washers, hangers, "one set per hanger", { hangers, hangerSpacing: p.hangerSpacing, troughHangers }, "ceilings"));
       } else {
-        lines.push(barLine("vertical_c", "علاقات C رأسية", cat.verticalHanger, cutIdentical(hangers, pieceLen, cat.verticalHanger.length), "hangers × (hanging height + cutting allowance), cut onto C bars", { hangers, pieceLength: pieceLen }, "ceilings"));
+        lines.push(barLine("vertical_c", "علاقات C رأسية", cat.verticalHanger, cutIdentical(hangers, pieceLen, cat.verticalHanger.length), "hangers × (hanging height + cutting allowance), cut onto C bars", { hangers, hangerSpacing: p.hangerSpacing, troughHangers, pieceLength: pieceLen }, "ceilings"));
       }
-      lines.push(boxLine("anchors", "فيشر تثبيت", cat.anchors, hangers, "one anchor per hanger", { hangers }, "ceilings"));
+      lines.push(boxLine("anchors", "فيشر تثبيت", cat.anchors, hangers, "one anchor per hanger", { hangers, hangerSpacing: p.hangerSpacing, troughHangers }, "ceilings"));
       lines.push(boxLine("clips", "كلبسات", cat.clips, clips, "one clip at each C × omega crossing", { crossings: clips }, "ceilings"));
       lines.push(barLine("edge_angle", "زاوية محيط", cat.edgeAngle, cutToBars(angleRuns, cat.edgeAngle.length), measured ? "room sides cut onto angle bars" : "estimated perimeter = area × 0.7, onto bars", { perimeter: Math.round(perimeter * 100) / 100 }, "ceilings"));
       lines.push(boxLine("angle_screws", "مسامير الزاوية", cat.angleScrews, perimeter * p.angleScrewsPerM, "perimeter × screws per m", { perimeter: Math.round(perimeter * 100) / 100, perM: p.angleScrewsPerM }, "ceilings"));
@@ -390,7 +392,7 @@ export function computeGypsum(input: GypsumInput, cat: GypsumCatalogue, p: Gypsu
           framing: {
             grid: p.cSpacing, hangerSpacing: p.hangerSpacing, hangingHeight: p.hangingHeight, cutAllowance: p.cutAllowance, suspension: p.suspension,
             bars: { c: cat.cChannel.length, omega: cat.omega.length, angle: cat.edgeAngle.length, hanger: p.suspension === "rod" ? cat.rod.length : cat.verticalHanger.length },
-            troughOmega: troughM * p.trough.omegaPerM, troughHangers: ceilInt(troughM * p.trough.hangersPerM), rooms: layouts,
+            troughOmega: troughM * p.trough.omegaPerM, troughHangers, rooms: layouts, hangerRule: "inside",
             listed: { c: has("c_channel"), omega: has("omega"), angle: has("edge_angle"), hanger: has(p.suspension === "rod" ? "rod" : "vertical_c") },
           } satisfies GypsumFraming,
         }

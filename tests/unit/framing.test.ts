@@ -129,3 +129,24 @@ describe("review fixes (framing)", () => {
     expect(noAngle.framing!.listed.angle).toBe(false);
   });
 });
+
+describe("hangers inside the channel (review)", () => {
+  it("new framings say they use the inside rule; the plan of an older one keeps its own hanger count", async () => {
+    const { roomHangerPositions } = await import("@/lib/engine");
+    expect(villa.framing!.hangerRule).toBe("inside");
+    const room = villa.framing!.rooms.find((r) => r.L === 5 && r.W === 5)!;
+    expect(roomHangerPositions(room, villa.framing!)).toEqual([1, 2, 3, 4]);
+    // saved before the rule: 6 per channel on 5 m, ends included
+    const old = { ...villa.framing!, hangerRule: undefined };
+    expect(roomHangerPositions({ ...room, hangers: room.channels * 6 }, old)).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+  it("total-area estimate leaves out the hangers at the channel ends, near the measured count", () => {
+    const quick = computeGypsum({ quickAreas: { normal: 400 } }, GYPSUM_CATALOGUE, GYPSUM_PARAMS);
+    // 400 ÷ (0.4 × 1) = 1000, minus the edge strip: estimated perimeter 280 ÷ 2 × (1/0.4 + 1/1) ÷ 2 = 245
+    expect(quick.lines.find((l) => l.key === "rod")!.inputs.hangers).toBe(755);
+  });
+  it("the hanger lines say the hanger spacing and the trough share", () => {
+    const rod = villa.lines.find((l) => l.key === "rod")!;
+    expect(rod.inputs).toMatchObject({ hangers: 860, hangerSpacing: 1, troughHangers: 60 });
+  });
+});

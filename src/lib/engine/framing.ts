@@ -37,6 +37,8 @@ export type GypsumFraming = {
   troughOmega: number;
   troughHangers: number;
   rooms: FramingRoom[];
+  /** "inside" = hangers inside the channel only (owner, Nov 2026); missing = saved before: ends included */
+  hangerRule?: "inside";
   /** which metal is in the bill of quantities (false = supplied by the client / labour only) */
   listed: { c: boolean; omega: boolean; angle: boolean; hanger: boolean };
 };
@@ -56,6 +58,19 @@ export function linePositions(span: number, spacing: number): number[] {
 /** Hanger offsets along one channel: inside only, one spacing apart (the ends rest on the edge angle) — the engine's count. */
 export function hangerPositions(run: number, spacing: number): number[] {
   return linePositions(run, spacing);
+}
+
+/**
+ * The hangers drawn on one channel of a room: the inside rule, or — for a framing saved before it —
+ * its own frozen count evenly from end to end, so the plan always shows what was priced.
+ */
+export function roomHangerPositions(r: FramingRoom, f: GypsumFraming): number[] {
+  const run = r.cAlong === "length" ? r.L : r.W;
+  if (f.hangerRule === "inside") return hangerPositions(run, f.hangerSpacing);
+  const per = r.channels > 0 ? Math.round(r.hangers / r.channels) : 0;
+  if (per <= 0) return [];
+  if (per === 1) return [r3(run / 2)];
+  return Array.from({ length: per }, (_, i) => r3((run * i) / (per - 1)));
 }
 
 export type Piece = { length: number; label: string };
