@@ -70,8 +70,8 @@ describe("buildEngineConfig", () => {
     };
     const r = computeGypsum(input, cfg.gypsum.catalogue, cfg.gypsum.params);
     const p = priceProject([r], { contingencyPercent: 5, marginPercent: 28, roundingStep: 1, method: "unit", vatPercent: 0 });
-    expect(p.cost).toBeCloseTo(24549, 6);
-    expect(p.subtotal).toBe(35840);
+    expect(p.cost).toBeCloseTo(24039, 6);
+    expect(p.subtotal).toBe(35440);
     expect(r.lines.find((l) => l.key === "board_normal")?.productId).toBe("board_normal");
   });
 

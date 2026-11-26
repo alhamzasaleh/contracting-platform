@@ -84,7 +84,8 @@ export function ceilingLayout(
     const [run, across] = cAlong === "length" ? [r.L, r.W] : [r.W, r.L];
     const channels = gridLines(across, p.cSpacing);
     const omegas = gridLines(run, p.omegaSpacing);
-    return { cAlong, channels, omegas, channelLength: run, omegaLength: across, hangers: channels * (ceilInt(run / p.hangerSpacing) + 1) };
+    return { cAlong, channels, omegas, channelLength: run, omegaLength: across, // the channel ends rest on the edge angle (owner, Nov 2026): hangers inside only, the first one spacing from the wall
+      hangers: channels * gridLines(run, p.hangerSpacing) };
   };
   if (r.cAlong) return build(r.cAlong);
   const piece = p.hangingHeight + p.cutAllowance;

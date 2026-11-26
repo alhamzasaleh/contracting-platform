@@ -3101,7 +3101,7 @@
     "cutHangers_rod": "Hanger rods",
     "cutHangers_vertical_c": "Vertical C hangers",
     "hangerCut": "{total} pieces of {piece} cm: {per} from each bar, {offcut} cm offcut.",
-    "footnote": "The first channel and omega sit {grid} cm from the wall; the edge angle carries the wall side. Drawn from the priced quote version itself, so the counts of items in the bill of quantities match it.",
+    "footnote": "The first channel and omega sit {grid} cm from the wall, and hangers are inside the channel only (the first one hanger-spacing from the wall); the edge angle carries the channel ends at the walls. Drawn from the priced quote version itself, so the counts of items in the bill of quantities match it.",
     "toMaterials": "Bill of quantities",
     "noneTotal": "The survey was entered as total areas: the plan needs measured rooms. Add the rooms to the survey, then price the quote.",
     "noneProject": "This project is on a quote version priced before the framing plan existed, and the quote is frozen after the contract. New projects get the plan.",

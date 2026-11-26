@@ -21,9 +21,11 @@ describe("framing document (owner, Nov 2026)", () => {
     expect(linePositions(0, 0.4)).toEqual([]);
   });
 
-  it("spreads the hangers evenly along a channel, as many as the engine counts", () => {
-    expect(hangerPositions(5, 1)).toEqual([0, 1, 2, 3, 4, 5]);
-    expect(hangerPositions(4.5, 1)).toHaveLength(6);
+  it("puts hangers inside the channel only, one spacing apart, as many as the engine counts", () => {
+    // none at the channel ends: the edge angle carries them (owner, Nov 2026)
+    expect(hangerPositions(5, 1)).toEqual([1, 2, 3, 4]);
+    expect(hangerPositions(4.5, 1)).toEqual([1, 2, 3, 4]);
+    expect(hangerPositions(0.8, 1)).toEqual([0.4]);
   });
 
   it("cuts exactly the bars of the bill of quantities, and says which room each piece is for", () => {
@@ -54,7 +56,7 @@ describe("framing document (owner, Nov 2026)", () => {
 
   it("hanger pieces: as many rods as the bill of quantities", () => {
     const h = hangerCut(villa.framing!);
-    expect(h).toMatchObject({ piece: 0.55, total: 1145, perBar: 5, bars: qty("rod"), offcut: 0.25 });
+    expect(h).toMatchObject({ piece: 0.55, total: 860, perBar: 5, bars: qty("rod"), offcut: 0.25 });
   });
 });
 
@@ -76,8 +78,8 @@ describe("survey → pricing → frozen version", () => {
     const q = { ...EMPTY_QUANTITIES, gypsumRooms: [{ id: "a", name: "a", L: 6, W: 3, boardType: "normal" as const }] };
     const out = priceSelection(sel, q, c);
     const frozen = freezeFraming(q, out);
-    expect(frozen.framing?.rooms[0]).toMatchObject({ id: "a", cAlong: "length" });
-    expect(frozen.gypsumRooms?.[0].cAlong).toBe("length");
+    expect(frozen.framing?.rooms[0]).toMatchObject({ id: "a", cAlong: "width" }); // 6 × 3: across is cheaper (fewer hangers)
+    expect(frozen.gypsumRooms?.[0].cAlong).toBe("width");
     expect(q.gypsumRooms[0]).not.toHaveProperty("cAlong"); // the input is not changed
     expect(freezeFraming({ ...EMPTY_QUANTITIES, walls: 10 }, priceSelection(defaultSelection("interior", c.catalogue), { ...EMPTY_QUANTITIES, walls: 10 }, c)).framing).toBeUndefined();
   });

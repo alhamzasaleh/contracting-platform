@@ -53,11 +53,9 @@ export function linePositions(span: number, spacing: number): number[] {
   return Array.from({ length: n }, (_, i) => r3((i + 1) * spacing));
 }
 
-/** Hanger offsets along one channel (same count as the engine: ceil(run ÷ spacing) + 1, evenly spaced). */
+/** Hanger offsets along one channel: inside only, one spacing apart (the ends rest on the edge angle) — the engine's count. */
 export function hangerPositions(run: number, spacing: number): number[] {
-  if (run <= 0 || spacing <= 0) return [];
-  const n = Math.ceil(run / spacing - 1e-9) + 1;
-  return Array.from({ length: n }, (_, i) => r3((run * i) / (n - 1)));
+  return linePositions(run, spacing);
 }
 
 export type Piece = { length: number; label: string };

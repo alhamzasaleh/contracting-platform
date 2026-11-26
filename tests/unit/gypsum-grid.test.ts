@@ -23,22 +23,24 @@ describe("gridLines", () => {
 
 describe("ceilingLayout", () => {
   const p = { cSpacing: 0.4, omegaSpacing: 0.4, hangerSpacing: 1, hangingHeight: 0.4, cutAllowance: 0.15, suspension: "rod" as const };
-  it("channels across the short side cost less: fewer hangers", () => {
+  it("picks the cheaper way: same metal both ways here, fewer hangers with short channels", () => {
+    // 6 × 3: along the length 7 C × 5 hangers = 35; across 14 C × 2 hangers = 28 (C and omega metres swap, equal)
     const a = ceilingLayout({ L: 6, W: 3 }, p, GYPSUM_CATALOGUE);
-    expect(a.cAlong).toBe("length"); // C runs 6 m long, spaced across the 3 m
-    expect(a.channels).toBe(gridLines(3, 0.4));
-    expect(a.omegas).toBe(gridLines(6, 0.4));
-    expect(a.hangers).toBe(a.channels * (Math.ceil(6 / 1) + 1));
+    expect(a.cAlong).toBe("width");
+    expect(a.channels).toBe(gridLines(6, 0.4));
+    expect(a.omegas).toBe(gridLines(3, 0.4));
+    // owner (Nov 2026): the channel ends rest on the edge angle — hangers only inside, the first one spacing from the wall
+    expect(a.hangers).toBe(a.channels * gridLines(3, 1));
   });
   it("the same room turned round gives the same layout turned round", () => {
     const a = ceilingLayout({ L: 3, W: 6 }, p, GYPSUM_CATALOGUE);
-    expect(a.cAlong).toBe("width");
-    expect(a.channels).toBe(gridLines(3, 0.4));
+    expect(a.cAlong).toBe("length");
+    expect(a.channels).toBe(gridLines(6, 0.4));
   });
   it("the owner's choice wins over the cheaper one", () => {
-    const a = ceilingLayout({ L: 6, W: 3, cAlong: "width" }, p, GYPSUM_CATALOGUE);
-    expect(a.cAlong).toBe("width");
-    expect(a.channels).toBe(gridLines(6, 0.4));
+    const a = ceilingLayout({ L: 6, W: 3, cAlong: "length" }, p, GYPSUM_CATALOGUE);
+    expect(a.cAlong).toBe("length");
+    expect(a.channels).toBe(gridLines(3, 0.4));
   });
 });
 
@@ -63,7 +65,7 @@ describe("pricing — one grid spacing for C and omega (owner: square grid 40 / 
     const a = priceSelection({ ...base, options: { ...base.options, cSpacing: 1, omegaSpacing: 0.4 } }, q, c);
     const b = priceSelection({ ...base, options: { ...base.options, cSpacing: 0.4, omegaSpacing: 0.4 } }, q, c);
     expect(a.result.lines.find((l) => l.key === "c_channel")?.qty).toBe(b.result.lines.find((l) => l.key === "c_channel")?.qty);
-    expect((a.result as { framing?: { rooms: { channels: number }[] } }).framing?.rooms[0].channels).toBe(gridLines(3, 0.4));
+    expect((a.result as { framing?: { rooms: { channels: number }[] } }).framing?.rooms[0].channels).toBe(gridLines(6, 0.4)); // 6 × 3 runs C across
   });
 });
 
