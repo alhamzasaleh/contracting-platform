@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import { layoutIssues } from "./layout-check";
+import { layoutIssues, printIssues } from "./layout-check";
 
 /**
  * Layout guard: every design-preview page, at every phone / iPad / desktop
@@ -172,6 +172,27 @@ test.describe("layout on every screen size", () => {
         }
       }
       expect([...new Set(issues)], `layout problems on ${route}`).toEqual([]);
+    });
+  }
+});
+
+/**
+ * Printed documents (quote, contract, invoice, receipt, bill of quantities, payslips…): print media at
+ * the printable width of an A4 page with the PDF margins (12 mm each side) — portrait 718 px, or
+ * 1047 px when the document asks for a landscape page.
+ */
+test.describe("printed documents fit the page", () => {
+  test.describe.configure({ mode: "parallel" });
+  for (const route of previewRoutes().filter((r) => r.includes("/print/") || /voucher|receipt|handover|\/invoices\/(detail|tax)$|\/contracts\/detail$|\/quotations\/detail$/.test(r))) {
+    test(`print ${route}`, async ({ page }) => {
+      test.setTimeout(5 * 60_000);
+      await page.setViewportSize({ width: 718, height: 1000 });
+      await open(page, route);
+      const landscape = await page.evaluate(() => [...document.querySelectorAll("style")].some((s) => /size:\s*A4 landscape/.test(s.textContent ?? "")));
+      if (landscape) await page.setViewportSize({ width: 1047, height: 700 });
+      await page.emulateMedia({ media: "print" });
+      await settle(page);
+      expect(await page.evaluate(printIssues), `cut off when printed: ${route}`).toEqual([]);
     });
   }
 });

@@ -140,13 +140,14 @@ export function MaterialsDocument({ org, doc }: { org: DocOrg; doc: MaterialsDoc
                 </tr>
               ))}
             </tbody>
+            {/* a second tbody, not tfoot: a printed tfoot repeats at the foot of every page and reads as that page's total */}
             {doc.prices && (
-              <tfoot>
+              <tbody>
                 <tr className="font-bold">
                   <td colSpan={doc.bought ? 10 : 8} className="px-2.5 pt-3 text-end">{t("total")}</td>
                   <td className="whitespace-nowrap px-2.5 pt-3 text-end tabular-nums">{fmt.money(total)}</td>
                 </tr>
-              </tfoot>
+              </tbody>
             )}
           </table>
 

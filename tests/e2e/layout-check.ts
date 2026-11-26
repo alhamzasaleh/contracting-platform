@@ -396,3 +396,21 @@ export function layoutIssues(): string[] {
   }
   return [...new Set(out)];
 }
+
+/**
+ * Printed documents (print media, the page's printable width): nothing can be scrolled on paper, so
+ * any box that is not `overflow: visible` and holds wider content cuts it off — a PDF missing its
+ * last columns (the priced bill of quantities lost its cost column, Nov 2026).
+ */
+export function printIssues(): string[] {
+  const out: string[] = [];
+  const name = (n: Element) => (n.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40);
+  for (const n of document.querySelectorAll("body *")) {
+    const s = getComputedStyle(n);
+    if (s.display === "none" || s.visibility === "hidden") continue;
+    if (s.overflowX === "visible" || s.textOverflow === "ellipsis" || (n as HTMLElement).clientWidth <= 2) continue;
+    if (n.scrollWidth > (n as HTMLElement).clientWidth + 1) out.push(`cut off on paper: ${n.tagName.toLowerCase()} «${name(n)}» (${n.scrollWidth} > ${(n as HTMLElement).clientWidth})`);
+  }
+  if (document.documentElement.scrollWidth > window.innerWidth + 1) out.push(`wider than the page (${document.documentElement.scrollWidth} > ${window.innerWidth})`);
+  return out;
+}

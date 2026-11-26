@@ -819,9 +819,9 @@ export function PricingView({
         </div>
 
         <div className="@container overflow-hidden rounded-2xl border border-border bg-surface">
-          {/* narrow (phone, half an iPad): one block per work type — five columns don't fit and the
-              last ones (price per m², total) would be cut off */}
-          <ul className="divide-y divide-border @2xl:hidden">
+          {/* narrow box (phone, or the results column next to the form on a desktop): one block per
+              work type — five columns don't fit and the last ones (price per m², total) would be cut off */}
+          <ul className="divide-y divide-border @xl:hidden">
             {price.byWorkType.map((w) => (
               <li key={w.workType} className="grid gap-2 px-4 py-3">
                 <p className="flex flex-wrap items-baseline justify-between gap-2">
@@ -847,7 +847,7 @@ export function PricingView({
               </li>
             ))}
           </ul>
-          <table className="hidden w-full text-[14px] @2xl:table">
+          <table className="hidden w-full text-[14px] @xl:table">
             <thead className="bg-surface-sunken/60 text-[12px] text-muted-foreground">
               <tr>
                 <th className="whitespace-nowrap px-4 py-2.5 text-start font-bold">
