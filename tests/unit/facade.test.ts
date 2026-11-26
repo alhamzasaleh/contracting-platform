@@ -62,7 +62,7 @@ describe("the lines of the drawing (exact positions for measuring)", () => {
         [200, 120, 200, 380], // vertical, 9.17 m
         [200.2, 130, 200.2, 200], // same x (merged)
         [450, 300, 450, 305], // too short
-        [150, 350, 400, 350], // horizontal, 8.8 m (a line across most of the region would be a level line)
+        [150, 350, 480, 350], // horizontal, 11.6 m
         [600, 120, 600, 380], // outside
         [210, 150, 260, 190], // diagonal
       ],
@@ -173,7 +173,7 @@ describe("heights come from the printed levels, never guessed (owner: «الار
       { s: "GROUND FLOOR FINISH 0.50M", x: 0, y: 7 }, { s: "GARDEN LEVEL 35 CM", x: 0, y: 8 }, { s: "PAVEMENT LEVEL 20 CM", x: 0, y: 9 },
       { s: "STREET LEVEL 00 CM", x: 0, y: 10 }, { s: "W12", x: 0, y: 11 },
     ];
-    expect(printedLevels(words)).toEqual([
+    expect(printedLevels(words).map(({ name, m }) => ({ name, m }))).toEqual([
       { name: "STREET LEVEL", m: 0 }, { name: "PAVEMENT LEVEL", m: 0.2 }, { name: "GARDEN LEVEL", m: 0.35 }, { name: "GROUND FLOOR FINISH", m: 0.5 },
       { name: "FENCE WALL LINE", m: 3.7 }, { name: "FIRST FLOOR FINISH", m: 4.7 }, { name: "ROOF FINISH", m: 8.7 }, { name: "PARPET LINE", m: 9.8 },
       { name: "ROOF TOP", m: 12 }, { name: "ROOF PARAPET LINE", m: 12.3 },
@@ -192,12 +192,49 @@ describe("heights come from the printed levels, never guessed (owner: «الار
     });
     expect(f.parts.map((p) => p.height_m)).toEqual([9.6, 3.6, 3]);
   });
+  it("other ways of printing a level: a sign, a comma, brackets, «منسوب», FFL, the number first; sizes and unclear numbers are not levels", async () => {
+    const { printedLevels } = await import("@/lib/survey/facade");
+    const words = [
+      { s: "FFL +4.70" }, { s: "منسوب السطح 8.70م" }, { s: "±0.00 STREET LEVEL" }, { s: "ROOF FINISH 8,70M" }, { s: "FIRST FLOOR LEVEL (+4.70)" },
+      { s: "BASEMENT LEVEL - 3.20M" }, { s: "GROUND FLOOR FINISH +0.50M" }, { s: "ROOF LEVEL 870" }, { s: "W1 1.20" }, { s: "FENCE HEIGHT 3.00 M" }, { s: "LINTEL LINE 2.40 M" },
+    ];
+    expect(printedLevels(words)).toEqual([
+      { name: "BASEMENT LEVEL", m: -3.2 }, { name: "STREET LEVEL", m: 0 }, { name: "GROUND FLOOR FINISH", m: 0.5 },
+      { name: "FFL", m: 4.7 }, { name: "FIRST FLOOR LEVEL", m: 4.7 }, { name: "منسوب السطح", m: 8.7 }, { name: "ROOF FINISH", m: 8.7 },
+    ]);
+  });
+  it("with the sheet's levels, from / to count only when printed there; the levels used are noted", () => {
+    const levels = [{ name: "PAVEMENT LEVEL", m: 0.2 }, { name: "PARPET LINE", m: 9.8 }, { name: "ROOF PARAPET LINE", m: 12.3 }];
+    const f = cleanFacade(
+      {
+        code: "E01", direction: "east",
+        parts: [
+          { name: "الكتلة الرئيسية", material: "paint", width_m: 15, height_m: 8.2, from_m: 0.2, to_m: 9.8, count: 1, fence: false },
+          { name: "الملحق", material: "paint", width_m: 6, height_m: 2.5, from_m: 9.8, to_m: 12.31, count: 1, fence: false },
+          { name: "مخترع", material: "paint", width_m: 2, height_m: 3, from_m: 1, to_m: 7, count: 1, fence: false },
+        ],
+        openings: [],
+        notes: ["x"],
+      },
+      levels,
+    );
+    expect(f.parts.map((p) => p.height_m)).toEqual([9.6, 2.5, 3]);
+    expect(f.notes[0]).toBe("الكتلة الرئيسية: 0.20 → 9.80 · الملحق: 9.80 → 12.30");
+    expect(f.notes[1]).toContain("مخترع");
+    expect(f.notes).toContain("x");
+    // no levels printed on the sheet: a from / to can't come from it, the read height stays
+    expect(cleanFacade({ code: "E01", direction: null, parts: [{ name: "a", material: "paint", width_m: 5, height_m: 7, from_m: 0, to_m: 11.5, count: 1, fence: false }], openings: [], notes: [] }, []).parts[0].height_m).toBe(7);
+  });
 });
 
-describe("level lines across the whole sheet are not building edges", () => {
-  it("horizontal lines spanning most of the region are left out of the inventory", () => {
+describe("level lines are named, never dropped (a building edge can be as long)", () => {
+  it("keeps every long horizontal line; one at a printed level carries its name", async () => {
+    const { markLevelLines } = await import("@/lib/survey/facade");
     const region = { x0: 0, y0: 0, x1: 1000, y1: 400 };
-    const inv = lineInventory([[5, 100, 995, 100], [300, 200, 700, 200]], region, 0.0352777);
-    expect(inv.horizontal.map((l) => l.at)).toEqual([7.06]);
+    const inv = lineInventory([[5, 100, 995, 100], [150, 350, 980, 350]], region, 0.0352777);
+    expect(inv.horizontal.map((l) => l.at).sort()).toEqual([12.35, 3.53]);
+    const marked = markLevelLines(inv.horizontal, [{ name: "ROOF FINISH", y: 3.45 }, { name: "PAVEMENT LEVEL", y: 11.5 }, { name: "GROUND FLOOR FINISH" }]);
+    expect(marked.find((l) => l.at === 3.53)?.level).toBe("ROOF FINISH");
+    expect(marked.find((l) => l.at === 12.35)?.level).toBeUndefined();
   });
 });

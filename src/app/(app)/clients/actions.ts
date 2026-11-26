@@ -14,7 +14,7 @@ import { bulkRoomsSchema, surveyTotalsSchema } from "@/lib/survey/schema";
 import { deleteError } from "@/lib/deletion";
 import { readPlan, type PlanTile } from "@/lib/ai/plan";
 import { readFacade } from "@/lib/ai/facade";
-import { cleanFacade, elevationSheetSchema, facadesSchema, facadesTotal, type ElevationSheet, type Facade } from "@/lib/survey/facade";
+import { cleanFacade, elevationSheetSchema, printedLevels, facadesSchema, facadesTotal, type ElevationSheet, type Facade } from "@/lib/survey/facade";
 import { cleanPlanDraft, planSheetSchema, PLAN_SHEET_MAX_BYTES, PLAN_TILE_MAX_BYTES, type PlanSheet } from "@/lib/survey/plan";
 import { clientDbError } from "@/lib/marketers";
 import { pinToSave, type LatLng } from "@/lib/geo";
@@ -360,7 +360,8 @@ export async function readFacadeAi(fd: FormData): Promise<ActionResult<Facade>> 
   if (limit !== "ok") return { ok: false, error: limit === "limited" ? "rateLimited" : "aiFailed" };
   const r = await readFacade(sheet, tiles);
   if (!r.ok) return { ok: false, error: r.error };
-  return { ok: true, data: cleanFacade(r.draft) };
+  // a height counts as measured only when both its levels are printed on this sheet
+  return { ok: true, data: cleanFacade(r.draft, printedLevels(sheet.words)) };
 }
 
 /** The reviewed façades → the survey (kept for review) and its façade area = their paint area; null removes the rows (the area stays). */
