@@ -167,3 +167,29 @@ describe("a survey's own site without names never reads as the client's house (r
     await expectDenied(as({ userId: owner }, (q) => q("update public.contracts set site_own = true, site_district = 'x' where status = 'draft'")), /comes from its survey/);
   });
 });
+
+describe("frozen once sent to the client (owner, Nov 2026)", () => {
+  it("a sent contract keeps its place and pin when the survey moves; a draft still follows", async () => {
+    const r = await as({ userId: owner }, async (q) => {
+      const s4 = (await q<{ id: string }>("insert into public.surveys (organization_id, client_id, mode, latitude, longitude, site_city, site_district) values ($1,$2,'rooms',24.62,46.72,'الرياض','الروضة') returning id", [org, client])).rows[0].id;
+      const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service, survey_id) values ($1,$2,'gypsum',$3) returning id", [org, client, s4])).rows[0].id;
+      await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1000,1000)", [org, quote]);
+      await q("select public.issue_quote($1, null)", [quote]);
+      const c = (await q<{ id: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total) values ($1,$2,1,$3,'gypsum',current_date,10,1000) returning id", [org, quote, client])).rows[0].id;
+      // draft: follows the survey
+      await q("update public.surveys set site_district = 'الروضة الشرقية' where id = $1", [s4]);
+      const draft = (await q<{ site_district: string }>("select site_district from public.contracts where id = $1", [c])).rows[0].site_district;
+      // sent to the client: frozen from here
+      await q("update public.contracts set status = 'sent' where id = $1", [c]);
+      await q("update public.surveys set latitude = 25.0, longitude = 47.0, site_district = 'بعيد' where id = $1", [s4]);
+      const sent = (await q<{ site_district: string }>("select site_district from public.contracts where id = $1", [c])).rows[0].site_district;
+      return { c, draft, sent };
+    });
+    expect(r.draft).toBe("الروضة الشرقية");
+    expect(r.sent).toBe("الروضة الشرقية");
+    const site = await as({ userId: sup }, (q) => q<{ latitude: string; source: string }>("select latitude, source from public.project_site_list($1) where contract_id = $2", [org, r.c]));
+    expect(site.rows[0]).toEqual({ latitude: "24.620000", source: "survey" });
+    const cs = await as({ userId: owner }, (q) => q<{ lat: string }>("select lat from private.contract_site($1)", [r.c]));
+    expect(cs.rows[0].lat).toBe("24.620000");
+  });
+});

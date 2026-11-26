@@ -1389,8 +1389,9 @@
     "siteIsOwn": "This survey's own site",
     "siteIsClient": "Client's site",
     "siteNone": "No site set — set it so the supervisor can get there",
-    "siteProjectKept": "This survey has a project (<project></project>) that took its site when agreed — changing the site here doesn't move the project; change it on the project page.",
-    "siteOtherNeedsPlace": "Enter the city or district of this site — the contract names where the project is."
+    "siteProjectKept": "This survey has a project (<project></project>) that took its site when the contract was sent — changing the site here doesn't move the project; change it on the project page.",
+    "siteOtherNeedsPlace": "Enter the city or district of this site — the contract names where the project is.",
+    "siteContractSent": "This survey's contract was sent to the client (<contract></contract>) and its place is frozen — changing the site here doesn't change the sent contract. After acceptance you can edit the project's site on its page."
   },
   "quotes": {
     "service_gypsum": "Gypsum",

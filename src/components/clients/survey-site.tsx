@@ -166,6 +166,8 @@ export function SurveySiteCard({
   client,
   project,
   canOpenProject,
+  sentContract,
+  canOpenContract,
   base = "",
   canManage,
   save,
@@ -178,6 +180,9 @@ export function SurveySiteCard({
   project?: string | null;
   /** projects.view: the number links to the project */
   canOpenProject?: boolean;
+  /** a contract sent to the client: its place is frozen since sending */
+  sentContract?: string | null;
+  canOpenContract?: boolean;
   base?: string;
   canManage: boolean;
   save?: (i: Record<string, unknown>) => Promise<ActionResult>;
@@ -217,6 +222,13 @@ export function SurveySiteCard({
         {own ? t("siteIsOwn") : clientSite ? t("siteIsClient") : t("siteNone")}
         {place.some(Boolean) && ` · ${place.filter(Boolean).join(" — ")}`}
       </p>
+      {sentContract && !project && (
+        <p className="rounded-xl bg-surface-sunken px-3 py-2 text-[12px]">
+          {t.rich("siteContractSent", {
+            contract: () => (canOpenContract ? <Link href={`${base}/contracts/${sentContract}`} className="font-semibold text-primary hover:underline"><DocNo>{sentContract}</DocNo></Link> : <DocNo>{sentContract}</DocNo>),
+          })}
+        </p>
+      )}
       {project && (
         <p className="rounded-xl bg-surface-sunken px-3 py-2 text-[12px]">
           {t.rich("siteProjectKept", {

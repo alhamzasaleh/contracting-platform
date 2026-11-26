@@ -143,8 +143,12 @@ export type SurveyDetail = {
   survey: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; visit_time?: string | null; latitude?: number | null; longitude?: number | null; site_city?: string | null; site_district?: string | null; notes: string | null; totals: SurveyTotals };
   client: { id: string; number: string; name: string; latitude?: number | null; longitude?: number | null; city?: string | null; district?: string | null; location_url?: string | null };
   rooms: SurveyRoom[];
-  /** an accepted contract made from this survey: its project keeps the site it had at acceptance */
+  /** an accepted contract made from this survey: its project keeps the site it had when sent */
   project?: string | null;
+  /** a contract sent to the client (not yet accepted): its place is frozen since sending */
+  sentContract?: string | null;
+  /** quotes.view: the contract number links to it */
+  canOpenContract?: boolean;
   /** the project page opens (projects.view) — else the number is plain text */
   canOpenProject?: boolean;
   /** the owner may delete it (public.delete_survey) — not while quotes are built on it */
@@ -168,7 +172,7 @@ export async function loadSurvey(session: SessionContext, clientNumber: string, 
     supabase.from("survey_rooms").select("*").eq("survey_id", survey.id).order("sort_order").order("created_at"),
     owner ? rows(supabase.from("quotes").select("id").eq("survey_id", survey.id)) : Promise.resolve([] as { id: string }[]),
     rows(supabase.from("quotes").select("id").eq("survey_id", survey.id)).then(async (qs) =>
-      qs.length ? ((await supabase.from("contracts").select("number").in("quote_id", qs.map((q) => q.id)).eq("status", "accepted").limit(1).maybeSingle()).data?.number ?? null) : null,
+      qs.length ? rows(supabase.from("contracts").select("number, status").in("quote_id", qs.map((q) => q.id)).in("status", ["sent", "accepted"])) : [],
     ),
   ]);
   if (!found || found.number !== clientNumber) notFound();
@@ -197,8 +201,10 @@ export async function loadSurvey(session: SessionContext, clientNumber: string, 
       wall_zone: r.wall_zone,
     })),
     canDelete: owner,
-    project,
+    project: project.find((c) => c.status === "accepted")?.number ?? null,
+    sentContract: project.find((c) => c.status === "sent")?.number ?? null,
     canOpenProject: can(session, "projects.view"),
+    canOpenContract: can(session, "quotes.view"),
     ...(owner ? { quotes: onSurvey.length } : {}),
   };
 }
