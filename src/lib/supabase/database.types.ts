@@ -401,6 +401,8 @@ export type SurveyRow = OrgRow & Upd & {
   longitude?: number | null;
   site_city?: string | null;
   site_district?: string | null;
+  /** reviewed façades read from the elevations (Facade[]) */
+  facades?: Json | null;
   totals: Json;
   notes: string | null;
 };

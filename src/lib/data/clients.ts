@@ -7,6 +7,7 @@ import { once, rows } from "@/lib/data/query";
 import { createClient } from "@/lib/supabase/server";
 import { readPendingPins } from "@/lib/geo-pins";
 import { upcomingSurveys, type UpcomingSurvey } from "@/lib/survey/upcoming";
+import type { Facade } from "@/lib/survey/facade";
 
 const n = (v: unknown) => Number(v ?? 0);
 
@@ -140,7 +141,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
 }
 
 export type SurveyDetail = {
-  survey: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; visit_time?: string | null; latitude?: number | null; longitude?: number | null; site_city?: string | null; site_district?: string | null; notes: string | null; totals: SurveyTotals };
+  survey: { id: string; number: string; title: string | null; mode: "total" | "rooms"; visit_date: string | null; visit_time?: string | null; latitude?: number | null; longitude?: number | null; site_city?: string | null; site_district?: string | null; notes: string | null; totals: SurveyTotals; facades?: Facade[] | null };
   client: { id: string; number: string; name: string; latitude?: number | null; longitude?: number | null; city?: string | null; district?: string | null; location_url?: string | null };
   rooms: SurveyRoom[];
   /** an accepted contract made from this survey: its project keeps the site it had when sent */
@@ -161,7 +162,7 @@ export async function loadSurvey(session: SessionContext, clientNumber: string, 
   const orgId = session.organization.id;
   const { data: survey } = await supabase
     .from("surveys")
-    .select("id, number, title, mode, visit_date, visit_time, latitude, longitude, site_city, site_district, notes, totals, client_id")
+    .select("id, number, title, mode, visit_date, visit_time, latitude, longitude, site_city, site_district, notes, totals, facades, client_id")
     .eq("organization_id", orgId)
     .eq("number", surveyNumber)
     .maybeSingle();
@@ -182,7 +183,7 @@ export async function loadSurvey(session: SessionContext, clientNumber: string, 
     if (pin) Object.assign(client, { latitude: pin.lat, longitude: pin.lng });
   }
   return {
-    survey: { ...survey, totals: (survey.totals ?? {}) as SurveyTotals },
+    survey: { ...survey, totals: (survey.totals ?? {}) as SurveyTotals, facades: (survey.facades ?? null) as Facade[] | null },
     client,
     rooms: (rooms ?? []).map((r) => ({
       id: r.id,

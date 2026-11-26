@@ -1,6 +1,7 @@
 "use client";
 
 import { floorLabels, isFloorPlan, labelRegion, metresPerPoint, planScale, planTitle, tileGrid, PLAN_SHEET_MAX_BYTES, PLAN_TILE_MAX_BYTES, type Box, type PlanSheet, type PlanToken } from "@/lib/survey/plan";
+import { elevationRegions, elevationTitles, frameLines, lineInventory, materialsLegend, type Direction, type ElevationSheet } from "@/lib/survey/facade";
 
 /**
  * Browser side of «قراءة من المخطط»: pdf.js opens the architect's PDF on the device (files of 30–60 MB
@@ -120,4 +121,109 @@ async function renderTile(page: PdfPage, tile: Box, zoom: number, budget: number
   const blob = await toJpeg(canvas, budget);
   canvas.width = canvas.height = 0; // free the memory at once (iPad)
   return blob;
+}
+
+// --- elevations (exterior paint) -----------------------------------------------------------------
+
+/**
+ * Every straight segment drawn on the page, in points from its top-left corner — the PDF's own
+ * vectors, so widths and heights are exact (pdf.js operator list: constructPath with moveTo/lineTo).
+ */
+async function pageSegments(page: PdfPage): Promise<number[][]> {
+  const m = await pdfjs();
+  const OPS = m.OPS;
+  const vp = page.getViewport({ scale: 1 });
+  const list = await page.getOperatorList();
+  type M = [number, number, number, number, number, number];
+  const mul = (a: M, b: number[]): M => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]];
+  let ctm: M = [1, 0, 0, 1, 0, 0];
+  const stack: M[] = [];
+  const segs: number[][] = [];
+  for (let i = 0; i < list.fnArray.length; i++) {
+    const fn = list.fnArray[i];
+    const args = list.argsArray[i] as unknown[];
+    if (fn === OPS.save) stack.push(ctm);
+    else if (fn === OPS.restore) ctm = stack.pop() ?? ctm;
+    else if (fn === OPS.transform) ctm = mul(ctm, args as number[]);
+    else if (fn === OPS.constructPath) {
+      const path = (args?.[1] as ArrayLike<number>[] | undefined)?.[0];
+      if (!path || typeof path.length !== "number") continue;
+      const T = (x: number, y: number) => vp.convertToViewportPoint(ctm[0] * x + ctm[2] * y + ctm[4], ctm[1] * x + ctm[3] * y + ctm[5]) as number[];
+      let cur: number[] | null = null;
+      let start: number[] | null = null;
+      for (let k = 0; k < path.length; ) {
+        const op = path[k];
+        if (op === 0) {
+          cur = start = T(path[k + 1], path[k + 2]);
+          k += 3;
+        } else if (op === 1) {
+          const p = T(path[k + 1], path[k + 2]);
+          if (cur) segs.push([cur[0], cur[1], p[0], p[1]]);
+          cur = p;
+          k += 3;
+        } else if (op === 2) {
+          cur = T(path[k + 5], path[k + 6]);
+          k += 7;
+        } else if (op === 3) {
+          cur = T(path[k + 3], path[k + 4]);
+          k += 5;
+        } else if (op === 4) {
+          if (cur && start) segs.push([cur[0], cur[1], start[0], start[1]]);
+          cur = start;
+          k += 1;
+        } else k += 1;
+      }
+    }
+  }
+  return segs;
+}
+
+export type FoundElevation = { page: number; code: string; dir: Direction | null; scale: number; region: Box; width: number; height: number; tokens: PlanToken[] };
+
+/** Open the file and list its titled elevations («EAST ELEVATION (E01)»…), each with its drawing area. */
+export async function findElevations(file: File, progress?: (done: number, total: number) => void): Promise<{ doc: PdfDoc; pages: number; elevations: FoundElevation[] }> {
+  const m = await pdfjs();
+  const doc = await m.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const elevations: FoundElevation[] = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const page = await doc.getPage(n);
+    const { tokens, text, width, height } = await pageTokens(page);
+    progress?.(n, doc.numPages);
+    if (elevationTitles(tokens).length) {
+      const frames = frameLines(await pageSegments(page), { height });
+      for (const e of elevationRegions(tokens, { width, height }, frames)) elevations.push({ page: n, code: e.code, dir: e.dir, scale: planScale(text), region: e.region, width, height, tokens });
+    }
+    page.cleanup();
+  }
+  return { doc, pages: doc.numPages, elevations };
+}
+
+/** One elevation → its tiles, printed text and line positions in metres from its corner. */
+export async function elevationPayload(doc: PdfDoc, el: FoundElevation, surveyId: string): Promise<{ meta: ElevationSheet; tiles: Blob[] }> {
+  const page = await doc.getPage(el.page);
+  const region = el.region;
+  const { zoom, tiles } = tileGrid(region, 3.2);
+  const mpp = metresPerPoint(el.scale);
+  const toM = (t: PlanToken) => ({ s: t.s.slice(0, 60), x: round((t.x - region.x0) * mpp), y: round((t.y - region.y0) * mpp) });
+  const inside = (t: PlanToken) => t.x >= region.x0 && t.x <= region.x1 && t.y >= region.y0 && t.y <= region.y1;
+  const budget = Math.min(PLAN_TILE_MAX_BYTES, Math.floor(PLAN_SHEET_MAX_BYTES / tiles.length));
+  const blobs: Blob[] = [];
+  for (const tile of tiles) blobs.push(await renderTile(page, tile, zoom, budget));
+  const lines = lineInventory(await pageSegments(page), region, mpp, 120);
+  page.cleanup();
+  const box = (b: Box) => ({ x0: round((b.x0 - region.x0) * mpp), y0: round((b.y0 - region.y0) * mpp), x1: round((b.x1 - region.x0) * mpp), y1: round((b.y1 - region.y0) * mpp) });
+  return {
+    meta: {
+      survey_id: surveyId,
+      page: el.page,
+      code: el.code,
+      direction: el.dir,
+      scale: el.scale,
+      words: el.tokens.filter(inside).map(toM).slice(0, 1500),
+      legend: materialsLegend(el.tokens),
+      lines,
+      tiles: tiles.map(box),
+    },
+    tiles: blobs,
+  };
 }

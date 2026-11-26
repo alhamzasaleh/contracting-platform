@@ -1,3 +1,4 @@
+import type { Facade } from "@/lib/survey/facade";
 import type { ClientDetail, ClientListItem, SurveyDetail } from "@/lib/data/clients";
 
 /** Illustrative clients, survey and rooms for the design preview only. */
@@ -45,3 +46,31 @@ export const SAMPLE_SURVEY: SurveyDetail = {
     r("r6", "المخزن", 3, 2, { gypsum_ceiling: false, paint_ceiling: false }),
   ],
 };
+
+/** Design preview: the façades read from sample elevation sheets (review step of «قراءة الواجهات من المخطط»). */
+export const SAMPLE_FACADES: Facade[] = [
+  {
+    code: "E01", name: "الواجهة الشرقية", include: true,
+    parts: [
+      { name: "الكتلة الرئيسية — الأرضي والأول", material: "paint", width_m: 10.86, height_m: 9.3, count: 1, include: true },
+      { name: "دروة السطح", material: "paint", width_m: 10.86, height_m: 1.1, count: 1, include: true },
+      { name: "الملحق", material: "paint", width_m: 5.4, height_m: 3.3, count: 1, include: true },
+      { name: "السور", material: "paint", width_m: 12.2, height_m: 2.2, count: 1, include: false },
+    ],
+    openings: [
+      { kind: "window", width_m: 1.6, height_m: 1.8, count: 3 },
+      { kind: "window", width_m: 0.6, height_m: 1.8, count: 1 },
+    ],
+    notes: ["السور محسوب لحاله وغير مضاف — فعّله إذا السور ضمن الدهان."],
+  },
+  {
+    code: "E02", name: "الواجهة الغربية", include: true,
+    parts: [
+      { name: "الكتلة الرئيسية", material: "paint", width_m: 13.05, height_m: 9.3, count: 1, include: true },
+      { name: "تكسية حجر — المدخل", material: "stone", width_m: 2.8, height_m: 9.3, count: 1, include: true },
+      { name: "واجهة زجاج", material: "glass", width_m: 3.6, height_m: 6.1, count: 1, include: true },
+    ],
+    openings: [{ kind: "door", width_m: 1.2, height_m: 2.4, count: 1 }, { kind: "window", width_m: null, height_m: 1.8, count: 2 }],
+    notes: ["بعض المقاسات ما انقرت من المخطط — كمّلها قبل الاعتماد."],
+  },
+];

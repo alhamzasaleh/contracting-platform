@@ -13,6 +13,8 @@ import { cleanDraft } from "@/lib/survey/ai-draft";
 import { bulkRoomsSchema, surveyTotalsSchema } from "@/lib/survey/schema";
 import { deleteError } from "@/lib/deletion";
 import { readPlan, type PlanTile } from "@/lib/ai/plan";
+import { readFacade } from "@/lib/ai/facade";
+import { cleanFacade, elevationSheetSchema, facadesSchema, facadesTotal, type ElevationSheet, type Facade } from "@/lib/survey/facade";
 import { cleanPlanDraft, planSheetSchema, PLAN_SHEET_MAX_BYTES, PLAN_TILE_MAX_BYTES, type PlanSheet } from "@/lib/survey/plan";
 import { clientDbError } from "@/lib/marketers";
 import { pinToSave, type LatLng } from "@/lib/geo";
@@ -322,6 +324,58 @@ export async function readPlanAi(fd: FormData): Promise<ActionResult<ReturnType<
   const r = await readPlan(sheet, tiles);
   if (!r.ok) return { ok: false, error: r.error };
   return { ok: true, data: cleanPlanDraft(r.draft, sheet, sheet.title) };
+}
+
+/**
+ * «قراءة الواجهات من المخطط»: one elevation (tiles + printed text + line positions, in metres) → its
+ * parts by finish and openings, a draft for review (clients.manage; same limits as the floor plans).
+ */
+export async function readFacadeAi(fd: FormData): Promise<ActionResult<Facade>> {
+  const session = await getSession();
+  if (!can(session, "clients.manage")) return { ok: false, error: "noAccess" };
+  const meta = fd.get("meta");
+  let sheet: ElevationSheet;
+  try {
+    const parsed = elevationSheetSchema.safeParse(typeof meta === "string" && meta.length < 400_000 ? JSON.parse(meta) : null);
+    if (!parsed.success) return { ok: false, error: "invalid" };
+    sheet = parsed.data;
+  } catch {
+    return { ok: false, error: "invalid" };
+  }
+  const files = fd.getAll("tiles").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length !== sheet.tiles.length) return { ok: false, error: "invalid" };
+  if (files.reduce((n, f) => n + f.size, 0) > PLAN_SHEET_MAX_BYTES) return { ok: false, error: "fileTooLarge" };
+  const tiles: PlanTile[] = [];
+  for (const f of files) {
+    if (f.size > PLAN_TILE_MAX_BYTES) return { ok: false, error: "fileTooLarge" };
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    if (sniffPhoto(bytes) !== "image/jpeg") return { ok: false, error: "fileType" };
+    tiles.push({ bytes });
+  }
+  const supabase = await createClient();
+  const { data: survey } = await supabase.from("surveys").select("id").eq("id", sheet.survey_id).eq("organization_id", session.organization.id).maybeSingle();
+  if (!survey) return { ok: false, error: "invalid" };
+  // the same hourly budget as the floor plans (an elevation may be read twice: automatic retry)
+  const limit = await rateLimit(`ai:plan:${session.userId}`, 40, 3600);
+  if (limit !== "ok") return { ok: false, error: limit === "limited" ? "rateLimited" : "aiFailed" };
+  const r = await readFacade(sheet, tiles);
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, data: cleanFacade(r.draft) };
+}
+
+/** The reviewed façades → the survey (kept for review) and its façade area = their paint area. */
+export async function saveFacades(input: unknown): Promise<ActionResult<{ facade: number }>> {
+  const ctx = await authorize("clients.manage");
+  if (!isCtx(ctx)) return ctx;
+  const parsed = z.object({ id, facades: facadesSchema }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { data: sv, error: readError } = await ctx.supabase.from("surveys").select("totals").eq("id", parsed.data.id).eq("organization_id", ctx.orgId).maybeSingle();
+  if (readError || !sv) return dbError(readError) ?? { ok: false, error: "invalid" };
+  // the area is computed here from the rows, never taken from the browser
+  const facade = facadesTotal(parsed.data.facades);
+  const totals = { ...((sv.totals ?? {}) as Record<string, unknown>), facade };
+  const { error } = await ctx.supabase.from("surveys").update({ facades: parsed.data.facades, totals }).eq("id", parsed.data.id).eq("organization_id", ctx.orgId);
+  return dbError(error) ?? done({ facade });
 }
 
 // --- AI survey draft (§3.2 / §8.1) ----------------------------------------------------

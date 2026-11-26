@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { SurveySiteCard, type ReadMapLink, type ReadPlace } from "@/components/clients/survey-site";
+import { SurveyFacadeImport } from "@/components/clients/survey-facade-import";
+import { facadeArea, facadesTotal, type Facade } from "@/lib/survey/facade";
 import { useFormatter } from "@/components/formatter-provider";
 import { FormDialog, NumberInput, str, useActionRunner, useUnitText } from "@/components/forms/form-kit";
 import { Pills } from "./pills";
@@ -42,7 +44,10 @@ export function SurveyView({
   aiSample,
   planSample,
   siteActions,
+  facadeSample,
 }: {
+  /** design preview only: what the façade reading shows */
+  facadeSample?: Facade[];
   /** design preview only: the site card's actions (the rest of the page stays in preview mode) */
   siteActions?: { saveSite?: Act; readLink?: ReadMapLink; readPlace?: ReadPlace };
   /** design preview only: what the plan reading shows */
@@ -54,7 +59,7 @@ export function SurveyView({
   canManage: boolean;
   canQuote: boolean;
   /** deleteSurvey: owner only (detail.canDelete) */
-  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>>; readPlan?: (fd: FormData) => Promise<ActionResult<PlanReading>>; bulkRooms?: (input: Record<string, unknown>) => Promise<ActionResult<{ n: number }>>; deleteSurvey?: Act; saveSite?: Act; readLink?: ReadMapLink; readPlace?: ReadPlace };
+  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>>; readPlan?: (fd: FormData) => Promise<ActionResult<PlanReading>>; bulkRooms?: (input: Record<string, unknown>) => Promise<ActionResult<{ n: number }>>; deleteSurvey?: Act; saveSite?: Act; readLink?: ReadMapLink; readPlace?: ReadPlace; readFacade?: (fd: FormData) => Promise<ActionResult<Facade>>; saveFacades?: (input: { id: string; facades: Facade[] }) => Promise<ActionResult<{ facade: number }>> };
 }) {
   const unitText = useUnitText();
   const t = useTranslations("survey");
@@ -67,6 +72,8 @@ export function SurveyView({
 
   const [mode, setMode] = React.useState<SurveyMode>(survey.mode);
   const [totals, setTotals] = React.useState<SurveyTotals>(survey.totals);
+  // façades approved from the elevations (kept for review; their paint area = the façade total)
+  const [facades, setFacades] = React.useState<Facade[] | null>(survey.facades ?? null);
   const [meta, setMeta] = React.useState({ title: survey.title ?? "", visit_date: survey.visit_date ?? "", visit_time: survey.visit_time?.slice(0, 5) ?? "", notes: survey.notes ?? "" });
   const [dirty, setDirty] = React.useState(false);
   const [room, setRoom] = React.useState<Partial<SurveyRoom> | null>(null);
@@ -389,6 +396,23 @@ export function SurveyView({
               {tot("extColours", t("colours"), undefined, true)}
               {tot("scaffoldDays", t("scaffoldDays"), undefined, true)}
             </div>
+            {canManage && (
+              <SurveyFacadeImport
+                surveyId={survey.id}
+                readFacade={actions?.readFacade}
+                save={actions?.saveFacades}
+                saved={facades}
+                preview={!actions}
+                sample={facadeSample}
+                onSaved={(area, list) => {
+                  // the page's own state follows, so a later «حفظ» keeps the approved area
+                  setTotals((s) => ({ ...s, facade: area }));
+                  setFacades(list);
+                  setTotalsKey((k) => k + 1);
+                }}
+              />
+            )}
+            {!!facades?.length && <FacadeSummary facades={facades} typed={totals.facade} />}
           </div>
         </div>
         <Field id="sv-notes" label={t("notes")} optional={tc("optional")}>
@@ -450,6 +474,30 @@ export function SurveyView({
       </section>
 
       {room && roomDialog()}
+    </div>
+  );
+}
+
+/** The approved façades under the exterior totals: each one's paint area; a typed total that differs is said. */
+function FacadeSummary({ facades, typed }: { facades: Facade[]; typed: number | undefined }) {
+  const t = useTranslations("survey");
+  const { fmt } = useFormatter();
+  const unitText = useUnitText();
+  const total = facadesTotal(facades);
+  return (
+    <div className="grid gap-1 rounded-xl bg-surface-sunken/60 px-3 py-2 text-[13px]" data-testid="facade-summary">
+      <p className="font-semibold">{t("facadeFromPlan")}</p>
+      <ul className="grid gap-0.5">
+        {facades.filter((f) => f.include).map((f) => (
+          <li key={f.code} className="flex justify-between gap-3">
+            <span>{f.name}</span>
+            <span className="font-latin tabular-nums">
+              {fmt.number(facadeArea(f).paint, 2)} {unitText("m2")}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {typed != null && Math.abs(typed - total) > 0.01 && <p className="text-warning">{t("facadeManualDiff", { area: fmt.number(total, 2) })}</p>}
     </div>
   );
 }
