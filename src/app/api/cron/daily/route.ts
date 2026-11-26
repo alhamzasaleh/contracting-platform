@@ -23,7 +23,10 @@ export async function GET(req: Request) {
   const admin = createAdminClient();
   const { data: reminders, error } = await admin.rpc("run_daily_reminders");
   if (error) console.error("[cron] reminders failed", { code: error.code });
-  await Promise.allSettled([flushWhatsApp(200), flushPush(200), readPendingPins(null, 50)]);
+  // clients' short map links still to read run alongside (≤ 25 s), never ahead of the Qoyod queue
+  const pins = readPendingPins({ orgId: null, limit: 50, budgetMs: 25_000 });
+  await Promise.allSettled([flushWhatsApp(200), flushPush(200)]);
   const qoyod = await runQoyodSync(50);
+  await pins;
   return NextResponse.json({ reminders: reminders ?? 0, qoyod });
 }

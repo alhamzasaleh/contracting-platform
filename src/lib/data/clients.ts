@@ -58,15 +58,19 @@ export type ClientDetail = {
 export async function loadClientDetail(session: SessionContext, number: string): Promise<ClientDetail> {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  // a short map link not read yet is read first, so the page shows the pin
-  await readPendingPins(orgId);
-  const { data: client } = await supabase
+  const { data: found } = await supabase
     .from("clients")
-    .select("id, number, name, phone, city, district, id_number, location_url, notes, marketer_id, latitude, longitude")
+    .select("id, number, name, phone, city, district, id_number, location_url, notes, marketer_id, latitude, longitude, pin_pending")
     .eq("organization_id", orgId)
     .eq("number", number)
     .maybeSingle();
-  if (!client) notFound();
+  if (!found) notFound();
+  const { pin_pending, ...client } = found;
+  // a short map link not read yet is read now (≤ 3 s), so the page shows the pin
+  if (pin_pending && client.latitude == null) {
+    const pin = (await readPendingPins({ orgId, clientIds: [client.id], budgetMs: 3000 })).get(client.id);
+    if (pin) Object.assign(client, { latitude: pin.lat, longitude: pin.lng });
+  }
   const finance = can(session, "finance.view");
   const surveysP = once(supabase.from("surveys").select("id, number, title, mode, visit_date").eq("client_id", client.id).order("created_at", { ascending: false }));
   const owner = session.role === "owner";

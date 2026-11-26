@@ -2,6 +2,7 @@ import "server-only";
 import { projectLate, siteOf, type LatLng } from "@/lib/geo";
 import { loadContractCommission, type ContractCommission } from "@/lib/data/marketers";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import { aiConfigured } from "@/lib/ai/invoice";
 import { can, type SessionContext } from "@/lib/auth/session";
 import { loadProjectCosts } from "@/lib/data/purchases";
@@ -34,6 +35,15 @@ export async function loadProjectSites(supabase: Awaited<ReturnType<typeof creat
   return new Map((data ?? []).map((r) => [r.contract_id, { site: siteOf(r), own: r.own }]));
 }
 
+/** Read the organization's pending map links after the response (outside a request: skipped). */
+function laterPendingPins(orgId: string) {
+  try {
+    after(() => readPendingPins({ orgId, limit: 10, budgetMs: 20_000 }).then(() => undefined));
+  } catch {
+    /* not in a request (tests) */
+  }
+}
+
 export async function loadProjects(session: SessionContext): Promise<ProjectListItem[]> {
   const supabase = await createClient();
   const orgId = session.organization.id;
@@ -44,9 +54,10 @@ export async function loadProjects(session: SessionContext): Promise<ProjectList
     supabase.from("site_visits").select("contract_id, checked_in_at").eq("organization_id", orgId).order("checked_in_at", { ascending: false }).limit(2000),
     supabase.from("client_notes").select("contract_id").eq("organization_id", orgId).eq("status", "new"),
     supabase.from("addenda").select("contract_id, extra_days").eq("organization_id", orgId).eq("status", "accepted"),
-    // a client's short map link not read yet is read first (owner: «حطيت رابط موقعه»)
-    readPendingPins(orgId).then(() => loadProjectSites(supabase, orgId)),
+    loadProjectSites(supabase, orgId),
   ]);
+  // clients' short map links not read yet: read after the response (the list never waits for Google)
+  if ((contracts ?? []).some((c) => !sites.get(c.id)?.site)) laterPendingPins(orgId);
   const byId = new Map((clients ?? []).map((c) => [c.id, c]));
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
   return (contracts ?? []).map((c) => {
@@ -145,8 +156,8 @@ export async function loadProject(session: SessionContext, number: string): Prom
     // the success partner's reward on this project (internal: costs.view)
     can(session, "costs.view") ? loadContractCommission(session, c.id) : Promise.resolve(null),
     // the site (this project's own pin, else the client's) — projects.view is enough
-    // a client's short map link not read yet is read first (owner: «حطيت رابط موقعه»)
-    readPendingPins(orgId).then(() => loadProjectSites(supabase, orgId)),
+    // this project's client: a short map link not read yet is read first (≤ 3 s), so check-in works
+    readPendingPins({ orgId, clientIds: [c.client_id], budgetMs: 3000 }).then(() => loadProjectSites(supabase, orgId)),
   ]);
   const extraDays = (addenda ?? []).reduce((s, a) => s + a.extra_days, 0);
   const own = costs?.find((x) => x.id === c.id);

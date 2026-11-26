@@ -47,6 +47,13 @@ describe("client pin waiting for its link to be read", () => {
     await as({ userId: owner }, (q) => q("update public.clients set location_url = null where id = $1", [client]));
     expect(await pending()).toBe(false);
   });
+  it("a new link starts its tries again", async () => {
+    await as({ userId: owner }, (q) => q("update public.clients set latitude = null, longitude = null, location_url = 'https://maps.app.goo.gl/X', pin_pending = true where id = $1", [client]));
+    await asAdmin((q) => q("update public.clients set pin_tries = 3, pin_tried_at = now() where id = $1", [client]));
+    await as({ userId: owner }, (q) => q("update public.clients set location_url = 'https://maps.app.goo.gl/Y' where id = $1", [client]));
+    const r = (await asAdmin((q) => q<{ pin_tries: number; pin_tried_at: string | null }>("select pin_tries, pin_tried_at from public.clients where id = $1", [client]))).rows[0];
+    expect(r).toEqual({ pin_tries: 0, pin_tried_at: null });
+  });
   it("setting the pin clears it", async () => {
     await as({ userId: owner }, (q) => q("update public.clients set location_url = 'https://maps.app.goo.gl/AbC', pin_pending = true where id = $1", [client]));
     expect(await pending()).toBe(true);

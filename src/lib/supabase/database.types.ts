@@ -380,6 +380,9 @@ export type ClientRow = OrgRow & Upd & {
   longitude?: number | null;
   /** the map link still has to be read on the server (short link) */
   pin_pending?: boolean;
+  /** failed server reads of the current link (given up after 5) */
+  pin_tries?: number;
+  pin_tried_at?: string | null;
   notes: string | null;
   is_active: boolean;
   /** «جاء عن طريق» — the success partner (marketers) */
