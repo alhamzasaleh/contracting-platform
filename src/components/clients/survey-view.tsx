@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { SurveySiteCard, type ReadMapLink, type ReadPlace } from "@/components/clients/survey-site";
-import { SurveyFacadeImport } from "@/components/clients/survey-facade-import";
+import { SurveyFacadeImport, useFacadeName } from "@/components/clients/survey-facade-import";
 import { facadeArea, facadesTotal, type Facade } from "@/lib/survey/facade";
 import { useFormatter } from "@/components/formatter-provider";
 import { FormDialog, NumberInput, str, useActionRunner, useUnitText } from "@/components/forms/form-kit";
@@ -59,7 +59,7 @@ export function SurveyView({
   canManage: boolean;
   canQuote: boolean;
   /** deleteSurvey: owner only (detail.canDelete) */
-  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>>; readPlan?: (fd: FormData) => Promise<ActionResult<PlanReading>>; bulkRooms?: (input: Record<string, unknown>) => Promise<ActionResult<{ n: number }>>; deleteSurvey?: Act; saveSite?: Act; readLink?: ReadMapLink; readPlace?: ReadPlace; readFacade?: (fd: FormData) => Promise<ActionResult<Facade>>; saveFacades?: (input: { id: string; facades: Facade[] }) => Promise<ActionResult<{ facade: number }>> };
+  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>>; readPlan?: (fd: FormData) => Promise<ActionResult<PlanReading>>; bulkRooms?: (input: Record<string, unknown>) => Promise<ActionResult<{ n: number }>>; deleteSurvey?: Act; saveSite?: Act; readLink?: ReadMapLink; readPlace?: ReadPlace; readFacade?: (fd: FormData) => Promise<ActionResult<Facade>>; saveFacades?: (input: { id: string; facades: Facade[] | null }) => Promise<ActionResult<{ facade: number }>> };
 }) {
   const unitText = useUnitText();
   const t = useTranslations("survey");
@@ -406,13 +406,16 @@ export function SurveyView({
                 sample={facadeSample}
                 onSaved={(area, list) => {
                   // the page's own state follows, so a later «حفظ» keeps the approved area
-                  setTotals((s) => ({ ...s, facade: area }));
+                  // (removing the reading keeps the typed area)
+                  if (area != null) {
+                    setTotals((s) => ({ ...s, facade: area }));
+                    setTotalsKey((k) => k + 1);
+                  }
                   setFacades(list);
-                  setTotalsKey((k) => k + 1);
                 }}
               />
             )}
-            {!!facades?.length && <FacadeSummary facades={facades} typed={totals.facade} />}
+            {!!facades?.length && <FacadeSummary facades={facades} typed={totals.facade} frozen={detail.project ?? detail.sentContract ?? null} />}
           </div>
         </div>
         <Field id="sv-notes" label={t("notes")} optional={tc("optional")}>
@@ -479,10 +482,11 @@ export function SurveyView({
 }
 
 /** The approved façades under the exterior totals: each one's paint area; a typed total that differs is said. */
-function FacadeSummary({ facades, typed }: { facades: Facade[]; typed: number | undefined }) {
+function FacadeSummary({ facades, typed, frozen }: { facades: Facade[]; typed: number | undefined; frozen: string | null }) {
   const t = useTranslations("survey");
   const { fmt } = useFormatter();
   const unitText = useUnitText();
+  const facadeName = useFacadeName();
   const total = facadesTotal(facades);
   return (
     <div className="grid gap-1 rounded-xl bg-surface-sunken/60 px-3 py-2 text-[13px]" data-testid="facade-summary">
@@ -490,7 +494,7 @@ function FacadeSummary({ facades, typed }: { facades: Facade[]; typed: number | 
       <ul className="grid gap-0.5">
         {facades.filter((f) => f.include).map((f) => (
           <li key={f.code} className="flex justify-between gap-3">
-            <span>{f.name}</span>
+            <span>{facadeName(f)}</span>
             <span className="font-latin tabular-nums">
               {fmt.number(facadeArea(f).paint, 2)} {unitText("m2")}
             </span>
@@ -498,6 +502,8 @@ function FacadeSummary({ facades, typed }: { facades: Facade[]; typed: number | 
         ))}
       </ul>
       {typed != null && Math.abs(typed - total) > 0.01 && <p className="text-warning">{t("facadeManualDiff", { area: fmt.number(total, 2) })}</p>}
+      {/* a quote / contract already sent keeps the area it was priced with until it is priced again */}
+      {frozen && <p className="text-muted-foreground">{t("facadeFrozen", { number: ltr(frozen) })}</p>}
     </div>
   );
 }

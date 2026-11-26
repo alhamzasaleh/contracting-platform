@@ -14,11 +14,11 @@ import { NativeSelect } from "@/components/ui/native-select";
 import type { ActionResult } from "@/lib/actions";
 import { settle } from "@/lib/client/action";
 import { useFailureText } from "@/lib/client/failure-text";
-import { DIRECTION_AR, MATERIALS, facadeArea, facadesTotal, type Facade, type FacadeOpening, type FacadePart } from "@/lib/survey/facade";
+import { MATERIALS, facadeArea, facadesTotal, mergeFacades, missingSizes, rowId, type Facade, type FacadeOpening, type FacadePart } from "@/lib/survey/facade";
 import { PLAN_MAX_BYTES, roomSize } from "@/lib/survey/plan";
 import { cn } from "@/lib/utils";
 
-type Found = { key: string; page: number; code: string; name: string; pick: boolean };
+type Found = { key: string; page: number; code: string; name: string; pick: boolean; dup: boolean };
 type Step = { kind: "file" } | { kind: "pick"; found: Found[] } | { kind: "review"; facades: Facade[]; failed: string[] };
 
 const KINDS = ["window", "door", "opening"] as const;
@@ -40,16 +40,19 @@ export function SurveyFacadeImport({
 }: {
   surveyId: string;
   readFacade?: (fd: FormData) => Promise<ActionResult<Facade>>;
-  save?: (input: { id: string; facades: Facade[] }) => Promise<ActionResult<{ facade: number }>>;
+  save?: (input: { id: string; facades: Facade[] | null }) => Promise<ActionResult<{ facade: number }>>;
   /** façades reviewed before (reopened without reading again) */
   saved: Facade[] | null;
-  onSaved?: (facade: number, facades: Facade[]) => void;
+  /** approved (area + rows) or removed (null: the typed area stays) */
+  onSaved?: (facade: number | null, facades: Facade[] | null) => void;
   preview?: boolean;
   /** design preview: the review step with sample façades */
   sample?: Facade[];
 }) {
   const t = useTranslations("survey");
   const failure = useFailureText();
+  const { fmt } = useFormatter();
+  const facadeName = useFacadeName();
   const [open, setOpen] = React.useState(false);
   const [step, setStep] = React.useState<Step>({ kind: "file" });
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -79,9 +82,15 @@ export function SurveyFacadeImport({
     try {
       const found = await findElevations(file, (done, total) => setBusy(t("planOpening", { done, total })));
       doc.current = { doc: found.doc, elevations: found.elevations };
+      // the same elevation on two sheets (a sheet and a combined one) starts unticked: never counted twice
+      const seen = new Set<string>();
       setStep({
         kind: "pick",
-        found: found.elevations.map((e) => ({ key: `${e.page}:${e.code}`, page: e.page, code: e.code, name: e.dir ? DIRECTION_AR[e.dir] : e.code, pick: true })),
+        found: found.elevations.map((e) => {
+          const dup = seen.has(e.code);
+          seen.add(e.code);
+          return { key: `${e.page}:${e.code}`, page: e.page, code: e.code, name: facadeName({ code: e.code, dir: e.dir }), pick: !dup, dup };
+        }),
       });
     } catch {
       toast.error(t("planOpenFailed"));
@@ -126,7 +135,8 @@ export function SurveyFacadeImport({
       else facades.push(r.data);
     }
     setBusy(null);
-    setStep({ kind: "review", facades, failed });
+    // a new reading joins the façades approved before (the same code is replaced, the others kept)
+    setStep({ kind: "review", facades: mergeFacades(saved, facades), failed });
   };
 
   const approve = async (facades: Facade[]) => {
@@ -137,6 +147,18 @@ export function SurveyFacadeImport({
     if (!r.ok) return toast.error(failure(r.error) ?? t("facadeSaveFailed"));
     toast.success(t("facadeSaved"));
     onSaved?.(r.data?.facade ?? facadesTotal(facades), facades);
+    close();
+  };
+
+  /** «إزالة قراءة الواجهات»: the rows go, the typed façade area stays. */
+  const remove = async () => {
+    if (!save) return close();
+    setSaving(true);
+    const r = await settle(() => save({ id: surveyId, facades: null }));
+    setSaving(false);
+    if (!r.ok) return toast.error(failure(r.error) ?? t("facadeSaveFailed"));
+    toast.success(t("facadeRemoved"));
+    onSaved?.(null, null);
     close();
   };
 
@@ -178,8 +200,10 @@ export function SurveyFacadeImport({
                         <input type="checkbox" checked={f.pick} onChange={(e) => setStep({ ...step, found: step.found.map((x, j) => (j === i ? { ...x, pick: e.target.checked } : x)) })} />
                         <span className="font-bold">{f.name}</span>
                         <span className="font-latin text-[12px] text-muted-foreground" dir="ltr">
-                          {f.code} · p{f.page}
+                          {f.code}
                         </span>
+                        <span className="text-[12px] text-muted-foreground">{t("facadeSheet", { page: f.page })}</span>
+                        {f.dup && <span className="text-[12px] text-warning">{t("facadeDuplicate")}</span>}
                       </label>
                     </li>
                   ))}
@@ -192,9 +216,17 @@ export function SurveyFacadeImport({
           </DialogBody>
           <DialogFooter>
             {step.kind === "pick" && !busy && step.found.some((f) => f.pick) && <Button onClick={() => void read(step.found)}>{t("facadeReadPicked")}</Button>}
+            {step.kind === "review" && !busy && missingSizes(step.facades) > 0 && (
+              <p className="me-auto self-center text-[12px] text-warning">{t("facadeMissing", { n: missingSizes(step.facades) })}</p>
+            )}
             {step.kind === "review" && !busy && (
               <Button loading={saving} disabled={!step.facades.some((f) => f.include)} onClick={() => void approve(step.facades)}>
-                {t("facadeApprove", { area: facadesTotal(step.facades) })}
+                {t("facadeApprove", { area: fmt.number(facadesTotal(step.facades), 2) })}
+              </Button>
+            )}
+            {step.kind === "review" && !busy && !!saved?.length && (
+              <Button variant="secondary" disabled={saving} onClick={() => void remove()}>
+                {t("facadeRemoveReading")}
               </Button>
             )}
             <Button variant="ghost" disabled={!!busy || saving} onClick={close}>
@@ -213,6 +245,7 @@ function Review({ facades, failed, onChange }: { facades: Facade[]; failed: stri
   const { fmt } = useFormatter();
   const unitText = useUnitText();
   const sep = useListSep();
+  const facadeName = useFacadeName();
   const set = (i: number, patch: Partial<Facade>) => onChange(facades.map((f, j) => (j === i ? { ...f, ...patch } : f)));
   if (!facades.length) return <p className="text-[14px] text-muted-foreground">{failed.length ? t("facadeAllFailed") : t("facadeNone")}</p>;
   return (
@@ -227,7 +260,7 @@ function Review({ facades, failed, onChange }: { facades: Facade[]; failed: stri
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="flex items-center gap-2 text-[15px] font-bold">
                 <input type="checkbox" checked={f.include} onChange={(e) => set(i, { include: e.target.checked })} aria-label={t("facadeInclude")} />
-                {f.name}
+                {facadeName(f)}
                 <span className="font-latin text-[12px] font-normal text-muted-foreground" dir="ltr">{f.code}</span>
               </label>
               <Badge tone={f.include ? "success" : "neutral"}>
@@ -237,7 +270,7 @@ function Review({ facades, failed, onChange }: { facades: Facade[]; failed: stri
 
             <p className="text-[13px] font-semibold">{t("facadeParts")}</p>
             {f.parts.map((p, k) => (
-              <div key={k} className="grid gap-2 rounded-xl bg-surface-sunken/60 p-3">
+              <div key={p.id} className="grid gap-2 rounded-xl bg-surface-sunken/60 p-3">
                 <Field
                   id={`fp-${i}-${k}-name`}
                   label={t("facadePartName")}
@@ -247,7 +280,7 @@ function Review({ facades, failed, onChange }: { facades: Facade[]; failed: stri
                         <input type="checkbox" checked={p.include} onChange={(e) => setPart(k, { include: e.target.checked })} />
                         {t("facadeCounted")}
                       </label>
-                      <Button type="button" variant="ghost" size="icon-sm" aria-label={t("facadeRemove")} onClick={() => set(i, { parts: f.parts.filter((_, j) => j !== k) })}>
+                      <Button type="button" variant="ghost" size="icon-sm" aria-label={t("facadeRemove")} onClick={() => set(i, { parts: f.parts.filter((_, j) => j !== k), openings: f.openings.filter((o) => o.part !== p.id) })}>
                         <Trash2 />
                       </Button>
                     </span>
@@ -271,13 +304,23 @@ function Review({ facades, failed, onChange }: { facades: Facade[]; failed: stri
                 </div>
               </div>
             ))}
-            <Button type="button" size="sm" variant="ghost" className="justify-self-start" onClick={() => set(i, { parts: [...f.parts, { name: t("facadeNewPart"), material: "paint", width_m: null, height_m: null, count: 1, include: true }] })}>
+            <Button type="button" size="sm" variant="ghost" className="justify-self-start" onClick={() => set(i, { parts: [...f.parts, { id: rowId("p"), name: t("facadeNewPart"), material: "paint", width_m: null, height_m: null, count: 1, include: true }] })}>
               <Plus /> {t("facadeAddPart")}
             </Button>
 
             <p className="text-[13px] font-semibold">{t("facadeOpenings")}</p>
             {f.openings.map((o, k) => (
-              <div key={k} className="field-row grid grid-cols-2 gap-2 rounded-xl bg-surface-sunken/60 p-3 sm:grid-cols-4">
+              <div key={o.id} className="field-row grid grid-cols-2 gap-2 rounded-xl bg-surface-sunken/60 p-3 sm:grid-cols-5">
+                <Field id={`fo-${i}-${k}-part`} label={t("facadeOpeningPart")}>
+                  <NativeSelect value={o.part ?? ""} onChange={(e) => setOpening(k, { part: e.target.value || null })}>
+                    <option value="">{t("facadeOpeningPartNone")}</option>
+                    {f.parts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </Field>
                 <Field
                   id={`fo-${i}-${k}-kind`}
                   label={t("facadeOpeningKind")}
@@ -300,7 +343,7 @@ function Review({ facades, failed, onChange }: { facades: Facade[]; failed: stri
                 <CountField id={`fo-${i}-${k}-n`} label={t("facadeCount")} value={o.count} onChange={(v) => setOpening(k, { count: v })} />
               </div>
             ))}
-            <Button type="button" size="sm" variant="ghost" className="justify-self-start" onClick={() => set(i, { openings: [...f.openings, { kind: "window", width_m: null, height_m: null, count: 1 }] })}>
+            <Button type="button" size="sm" variant="ghost" className="justify-self-start" onClick={() => set(i, { openings: [...f.openings, { id: rowId("o"), part: f.parts.find((p) => p.include && p.material === "paint")?.id ?? null, kind: "window", width_m: null, height_m: null, count: 1 }] })}>
               <Plus /> {t("facadeAddOpening")}
             </Button>
 
@@ -357,4 +400,10 @@ function CountField({ id, label, value, onChange }: { id: string; label: string;
       />
     </Field>
   );
+}
+
+/** A façade's name on screen: its direction («الواجهة الشرقية»), else its code. */
+export function useFacadeName() {
+  const t = useTranslations("survey");
+  return (f: Pick<Facade, "code" | "dir">) => (f.dir ? t(`facadeDir_${f.dir}`) : t("facadeCode", { code: f.code }));
 }

@@ -26,7 +26,7 @@ describe("survey façades", () => {
   });
   it("refuses anything but a list, and huge payloads", async () => {
     await expectDenied(as({ userId: owner }, (q) => q(`update public.surveys set facades = '{"a":1}'::jsonb where id = $1`, [survey])), /surveys_facades_check|check constraint/);
-    const big = JSON.stringify([{ notes: ["x".repeat(70000)] }]);
+    const big = JSON.stringify([{ notes: Array.from({ length: 4000 }, (_, i) => `${i}-${Math.random()}-${"ملاحظة".repeat(8)}`) }]);
     await expectDenied(as({ userId: owner }, (q) => q("update public.surveys set facades = $2::jsonb where id = $1", [survey, big])), /check constraint/);
   });
   it("a viewer can't change them", async () => {

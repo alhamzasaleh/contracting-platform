@@ -50,27 +50,29 @@ export const SAMPLE_SURVEY: SurveyDetail = {
 /** Design preview: the façades read from sample elevation sheets (review step of «قراءة الواجهات من المخطط»). */
 export const SAMPLE_FACADES: Facade[] = [
   {
-    code: "E01", name: "الواجهة الشرقية", include: true,
+    code: "E01", dir: "east", include: true,
     parts: [
-      { name: "الكتلة الرئيسية — الأرضي والأول", material: "paint", width_m: 10.86, height_m: 9.3, count: 1, include: true },
-      { name: "دروة السطح", material: "paint", width_m: 10.86, height_m: 1.1, count: 1, include: true },
-      { name: "الملحق", material: "paint", width_m: 5.4, height_m: 3.3, count: 1, include: true },
-      { name: "السور", material: "paint", width_m: 12.2, height_m: 2.2, count: 1, include: false },
+      { id: "e1", name: "الكتلة الرئيسية — الأرضي والأول", material: "paint", width_m: 10.86, height_m: 9.3, count: 1, include: true },
+      { id: "e2", name: "دروة السطح", material: "paint", width_m: 10.86, height_m: 1.1, count: 1, include: true },
+      { id: "e3", name: "الملحق", material: "paint", width_m: 5.4, height_m: 3.3, count: 1, include: true },
+      { id: "e4", name: "السور", material: "paint", width_m: 12.2, height_m: 2.2, count: 1, include: false },
     ],
     openings: [
-      { kind: "window", width_m: 1.6, height_m: 1.8, count: 3 },
-      { kind: "window", width_m: 0.6, height_m: 1.8, count: 1 },
+      { id: "eo1", part: "e1", kind: "window", width_m: 1.6, height_m: 1.8, count: 3 },
+      { id: "eo2", part: "e1", kind: "window", width_m: 0.6, height_m: 1.8, count: 1 },
+      // the fence gate: subtracted only while the fence is counted
+      { id: "eo3", part: "e4", kind: "door", width_m: 3, height_m: 2, count: 1 },
     ],
-    notes: ["السور محسوب لحاله وغير مضاف — فعّله إذا السور ضمن الدهان."],
+    notes: [],
   },
   {
-    code: "E02", name: "الواجهة الغربية", include: true,
+    code: "E02", dir: "west", include: true,
     parts: [
-      { name: "الكتلة الرئيسية", material: "paint", width_m: 13.05, height_m: 9.3, count: 1, include: true },
-      { name: "تكسية حجر — المدخل", material: "stone", width_m: 2.8, height_m: 9.3, count: 1, include: true },
-      { name: "واجهة زجاج", material: "glass", width_m: 3.6, height_m: 6.1, count: 1, include: true },
+      { id: "w1", name: "الكتلة الرئيسية", material: "paint", width_m: 13.05, height_m: 9.3, count: 1, include: true },
+      { id: "w2", name: "تكسية حجر — المدخل", material: "stone", width_m: 2.8, height_m: 9.3, count: 1, include: true },
+      { id: "w3", name: "واجهة زجاج", material: "glass", width_m: 3.6, height_m: 6.1, count: 1, include: true },
     ],
-    openings: [{ kind: "door", width_m: 1.2, height_m: 2.4, count: 1 }, { kind: "window", width_m: null, height_m: 1.8, count: 2 }],
-    notes: ["بعض المقاسات ما انقرت من المخطط — كمّلها قبل الاعتماد."],
+    openings: [{ id: "wo1", part: "w1", kind: "door", width_m: 1.2, height_m: 2.4, count: 1 }, { id: "wo2", part: "w1", kind: "window", width_m: null, height_m: 1.8, count: 2 }],
+    notes: ["عرض شباكين ما انقرى من المخطط."],
   },
 ];

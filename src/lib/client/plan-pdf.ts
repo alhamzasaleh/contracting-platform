@@ -145,6 +145,12 @@ async function pageSegments(page: PdfPage): Promise<number[][]> {
     if (fn === OPS.save) stack.push(ctm);
     else if (fn === OPS.restore) ctm = stack.pop() ?? ctm;
     else if (fn === OPS.transform) ctm = mul(ctm, args as number[]);
+    // a drawing placed as a block (Form XObject) carries its own matrix, like pdf.js's own renderer
+    else if (fn === OPS.paintFormXObjectBegin) {
+      stack.push(ctm);
+      const matrix = args?.[0] as number[] | null | undefined;
+      if (Array.isArray(matrix) || ArrayBuffer.isView(matrix)) ctm = mul(ctm, Array.from(matrix as ArrayLike<number>));
+    } else if (fn === OPS.paintFormXObjectEnd) ctm = stack.pop() ?? ctm;
     else if (fn === OPS.constructPath) {
       const path = (args?.[1] as ArrayLike<number>[] | undefined)?.[0];
       if (!path || typeof path.length !== "number") continue;

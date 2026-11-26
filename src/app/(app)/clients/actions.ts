@@ -363,12 +363,17 @@ export async function readFacadeAi(fd: FormData): Promise<ActionResult<Facade>> 
   return { ok: true, data: cleanFacade(r.draft) };
 }
 
-/** The reviewed façades → the survey (kept for review) and its façade area = their paint area. */
+/** The reviewed façades → the survey (kept for review) and its façade area = their paint area; null removes the rows (the area stays). */
 export async function saveFacades(input: unknown): Promise<ActionResult<{ facade: number }>> {
   const ctx = await authorize("clients.manage");
   if (!isCtx(ctx)) return ctx;
-  const parsed = z.object({ id, facades: facadesSchema }).strict().safeParse(input);
+  const parsed = z.object({ id, facades: facadesSchema.nullable() }).strict().safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
+  // «إزالة قراءة الواجهات»: the rows go, the typed façade area stays as it is
+  if (parsed.data.facades === null) {
+    const { error } = await ctx.supabase.from("surveys").update({ facades: null }).eq("id", parsed.data.id).eq("organization_id", ctx.orgId);
+    return dbError(error) ?? done({ facade: -1 });
+  }
   const { data: sv, error: readError } = await ctx.supabase.from("surveys").select("totals").eq("id", parsed.data.id).eq("organization_id", ctx.orgId).maybeSingle();
   if (readError || !sv) return dbError(readError) ?? { ok: false, error: "invalid" };
   // the area is computed here from the rows, never taken from the browser

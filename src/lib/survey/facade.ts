@@ -12,17 +12,6 @@ import type { Box, PlanToken } from "@/lib/survey/plan";
  */
 
 export type Direction = "east" | "west" | "north" | "south" | "front" | "back" | "right" | "left" | "side";
-export const DIRECTION_AR: Record<Direction, string> = {
-  east: "الواجهة الشرقية",
-  west: "الواجهة الغربية",
-  north: "الواجهة الشمالية",
-  south: "الواجهة الجنوبية",
-  front: "الواجهة الأمامية",
-  back: "الواجهة الخلفية",
-  right: "الواجهة اليمنى",
-  left: "الواجهة اليسرى",
-  side: "الواجهة الجانبية",
-};
 const DIRECTION_WORDS: [RegExp, Direction][] = [
   [/^EAST(ERN)?$/i, "east"],
   [/^WEST(ERN)?$/i, "west"],
@@ -146,11 +135,12 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 
 export const MATERIALS = ["paint", "stone", "glass", "grc", "other"] as const;
 export type Material = (typeof MATERIALS)[number];
+export const DIRECTIONS = ["east", "west", "north", "south", "front", "back", "right", "left", "side"] as const;
 
 const size = z.number().nullable();
 export const facadeDraftSchema = z.object({
   code: z.string(),
-  direction: z.enum(["east", "west", "north", "south", "front", "back", "right", "left", "side"]).nullable(),
+  direction: z.enum(DIRECTIONS).nullable(),
   parts: z
     .array(
       z.object({
@@ -163,22 +153,37 @@ export const facadeDraftSchema = z.object({
       }),
     )
     .describe("rectangles covering the façade's visible wall surface once, no overlaps"),
-  openings: z.array(z.object({ kind: z.enum(["window", "door", "opening"]), width_m: size, height_m: size, count: z.number() })).describe("windows / doors cut into PAINTED parts only"),
+  openings: z
+    .array(
+      z.object({
+        kind: z.enum(["window", "door", "opening"]),
+        width_m: size,
+        height_m: size,
+        count: z.number(),
+        part: z.number().nullable().describe("index (0-based) of the part in `parts` the opening is cut into"),
+      }),
+    )
+    .describe("windows / doors / gates cut into PAINTED parts only (a fence gate belongs to the fence part)"),
   notes: z.array(z.string()),
 });
 export type FacadeDraft = z.infer<typeof facadeDraftSchema>;
 
-export type FacadePart = { name: string; material: Material; width_m: number | null; height_m: number | null; count: number; include: boolean };
-export type FacadeOpening = { kind: "window" | "door" | "opening"; width_m: number | null; height_m: number | null; count: number };
-export type Facade = { code: string; name: string; include: boolean; parts: FacadePart[]; openings: FacadeOpening[]; notes: string[] };
+export type FacadePart = { id: string; name: string; material: Material; width_m: number | null; height_m: number | null; count: number; include: boolean };
+/** `part` = the id of the part it is cut into (null = not known: taken as painted) */
+export type FacadeOpening = { id: string; part: string | null; kind: "window" | "door" | "opening"; width_m: number | null; height_m: number | null; count: number };
+/** `dir` names it (translated on screen); `notes` = the reading's own remarks */
+export type Facade = { code: string; dir: Direction | null; include: boolean; parts: FacadePart[]; openings: FacadeOpening[]; notes: string[] };
 
 const plausible = (v: number | null | undefined, max: number) => (v != null && Number.isFinite(v) && v > 0.05 && v <= max ? r2(v) : null);
 const whole = (n: number) => (Number.isFinite(n) && n > 0 ? Math.min(100, Math.ceil(n - 1e-9)) : 1);
+let seq = 0;
+/** A row id (stable while the owner edits: React keys, opening → part links). */
+export const rowId = (prefix: "p" | "o") => `${prefix}${Date.now().toString(36)}${(seq++).toString(36)}`;
 
-/** The AI's draft → rows for review: plausible sizes only (else empty, said in a note), whole counts, the fence left out by default. */
+/** The AI's draft → rows for review: plausible sizes only, whole counts, ids, openings linked to their part, the fence left out by default. */
 export function cleanFacade(d: FacadeDraft): Facade {
-  const notes = [...d.notes.map((n) => n.slice(0, 300))].slice(0, 10);
-  const parts = d.parts.slice(0, 40).map((p) => ({
+  const parts = d.parts.slice(0, 30).map((p) => ({
+    id: rowId("p"),
     name: p.name.trim().slice(0, 80) || "—",
     material: p.material,
     width_m: plausible(p.width_m, 80),
@@ -186,19 +191,29 @@ export function cleanFacade(d: FacadeDraft): Facade {
     count: whole(p.count),
     include: !p.fence,
   }));
-  const openings = d.openings.slice(0, 60).map((o) => ({ kind: o.kind, width_m: plausible(o.width_m, 12), height_m: plausible(o.height_m, 12), count: whole(o.count) }));
-  if ([...parts, ...openings].some((r) => r.width_m == null || r.height_m == null)) notes.push("بعض المقاسات ما انقرت من المخطط — كمّلها قبل الاعتماد.");
-  if (parts.some((p) => !p.include)) notes.push("السور محسوب لحاله وغير مضاف — فعّله إذا السور ضمن الدهان.");
-  return { code: d.code.slice(0, 10), name: d.direction ? DIRECTION_AR[d.direction] : `واجهة ${d.code.slice(0, 10)}`, include: true, parts, openings, notes };
+  const openings = d.openings.slice(0, 40).map((o) => ({
+    id: rowId("o"),
+    part: o.part != null && Number.isInteger(o.part) && parts[o.part] ? parts[o.part].id : null,
+    kind: o.kind,
+    width_m: plausible(o.width_m, 12),
+    height_m: plausible(o.height_m, 12),
+    count: whole(o.count),
+  }));
+  return { code: d.code.slice(0, 10), dir: d.direction, include: true, parts, openings, notes: d.notes.map((n) => n.slice(0, 200)).slice(0, 8) };
 }
 
 const area = (r: { width_m: number | null; height_m: number | null; count: number }) => (r.width_m ?? 0) * (r.height_m ?? 0) * r.count;
 
-/** A façade's areas: painted parts (gross) − openings = paint; stone / glass / GRC / other listed apart. Included parts only. */
+/**
+ * A façade's areas: counted painted parts (gross) − the openings cut into them = paint (≥ 0); an
+ * opening of an uncounted or not-painted part (the fence's gate, a stone wall) isn't subtracted, one
+ * with no part is (taken as painted). Stone / glass / GRC / other listed apart.
+ */
 export function facadeArea(f: Pick<Facade, "parts" | "openings">) {
   const parts = f.parts.filter((p) => p.include);
+  const painted = new Set(parts.filter((p) => p.material === "paint").map((p) => p.id));
   const gross = r2(parts.filter((p) => p.material === "paint").reduce((s, p) => s + area(p), 0));
-  const openings = r2(f.openings.reduce((s, o) => s + area(o), 0));
+  const openings = r2(f.openings.filter((o) => o.part == null || painted.has(o.part)).reduce((s, o) => s + area(o), 0));
   const other = Object.fromEntries((["stone", "glass", "grc", "other"] as const).map((m) => [m, r2(parts.filter((p) => p.material === m).reduce((s, p) => s + area(p), 0))])) as Record<Exclude<Material, "paint">, number>;
   return { gross, openings, paint: r2(Math.max(0, gross - openings)), other };
 }
@@ -206,18 +221,52 @@ export function facadeArea(f: Pick<Facade, "parts" | "openings">) {
 /** The survey's façade area: the included façades' paint areas. */
 export const facadesTotal = (list: Facade[]) => r2(list.filter((f) => f.include).reduce((s, f) => s + facadeArea(f).paint, 0));
 
-/** What is stored on the survey (validated on the server). */
+/** Rows still missing a size in the included façades (counted parts, and their openings) — said before approving. */
+export function missingSizes(list: Facade[]): number {
+  let n = 0;
+  for (const f of list.filter((x) => x.include)) {
+    const counted = new Set(f.parts.filter((p) => p.include).map((p) => p.id));
+    n += f.parts.filter((p) => p.include && (p.width_m == null || p.height_m == null)).length;
+    n += f.openings.filter((o) => (o.part == null || counted.has(o.part)) && (o.width_m == null || o.height_m == null)).length;
+  }
+  return n;
+}
+
+/** A new reading joins the approved façades: the same code is replaced, the others kept (by code). */
+export function mergeFacades(saved: Facade[] | null, read: Facade[]): Facade[] {
+  const byCode = new Map((saved ?? []).map((f) => [f.code, f]));
+  for (const f of read) byCode.set(f.code, f);
+  return [...byCode.values()].sort((a, b) => a.code.localeCompare(b.code));
+}
+
+/** What is stored on the survey (validated on the server; sizes fit the database's 256 KB). */
 const num = z.number().min(0).max(80).nullable();
+const id = z.string().trim().min(1).max(24);
 export const facadesSchema = z
   .array(
     z
       .object({
         code: z.string().trim().min(1).max(10),
-        name: z.string().trim().min(1).max(80),
+        dir: z.enum(DIRECTIONS).nullable(),
         include: z.boolean(),
-        parts: z.array(z.object({ name: z.string().trim().min(1).max(80), material: z.enum(MATERIALS), width_m: num, height_m: num, count: z.number().int().min(1).max(100), include: z.boolean() }).strict()).max(40),
-        openings: z.array(z.object({ kind: z.enum(["window", "door", "opening"]), width_m: num, height_m: num, count: z.number().int().min(1).max(100) }).strict()).max(60),
-        notes: z.array(z.string().max(300)).max(12),
+        parts: z
+          .array(
+            z
+              .object({
+                id,
+                // an emptied name is kept as «—», never a refusal of the whole review
+                name: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? "—" : v), z.string().trim().min(1).max(80)),
+                material: z.enum(MATERIALS),
+                width_m: num,
+                height_m: num,
+                count: z.number().int().min(1).max(100),
+                include: z.boolean(),
+              })
+              .strict(),
+          )
+          .max(30),
+        openings: z.array(z.object({ id, part: id.nullable(), kind: z.enum(["window", "door", "opening"]), width_m: num, height_m: num, count: z.number().int().min(1).max(100) }).strict()).max(40),
+        notes: z.array(z.string().max(200)).max(8),
       })
       .strict(),
   )
@@ -233,7 +282,7 @@ export const elevationSheetSchema = z
     survey_id: z.uuid(),
     page: z.number().int().min(1).max(500),
     code: z.string().trim().min(1).max(10),
-    direction: z.enum(["east", "west", "north", "south", "front", "back", "right", "left", "side"]).nullable(),
+    direction: z.enum(DIRECTIONS).nullable(),
     scale: z.number().int().min(20).max(500),
     /** the printed text of the elevation (levels, notes, material tags) in metres from its corner */
     words: z.array(z.object({ s: z.string().max(60), x: coord, y: coord }).strict()).max(1500),
