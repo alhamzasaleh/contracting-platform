@@ -281,7 +281,7 @@ export function SurveyPlanImport({
                 {floors.map((f, fi) => (
                   <section key={`${f.page}-${fi}`} className="grid gap-2 rounded-2xl border border-border p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="field-row grid w-full grid-cols-[minmax(0,16rem)_6rem] justify-between gap-x-3">
+                      <div className="field-row grid w-full grid-cols-1 gap-x-3 sm:grid-cols-[minmax(0,16rem)_7rem] sm:justify-between">
                         <Field id={`pf-${fi}`} label={t("planFloorName")} hint={t("planFloorArea", { area: fmt.number(area(f.rows), 1), page: f.page })}>
                           <Input id={`pf-${fi}`} value={f.floor} maxLength={60} onChange={(e) => setFloor(fi, { floor: e.target.value })} className="font-bold" />
                         </Field>
