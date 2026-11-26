@@ -190,7 +190,7 @@ export async function deleteSurvey(input: unknown): Promise<ActionResult> {
 /**
  * One floor-plan sheet, cropped and tiled in the browser (the PDF itself never leaves the device)
  * → a rooms draft. Nothing is saved: the owner reviews the rows and adds them with saveRoom.
- * 20 sheets per hour per user; the drawing is never stored or logged.
+ * 40 sheet reads per hour per user (a failed sheet is retried once); the drawing is never stored or logged.
  */
 export async function readPlanAi(fd: FormData): Promise<ActionResult<ReturnType<typeof cleanPlanDraft>>> {
   const session = await getSession();
@@ -217,7 +217,7 @@ export async function readPlanAi(fd: FormData): Promise<ActionResult<ReturnType<
   const supabase = await createClient();
   const { data: survey } = await supabase.from("surveys").select("id").eq("id", sheet.survey_id).eq("organization_id", session.organization.id).maybeSingle();
   if (!survey) return { ok: false, error: "invalid" };
-  const limit = await rateLimit(`ai:plan:${session.userId}`, 20, 3600);
+  const limit = await rateLimit(`ai:plan:${session.userId}`, 40, 3600); // a sheet may be read twice (automatic retry)
   if (limit !== "ok") return { ok: false, error: limit === "limited" ? "rateLimited" : "aiFailed" };
   const r = await readPlan(sheet, tiles);
   if (!r.ok) return { ok: false, error: r.error };

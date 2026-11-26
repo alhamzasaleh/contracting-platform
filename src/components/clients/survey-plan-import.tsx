@@ -96,7 +96,7 @@ export function SurveyPlanImport({
   };
 
   /**
-   * Read the given pages one by one. A sheet that fails (AI busy, a dropped request) is tried once
+   * Read the given pages one by one. A sheet the AI failed to read is tried once
    * more by itself before it counts as not read; a stop for every sheet (offline, hourly limit, AI
    * off, no access) keeps what was read so far and lists the rest as not read.
    */
@@ -107,6 +107,7 @@ export function SurveyPlanImport({
     const { sheetPayload } = await import("@/lib/client/plan-pdf");
     for (const [i, page] of pages.entries()) {
       setBusy(t("planReading", { i: i + 1, n: pages.length, page }));
+      if (!doc.current) break; // the dialog was left while reading
       const sheet = doc.current.sheets.find((s) => s.page === page)!;
       let fd: FormData;
       try {
@@ -119,7 +120,9 @@ export function SurveyPlanImport({
         continue;
       }
       let r = await settle(() => readPlan(fd));
-      if (!r.ok && (r.error === "aiFailed" || r.error === "connection")) {
+      // only a failure the server answered is retried: after a dropped connection the first read
+      // may still be running there, and a second one would only double the cost
+      if (!r.ok && r.error === "aiFailed") {
         setBusy(t("planRetrying", { page }));
         await new Promise((res) => setTimeout(res, 3000));
         r = await settle(() => readPlan(fd));
