@@ -17,6 +17,8 @@ For every room tag of this floor (e.g. GF-07, F1-03) give the room's interior si
 - A dimension string along a wall often adds up several segments (door, wall, window): use the total between the room's own walls, not one segment, and not furniture sizes.
 - Open-plan spaces (lobby, family nook, seating, living with no wall between them): read the whole open area from wall to wall as one zone, split it into rectangles if it isn't one, name each part, mark open_space = true and say in the note where you drew the limit.
 - Two rooms sharing one tag (e.g. a wash area and a toilet both tagged GF-03) are two rows with the same label.
+- Every indoor floor area belongs to some row. Corridors, passages and hallways often have NO tag of their own (e.g. the corridor leading from a living area to the bedrooms, toilets and laundry): add them as extra rows named «ممر» under the tag of the space they open onto, split into rectangles, open_space = true. Before answering, look over the whole floor inside the outer walls and make sure no walkable indoor area is left out.
+- Stairs: the whole stair hall from wall to wall, landings included. Lift: the shaft.
 - Non-rectangular rooms: split into rectangles («(جزء 1)», «(جزء 2)»).
 - Skip outdoor areas: parking, garden, pool, deck, terrace, open roof, setbacks.
 - Never invent a size: if a side can't be read, use null and say why in the note. Use Western digits, metres with two decimals.
