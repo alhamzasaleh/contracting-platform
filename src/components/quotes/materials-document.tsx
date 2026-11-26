@@ -42,6 +42,8 @@ export function MaterialsDocument({ org, doc }: { org: DocOrg; doc: MaterialsDoc
 
   return (
     <article className="relative mx-auto grid min-w-0 max-w-[1000px] gap-6 overflow-hidden rounded-3xl border border-border bg-white p-5 text-[14px] text-basalt sm:p-10 print:max-w-none print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-8">
+      {/* the priced table has up to 11 columns: printed / PDF on a landscape page, or its last columns (cost, total) were cut off */}
+      <style>{"@page { size: A4 landscape; }"}</style>
       <span aria-hidden className="absolute end-0 top-0 size-10 bg-clay [clip-path:polygon(0_0,100%_0,100%_100%)] rtl:[clip-path:polygon(0_0,100%_0,0_100%)] print:size-8" />
       <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-primary pb-4">
         <div className="flex flex-wrap items-center gap-3">

@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useListSep } from "@/components/forms/form-kit";
+import { NumberInput, useListSep } from "@/components/forms/form-kit";
+import { Field } from "@/components/ui/field";
 import type { ActionResult } from "@/lib/actions";
 import { settle } from "@/lib/client/action";
 import { useFailureText } from "@/lib/client/failure-text";
@@ -280,21 +281,20 @@ export function SurveyPlanImport({
                 {floors.map((f, fi) => (
                   <section key={`${f.page}-${fi}`} className="grid gap-2 rounded-2xl border border-border p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <label className="grid gap-1 text-[12px] font-semibold text-muted-foreground">
-                        {t("planFloorName")}
-                        <Input value={f.floor} maxLength={60} onChange={(e) => setFloor(fi, { floor: e.target.value })} className="h-9 max-w-64 font-bold text-foreground" />
-                        <span className="font-normal">{t("planFloorArea", { area: fmt.number(area(f.rows), 1), page: f.page })}</span>
-                      </label>
-                      <label className="grid gap-1 text-[12px] font-semibold text-muted-foreground">
-                        {t("planHeight")}
-                        <Input
-                          inputMode="decimal"
-                          dir="ltr"
-                          className={cn("h-9 w-24 font-latin", f.height == null && "border-warning")}
-                          defaultValue={f.height ?? ""}
-                          onChange={(e) => setFloor(fi, { height: roomSize(e.target.value, 30) })}
-                        />
-                      </label>
+                      <div className="field-row grid w-full grid-cols-[minmax(0,16rem)_6rem] justify-between gap-x-3">
+                        <Field id={`pf-${fi}`} label={t("planFloorName")} hint={t("planFloorArea", { area: fmt.number(area(f.rows), 1), page: f.page })}>
+                          <Input id={`pf-${fi}`} value={f.floor} maxLength={60} onChange={(e) => setFloor(fi, { floor: e.target.value })} className="font-bold" />
+                        </Field>
+                        <Field id={`ph-${fi}`} label={t("height")}>
+                          <NumberInput
+                            id={`ph-${fi}`}
+                            suffix="m"
+                            className={cn(f.height == null && "border-warning")}
+                            defaultValue={f.height ?? ""}
+                            onChange={(e) => setFloor(fi, { height: roomSize(e.target.value, 30) })}
+                          />
+                        </Field>
+                      </div>
                     </div>
                     <ul className="grid gap-1.5">
                       {f.rows.map((r, ri) => (

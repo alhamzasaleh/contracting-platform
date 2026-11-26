@@ -821,13 +821,13 @@ export function PricingView({
         <div className="@container overflow-hidden rounded-2xl border border-border bg-surface">
           {/* narrow (phone, half an iPad): one block per work type — five columns don't fit and the
               last ones (price per m², total) would be cut off */}
-          <ul className="divide-y divide-border @2xl:hidden" data-testid="work-types-stacked">
+          <ul className="divide-y divide-border @2xl:hidden">
             {price.byWorkType.map((w) => (
               <li key={w.workType} className="grid gap-2 px-4 py-3">
                 <p className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="font-bold">{te(`wt_${w.workType}`)}</span>
-                  <span className="font-latin text-[13px] tabular-nums text-muted-foreground">
-                    {te("area")} {fmt.number(w.area, 1)}
+                  <span className="text-[13px] text-muted-foreground">
+                    {te("area")} <span className="font-latin tabular-nums">{fmt.number(w.area, 1)}</span>
                   </span>
                 </p>
                 <dl className="grid grid-cols-[repeat(auto-fit,minmax(6.5rem,1fr))] gap-2 text-[12px] [&_dd]:font-latin [&_dd]:text-[14px] [&_dd]:tabular-nums [&_dt]:text-muted-foreground">

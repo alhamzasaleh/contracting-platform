@@ -1334,7 +1334,6 @@
     "planFailedPages": "Couldn't read pages: {pages}. Use the button to read just those again — what was read stays as it is.",
     "planFloorName": "Floor name",
     "planFloorArea": "{area} m² selected · page {page}",
-    "planHeight": "Height m",
     "planConfirmed": "Size printed on the plan",
     "planOpen": "Open space — check its limits",
     "planCheck": "Check the size",

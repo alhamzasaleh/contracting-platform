@@ -1334,7 +1334,6 @@
     "planFailedPages": "ما قدرنا نقرأ الصفحات: {pages}. اضغط الزر لقراءتها وحدها — اللي انقرأ يبقى كما هو.",
     "planFloorName": "اسم الدور",
     "planFloorArea": "{area} م² للمختار · صفحة {page}",
-    "planHeight": "الارتفاع م",
     "planConfirmed": "الرقم مكتوب في المخطط",
     "planOpen": "فراغ مفتوح — راجع حدوده",
     "planCheck": "راجع المقاس",

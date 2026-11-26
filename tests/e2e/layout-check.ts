@@ -9,6 +9,8 @@
  *    (card, rounded panel, dialog) — or out of the screen;
  *  - a box that isn't meant to scroll sideways hides content you'd have to
  *    scroll to (e.g. a dialog body wider than its panel);
+ *  - a box that cuts content off sideways with no way to reach it (overflow
+ *    hidden / clip — a table's last columns vanish on a phone);
  *  - text cut inside a field (a number shows "2" instead of "24", a date is
  *    cropped);
  *  - fields side by side in one row that don't line up (different top or
@@ -137,7 +139,7 @@ export function layoutIssues(): string[] {
     const s = getComputedStyle(n);
     if (!(s.overflowX === "hidden" || s.overflowX === "clip")) continue;
     if (s.textOverflow === "ellipsis" || n.clientWidth <= 2) continue;
-    if (n.scrollWidth > n.clientWidth + 2) out.push(`content cut off sideways (hidden, can't be reached): ${n.tagName.toLowerCase()} «${name(n)}» (${n.scrollWidth} > ${n.clientWidth})`);
+    if (n.scrollWidth > n.clientWidth + 1) out.push(`content cut off sideways (hidden, can't be reached): ${n.tagName.toLowerCase()} «${name(n)}» (${n.scrollWidth} > ${n.clientWidth})`);
   }
   // the dialog panel itself must fit the screen
   if (dialog) {
