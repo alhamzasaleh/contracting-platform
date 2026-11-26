@@ -1,5 +1,5 @@
 import { ClientDetailView } from "@/components/clients/clients-view";
-import { previewNoop } from "../../../preview-actions";
+import { previewMapLink, previewNoop } from "../../../preview-actions";
 import { SAMPLE_CLIENT_DETAIL } from "../../../sample-clients";
 
 /** As the owner sees it: «حذف العميل» disabled (he has contracts), a survey with quotes and one that can go. */
@@ -14,5 +14,5 @@ const OWNER = {
 };
 
 export default function P() {
-  return <ClientDetailView detail={OWNER} canManage canQuote base="/dev/preview" onDelete={previewNoop} onDeleteSurvey={previewNoop} />;
+  return <ClientDetailView detail={OWNER} canManage canQuote base="/dev/preview" onDelete={previewNoop} onDeleteSurvey={previewNoop} onReadLink={previewMapLink} />;
 }

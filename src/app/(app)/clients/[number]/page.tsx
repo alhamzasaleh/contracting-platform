@@ -3,7 +3,7 @@ import { ClientDetailView } from "@/components/clients/clients-view";
 import { PageHeader } from "@/components/shell/app-shell";
 import { can, requirePermission } from "@/lib/auth/session";
 import { loadClientDetail } from "@/lib/data/clients";
-import { createSurvey, deleteClient, deleteSurvey, saveClient } from "../actions";
+import { createSurvey, deleteClient, deleteSurvey, readMapLink, saveClient } from "../actions";
 
 export default async function ClientPage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
@@ -18,6 +18,7 @@ export default async function ClientPage({ params }: { params: Promise<{ number:
         canManage={can(session, "clients.manage")}
         canQuote={can(session, "quotes.manage")}
         onSave={saveClient}
+        onReadLink={readMapLink}
         onNewSurvey={createSurvey}
         onDelete={detail.canDelete ? deleteClient : undefined}
         onDeleteSurvey={detail.canDelete ? deleteSurvey : undefined}

@@ -20,8 +20,14 @@ import type { ClientDetail, ClientListItem } from "@/lib/data/clients";
 import { DeleteRecord } from "@/components/forms/delete-record";
 import { clientDeleteBlock, surveyDeleteBlock } from "@/lib/deletion";
 import { ltr } from "@/lib/utils";
+import { SitePinField } from "@/components/maps/site-pin-field";
+import { mapLink, siteOf, type LatLng } from "@/lib/geo";
+import dynamic from "next/dynamic";
+
+const SiteMap = dynamic(() => import("@/components/maps/site-map").then((m) => m.SiteMap), { ssr: false, loading: () => <div className="h-56 animate-pulse rounded-2xl bg-surface-sunken" /> });
 
 type SaveClient = (i: Record<string, unknown>) => Promise<ActionResult<{ number: string }>>;
+type ReadMapLink = (i: { url: string }) => Promise<ActionResult<LatLng | null>>;
 
 /** 966551234567 → 055 123 4567 */
 export function displayPhone(p: string | null) {
@@ -34,6 +40,7 @@ function ClientDialog({
   client,
   onClose,
   onSave,
+  onReadLink,
   base = "",
   marketers = [],
 }: {
@@ -43,12 +50,16 @@ function ClientDialog({
   client?: ClientDetail["client"];
   onClose: () => void;
   onSave?: SaveClient;
+  onReadLink?: ReadMapLink;
 }) {
   const t = useTranslations("clients");
   const tc = useTranslations("common");
   const router = useRouter();
   const { run, pending, fieldText } = useActionRunner();
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  // the site pin (map / phone / link); without one the server reads it from the link
+  const [pin, setPin] = React.useState<LatLng | null>(client?.latitude != null && client?.longitude != null ? { lat: Number(client.latitude), lng: Number(client.longitude) } : null);
+  const linkRef = React.useRef<HTMLInputElement>(null);
   return (
     <FormDialog
       open
@@ -67,6 +78,8 @@ function ClientDialog({
                 district: str(fd, "district") || null,
                 id_number: str(fd, "id_number"),
                 location_url: str(fd, "location_url"),
+                latitude: pin?.lat ?? null,
+                longitude: pin?.lng ?? null,
                 notes: str(fd, "notes") || null,
                 ...(marketers.length ? { marketer_id: str(fd, "marketer_id") || null } : {}),
               })),
@@ -99,8 +112,9 @@ function ClientDialog({
         <Input name="id_number" defaultValue={client?.id_number ?? ""} inputMode="numeric" dir="ltr" maxLength={10} className="font-latin rtl:text-right" />
       </Field>
       <Field id="cl-loc" label={t("location")} hint={t("locationHint")} optional={tc("optional")} error={errors.location_url ? t("urlInvalid") : undefined}>
-        <Input name="location_url" defaultValue={client?.location_url ?? ""} dir="ltr" inputMode="url" placeholder="https://maps.app.goo.gl/…" className="font-latin rtl:text-right" />
+        <Input ref={linkRef} name="location_url" defaultValue={client?.location_url ?? ""} dir="ltr" inputMode="url" placeholder="https://maps.app.goo.gl/…" className="font-latin rtl:text-right" />
       </Field>
+      <SitePinField value={pin} onChange={setPin} readLink={onReadLink} linkValue={() => linkRef.current?.value ?? ""} />
       {marketers.length > 0 && (
         <Field id="cl-marketer" label={t("cameThrough")} hint={t("cameThroughHint")} optional={tc("optional")}>
           <NativeSelect name="marketer_id" defaultValue={client?.marketer_id ?? ""}>
@@ -120,7 +134,7 @@ function ClientDialog({
   );
 }
 
-export function ClientsView({ clients, canManage, onSave, base = "", marketers }: { clients: ClientListItem[]; canManage: boolean; onSave?: SaveClient; base?: string; marketers?: MarketerChoice[] }) {
+export function ClientsView({ clients, canManage, onSave, onReadLink, base = "", marketers }: { clients: ClientListItem[]; canManage: boolean; onSave?: SaveClient; onReadLink?: ReadMapLink; base?: string; marketers?: MarketerChoice[] }) {
   const t = useTranslations("clients");
   const { fmt } = useFormatter();
   const [query, setQuery] = React.useState("");
@@ -187,7 +201,7 @@ export function ClientsView({ clients, canManage, onSave, base = "", marketers }
           {list.length === 0 && <p className="py-10 text-center text-muted-foreground">{t("noResults")}</p>}
         </>
       )}
-      {creating && <ClientDialog onClose={() => setCreating(false)} onSave={onSave} base={base} marketers={marketers} />}
+      {creating && <ClientDialog onClose={() => setCreating(false)} onSave={onSave} onReadLink={onReadLink} base={base} marketers={marketers} />}
     </div>
   );
 }
@@ -197,6 +211,7 @@ export function ClientDetailView({
   canManage,
   canQuote,
   onSave,
+  onReadLink,
   onNewSurvey,
   onDelete,
   onDeleteSurvey,
@@ -207,6 +222,7 @@ export function ClientDetailView({
   canManage: boolean;
   canQuote: boolean;
   onSave?: SaveClient;
+  onReadLink?: ReadMapLink;
   onNewSurvey?: (i: Record<string, unknown>) => Promise<ActionResult<{ number: string }>>;
   /** owner only (detail.canDelete) */
   onDelete?: (i: Record<string, unknown>) => Promise<ActionResult>;
@@ -222,6 +238,8 @@ export function ClientDetailView({
   const [editing, setEditing] = React.useState(false);
   const { client, surveys, quotes } = detail;
   const wa = client.phone ? `https://wa.me/${client.phone}` : null;
+  const tm = useTranslations("maps");
+  const site = siteOf({ latitude: client.latitude ?? null, longitude: client.longitude ?? null, location_url: client.location_url });
 
   const newSurvey = (mode: "rooms" | "total") =>
     run(onNewSurvey && (() => onNewSurvey({ client_id: client.id, mode })), {
@@ -267,9 +285,9 @@ export function ClientDetailView({
               </a>
             </Button>
           )}
-          {client.location_url && (
+          {(site || client.location_url) && (
             <Button asChild variant="secondary" size="sm">
-              <a href={client.location_url} target="_blank" rel="noopener noreferrer">
+              <a href={site ? mapLink(site) : client.location_url!} target="_blank" rel="noopener noreferrer">
                 <MapPin /> {t("openMap")}
               </a>
             </Button>
@@ -291,6 +309,12 @@ export function ClientDetailView({
           )}
         </div>
       </section>
+
+      {site ? (
+        <SiteMap className="h-56" label={tm("siteMapLabel", { name: client.name })} pins={[{ id: "site", ...site, tone: "site", label: client.name }]} />
+      ) : (
+        canManage && <p className="rounded-2xl bg-warning-soft px-4 py-3 text-[13px]">{tm("noSiteYet")}</p>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="grid content-start gap-3">
@@ -425,7 +449,7 @@ export function ClientDetailView({
           )}
         </div>
       )}
-      {editing && <ClientDialog client={client} onClose={() => setEditing(false)} onSave={onSave} marketers={detail.marketers} />}
+      {editing && <ClientDialog client={client} onClose={() => setEditing(false)} onSave={onSave} onReadLink={onReadLink} marketers={detail.marketers} />}
     </div>
   );
 }

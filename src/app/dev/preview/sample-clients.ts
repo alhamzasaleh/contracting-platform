@@ -8,7 +8,7 @@ export const SAMPLE_CLIENTS: ClientListItem[] = [
 ];
 
 export const SAMPLE_CLIENT_DETAIL: ClientDetail = {
-  client: { id: "c1", number: "CL-2026-003", name: "أبو محمد العتيبي", phone: "966551234567", city: "الرياض", district: "النرجس", id_number: "1012345678", location_url: "https://maps.app.goo.gl/example", notes: "فيلا دورين، يفضّل التواصل بالواتساب بعد العصر.", marketer_id: "mk1" },
+  client: { id: "c1", number: "CL-2026-003", name: "أبو محمد العتيبي", phone: "966551234567", city: "الرياض", district: "النرجس", id_number: "1012345678", location_url: "https://maps.app.goo.gl/example", latitude: 24.8031, longitude: 46.6105, notes: "فيلا دورين، يفضّل التواصل بالواتساب بعد العصر.", marketer_id: "mk1" },
   marketers: [{ id: "mk1", number: "MK-2026-001", name: "سعد بن فهد الدوسري", is_active: true, commission_percent: 5 }],
   canOpenPartners: true,
   surveys: [{ id: "s1", number: "SV-2026-004", title: "فيلا النرجس", mode: "rooms", visit_date: "2026-11-21", rooms: 6 }],

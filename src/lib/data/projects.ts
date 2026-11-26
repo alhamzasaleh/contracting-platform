@@ -1,4 +1,5 @@
 import "server-only";
+import { siteOf, type LatLng } from "@/lib/geo";
 import { loadContractCommission, type ContractCommission } from "@/lib/data/marketers";
 import { notFound } from "next/navigation";
 import { aiConfigured } from "@/lib/ai/invoice";
@@ -15,28 +16,38 @@ import { createClient } from "@/lib/supabase/server";
 export type ProjectListItem = {
   id: string; number: string; client: string; service: ServiceKind; start_date: string; duration_days: number;
   progress: number; stage: string | null; stageStatus: StageStatus | null; lastVisit: string | null; newNotes: number; done: boolean;
+  /** the site pin (client's pin, else coordinates in his map link) — for the projects map */
+  site?: LatLng | null;
+  clientNumber?: string;
+  /** past its delivery date (incl. accepted additional works) and not handed over */
+  late?: boolean;
 };
 
 export async function loadProjects(session: SessionContext): Promise<ProjectListItem[]> {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const [{ data: contracts }, { data: clients }, { data: stages }, { data: visits }, { data: notes }] = await Promise.all([
+  const [{ data: contracts }, { data: clients }, { data: stages }, { data: visits }, { data: notes }, { data: addenda }] = await Promise.all([
     supabase.from("contracts").select("id, number, client_id, service, start_date, duration_days").eq("organization_id", orgId).eq("status", "accepted").order("start_date", { ascending: false }),
-    supabase.from("clients").select("id, name").eq("organization_id", orgId),
+    supabase.from("clients").select("id, number, name, latitude, longitude, location_url").eq("organization_id", orgId),
     supabase.from("project_stages").select("contract_id, seq, name, status, progress, is_final").eq("organization_id", orgId),
     supabase.from("site_visits").select("contract_id, checked_in_at").eq("organization_id", orgId).order("checked_in_at", { ascending: false }).limit(2000),
     supabase.from("client_notes").select("contract_id").eq("organization_id", orgId).eq("status", "new"),
+    supabase.from("addenda").select("contract_id, extra_days").eq("organization_id", orgId).eq("status", "accepted"),
   ]);
-  const names = new Map((clients ?? []).map((c) => [c.id, c.name]));
+  const byId = new Map((clients ?? []).map((c) => [c.id, c]));
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
   return (contracts ?? []).map((c) => {
     const own = (stages ?? []).filter((s) => s.contract_id === c.id);
     const cur = currentStage(own);
     return {
-      id: c.id, number: c.number, client: names.get(c.client_id) ?? "—", service: c.service, start_date: c.start_date, duration_days: c.duration_days,
+      id: c.id, number: c.number, client: byId.get(c.client_id)?.name ?? "—", service: c.service, start_date: c.start_date, duration_days: c.duration_days,
       progress: overallProgress(own), stage: cur?.name ?? null, stageStatus: cur?.status ?? null,
       lastVisit: (visits ?? []).find((v) => v.contract_id === c.id)?.checked_in_at ?? null,
       newNotes: (notes ?? []).filter((n) => n.contract_id === c.id).length,
       done: own.length > 0 && !cur,
+      site: (() => { const cl = byId.get(c.client_id); return cl ? siteOf({ latitude: cl.latitude ?? null, longitude: cl.longitude ?? null, location_url: cl.location_url }) : null; })(),
+      clientNumber: byId.get(c.client_id)?.number,
+      late: !(own.length > 0 && !cur) && deliveryDate(c.start_date, c.duration_days, (addenda ?? []).filter((a) => a.contract_id === c.id).reduce((x, a) => x + (a.extra_days ?? 0), 0)) < today,
     };
   });
 }
@@ -48,7 +59,7 @@ export type StageView = {
 };
 export type ProjectDetail = {
   contract: { id: string; number: string; service: ServiceKind; start_date: string; duration_days: number; warranty_months: number; accepted_at: string | null };
-  client: { name: string; phone: string | null; city: string | null; district: string | null; location_url: string | null };
+  client: { name: string; phone: string | null; city: string | null; district: string | null; location_url: string | null; latitude?: number | null; longitude?: number | null };
   /** company name, signs the ready WhatsApp messages */
   orgName?: string;
   stages: StageView[];
@@ -90,7 +101,7 @@ export async function loadProject(session: SessionContext, number: string): Prom
     { data: client }, { data: stages }, { data: updates }, { data: visits }, { data: notes }, { data: payments }, who,
     { data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam, signed, reward,
   ] = await Promise.all([
-    supabase.from("clients").select("name, phone, city, district, location_url").eq("id", c.client_id).maybeSingle(),
+    supabase.from("clients").select("name, phone, city, district, location_url, latitude, longitude").eq("id", c.client_id).maybeSingle(),
     supabase.from("project_stages").select("*").eq("contract_id", c.id).order("seq"),
     updatesP,
     visitsP,

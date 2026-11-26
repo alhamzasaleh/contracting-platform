@@ -32,7 +32,7 @@ export async function loadClients(session: SessionContext): Promise<ClientListIt
 }
 
 export type ClientDetail = {
-  client: { id: string; number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null; location_url: string | null; notes: string | null; marketer_id?: string | null };
+  client: { id: string; number: string; name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null; location_url: string | null; notes: string | null; marketer_id?: string | null; latitude?: number | null; longitude?: number | null };
   /** success partners for «جاء عن طريق» (names only; marketer_choices) */
   marketers?: MarketerChoice[];
   /** may open /partners (marketers.manage or finance.view) */
@@ -59,7 +59,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
   const orgId = session.organization.id;
   const { data: client } = await supabase
     .from("clients")
-    .select("id, number, name, phone, city, district, id_number, location_url, notes, marketer_id")
+    .select("id, number, name, phone, city, district, id_number, location_url, notes, marketer_id, latitude, longitude")
     .eq("organization_id", orgId)
     .eq("number", number)
     .maybeSingle();

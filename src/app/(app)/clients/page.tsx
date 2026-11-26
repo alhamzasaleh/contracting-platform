@@ -5,7 +5,7 @@ import { can, requirePermission } from "@/lib/auth/session";
 import { loadClients } from "@/lib/data/clients";
 import { loadMarketerChoices } from "@/lib/data/marketers";
 import { createClient } from "@/lib/supabase/server";
-import { saveClient } from "./actions";
+import { readMapLink, saveClient } from "./actions";
 
 export default async function ClientsPage() {
   const session = await requirePermission("clients.view");
@@ -14,7 +14,7 @@ export default async function ClientsPage() {
   return (
     <div>
       <PageHeader title={t("title")} description={t("subtitle")} />
-      <ClientsView clients={clients} canManage={can(session, "clients.manage")} onSave={saveClient} marketers={marketers} />
+      <ClientsView clients={clients} canManage={can(session, "clients.manage")} onSave={saveClient} onReadLink={readMapLink} marketers={marketers} />
     </div>
   );
 }

@@ -6,7 +6,9 @@ import { SAMPLE_PORTAL } from "./sample-contracts";
 const ph = (c: string) => `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="${c}"/></svg>`)}`;
 
 export const SAMPLE_PROJECTS: ProjectListItem[] = [
-  { id: "k0", number: "C-2026-003", client: "شركة البناء المتقن", service: "gypsum", start_date: "2026-11-21", duration_days: 14, progress: 52, stage: "تركيب الألواح", stageStatus: "in_progress", lastVisit: "2026-11-22T07:30:00Z", newNotes: 1, done: false },
+  { id: "k0", number: "C-2026-003", client: "شركة البناء المتقن", service: "gypsum", start_date: "2026-11-21", duration_days: 14, progress: 52, stage: "تركيب الألواح", stageStatus: "in_progress", lastVisit: "2026-11-22T07:30:00Z", newNotes: 1, done: false, site: { lat: 24.8031, lng: 46.6105 }, clientNumber: "CL-2026-001", late: false },
+  { id: "k3", number: "C-2026-006", client: "أبو خالد الشهري", service: "interior", start_date: "2026-11-02", duration_days: 12, progress: 70, stage: "الدهان النهائي", stageStatus: "in_progress", lastVisit: "2026-11-20T07:00:00Z", newNotes: 0, done: false, site: { lat: 24.7745, lng: 46.7383 }, clientNumber: "CL-2026-004", late: true },
+  { id: "k4", number: "C-2026-007", client: "مؤسسة الريان", service: "gypsum", start_date: "2026-11-24", duration_days: 20, progress: 5, stage: "تجهيز الموقع", stageStatus: "in_progress", lastVisit: null, newNotes: 0, done: false, site: null, clientNumber: "CL-2026-005", late: false },
   { id: "k2", number: "C-2026-005", client: "فيلا الياسمين", service: "exterior", start_date: "2026-11-01", duration_days: 10, progress: 100, stage: null, stageStatus: null, lastVisit: "2026-11-12T08:10:00Z", newNotes: 0, done: true },
 ];
 
@@ -17,7 +19,7 @@ const stage = (seq: number, name: string, status: ProjectDetail["stages"][number
 
 export const SAMPLE_PROJECT: ProjectDetail = {
   contract: { id: "k0", number: "C-2026-003", service: "gypsum", start_date: "2026-11-21", duration_days: 14, warranty_months: 6, accepted_at: "2026-11-19T10:00:00Z" },
-  client: { name: "شركة البناء المتقن", phone: "966551234567", city: "الرياض", district: "الملقا", location_url: "https://www.google.com/maps/place/x/@24.8031,46.6105,17z" },
+  client: { name: "شركة البناء المتقن", phone: "966551234567", city: "الرياض", district: "الملقا", location_url: "https://www.google.com/maps/place/x/@24.8031,46.6105,17z", latitude: 24.8031, longitude: 46.6105 },
   canManage: true,
   canPurchase: true,
   canViewContract: true,

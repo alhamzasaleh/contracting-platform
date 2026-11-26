@@ -375,6 +375,9 @@ export type ClientRow = OrgRow & Upd & {
   district: string | null;
   id_number: string | null;
   location_url: string | null;
+  /** project site pin (with longitude); null = not set */
+  latitude?: number | null;
+  longitude?: number | null;
   notes: string | null;
   is_active: boolean;
   /** «جاء عن طريق» — the success partner (marketers) */

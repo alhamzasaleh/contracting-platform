@@ -19,7 +19,12 @@ import { shrinkImage } from "@/lib/client/image";
 import { isNetworkError, outboxAdd } from "@/lib/client/outbox";
 import { toast } from "sonner";
 import type { ProjectDetail, ProjectListItem, StageView } from "@/lib/data/projects";
-import { coordsFromMapLink, currentStage, distanceMeters, overallProgress } from "@/lib/execution";
+import { currentStage, overallProgress } from "@/lib/execution";
+import { FAR_METERS, mapLink, siteOf, visitPins } from "@/lib/geo";
+import { MapLegend } from "@/components/maps/map-legend";
+import dynamic from "next/dynamic";
+
+const SiteMap = dynamic(() => import("@/components/maps/site-map").then((m) => m.SiteMap), { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-surface-sunken" /> });
 import type { StageStatus } from "@/lib/supabase/database.types";
 import { cn, ltr } from "@/lib/utils";
 import { settle } from "@/lib/client/action";
@@ -39,10 +44,19 @@ function Progress({ value, className }: { value: number; className?: string }) {
 
 export function ProjectsList({ projects, base = "" }: { projects: ProjectListItem[]; base?: string }) {
   const t = useTranslations("projects");
+  const tm = useTranslations("maps");
   const tp = useTranslations("pricing");
   const { fmt } = useFormatter();
   if (!projects.length) return <EmptyState icon={<HardHat />} title={t("emptyTitle")} description={t("emptyBody")} />;
   return (
+    <div className="grid gap-3">
+    <div className="flex justify-end">
+      <Button asChild variant="secondary" size="sm">
+        <Link href={`${base}/projects/map`}>
+          <MapPin /> {tm("onTheMap")}
+        </Link>
+      </Button>
+    </div>
     <ul className="grid gap-3 sm:grid-cols-2">
       {projects.map((p) => (
         <li key={p.id}>
@@ -73,6 +87,7 @@ export function ProjectsList({ projects, base = "" }: { projects: ProjectListIte
         </li>
       ))}
     </ul>
+    </div>
   );
 }
 
@@ -98,7 +113,9 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
   const [gpsNote, setGpsNote] = React.useState<string | null>(null);
   const cur = currentStage(data.stages);
   const [open, setOpen] = React.useState<string | null>(cur?.id ?? null);
-  const site = coordsFromMapLink(data.client.location_url);
+  const site = siteOf({ latitude: data.client.latitude ?? null, longitude: data.client.longitude ?? null, location_url: data.client.location_url });
+  const tm = useTranslations("maps");
+  const pins = visitPins(site, data.visits);
   const progress = overallProgress(data.stages);
   const final = data.stages.find((s) => s.is_final && s.status === "confirmed");
   const newNotes = data.notes.filter((n) => n.status === "new").length;
@@ -148,9 +165,9 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {data.client.location_url && (
+            {(site || data.client.location_url) && (
               <Button asChild variant="secondary" size="sm">
-                <a href={data.client.location_url} target="_blank" rel="noopener noreferrer">
+                <a href={site ? mapLink(site) : data.client.location_url!} target="_blank" rel="noopener noreferrer">
                   <MapPin /> {t("openMap")}
                 </a>
               </Button>
@@ -267,10 +284,26 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
           {/* visits */}
           <section className="grid gap-2 rounded-3xl border border-border bg-surface p-5">
             <p className="text-[15px] font-bold">{t("visits")}</p>
+            {/* the site, the check-ins around it and the 300 m ring (owner, Nov 2026) */}
+            {site || pins.length ? (
+              <>
+                <SiteMap
+                  className="h-64"
+                  label={tm("visitsMapLabel")}
+                  circle={site ? { ...site, radius: FAR_METERS } : undefined}
+                  pins={[
+                    ...(site ? [{ id: "site", ...site, tone: "site" as const, label: tm("site") }] : []),
+                    ...pins.map((p) => ({ id: p.id, lat: p.lat, lng: p.lng, tone: p.far ? ("far" as const) : ("ok" as const), label: fmt.dateTime(p.at) })),
+                  ]}
+                />
+                <MapLegend items={[["site", tm("site")], ["ok", tm("visitNear", { m: FAR_METERS })], ["far", tm("visitFar", { m: FAR_METERS })]]} />
+              </>
+            ) : null}
+            {!site && <p className="rounded-xl bg-warning-soft px-3 py-2 text-[12px]">{tm("noSiteForVisits")}</p>}
             {data.visits.length === 0 && <p className="text-[13px] text-muted-foreground">{t("noVisits")}</p>}
             <ul className="grid gap-2">
               {data.visits.map((v) => {
-                const far = site && v.latitude != null && v.longitude != null ? distanceMeters(site, { lat: v.latitude, lng: v.longitude }) : null;
+                const far = pins.find((p) => p.id === v.id)?.distance ?? null;
                 return (
                   <li key={v.id} className="grid gap-0.5 rounded-2xl bg-surface-sunken/60 px-3 py-2 text-[13px]">
                     <p className="font-bold">
@@ -283,7 +316,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
                           <ExternalLink className="size-3" /> {t("onMap")}
                         </a>
                         {v.accuracy_m != null && <span>± {fmt.number(v.accuracy_m, 0)} {unitText("m")}</span>}
-                        {far != null && <span className={cn(far > 300 && "font-bold text-danger")}>{t("fromSite", { m: fmt.number(far, 0) })}</span>}
+                        {far != null && <span className={cn(far > FAR_METERS && "font-bold text-danger")}>{t("fromSite", { m: fmt.number(far, 0) })}</span>}
                       </p>
                     ) : (
                       <p className="text-danger">{t("noLocation")}</p>
