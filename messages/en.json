@@ -1943,7 +1943,7 @@
   },
   "purchases": {
     "fromQuoteList": "From the quote's purchase list",
-    "fromQuoteListHint": "Adds the accepted quote's purchase-list lines to the lines already here (invoice lines stay) and leaves out what was already bought for the project. Quantities and quoted prices are suggestions — edit them to match the invoice before saving.",
+    "fromQuoteListHint": "The materials come ready from the bill of quantities: only what is left after earlier purchases, at the quoted price as a suggestion. Untick what isn't on this invoice (it stays for next time) and edit quantity and price to match the invoice. A photographed invoice is matched to these lines.",
     "alreadyBought": "Already bought: {item} — {bought} of {total}",
     "catalogueProduct": "Catalogue product",
     "catalogueProductHint": "Linking the item to its product lets consumption calibration compare what was priced with what was used.",
@@ -2072,7 +2072,12 @@
     "actualNoteHidden": "Total actual = materials, expenses, petty cash, subcontractors earned and warranty maintenance (our cost). In-house labour is hidden because it is built from salaries (needs the HR permission). The estimate (quote + additional works) is compared with materials only.",
     "materialsTable": "Bill of quantities",
     "framingPlan": "Metal framing plan",
-    "partnerRewardCost": "Success partner reward"
+    "partnerRewardCost": "Success partner reward",
+    "includeLine": "On this invoice",
+    "leftForLater": "Stays in what's left to buy",
+    "outsideList": "Not in the bill of quantities",
+    "addOutside": "Add a material outside the bill of quantities",
+    "noLinesTicked": "Tick at least one line on this invoice."
   },
   "projects": {
     "startDate": "Start",

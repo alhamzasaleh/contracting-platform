@@ -365,3 +365,121 @@ export function projectCostRows(d: ProjectCostInput) {
     };
   });
 }
+
+// --- «تسجيل مشتريات للمشروع»: ready from the bill of quantities (owner, Nov 2026) ---------------
+
+/** One line of the purchase form (strings as typed). */
+export type PurchaseRow = {
+  key: number;
+  kind: "material" | "expense";
+  item: string; // stock item id, "new", or "" for an expense
+  newName: string;
+  newUnit: string;
+  general: boolean;
+  description: string;
+  colour: string;
+  quantity: string;
+  unit: string;
+  unit_price: string;
+  unclear?: boolean;
+  /** catalogue product for a new stock item (calibration) */
+  product?: string;
+  /** from the project's bill of quantities: the stock item and product it suggested */
+  suggested?: { item: string; product: string };
+  /** «ضمن هذه الفاتورة» — a ready line left unticked isn't saved (still to buy next time) */
+  include?: boolean;
+};
+
+const numOf = (v: string) => Number(String(v).replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(",", ".")) || 0;
+
+/** A line nobody has filled in (gives way to ready lines and to invoice lines). */
+export const isBlankRow = (r: PurchaseRow) => !r.description.trim() && !numOf(r.unit_price) && (r.item === "new" || !r.item);
+
+/** The ready lines: what the project still has to buy, ticked, at the quoted price. */
+export function listRows(list: (ListLine & { remaining: number })[], next: () => number): PurchaseRow[] {
+  return list
+    .filter((l) => l.remaining > 0)
+    .map((l) => ({
+      key: next(), kind: "material" as const, item: l.item, newName: l.description, newUnit: l.unit, general: l.general,
+      description: l.description, colour: l.colour, quantity: String(l.remaining), unit: l.unit, unit_price: String(l.unit_price),
+      product: l.product_id ?? "", suggested: { item: l.item, product: l.product_id ?? "" }, include: true,
+    }));
+}
+
+/**
+ * Fill the form with the ready lines: an untouched form gets them; lines the user typed or read
+ * are never replaced. `replaceList` (another project picked): the previous ready lines go, the
+ * user's own lines stay, the new project's ready lines come after them.
+ */
+export function prefillRows(rows: PurchaseRow[], list: (ListLine & { remaining: number })[], next: () => number, opts: { replaceList?: boolean } = {}): PurchaseRow[] {
+  if (opts.replaceList) {
+    const own = rows.filter((r) => !r.suggested && !isBlankRow(r));
+    const ready = listRows(list, next);
+    // may be empty: the form then shows one blank line of its own
+    return [...own, ...ready];
+  }
+  if (!rows.every(isBlankRow)) return rows;
+  const ready = listRows(list, next);
+  return ready.length ? ready : rows;
+}
+
+/** The lines that are saved and totalled (a ready line unticked stays out). */
+export const includedRows = <T extends { include?: boolean }>(rows: T[]): T[] => rows.filter((r) => r.include !== false);
+
+/** A material line on a project with a bill of quantities that isn't one of its ready lines → «خارج جدول الكميات». */
+export const isOutsideList = (r: PurchaseRow, hasList: boolean) => hasList && r.kind === "material" && !r.suggested && !isBlankRow(r);
+
+/** Loose name key: spaces/punctuation out, Arabic letter variants and Latin case folded. */
+const nameKey = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .replace(/[ً-ْـ]/g, "")
+    .replace(/[^\p{L}\p{N}.]+/gu, "");
+const sameName = (a: string, b: string) => {
+  const x = nameKey(a);
+  const y = nameKey(b);
+  if (!x || !y) return false;
+  return x === y || (Math.min(x.length, y.length) >= 4 && (x.includes(y) || y.includes(x)));
+};
+
+/**
+ * A read invoice on a form with ready lines: each invoice line fills its ready line (same stock
+ * item, else the same name) with the invoice's quantity and price; ready lines not on the invoice
+ * are unticked (still to buy); invoice lines that match nothing are added as lines of their own
+ * (→ «خارج جدول الكميات»). Without ready lines the invoice lines replace the form, as before.
+ */
+export function applyInvoiceToRows(
+  rows: PurchaseRow[],
+  lines: { description: string; quantity: number; unit: string | null; unit_price: number }[],
+  unclear: string[],
+  items: { id: string; name: string; unit: string }[],
+  next: () => number,
+): PurchaseRow[] {
+  const unclearAt = (i: number) => unclear.some((u) => u.startsWith(`lines[${i}]`));
+  const fresh = (l: (typeof lines)[number], i: number): PurchaseRow => {
+    const match = items.find((it) => it.name === l.description);
+    return {
+      key: next(), kind: "material", item: match?.id ?? "new", newName: l.description, newUnit: l.unit || "pcs", general: true,
+      description: l.description, colour: "", quantity: String(l.quantity), unit: l.unit || "pcs", unit_price: String(l.unit_price),
+      unclear: unclearAt(i), include: true,
+    };
+  };
+  const ready = rows.filter((r) => r.suggested);
+  if (!ready.length) return lines.length ? lines.map(fresh) : rows;
+  const used = new Map<number, PurchaseRow>();
+  const extra: PurchaseRow[] = [];
+  lines.forEach((l, i) => {
+    const itemId = items.find((it) => it.name === l.description)?.id;
+    const target =
+      ready.find((r) => !used.has(r.key) && itemId && r.item === itemId) ?? ready.find((r) => !used.has(r.key) && sameName(r.description, l.description));
+    if (target) used.set(target.key, { ...target, quantity: String(l.quantity), unit_price: String(l.unit_price), include: true, unclear: unclearAt(i) });
+    else extra.push(fresh(l, i));
+  });
+  const kept = rows
+    .filter((r) => !isBlankRow(r) || r.suggested)
+    .map((r) => (r.suggested ? (used.get(r.key) ?? { ...r, include: false }) : r));
+  return [...kept, ...extra];
+}

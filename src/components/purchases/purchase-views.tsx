@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
 import type { InventoryData, ItemRef, ProjectCost, PurchaseDetail, PurchaseForm, PurchaseListItem } from "@/lib/data/purchases";
-import { costStatus, lineAmount, mergeRows, pickStockItem, purchaseTotals, stillToAdd, type InvoiceDraft, type InvoiceFlag } from "@/lib/purchases";
+import { applyInvoiceToRows, costStatus, includedRows, isOutsideList, lineAmount, mergeRows, pickStockItem, prefillRows, purchaseTotals, stillToAdd, type InvoiceDraft, type InvoiceFlag, type PurchaseRow } from "@/lib/purchases";
 import type { PurchaseStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn, ltr } from "@/lib/utils";
@@ -80,24 +80,7 @@ export function PurchasesList({ purchases, canManage, base = "" }: { purchases: 
 
 // --- Editor (camera → AI draft → review → save) -------------------------------------
 
-type Row = {
-  key: number;
-  kind: "material" | "expense";
-  item: string; // item id, "new", or "" for expense
-  newName: string;
-  newUnit: string;
-  general: boolean;
-  description: string;
-  colour: string;
-  quantity: string;
-  unit: string;
-  unit_price: string;
-  unclear?: boolean;
-  /** catalogue product for a new stock item (calibration) */
-  product?: string;
-  /** the stock item and product suggested from the quote's purchase list (the product only belongs to that item) */
-  suggested?: { item: string; product: string };
-};
+type Row = PurchaseRow;
 
 export type PurchaseActions = {
   upload: (fd: FormData) => Promise<ActionResult<{ path: string; draft: InvoiceDraft | null; flags: InvoiceFlag[]; aiError?: string }>>;
@@ -105,6 +88,7 @@ export type PurchaseActions = {
 };
 
 let rowKey = 0;
+const nextKey = () => ++rowKey;
 const emptyRow = (): Row => ({ key: ++rowKey, kind: "material", item: "new", newName: "", newUnit: "pcs", general: true, description: "", colour: "", quantity: "1", unit: "pcs", unit_price: "" });
 
 export function PurchaseEditor({ form, actions, base = "", initialProject }: { form: PurchaseForm; actions?: PurchaseActions; base?: string; initialProject?: string }) {
@@ -143,14 +127,16 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
           key: ++rowKey, kind: l.kind, item: l.kind === "expense" ? "" : (l.item_id ?? "new"), newName: "", newUnit: l.unit, general: true,
           description: l.description, colour: l.colour ?? "", quantity: String(l.quantity), unit: l.unit, unit_price: String(l.unit_price),
         }))
-      : [emptyRow()],
+      : // «تسجيل مشتريات للمشروع»: the project's bill of quantities comes in ready (what is still to buy)
+        prefillRows([emptyRow()], (initialProject && form.quoteLists?.[initialProject]) || [], nextKey),
   );
   const camera = React.useRef<HTMLInputElement>(null);
   const picker = React.useRef<HTMLInputElement>(null);
   // what the quote list still has to add after the rows already in the form
   const toAdd = quoteList ? stillToAdd(quoteList, rows) : [];
   const setRow = (k: number, patch: Partial<Row>) => setRows((r) => r.map((x) => (x.key === k ? { ...x, ...patch } : x)));
-  const totals = purchaseTotals(rows.map((r) => ({ kind: r.kind, quantity: num(r.quantity), unit_price: num(r.unit_price) })), num(vat));
+  const saved = includedRows(rows);
+  const totals = purchaseTotals(saved.map((r) => ({ kind: r.kind, quantity: num(r.quantity), unit_price: num(r.unit_price) })), num(vat));
   const isUnclear = (f: string) => unclear.some((u) => u === f || u.startsWith(`${f}.`) || u.startsWith(`${f}[`));
 
   const onFile = async (file: File | undefined) => {
@@ -183,17 +169,8 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
     if (d.invoice_number) setInvoiceNo(d.invoice_number);
     if (d.invoice_date && /^\d{4}-\d{2}-\d{2}$/.test(d.invoice_date)) setInvoiceDate(d.invoice_date);
     if (d.vat != null) setVat(String(d.vat));
-    if (d.lines.length)
-      setRows(
-        d.lines.map((l, i) => {
-          const match = form.items.find((it) => it.name === l.description);
-          return {
-            key: ++rowKey, kind: "material", item: match?.id ?? "new", newName: l.description, newUnit: l.unit || "pcs", general: true,
-            description: l.description, colour: "", quantity: String(l.quantity), unit: l.unit || "pcs", unit_price: String(l.unit_price),
-            unclear: d.unclear_fields.some((u) => u.startsWith(`lines[${i}]`)),
-          };
-        }),
-      );
+    // matched to the ready lines (quantity + price from the invoice; lines not on it unticked); unknown ones added
+    if (d.lines.length) setRows((current) => applyInvoiceToRows(current, d.lines, d.unclear_fields, form.items, nextKey));
   };
 
   const save = (submit: boolean) =>
@@ -214,7 +191,7 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
             ai_extracted: aiUsed,
             ai_flags: [...flags, ...unclear.map((u) => `unclear:${u}`)].slice(0, 40),
             submit,
-            lines: rows.map((r) => ({
+            lines: saved.map((r) => ({
               kind: r.kind,
               item_id: r.kind === "material" && r.item && r.item !== "new" ? r.item : null,
               new_item: r.kind === "material" && r.item === "new" ? { name: (r.newName || r.description).trim(), unit: r.unit.trim() || "pcs", is_general: r.general, product_id: r.product || null } : null,
@@ -315,7 +292,18 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
             <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className={cn(isUnclear("invoice_date") && "ring-2 ring-warning")} />
           </Field>
           <Field id="pu-project" label={t("chargeTo")} hint={t("chargeHint")}>
-            <NativeSelect value={project} onChange={(e) => setProject(e.target.value)}>
+            <NativeSelect
+              value={project}
+              onChange={(e) => {
+                const v = e.target.value;
+                setProject(v);
+                // another project: its ready lines replace the previous project's; the user's own lines stay
+                setRows((current) => {
+                  const out = prefillRows(current, (v && form.quoteLists?.[v]) || [], nextKey, { replaceList: true });
+                  return out.length ? out : [emptyRow()];
+                });
+              }}
+            >
               <option value="">{t("toStock")}</option>
               {form.projects.map((x) => (
                 <option key={x.id} value={x.id}>
@@ -386,7 +374,24 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
           )}
           <ul className="grid gap-2">
             {rows.map((r, ri) => (
-              <li key={r.key} className={cn("grid gap-3 rounded-2xl bg-surface-sunken/50 p-3", r.unclear && "ring-2 ring-warning")}>
+              <li key={r.key} className={cn("grid gap-3 rounded-2xl bg-surface-sunken/50 p-3", r.unclear && "ring-2 ring-warning", r.include === false && "opacity-60")}>
+                {(r.suggested || isOutsideList(r, !!quoteList)) && (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    {r.suggested ? (
+                      <label className="flex items-center gap-2 text-[13px] font-semibold">
+                        <input type="checkbox" className="size-4 accent-[var(--primary)]" checked={r.include !== false} onChange={(e) => setRow(r.key, { include: e.target.checked })} />
+                        {t("includeLine")}
+                      </label>
+                    ) : (
+                      <Badge tone="warning">{t("outsideList")}</Badge>
+                    )}
+                    {r.include === false && <span className="text-[12px] text-muted-foreground">{t("leftForLater")}</span>}
+                  </div>
+                )}
+                {r.include === false ? (
+                  <p className="text-[14px]">{r.description}</p>
+                ) : (
+                <>
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 @xl:grid-cols-[minmax(0,1fr)_minmax(0,14rem)_auto]">
                   <Field id={`pl-d-${ri}`} label={t("description")}>
                     <Input value={r.description} onChange={(e) => setRow(r.key, { description: e.target.value })} />
@@ -446,11 +451,13 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                   </Field>
                 </div>
                 <p className="text-end font-latin text-[13px] text-muted-foreground tabular-nums">{fmt.money(lineAmount(num(r.quantity), num(r.unit_price)))}</p>
+                </>
+                )}
               </li>
             ))}
           </ul>
           <Button type="button" variant="ghost" size="sm" className="justify-self-start" onClick={() => setRows((x) => [...x, emptyRow()])}>
-            <Plus /> {t("addLine")}
+            <Plus /> {quoteList ? t("addOutside") : t("addLine")}
           </Button>
         </section>
 
@@ -476,10 +483,11 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
           <span>{t("total")}</span>
           <span className="font-latin tabular-nums">{fmt.money(totals.total)}</span>
         </div>
-        <Button loading={pending} onClick={() => save(true)}>
+        {saved.length === 0 && <p className="text-[12px] text-warning-foreground">{t("noLinesTicked")}</p>}
+        <Button loading={pending} disabled={saved.length === 0} onClick={() => save(true)}>
           <Check /> {t("record")}
         </Button>
-        <Button variant="secondary" disabled={pending} onClick={() => save(false)}>
+        <Button variant="secondary" disabled={pending || saved.length === 0} onClick={() => save(false)}>
           {t("saveDraft")}
         </Button>
         <p className="text-[12px] text-muted-foreground">{t("recordHint")}</p>
