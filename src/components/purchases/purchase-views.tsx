@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
 import type { InventoryData, ItemRef, ProjectCost, PurchaseDetail, PurchaseForm, PurchaseListItem } from "@/lib/data/purchases";
-import { applyInvoiceToRows, costStatus, includedRows, isOutsideList, lineAmount, mergeRows, pickStockItem, prefillRows, purchaseTotals, stillToAdd, type InvoiceDraft, type InvoiceFlag, type PurchaseRow } from "@/lib/purchases";
+import { applyInvoiceToRows, costStatus, draftRows, includedRows, isBlankRow, isOutsideList, lineAmount, linkToReady, listRows, mergeRows, pickStockItem, prefillRows, purchaseTotals, readyCandidates, rowsForStillToAdd, stillToAdd, type InvoiceDraft, type InvoiceFlag, type PurchaseRow } from "@/lib/purchases";
 import type { PurchaseStatus } from "@/lib/supabase/database.types";
 import { toNumber } from "@/lib/validation/numbers";
 import { cn, ltr } from "@/lib/utils";
@@ -120,23 +120,29 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
   const projectNumber = form.projects.find((x) => x.id === project)?.number ?? null;
   const projectGypsum = form.projects.find((x) => x.id === project)?.service === "gypsum";
   const [vat, setVat] = React.useState(p ? String(p.vat) : "");
+  // VAT set with the 15% button follows the ticked lines; typing a figure takes over
+  const [vatAuto, setVatAuto] = React.useState(false);
   const [notes, setNotes] = React.useState(p?.notes ?? "");
   const [rows, setRows] = React.useState<Row[]>(
     p?.lines.length
-      ? p.lines.map((l) => ({
-          key: ++rowKey, kind: l.kind, item: l.kind === "expense" ? "" : (l.item_id ?? "new"), newName: "", newUnit: l.unit, general: true,
-          description: l.description, colour: l.colour ?? "", quantity: String(l.quantity), unit: l.unit, unit_price: String(l.unit_price),
-        }))
+      ? // a saved draft: its lines that are surely lines of the project's bill of quantities are recognised
+        draftRows(p.lines, (p.project?.id && form.quoteLists?.[p.project.id]) || [], nextKey)
       : // «تسجيل مشتريات للمشروع»: the project's bill of quantities comes in ready (what is still to buy)
         prefillRows([emptyRow()], (initialProject && form.quoteLists?.[initialProject]) || [], nextKey),
   );
   const camera = React.useRef<HTMLInputElement>(null);
   const picker = React.useRef<HTMLInputElement>(null);
   // what the quote list still has to add after the rows already in the form
-  const toAdd = quoteList ? stillToAdd(quoteList, rows) : [];
+  // a ready line counts at its planned quantity: the button only brings back lines that were removed
+  const toAdd = quoteList ? stillToAdd(quoteList, rowsForStillToAdd(rows)) : [];
+  const candidates = readyCandidates(rows);
+  // purchase drafts of this project are not subtracted from "still to buy" — said, with links
+  const otherDrafts = (project && form.drafts?.[project]?.filter((n) => n !== p?.number)) || [];
   const setRow = (k: number, patch: Partial<Row>) => setRows((r) => r.map((x) => (x.key === k ? { ...x, ...patch } : x)));
   const saved = includedRows(rows);
-  const totals = purchaseTotals(saved.map((r) => ({ kind: r.kind, quantity: num(r.quantity), unit_price: num(r.unit_price) })), num(vat));
+  const sub = purchaseTotals(saved.map((r) => ({ kind: r.kind, quantity: num(r.quantity), unit_price: num(r.unit_price) })), 0).subtotal;
+  const vatValue = vatAuto ? String(Math.round(sub * 15) / 100) : vat;
+  const totals = purchaseTotals(saved.map((r) => ({ kind: r.kind, quantity: num(r.quantity), unit_price: num(r.unit_price) })), num(vatValue));
   const isUnclear = (f: string) => unclear.some((u) => u === f || u.startsWith(`${f}.`) || u.startsWith(`${f}[`));
 
   const onFile = async (file: File | undefined) => {
@@ -168,7 +174,10 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
     if (d.supplier_vat) setSupplierVat(d.supplier_vat.replace(/\D/g, ""));
     if (d.invoice_number) setInvoiceNo(d.invoice_number);
     if (d.invoice_date && /^\d{4}-\d{2}-\d{2}$/.test(d.invoice_date)) setInvoiceDate(d.invoice_date);
-    if (d.vat != null) setVat(String(d.vat));
+    if (d.vat != null) {
+      setVatAuto(false);
+      setVat(String(d.vat));
+    }
     // matched to the ready lines (quantity + price from the invoice; lines not on it unticked); unknown ones added
     if (d.lines.length) setRows((current) => applyInvoiceToRows(current, d.lines, d.unclear_fields, form.items, nextKey));
   };
@@ -185,7 +194,7 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
             invoice_number: invoiceNo,
             invoice_date: invoiceDate || null,
             contract_id: project || null,
-            vat: num(vat),
+            vat: num(vatValue),
             notes,
             attachment_path: attachmentPath,
             ai_extracted: aiUsed,
@@ -327,17 +336,7 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                 onClick={() =>
                   // added to the lines already there (e.g. read from the invoice); what was bought before
                   // and what the form already holds are left out — pressing twice never doubles
-                  setRows((current) =>
-                    mergeRows(
-                      current,
-                      stillToAdd(quoteList, current).map((l) => ({
-                        key: ++rowKey, kind: "material" as const, item: l.item, newName: l.description, newUnit: l.unit, general: l.general,
-                        description: l.description, colour: l.colour, quantity: String(l.remaining), unit: l.unit, unit_price: String(l.unit_price), product: l.product_id ?? "",
-                        suggested: { item: l.item, product: l.product_id ?? "" },
-                      })),
-                      (r) => !r.description.trim() && !num(r.unit_price) && (r.item === "new" || !r.item),
-                    ),
-                  )
+                  setRows((current) => mergeRows(current, listRows(stillToAdd(quoteList, rowsForStillToAdd(current)), nextKey), isBlankRow))
                 }
               >
                 <ShoppingCart /> {t("fromQuoteList")}
@@ -358,9 +357,22 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
               </Button>
             )}
           </div>
+          {otherDrafts.length > 0 && (
+            <p className="rounded-2xl bg-warning-soft px-4 py-3 text-[13px]">
+              {t("projectDrafts")}{" "}
+              {otherDrafts.map((n, i) => (
+                <React.Fragment key={n}>
+                  {i > 0 && " · "}
+                  <Link href={`${base}/purchases/${n}`} className="font-semibold text-primary hover:underline">
+                    <DocNo>{n}</DocNo>
+                  </Link>
+                </React.Fragment>
+              ))}
+            </p>
+          )}
           {quoteList && (
             <div className="grid gap-1 text-[12px] text-muted-foreground">
-              <p>{t("fromQuoteListHint")}</p>
+              {rows.some((r) => r.suggested) && <p>{t("fromQuoteListHint")}</p>}
               {quoteList.some((l) => l.bought > 0) && (
                 <ul className="grid gap-0.5" data-testid="quote-list-bought">
                   {quoteList
@@ -383,7 +395,19 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                         {t("includeLine")}
                       </label>
                     ) : (
-                      <Badge tone="warning">{t("outsideList")}</Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone="warning">{t("outsideList")}</Badge>
+                        {candidates.length > 0 && (
+                          <NativeSelect aria-label={t("linkToList")} className="h-9 max-w-64 text-[13px]" value="" onChange={(e) => e.target.value && setRows((x) => linkToReady(x, r.key, Number(e.target.value)))}>
+                            <option value="">{t("linkToList")}</option>
+                            {candidates.map((c) => (
+                              <option key={c.key} value={c.key}>
+                                {[c.description, c.colour, unitText(c.unit)].filter(Boolean).join(" · ")}
+                              </option>
+                            ))}
+                          </NativeSelect>
+                        )}
+                      </div>
                     )}
                     {r.include === false && <span className="text-[12px] text-muted-foreground">{t("leftForLater")}</span>}
                   </div>
@@ -392,11 +416,20 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                   <p className="text-[14px]">{r.description}</p>
                 ) : (
                 <>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 @xl:grid-cols-[minmax(0,1fr)_minmax(0,14rem)_auto]">
-                  <Field id={`pl-d-${ri}`} label={t("description")}>
+                <div className="field-row grid items-end gap-3 @xl:grid-cols-[minmax(0,1fr)_minmax(0,14rem)]">
+                  <Field
+                    id={`pl-d-${ri}`}
+                    label={t("description")}
+                    // the row's delete button sits in the field's header (no column of its own: the name keeps the width on a phone)
+                    action={
+                      <Button type="button" variant="ghost" size="icon-sm" aria-label={t("removeLine")} disabled={rows.length === 1} onClick={() => setRows((x) => x.filter((y) => y.key !== r.key))}>
+                        <Trash2 />
+                      </Button>
+                    }
+                  >
                     <Input value={r.description} onChange={(e) => setRow(r.key, { description: e.target.value })} />
                   </Field>
-                  <Field id={`pl-i-${ri}`} label={t("stockItem")} className="order-1 col-span-full @xl:order-none @xl:col-span-1">
+                  <Field id={`pl-i-${ri}`} label={t("stockItem")}>
                     <NativeSelect
                       value={r.kind === "expense" ? "__expense" : r.item}
                       // another item than the suggested one drops the suggested catalogue product
@@ -411,9 +444,6 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
                       <option value="__expense">{t("expense")}</option>
                     </NativeSelect>
                   </Field>
-                  <Button type="button" variant="ghost" size="icon-sm" className="mb-1.5 self-end" aria-label={t("removeLine")} disabled={rows.length === 1} onClick={() => setRows((x) => x.filter((y) => y.key !== r.key))}>
-                    <Trash2 />
-                  </Button>
                 </div>
                 {r.kind === "material" && r.item === "new" && (form.products?.length ?? 0) > 0 && (
                   <Field id={`pl-pr-${ri}`} label={t("catalogueProduct")} hint={t("catalogueProductHint")} optional={t("optional")}>
@@ -473,8 +503,15 @@ export function PurchaseEditor({ form, actions, base = "", initialProject }: { f
         </div>
         <Field id="pu-vat" label={t("vat")} hint={t("vatHint")}>
           <div className="flex gap-2">
-            <NumberInput value={vat} onChange={(e) => setVat(e.target.value)} className={cn(isUnclear("vat") && "ring-2 ring-warning")} />
-            <Button type="button" variant="secondary" size="sm" className="h-11 shrink-0" onClick={() => setVat(String(Math.round(totals.subtotal * 15) / 100))}>
+            <NumberInput
+              value={vatValue}
+              onChange={(e) => {
+                setVatAuto(false);
+                setVat(e.target.value);
+              }}
+              className={cn(isUnclear("vat") && "ring-2 ring-warning")}
+            />
+            <Button type="button" variant="secondary" size="sm" className="h-11 shrink-0" onClick={() => setVatAuto(true)}>
               15%
             </Button>
           </div>

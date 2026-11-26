@@ -40,13 +40,19 @@ export const SAMPLE_PURCHASE_FORM: PurchaseForm = {
   ],
   quoteLists: {
     k0: [
-      { description: "لوح جبس عادي — Knauf (2.88)", colour: "", quantity: 150, unit: "pack", unit_price: 22, item: "new", product_id: "pr1", general: true, bought: 60, remaining: 90 },
+      { description: "لوح جبس عادي — Knauf (2.88)", colour: "", quantity: 150, unit: "pack", unit_price: 22, item: "i1", product_id: "pr1", general: true, bought: 60, remaining: 90 },
       { description: "دهان جدران — Jotun (18)", colour: "بيج", quantity: 4, unit: "pack", unit_price: 180, item: "new", product_id: "pr2", general: false, bought: 0, remaining: 4 },
       { description: "فتحات صيانة", colour: "", quantity: 4, unit: "pcs", unit_price: 75, item: "new", product_id: null, general: true, bought: 0, remaining: 4 },
     ],
   },
 };
 export const SAMPLE_PURCHASE_DETAIL = { ...SAMPLE_PURCHASE_FORM, purchase: detail };
+/** A draft of project C-2026-003 being edited: one line of its bill of quantities, one outside it, another draft warned. */
+export const SAMPLE_PURCHASE_DRAFT_FORM: PurchaseForm = {
+  ...SAMPLE_PURCHASE_FORM,
+  drafts: { k0: ["PO-2026-005", "PO-2026-004"] },
+  purchase: { ...detail, number: "PO-2026-004", status: "draft", approval: null, ai_extracted: false, ai_flags: {}, lines: detail.lines.slice(0, 2) },
+};
 
 export const SAMPLE_INVENTORY: InventoryData = {
   items,

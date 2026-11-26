@@ -2077,7 +2077,9 @@
     "leftForLater": "Stays in what's left to buy",
     "outsideList": "Not in the bill of quantities",
     "addOutside": "Add a material outside the bill of quantities",
-    "noLinesTicked": "Tick at least one line on this invoice."
+    "noLinesTicked": "Tick at least one line on this invoice.",
+    "linkToList": "Link to a line of the list…",
+    "projectDrafts": "This project has purchase drafts not subtracted from what's left — check them before recording the same materials:"
   },
   "projects": {
     "startDate": "Start",

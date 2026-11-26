@@ -388,33 +388,55 @@ export type PurchaseRow = {
   suggested?: { item: string; product: string };
   /** «ضمن هذه الفاتورة» — a ready line left unticked isn't saved (still to buy next time) */
   include?: boolean;
+  /** a ready line's quantity / price as it came from the list (what's left to buy, quoted price) */
+  planned?: number;
+  plannedPrice?: string;
+  /** filled from an invoice (read or linked by the user) */
+  filled?: boolean;
+  /** a line added by reading an invoice (a new reading replaces it) */
+  fromInvoice?: boolean;
 };
+
+type ListRow = ListLine & { remaining: number };
 
 const numOf = (v: string) => Number(String(v).replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(",", ".")) || 0;
 
 /** A line nobody has filled in (gives way to ready lines and to invoice lines). */
 export const isBlankRow = (r: PurchaseRow) => !r.description.trim() && !numOf(r.unit_price) && (r.item === "new" || !r.item);
 
-/** The ready lines: what the project still has to buy, ticked, at the quoted price. */
-export function listRows(list: (ListLine & { remaining: number })[], next: () => number): PurchaseRow[] {
+/** A ready line the user (or an invoice) changed — kept, never silently thrown away. */
+const isEdited = (r: PurchaseRow) => !!r.suggested && (!!r.filled || numOf(r.quantity) !== (r.planned ?? numOf(r.quantity)) || r.unit_price !== (r.plannedPrice ?? r.unit_price));
+
+/** The ready lines: what the project still has to buy, ticked, at the quoted price (empty without one). */
+export function listRows(list: ListRow[], next: () => number): PurchaseRow[] {
   return list
     .filter((l) => l.remaining > 0)
-    .map((l) => ({
-      key: next(), kind: "material" as const, item: l.item, newName: l.description, newUnit: l.unit, general: l.general,
-      description: l.description, colour: l.colour, quantity: String(l.remaining), unit: l.unit, unit_price: String(l.unit_price),
-      product: l.product_id ?? "", suggested: { item: l.item, product: l.product_id ?? "" }, include: true,
-    }));
+    .map((l) => {
+      const price = l.unit_price > 0 ? String(l.unit_price) : "";
+      return {
+        key: next(), kind: "material" as const, item: l.item, newName: l.description, newUnit: l.unit, general: l.general,
+        description: l.description, colour: l.colour, quantity: String(l.remaining), unit: l.unit, unit_price: price,
+        product: l.product_id ?? "", suggested: { item: l.item, product: l.product_id ?? "" }, include: true, planned: l.remaining, plannedPrice: price,
+      };
+    });
 }
 
 /**
- * Fill the form with the ready lines: an untouched form gets them; lines the user typed or read
- * are never replaced. `replaceList` (another project picked): the previous ready lines go, the
- * user's own lines stay, the new project's ready lines come after them.
+ * Fill the form with the ready lines: an untouched form gets them ticked; lines the user typed or
+ * read are never replaced. `replaceList` (another project picked): untouched ready lines of the old
+ * project go, the user's own lines and the ready lines he edited stay (as his own); when the form
+ * already holds such lines the new ready lines come **unticked**, so nothing is counted twice.
  */
-export function prefillRows(rows: PurchaseRow[], list: (ListLine & { remaining: number })[], next: () => number, opts: { replaceList?: boolean } = {}): PurchaseRow[] {
+export function prefillRows(rows: PurchaseRow[], list: ListRow[], next: () => number, opts: { replaceList?: boolean } = {}): PurchaseRow[] {
   if (opts.replaceList) {
-    const own = rows.filter((r) => !r.suggested && !isBlankRow(r));
-    const ready = listRows(list, next);
+    const own = rows.flatMap((r) => {
+      if (!r.suggested) return isBlankRow(r) ? [] : [r];
+      if (isEdited(r) && r.include !== false) {
+        return [{ ...r, suggested: undefined, planned: undefined, plannedPrice: undefined, include: true }];
+      }
+      return [];
+    });
+    const ready = listRows(list, next).map((r) => (own.length ? { ...r, include: false } : r));
     // may be empty: the form then shows one blank line of its own
     return [...own, ...ready];
   }
@@ -429,6 +451,38 @@ export const includedRows = <T extends { include?: boolean }>(rows: T[]): T[] =>
 /** A material line on a project with a bill of quantities that isn't one of its ready lines → «خارج جدول الكميات». */
 export const isOutsideList = (r: PurchaseRow, hasList: boolean) => hasList && r.kind === "material" && !r.suggested && !isBlankRow(r);
 
+/** The ready lines a line outside the list can be linked to («اربطه بسطر من الجدول»). */
+export const readyCandidates = (rows: PurchaseRow[]) => rows.filter((r) => r.suggested);
+
+/** The user links a line (e.g. read from the invoice) to a ready line: it takes its quantity and price, the line goes. */
+export function linkToReady(rows: PurchaseRow[], fromKey: number, readyKey: number): PurchaseRow[] {
+  const from = rows.find((r) => r.key === fromKey);
+  if (!from) return rows;
+  return rows
+    .filter((r) => r.key !== fromKey)
+    .map((r) => (r.key === readyKey ? { ...r, quantity: from.quantity, unit_price: from.unit_price, include: true, filled: true, unclear: false } : r));
+}
+
+/** For «من قائمة مشتريات العرض»: a ready line counts at its planned quantity — the button only brings back removed lines. */
+export const rowsForStillToAdd = (rows: PurchaseRow[]): PurchaseRow[] => rows.map((r) => (r.suggested && r.planned != null ? { ...r, quantity: String(r.planned) } : r));
+
+/** A saved draft's lines: those that are surely a line of the bill of quantities (same stock item and colour, one candidate) are recognised. */
+export function draftRows(
+  lines: { kind: "material" | "expense"; item_id: string | null; description: string; colour: string | null; quantity: number; unit: string; unit_price: number }[],
+  list: ListRow[],
+  next: () => number,
+): PurchaseRow[] {
+  return lines.map((l) => {
+    const row: PurchaseRow = {
+      key: next(), kind: l.kind, item: l.kind === "expense" ? "" : (l.item_id ?? "new"), newName: "", newUnit: l.unit, general: true,
+      description: l.description, colour: l.colour ?? "", quantity: String(l.quantity), unit: l.unit, unit_price: String(l.unit_price),
+    };
+    if (l.kind !== "material" || !l.item_id) return row;
+    const hits = list.filter((x) => x.item === l.item_id && (x.colour || "") === (l.colour || ""));
+    return hits.length === 1 ? { ...row, suggested: { item: hits[0].item, product: hits[0].product_id ?? "" }, product: hits[0].product_id ?? "", include: true } : row;
+  });
+}
+
 /** Loose name key: spaces/punctuation out, Arabic letter variants and Latin case folded. */
 const nameKey = (s: string) =>
   s
@@ -438,18 +492,40 @@ const nameKey = (s: string) =>
     .replace(/ى/g, "ي")
     .replace(/[ً-ْـ]/g, "")
     .replace(/[^\p{L}\p{N}.]+/gu, "");
+/** Same name: equal keys, or one inside the other when the shorter is most of the longer (never a bare brand). */
 const sameName = (a: string, b: string) => {
   const x = nameKey(a);
   const y = nameKey(b);
   if (!x || !y) return false;
-  return x === y || (Math.min(x.length, y.length) >= 4 && (x.includes(y) || y.includes(x)));
+  if (x === y) return true;
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return short.length >= 4 && short.length / long.length >= 0.6 && long.includes(short);
 };
+const UNIT_GROUPS = [
+  ["pack", "عبوه", "علبه", "سطل", "جالون", "كيس", "كرتون", "ربطه", "باكيت", "pail", "bag"],
+  ["bar", "عود", "قضيب", "length"],
+  ["pcs", "حبه", "قطعه", "piece", "pc", "unit", "board", "لوح"],
+  ["m", "متر", "م"],
+  ["m2", "مترمربع", "م2", "sqm"],
+  ["box", "صندوق"],
+  ["roll", "لفه", "رول"],
+  ["kg", "كجم", "كيلو"],
+  ["l", "لتر", "litre", "liter"],
+];
+const unitKey = (u: string) => {
+  const k = nameKey(u);
+  return UNIT_GROUPS.find((g) => g.some((x) => nameKey(x) === k))?.[0] ?? k;
+};
+/** Same unit (an invoice without a unit doesn't block a match). */
+const sameUnit = (a: string, b: string | null) => !b || !nameKey(b) || unitKey(a) === unitKey(b);
 
 /**
- * A read invoice on a form with ready lines: each invoice line fills its ready line (same stock
- * item, else the same name) with the invoice's quantity and price; ready lines not on the invoice
- * are unticked (still to buy); invoice lines that match nothing are added as lines of their own
- * (→ «خارج جدول الكميات»). Without ready lines the invoice lines replace the form, as before.
+ * A read invoice on a form with ready lines. Lines added by an earlier reading go first (reading
+ * again never doubles). Each invoice line fills a ready line only when there is exactly one
+ * candidate with the same unit — by stock item, else by name; ready lines not on the invoice are
+ * unticked (still to buy). Anything else — no candidate, another unit, two candidates (sizes,
+ * colours) — is added as its own line (flagged when doubtful) that the user can link to a ready
+ * line. Without ready lines the invoice lines replace the form, as before.
  */
 export function applyInvoiceToRows(
   rows: PurchaseRow[],
@@ -459,26 +535,31 @@ export function applyInvoiceToRows(
   next: () => number,
 ): PurchaseRow[] {
   const unclearAt = (i: number) => unclear.some((u) => u.startsWith(`lines[${i}]`));
-  const fresh = (l: (typeof lines)[number], i: number): PurchaseRow => {
+  const fresh = (l: (typeof lines)[number], i: number, doubt = false): PurchaseRow => {
     const match = items.find((it) => it.name === l.description);
     return {
       key: next(), kind: "material", item: match?.id ?? "new", newName: l.description, newUnit: l.unit || "pcs", general: true,
       description: l.description, colour: "", quantity: String(l.quantity), unit: l.unit || "pcs", unit_price: String(l.unit_price),
-      unclear: unclearAt(i), include: true,
+      unclear: doubt || unclearAt(i), include: true, fromInvoice: true,
     };
   };
-  const ready = rows.filter((r) => r.suggested);
-  if (!ready.length) return lines.length ? lines.map(fresh) : rows;
+  const base = rows.filter((r) => !r.fromInvoice);
+  const ready = base.filter((r) => r.suggested);
+  if (!ready.length) return lines.length ? lines.map((l, i) => fresh(l, i)) : rows;
   const used = new Map<number, PurchaseRow>();
   const extra: PurchaseRow[] = [];
   lines.forEach((l, i) => {
+    const free = ready.filter((r) => !used.has(r.key));
     const itemId = items.find((it) => it.name === l.description)?.id;
-    const target =
-      ready.find((r) => !used.has(r.key) && itemId && r.item === itemId) ?? ready.find((r) => !used.has(r.key) && sameName(r.description, l.description));
-    if (target) used.set(target.key, { ...target, quantity: String(l.quantity), unit_price: String(l.unit_price), include: true, unclear: unclearAt(i) });
-    else extra.push(fresh(l, i));
+    const byItem = itemId ? free.filter((r) => r.item === itemId) : [];
+    const byName = byItem.length ? byItem : free.filter((r) => sameName(r.description, l.description));
+    const fit = byName.filter((r) => sameUnit(r.unit, l.unit));
+    if (fit.length === 1) {
+      const t = fit[0];
+      used.set(t.key, { ...t, quantity: String(l.quantity), unit_price: String(l.unit_price), include: true, filled: true, unclear: unclearAt(i) });
+    } else extra.push(fresh(l, i, byName.length > 0));
   });
-  const kept = rows
+  const kept = base
     .filter((r) => !isBlankRow(r) || r.suggested)
     .map((r) => (r.suggested ? (used.get(r.key) ?? { ...r, include: false }) : r));
   return [...kept, ...extra];

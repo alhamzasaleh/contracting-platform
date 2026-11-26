@@ -43,6 +43,8 @@ export type PurchaseForm = {
    * with what was already bought for that project (recorded or waiting purchases).
    */
   quoteLists?: Record<string, QuoteListLine[]>;
+  /** purchase drafts per project (contract id → PO numbers): not subtracted from what's left, so the form warns */
+  drafts?: Record<string, string[]>;
 };
 export type QuoteListLine = ListLine & { bought: number; remaining: number };
 
@@ -190,13 +192,30 @@ export async function loadPurchaseForm(session: SessionContext, number?: string,
         return { cons, vid, costs, held };
       })()
     : Promise.resolve(null);
-  const [purchase, { data: suppliers }, items, projects, products, lists] = await Promise.all([
+  // without costs.view: the linked project's list as quantities only (no price), as the bill of quantities shows it
+  const qtyListP =
+    !withLists && can(session, "quotes.view") && projectNumber
+      ? (async () => {
+          const c = (await supabase.from("contracts").select("id, quote_id, quote_version").eq("organization_id", orgId).eq("status", "accepted").eq("number", projectNumber).maybeSingle()).data;
+          if (!c) return null;
+          const v = (await supabase.from("quote_versions").select("id").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle()).data;
+          if (!v) return null;
+          const [{ data, error }, held] = await Promise.all([supabase.rpc("quote_version_quantities", { p_version: v.id }), loadProjectHoldings(supabase, orgId, [c.id])]);
+          if (error) return null;
+          const listItems = (((data ?? {}) as { items?: PurchaseItem[] }).items ?? []).map((it) => ({ ...it, cost: 0 }));
+          return { id: c.id, listItems, held };
+        })()
+      : Promise.resolve(null);
+  const draftsP = rows(supabase.from("purchases").select("number, contract_id").eq("organization_id", orgId).eq("status", "draft").not("contract_id", "is", null).limit(500));
+  const [purchase, { data: suppliers }, items, projects, products, lists, qtyList, draftRows] = await Promise.all([
     number ? detail(session, number) : Promise.resolve(null),
     supabase.from("suppliers").select("id, name, vat_number").eq("organization_id", orgId).eq("is_active", true).order("name"),
     loadStockItems(supabase, orgId),
     projectsMap(supabase, orgId, can(session, "quotes.view")),
     loadProductOptions(session),
     listsP,
+    qtyListP,
+    draftsP,
   ]);
   const quoteLists: Record<string, QuoteListLine[]> = {};
   if (lists) {
@@ -208,7 +227,11 @@ export async function loadPurchaseForm(session: SessionContext, number?: string,
       quoteLists[c.id] = markBought(linesFromPurchaseList(list, items), projectBoughtRows(held, c.id, items));
     }
   }
+  if (qtyList?.listItems.length) quoteLists[qtyList.id] = markBought(linesFromPurchaseList(qtyList.listItems, items), projectBoughtRows(qtyList.held, qtyList.id, items));
+  const drafts: Record<string, string[]> = {};
+  for (const d of draftRows as { number: string; contract_id: string }[]) (drafts[d.contract_id] ??= []).push(d.number);
   return {
+    drafts,
     quoteLists,
     products,
     purchase,
