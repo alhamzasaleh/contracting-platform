@@ -10,7 +10,7 @@ import { num, optionalDate, optionalText } from "@/lib/validation/numbers";
 import { draftSurvey, type SurveyPhoto } from "@/lib/ai/survey";
 import { rateLimit } from "@/lib/rate-limit";
 import { cleanDraft } from "@/lib/survey/ai-draft";
-import { surveyTotalsSchema } from "@/lib/survey/schema";
+import { bulkRoomsSchema, surveyTotalsSchema } from "@/lib/survey/schema";
 import { deleteError } from "@/lib/deletion";
 import { readPlan, type PlanTile } from "@/lib/ai/plan";
 import { cleanPlanDraft, planSheetSchema, PLAN_SHEET_MAX_BYTES, PLAN_TILE_MAX_BYTES, type PlanSheet } from "@/lib/survey/plan";
@@ -183,6 +183,26 @@ export async function deleteClient(input: unknown): Promise<ActionResult> {
 /** Deletes a survey with its rooms — refused while a quote is built on it. */
 export async function deleteSurvey(input: unknown): Promise<ActionResult> {
   return ownerDelete("delete_survey", input);
+}
+
+/**
+ * «تطبيق على عدة غرف»: the given settings for the chosen rooms of one survey, in one update (all or
+ * nothing). Only rooms of that survey in this organization change (RLS + the survey filter).
+ */
+export async function bulkUpdateRooms(input: unknown): Promise<ActionResult<{ n: number }>> {
+  const ctx = await authorize("clients.manage");
+  if (!isCtx(ctx)) return ctx;
+  const parsed = bulkRoomsSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { survey_id, ids, patch } = parsed.data;
+  const { data, error } = await ctx.supabase
+    .from("survey_rooms")
+    .update(patch)
+    .eq("organization_id", ctx.orgId)
+    .eq("survey_id", survey_id)
+    .in("id", ids)
+    .select("id");
+  return dbError(error) ?? done({ n: data?.length ?? 0 });
 }
 
 // --- Floor plan → rooms (owner, Nov 2026) ---------------------------------------------

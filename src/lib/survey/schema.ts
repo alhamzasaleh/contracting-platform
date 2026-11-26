@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { roomSize } from "@/lib/survey/plan";
 
 const area = z.number().min(0).max(1_000_000);
 const HATCH_SIZES = ["30x30", "40x40", "50x50", "60x60", "60x120"] as const;
@@ -18,3 +19,39 @@ export const surveyTotalsSchema = z
   })
   .partial()
   .strict();
+
+/** num() of the room form: Arabic digits, a comma decimal, the room form's limits */
+const height = z.preprocess((v) => (typeof v === "string" ? roomSize(v, 30) ?? Number.NaN : v), z.number().min(0.01).max(30));
+
+/**
+ * «تطبيق على عدة غرف» (owner, Nov 2026): the same services for many rooms of one survey at once —
+ * only the settings given change, every other field of each room stays as it is.
+ */
+export const bulkRoomsSchema = z
+  .object({
+    survey_id: z.uuid(),
+    ids: z.array(z.uuid()).min(1).max(300),
+    patch: z
+      .object({
+        gypsum_ceiling: z.boolean(),
+        ceiling_board: z.enum(["normal", "moisture", "fire"]),
+        paint_walls: z.boolean(),
+        paint_ceiling: z.boolean(),
+        wall_zone: z.enum(["normal", "wet", "decorative"]),
+        height_m: height,
+      })
+      .partial()
+      .strict()
+      .refine((p) => Object.keys(p).length > 0, "empty"),
+  })
+  .strict();
+
+export type BulkScope = { kind: "all" } | { kind: "floor"; floor: string | null } | { kind: "pick"; ids: string[] };
+
+/** The rooms a bulk change applies to, in the survey's order. */
+export function bulkTargets(rooms: { id: string; unit_label: string | null }[], scope: BulkScope): string[] {
+  if (scope.kind === "all") return rooms.map((r) => r.id);
+  if (scope.kind === "floor") return rooms.filter((r) => (r.unit_label ?? null) === scope.floor).map((r) => r.id);
+  const picked = new Set(scope.ids);
+  return rooms.filter((r) => picked.has(r.id)).map((r) => r.id);
+}

@@ -1345,7 +1345,22 @@
     "planAdding": "جاري إضافة الغرف…",
     "planSaved": "انضافت",
     "planRetrying": "تعثّرت قراءة الصفحة {page} — نعيد المحاولة تلقائياً…",
-    "planRetryFailed": "أعد قراءة الصفحات اللي ما انقرت ({n})"
+    "planRetryFailed": "أعد قراءة الصفحات اللي ما انقرت ({n})",
+    "bulkButton": "تطبيق على عدة غرف",
+    "bulkTitle": "تطبيق على عدة غرف",
+    "bulkHint": "اختر الغرف وحدد اللي تبي تغيّره بس — «بدون تغيير» يخلي الباقي مثل ما هو. بعدها عدّل الاستثناءات غرفة غرفة.",
+    "bulkWhich": "على أي غرف؟",
+    "bulkScope_all": "كل الغرف",
+    "bulkScope_floor": "دور",
+    "bulkScope_pick": "أختار",
+    "bulkNoFloor": "بدون دور",
+    "bulkCount": "{n} غرفة",
+    "bulk_keep": "بدون تغيير",
+    "bulk_yes": "نعم",
+    "bulk_no": "لا",
+    "bulkHeight": "الارتفاع م",
+    "bulkApply": "طبّق على {n} غرفة",
+    "bulkDone": "عدّلنا {n} غرفة"
   },
   "quotes": {
     "service_gypsum": "جبس",

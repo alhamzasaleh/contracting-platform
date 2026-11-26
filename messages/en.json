@@ -1345,7 +1345,22 @@
     "planAdding": "Adding the rooms…",
     "planSaved": "Added",
     "planRetrying": "Reading page {page} stumbled — trying again automatically…",
-    "planRetryFailed": "Read the pages that failed again ({n})"
+    "planRetryFailed": "Read the pages that failed again ({n})",
+    "bulkButton": "Apply to several rooms",
+    "bulkTitle": "Apply to several rooms",
+    "bulkHint": "Pick the rooms and set only what should change — «No change» leaves the rest as it is. Then fix the exceptions room by room.",
+    "bulkWhich": "Which rooms?",
+    "bulkScope_all": "All rooms",
+    "bulkScope_floor": "A floor",
+    "bulkScope_pick": "Pick",
+    "bulkNoFloor": "No floor",
+    "bulkCount": "{n} rooms",
+    "bulk_keep": "No change",
+    "bulk_yes": "Yes",
+    "bulk_no": "No",
+    "bulkHeight": "Height m",
+    "bulkApply": "Apply to {n} rooms",
+    "bulkDone": "Updated {n} rooms"
   },
   "quotes": {
     "service_gypsum": "Gypsum",

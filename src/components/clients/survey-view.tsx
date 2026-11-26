@@ -6,7 +6,9 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
 import { FormDialog, NumberInput, str, useActionRunner, useUnitText } from "@/components/forms/form-kit";
+import { Pills } from "./pills";
 import { SurveyAiDraft } from "./survey-ai-draft";
+import { SurveyBulkRooms } from "./survey-bulk-rooms";
 import { SurveyPlanImport, type PlanReading } from "./survey-plan-import";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,25 +27,6 @@ import { toNumber } from "@/lib/validation/numbers";
 import { cn, ltr } from "@/lib/utils";
 
 type Act = (i: Record<string, unknown>) => Promise<ActionResult>;
-
-function Pills<T extends string>({ value, options, onChange, render, label }: { value: T; options: readonly T[]; onChange: (v: T) => void; render: (v: T) => string; label: string }) {
-  return (
-    <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5">
-      {options.map((o) => (
-        <button
-          key={o}
-          type="button"
-          role="radio"
-          aria-checked={o === value}
-          onClick={() => onChange(o)}
-          className={cn("min-h-9 rounded-full border px-3 text-[13px]", o === value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-surface text-muted-foreground")}
-        >
-          {render(o)}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 /** rows of number fields that always fill the row (no field left alone on a line), labels lined up at the bottom */
 const ROW3 = "field-row grid-cols-3 gap-x-2 gap-y-3 sm:gap-x-3";
@@ -67,7 +50,7 @@ export function SurveyView({
   canManage: boolean;
   canQuote: boolean;
   /** deleteSurvey: owner only (detail.canDelete) */
-  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>>; readPlan?: (fd: FormData) => Promise<ActionResult<PlanReading>>; deleteSurvey?: Act };
+  actions?: { saveSurvey: Act; saveRoom: Act; deleteRoom: Act; draftAi?: (fd: FormData) => Promise<ActionResult<SurveyDraftResult>>; readPlan?: (fd: FormData) => Promise<ActionResult<PlanReading>>; bulkRooms?: (input: Record<string, unknown>) => Promise<ActionResult<{ n: number }>>; deleteSurvey?: Act };
 }) {
   const unitText = useUnitText();
   const t = useTranslations("survey");
@@ -280,6 +263,7 @@ export function SurveyView({
               <div className="flex flex-wrap gap-2">
                 <SurveyPlanImport surveyId={survey.id} readPlan={actions?.readPlan} addRoom={actions?.saveRoom} usualHeight={rooms.at(-1)?.height_m ?? null} preview={!actions} sample={planSample} />
                 {aiDraft}
+                <SurveyBulkRooms surveyId={survey.id} rooms={rooms} bulk={actions?.bulkRooms} />
                 <Button size="sm" onClick={() => setRoom({ height_m: rooms.at(-1)?.height_m ?? 3, paint_walls: true, paint_ceiling: true })}>
                   <Plus /> {t("addRoom")}
                 </Button>
