@@ -177,7 +177,8 @@ test.describe("schedule (design preview)", () => {
 
 test.describe("purchases & stock (design preview)", () => {
   test("new purchase offers the camera, lines and totals", async ({ page }) => {
-    await page.goto("/dev/preview/purchases/new");
+    // no project picked: one blank line
+    await page.goto("/dev/preview/purchases/new-blank");
     await expect(page.getByRole("button", { name: "صوّر الفاتورة" })).toBeVisible();
     await page.getByLabel("الكمية").first().fill("10");
     await page.getByLabel("سعر الوحدة").first().fill("22");
@@ -204,7 +205,9 @@ test.describe("execution (design preview)", () => {
     await page.goto("/dev/preview/projects/detail");
     await expect(page.getByRole("button", { name: "تسجيل وصول للموقع" })).toBeVisible();
     await expect(page.getByText("بانتظار تأكيد العميل").first()).toBeVisible();
-    await expect(page.getByText(/يبعد \d+ م عن موقع المشروع/)).toBeVisible();
+    // each visit says how far it was from the site; beyond 300 m in red
+    await expect(page.getByText("يبعد 23 م عن موقع المشروع")).toBeVisible();
+    await expect(page.getByText("يبعد 758 م عن موقع المشروع")).toHaveClass(/text-danger/);
     await expect(page.getByRole("button", { name: "تمت المعالجة" })).toBeVisible();
   });
 
@@ -554,12 +557,11 @@ test.describe("no runtime errors (design preview)", () => {
 });
 
 test.describe("purchases from the quote's list (design preview)", () => {
-  test("adds the list to the lines already there, leaving out what was bought before", async ({ page }) => {
+  test("opened for a project, the form is ready from the list, leaving out what was bought before", async ({ page }) => {
+    // owner (Nov 2026): /purchases/new?project=… opens with the project's remaining list, each line ticked
     await page.goto("/dev/preview/purchases/new");
     const rows = page.locator('input[id^="pl-d-"]');
-    await expect(rows).toHaveCount(1);
-    await page.getByRole("button", { name: "من قائمة مشتريات العرض" }).click();
-    // the blank row gives way; boards: 150 quoted − 60 already bought
+    // boards: 150 quoted − 60 already bought
     await expect(rows).toHaveCount(3);
     await expect(page.locator("#pl-q-0")).toHaveValue("90");
     await expect(page.getByTestId("quote-list-bought")).toBeVisible();
@@ -577,14 +579,12 @@ test.describe("purchases from the quote's list (design preview)", () => {
   });
 
   test("another stock item than the suggested one drops the suggested catalogue product", async ({ page }) => {
+    // the form opens ready from the project's list: boards on the stock item they were bought as before
     await page.goto("/dev/preview/purchases/new");
-    await page.getByRole("button", { name: "من قائمة مشتريات العرض" }).click();
-    await expect(page.locator("#pl-pr-0")).toHaveValue("pr1");
-    await page.locator("#pl-i-0").selectOption("i2");
+    await expect(page.locator("#pl-i-0")).toHaveValue("i1");
+    // a new stock item instead: the suggested catalogue product isn't carried over
     await page.locator("#pl-i-0").selectOption("new");
-    await expect(page.locator("#pl-pr-0")).toHaveValue("pr1");
-    await page.locator("#pl-i-0").selectOption("i1");
-    await expect(page.locator("#pl-pr-0")).toHaveCount(0);
+    await expect(page.locator("#pl-pr-0")).toHaveValue("");
   });
 
   test("a stock item can be linked to a catalogue product", async ({ page }) => {

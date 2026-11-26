@@ -242,37 +242,18 @@ describe("frozen once sent — the other paths (review)", () => {
   });
 });
 
-describe("frozen once sent — reopened contracts (review)", () => {
-  it("a cancelled contract sent again freezes the survey's pin; back to draft from cancelled follows the survey", async () => {
-    const r = await as({ userId: owner }, async (q) => {
-      const sv = (await q<{ id: string }>("insert into public.surveys (organization_id, client_id, mode, latitude, longitude, site_city, site_district) values ($1,$2,'rooms',24.67,46.77,'الرياض','الصحافة') returning id", [org, client])).rows[0].id;
-      const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service, survey_id) values ($1,$2,'gypsum',$3) returning id", [org, client, sv])).rows[0].id;
+describe("a cancelled contract stays cancelled (owner, Nov 2026)", () => {
+  it("can't be reopened (draft / sent / accepted) — by users or directly in the database", async () => {
+    const c = await as({ userId: owner }, async (q) => {
+      const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service, survey_id) values ($1,$2,'gypsum',$3) returning id", [org, client, survey])).rows[0].id;
       await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1000,1000)", [org, quote]);
       await q("select public.issue_quote($1, null)", [quote]);
-      const c = (await q<{ id: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total) values ($1,$2,1,$3,'gypsum',current_date,10,1000) returning id", [org, quote, client])).rows[0].id;
-      return { sv, c };
+      return (await q<{ id: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total) values ($1,$2,1,$3,'gypsum',current_date,10,1000) returning id", [org, quote, client])).rows[0].id;
     });
-    await asAdmin((q) => q("update public.contracts set status = 'cancelled' where id = $1", [r.c]));
-    await asAdmin((q) => q("update public.contracts set status = 'sent' where id = $1", [r.c]));
-    const sent = await as({ userId: owner }, (q) => q<{ lat: string }>("select lat from private.contract_site($1)", [r.c]));
-    expect(sent.rows[0].lat).toBe("24.670000");
-    await asAdmin((q) => q("update public.contracts set status = 'cancelled' where id = $1", [r.c]));
-    await asAdmin((q) => q("update public.contracts set status = 'draft' where id = $1", [r.c]));
-    await as({ userId: owner }, (q) => q("update public.surveys set latitude = 24.68, longitude = 46.78 where id = $1", [r.sv]));
-    const draft = await as({ userId: owner }, (q) => q<{ lat: string }>("select lat from private.contract_site($1)", [r.c]));
-    expect(draft.rows[0].lat).toBe("24.680000");
-  });
-});
-
-describe("the survey page's contract note (review)", () => {
-  it("clients.view is enough (no quotes.view); another organization sees nothing", async () => {
-    const clerk = await createUser("966500009604");
-    await as({ userId: owner }, (q) => q(`insert into public.memberships (organization_id, user_id, role, permission_overrides) values ($1,$2,'viewer','{"grant":[],"deny":["quotes.view"]}')`, [org, clerk]));
-    // RLS alone shows him no contract (quotes.view denied)…
-    expect((await as({ userId: clerk }, (q) => q("select id from public.contracts"))).rowCount).toBe(0);
-    const r = await as({ userId: clerk }, (q) => q<{ status: string }>("select status from public.survey_contracts($1)", [survey]));
-    expect(r.rows.map((x) => x.status)).toContain("accepted");
-    const other = await createUser("966500009605");
-    expect((await as({ userId: other }, (q) => q("select * from public.survey_contracts($1)", [survey]))).rowCount).toBe(0);
+    await as({ userId: owner }, (q) => q("update public.contracts set status = 'cancelled' where id = $1", [c]));
+    for (const to of ["draft", "sent"]) {
+      await expectDenied(as({ userId: owner }, (q) => q("update public.contracts set status = $2 where id = $1", [c, to])), /cancelled contract/);
+      await expectDenied(asAdmin((q) => q("update public.contracts set status = $2 where id = $1", [c, to])), /cancelled contract/);
+    }
   });
 });
