@@ -34,3 +34,14 @@ describe("bulkTargets", () => {
     expect(bulkTargets(rooms, { kind: "pick", ids: ["c", "zz"] })).toEqual(["c"]);
   });
 });
+
+describe("bulkPatch", () => {
+  it("never sends a hidden choice: board only while gypsum isn't «no», wall zone only while wall paint isn't «no»", async () => {
+    const { bulkPatch } = await import("@/lib/survey/schema");
+    const base = { gypsum: "keep", board: "keep", walls: "keep", zone: "keep", ceiling: "keep", height: null } as const;
+    expect(bulkPatch({ ...base, gypsum: "no", board: "fire" })).toEqual({ gypsum_ceiling: false });
+    expect(bulkPatch({ ...base, walls: "no", zone: "wet" })).toEqual({ paint_walls: false });
+    expect(bulkPatch({ ...base, gypsum: "yes", board: "moisture", height: 3.2 })).toEqual({ gypsum_ceiling: true, ceiling_board: "moisture", height_m: "3.2" });
+    expect(bulkPatch(base)).toEqual({});
+  });
+});

@@ -1358,7 +1358,6 @@
     "bulk_keep": "No change",
     "bulk_yes": "Yes",
     "bulk_no": "No",
-    "bulkHeight": "Height m",
     "bulkApply": "Apply to {n} rooms",
     "bulkDone": "Updated {n} rooms"
   },

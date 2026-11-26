@@ -5,10 +5,9 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { useActionRunner } from "@/components/forms/form-kit";
+import { NumberInput, useActionRunner } from "@/components/forms/form-kit";
 import type { ActionResult } from "@/lib/actions";
-import { bulkTargets, type BulkScope } from "@/lib/survey/schema";
+import { bulkPatch, bulkTargets, type BulkScope } from "@/lib/survey/schema";
 import { roomSize } from "@/lib/survey/plan";
 import { cn } from "@/lib/utils";
 import { Pills } from "./pills";
@@ -42,14 +41,7 @@ export function SurveyBulkRooms({ surveyId, rooms, bulk }: { surveyId: string; r
   const target: BulkScope = scope === "all" ? { kind: "all" } : scope === "floor" ? { kind: "floor", floor: floor === NO_FLOOR ? null : floor } : { kind: "pick", ids: [...picked] };
   const ids = bulkTargets(rooms, target);
   const h = height.trim() ? roomSize(height, 30) : undefined;
-  const patch = {
-    ...(gypsum !== "keep" && { gypsum_ceiling: gypsum === "yes" }),
-    ...(board !== "keep" && { ceiling_board: board }),
-    ...(walls !== "keep" && { paint_walls: walls === "yes" }),
-    ...(zone !== "keep" && { wall_zone: zone }),
-    ...(ceiling !== "keep" && { paint_ceiling: ceiling === "yes" }),
-    ...(h != null && { height_m: String(h) }),
-  };
+  const patch = bulkPatch({ gypsum, board, walls, zone, ceiling, height: h ?? null });
   const changes = Object.keys(patch).length;
 
   const reset = () => {
@@ -60,6 +52,7 @@ export function SurveyBulkRooms({ surveyId, rooms, bulk }: { surveyId: string; r
     setCeiling("keep");
     setHeight("");
     setPicked(new Set());
+    setScope("all");
   };
   const start = () => {
     setFloor(floors[0] ?? NO_FLOOR);
@@ -68,8 +61,9 @@ export function SurveyBulkRooms({ surveyId, rooms, bulk }: { surveyId: string; r
 
   const apply = () =>
     run(bulk && (() => bulk({ survey_id: surveyId, ids, patch })), {
-      onSuccess: () => {
-        toast.success(t("bulkDone", { n: ids.length }));
+      silent: true,
+      onSuccess: (r) => {
+        toast.success(t("bulkDone", { n: r.ok ? (r.data?.n ?? 0) : 0 }));
         setOpen(false);
         reset();
       },
@@ -139,8 +133,8 @@ export function SurveyBulkRooms({ surveyId, rooms, bulk }: { surveyId: string; r
               )}
               {tri(t("paintCeiling"), ceiling, setCeiling)}
               <label className="grid max-w-48 gap-1.5 text-[13px] font-semibold">
-                {t("bulkHeight")}
-                <Input inputMode="decimal" dir="ltr" className={cn("font-latin", height.trim() && h == null && "border-warning")} placeholder={t("bulk_keep")} value={height} onChange={(e) => setHeight(e.target.value)} />
+                {t("height")}
+                <NumberInput suffix="m" className={cn(height.trim() && h == null && "border-warning")} placeholder={t("bulk_keep")} value={height} onChange={(e) => setHeight(e.target.value)} />
               </label>
             </div>
           </DialogBody>

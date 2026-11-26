@@ -55,3 +55,24 @@ export function bulkTargets(rooms: { id: string; unit_label: string | null }[], 
   const picked = new Set(scope.ids);
   return rooms.filter((r) => picked.has(r.id)).map((r) => r.id);
 }
+
+export type BulkChoice = {
+  gypsum: "keep" | "yes" | "no";
+  board: "keep" | "normal" | "moisture" | "fire";
+  walls: "keep" | "yes" | "no";
+  zone: "keep" | "normal" | "wet" | "decorative";
+  ceiling: "keep" | "yes" | "no";
+  height: number | null;
+};
+
+/** The settings to send: «بدون تغيير» and choices hidden on screen (board with gypsum «no», wall zone with wall paint «no») are left out. */
+export function bulkPatch(c: BulkChoice): Record<string, string | boolean> {
+  return {
+    ...(c.gypsum !== "keep" && { gypsum_ceiling: c.gypsum === "yes" }),
+    ...(c.board !== "keep" && c.gypsum !== "no" && { ceiling_board: c.board }),
+    ...(c.walls !== "keep" && { paint_walls: c.walls === "yes" }),
+    ...(c.zone !== "keep" && c.walls !== "no" && { wall_zone: c.zone }),
+    ...(c.ceiling !== "keep" && { paint_ceiling: c.ceiling === "yes" }),
+    ...(c.height != null && { height_m: String(c.height) }),
+  };
+}
