@@ -506,6 +506,7 @@ export type MarketerPortalLinkRow = OrgRow & { marketer_id: string; token_hash: 
 export type ContractRow = OrgRow & Upd & {
   number: string;
   /** the project's place when its survey has its own site (set by the database) */
+  site_own?: boolean;
   site_city?: string | null;
   site_district?: string | null;
   /** the agreed version's success partner (set by the database) */
@@ -654,7 +655,7 @@ export type ProjectStageRow = OrgRow & Upd & {
 };
 export type SiteVisitRow = OrgRow & { contract_id: string; latitude: number | null; longitude: number | null; accuracy_m: number | null; note: string | null; checked_in_at: string };
 /** a project's own site pin (else the client's) */
-export type ProjectSiteRow = { contract_id: string; organization_id: string; latitude: number; longitude: number; from_survey?: boolean; created_at: string; created_by: string | null; updated_at: string };
+export type ProjectSiteRow = { contract_id: string; organization_id: string; latitude: number; longitude: number; from_survey?: boolean; survey_latitude?: number | null; survey_longitude?: number | null; created_at: string; created_by: string | null; updated_at: string };
 export type ProgressUpdateRow = OrgRow & { contract_id: string; stage_id: string; progress: number; note: string | null; photos: string[]; visible_to_client: boolean };
 export type ClientNoteRow = OrgRow & Upd & { contract_id: string; stage_id: string | null; body: string; photos: string[]; status: "new" | "seen" | "resolved"; reply: string | null };
 
@@ -889,6 +890,7 @@ export type Database = {
       my_permissions: { Args: { p_org: string }; Returns: string[] };
       session_context: { Args: Record<string, never>; Returns: Json | null };
       quote_version_quantities: { Args: { p_version: string }; Returns: Json };
+      reset_project_site: { Args: { p_contract: string }; Returns: undefined };
       project_site_list: { Args: { p_org: string }; Returns: { contract_id: string; latitude: number | null; longitude: number | null; own: boolean; source: "project" | "survey" | "client" | null; city: string | null; district: string | null }[] };
       auth_phone_allowed: { Args: { p_phone: string }; Returns: boolean };
       check_rate_limit: { Args: { p_key: string; p_max: number; p_window_seconds: number }; Returns: boolean };

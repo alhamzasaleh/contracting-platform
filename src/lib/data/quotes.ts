@@ -182,7 +182,8 @@ export async function loadPastStats(session: SessionContext, kind: ServiceKind, 
 
 export type QuoteDetail = {
   quote: { id: string; number: string; service: ServiceKind; status: QuoteStatus; version: number; valid_until: string | null; created_at: string };
-  client: { number: string; name: string; phone: string | null; city: string | null };
+  /** with the project's place when its survey has its own site (site_own) */
+  client: { number: string; name: string; phone: string | null; city: string | null; site_own?: boolean; site_city?: string | null; site_district?: string | null };
   survey: { number: string } | null;
   current: { version: number; clientView: ClientView; notes: string | null; estimated: boolean; created_at: string; quantities: Quantities } | null;
   versions: { version: number; total: number; created_at: string; brands: string[] }[];
@@ -213,7 +214,7 @@ export async function loadQuote(session: SessionContext, number: string): Promis
   const owner = session.role === "owner";
   const [{ data: client }, { data: survey }, { data: versions }, { data: approvals }, { data: contract }, { data: links }, allContracts] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city").eq("id", q.client_id).maybeSingle(),
-    q.survey_id ? supabase.from("surveys").select("number").eq("id", q.survey_id).maybeSingle() : Promise.resolve({ data: null }),
+    q.survey_id ? supabase.from("surveys").select("number, latitude, site_city, site_district").eq("id", q.survey_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("quote_versions").select("id, version, total, created_at, client_view, notes, estimated, quantities").eq("quote_id", q.id).order("version", { ascending: false }),
     supabase.from("approvals").select("id, kind, status, details, decided_at, decision_note").eq("entity", "quote").eq("entity_id", q.id).order("created_at", { ascending: false }),
     supabase.from("contracts").select("number, status").eq("quote_id", q.id).neq("status", "cancelled").maybeSingle(),
@@ -234,7 +235,10 @@ export async function loadQuote(session: SessionContext, number: string): Promis
   }
   return {
     quote: { id: q.id, number: q.number, service: q.service, status: q.status, version: q.current_version, valid_until: q.valid_until, created_at: q.created_at },
-    client: client ?? { number: "", name: "—", phone: null, city: null },
+    client: {
+      ...(client ?? { number: "", name: "—", phone: null, city: null }),
+      ...(survey?.latitude != null ? { site_own: true, site_city: survey.site_city ?? null, site_district: survey.site_district ?? null } : {}),
+    },
     survey,
     current: cur ? { version: cur.version, clientView: cur.client_view as unknown as ClientView, notes: cur.notes, estimated: cur.estimated, created_at: cur.created_at, quantities: cur.quantities as unknown as Quantities } : null,
     versions: (versions ?? []).map((v) => ({

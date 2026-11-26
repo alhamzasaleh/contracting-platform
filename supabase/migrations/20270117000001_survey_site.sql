@@ -21,7 +21,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(ps.latitude, sv.latitude, cl.latitude), coalesce(ps.longitude, sv.longitude, cl.longitude)
+  -- the survey's pin counts only until the contract is accepted (then it was copied to project_sites)
+  select coalesce(ps.latitude, case when c.status in ('draft', 'sent') then sv.latitude end, cl.latitude),
+         coalesce(ps.longitude, case when c.status in ('draft', 'sent') then sv.longitude end, cl.longitude)
     from public.contracts c
     join public.clients cl on cl.id = c.client_id
     left join public.quotes q on q.id = c.quote_id
@@ -33,32 +35,7 @@ $$;
 revoke all on function private.contract_site(uuid) from public;
 grant execute on function private.contract_site(uuid) to authenticated;
 
-drop function if exists public.project_site_list(uuid);
-create function public.project_site_list(p_org uuid)
-returns table (contract_id uuid, latitude numeric, longitude numeric, own boolean, source text)
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select c.id,
-         coalesce(ps.latitude, sv.latitude, cl.latitude),
-         coalesce(ps.longitude, sv.longitude, cl.longitude),
-         ps.contract_id is not null,
-         case when ps.contract_id is not null then 'project'
-              when sv.latitude is not null then 'survey'
-              when cl.latitude is not null then 'client' end
-    from public.contracts c
-    join public.clients cl on cl.id = c.client_id
-    left join public.quotes q on q.id = c.quote_id
-    left join public.surveys sv on sv.id = q.survey_id
-    left join public.project_sites ps on ps.contract_id = c.id
-   where c.organization_id = p_org
-     and private.has_permission(p_org, 'projects.view')
-     and private.can_access_contract(p_org, c.id);
-$$;
-revoke all on function public.project_site_list(uuid) from public, anon;
-grant execute on function public.project_site_list(uuid) to authenticated;
+-- public.project_site_list: see (c) below (with the source and the place)
 
 -- ---------------------------------------------------------------------------------------------
 -- Linked to the rest (review, Nov 2026):
@@ -72,7 +49,13 @@ grant execute on function public.project_site_list(uuid) to authenticated;
 alter table public.contracts
   add column if not exists site_city text check (char_length(site_city) <= 80),
   add column if not exists site_district text check (char_length(site_district) <= 80);
-alter table public.project_sites add column if not exists from_survey boolean not null default false;
+alter table public.project_sites
+  add column if not exists from_survey boolean not null default false,
+  -- the survey's pin copied at acceptance (kept when a project pin replaces it, for «back»)
+  add column if not exists survey_latitude numeric(9, 6),
+  add column if not exists survey_longitude numeric(9, 6);
+alter table public.contracts add column if not exists site_own boolean not null default false;
+comment on column public.contracts.site_own is 'its survey has its own site (set by the database): the place is site_city/site_district, never the client''s address';
 
 -- the survey's own place (null when it is at the client's site)
 create or replace function private.quote_site_place(p_quote uuid)
@@ -82,6 +65,7 @@ stable
 security definer
 set search_path = ''
 as $$
+  -- one row when the quote's survey has its own site (names may be empty), none otherwise
   select sv.site_city, sv.site_district
     from public.quotes q
     join public.surveys sv on sv.id = q.survey_id
@@ -100,13 +84,14 @@ declare
 begin
   -- users never write the place: the database takes it from the survey
   select * into r from private.quote_site_place(new.quote_id);
+  new.site_own := found;
   new.site_city := r.city;
   new.site_district := r.district;
   return new;
 end;
 $$;
 drop trigger if exists contracts_site_place on public.contracts;
-create trigger contracts_site_place before insert on public.contracts
+create trigger contracts_site_place before insert or update of quote_id on public.contracts
   for each row execute function private.contract_site_place();
 
 -- users can't change it afterwards (only the survey trigger below, while draft/sent)
@@ -117,15 +102,15 @@ security invoker
 set search_path = ''
 as $$
 begin
-  if current_user in ('authenticated', 'anon')
-     and (new.site_city is distinct from old.site_city or new.site_district is distinct from old.site_district) then
+  if current_user in ('authenticated', 'anon') and new.quote_id is not distinct from old.quote_id
+     and (new.site_city is distinct from old.site_city or new.site_district is distinct from old.site_district or new.site_own is distinct from old.site_own) then
     raise exception 'the contract''s place comes from its survey' using errcode = '42501';
   end if;
   return new;
 end;
 $$;
 drop trigger if exists contracts_guard_site_place on public.contracts;
-create trigger contracts_guard_site_place before update of site_city, site_district on public.contracts
+create trigger contracts_guard_site_place before update of site_city, site_district, site_own on public.contracts
   for each row execute function private.guard_contract_site_place();
 
 create or replace function private.survey_site_to_contracts()
@@ -136,11 +121,13 @@ set search_path = ''
 as $$
 begin
   update public.contracts c
-     set site_city = case when new.latitude is not null then new.site_city end,
+     set site_own = new.latitude is not null,
+         site_city = case when new.latitude is not null then new.site_city end,
          site_district = case when new.latitude is not null then new.site_district end
     from public.quotes q
    where q.id = c.quote_id and q.survey_id = new.id and c.status in ('draft', 'sent')
-     and (c.site_city is distinct from (case when new.latitude is not null then new.site_city end)
+     and (c.site_own is distinct from (new.latitude is not null)
+          or c.site_city is distinct from (case when new.latitude is not null then new.site_city end)
           or c.site_district is distinct from (case when new.latitude is not null then new.site_district end));
   return null;
 end;
@@ -158,8 +145,8 @@ set search_path = ''
 as $$
 begin
   if new.status = 'accepted' and old.status is distinct from 'accepted' then
-    insert into public.project_sites (organization_id, contract_id, latitude, longitude, from_survey)
-    select new.organization_id, new.id, sv.latitude, sv.longitude, true
+    insert into public.project_sites (organization_id, contract_id, latitude, longitude, from_survey, survey_latitude, survey_longitude)
+    select new.organization_id, new.id, sv.latitude, sv.longitude, true, sv.latitude, sv.longitude
       from public.quotes q
       join public.surveys sv on sv.id = q.survey_id
      where q.id = new.quote_id and sv.latitude is not null
@@ -172,7 +159,9 @@ drop trigger if exists contracts_site_on_accept on public.contracts;
 create trigger contracts_site_on_accept after update of status on public.contracts
   for each row execute function private.contract_site_on_accept();
 
--- (c) the sites list with the source and the place; a pin copied from the survey reads «from the survey»
+-- (c) the sites list with the source and the place; a pin copied from the survey reads «from the survey»;
+--     the survey's live pin counts only until acceptance; the place = the contract's (its survey's own
+--     site, `site_own`) else the client's address
 drop function if exists public.project_site_list(uuid);
 create function public.project_site_list(p_org uuid)
 returns table (contract_id uuid, latitude numeric, longitude numeric, own boolean, source text, city text, district text)
@@ -182,14 +171,14 @@ security definer
 set search_path = ''
 as $$
   select c.id,
-         coalesce(ps.latitude, sv.latitude, cl.latitude),
-         coalesce(ps.longitude, sv.longitude, cl.longitude),
+         coalesce(ps.latitude, case when c.status in ('draft', 'sent') then sv.latitude end, cl.latitude),
+         coalesce(ps.longitude, case when c.status in ('draft', 'sent') then sv.longitude end, cl.longitude),
          ps.contract_id is not null and not ps.from_survey,
          case when ps.contract_id is not null and not ps.from_survey then 'project'
-              when ps.contract_id is not null or sv.latitude is not null then 'survey'
+              when ps.contract_id is not null or (c.status in ('draft', 'sent') and sv.latitude is not null) then 'survey'
               when cl.latitude is not null then 'client' end,
-         case when c.site_city is not null or c.site_district is not null then c.site_city else cl.city end,
-         case when c.site_city is not null or c.site_district is not null then c.site_district else cl.district end
+         case when c.site_own then c.site_city else cl.city end,
+         case when c.site_own then c.site_district else cl.district end
     from public.contracts c
     join public.clients cl on cl.id = c.client_id
     left join public.quotes q on q.id = c.quote_id
@@ -201,6 +190,32 @@ as $$
 $$;
 revoke all on function public.project_site_list(uuid) from public, anon;
 grant execute on function public.project_site_list(uuid) to authenticated;
+
+-- «ارجع للموقع الأساسي» on the project page: back to the pin copied at acceptance (never the survey's
+-- current one), else no project pin (→ the survey's until accepted, else the client's)
+create or replace function public.reset_project_site(p_contract uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid;
+begin
+  select c.organization_id into v_org from public.contracts c where c.id = p_contract;
+  if v_org is null or not private.has_permission(v_org, 'projects.manage') or not private.can_access_contract(v_org, p_contract) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  update public.project_sites
+     set latitude = survey_latitude, longitude = survey_longitude, from_survey = true
+   where contract_id = p_contract and survey_latitude is not null;
+  if not found then
+    delete from public.project_sites where contract_id = p_contract;
+  end if;
+end;
+$$;
+revoke all on function public.reset_project_site(uuid) from public, anon;
+grant execute on function public.reset_project_site(uuid) to authenticated;
 
 -- the client page: the project's place next to the client's address (latest bodies from 20270109000001)
 create or replace function private.portal_quote_payload(p_link public.client_portal_links)
@@ -216,6 +231,7 @@ as $$
                               'phone', o.phone, 'city', o.city, 'address', o.address, 'logo_path', o.logo_path, 'brand', o.brand,
                               'signatory_name', o.signatory_name, 'signatory_title', o.signatory_title),
     'client', jsonb_build_object('name', cl.name, 'phone', cl.phone, 'city', cl.city, 'district', cl.district, 'id_number', cl.id_number,
+                                 'site_own', exists (select 1 from private.quote_site_place(q.id)),
                                  'site_city', (select x.city from private.quote_site_place(q.id) x), 'site_district', (select x.district from private.quote_site_place(q.id) x)),
     'quote', jsonb_build_object(
       'number', q.number, 'status', q.status, 'service', q.service,
@@ -274,7 +290,7 @@ begin
                               'phone', o.phone, 'city', o.city, 'address', o.address, 'logo_path', o.logo_path, 'brand', o.brand,
                               'signatory_name', o.signatory_name, 'signatory_title', o.signatory_title),
     'client', jsonb_build_object('name', cl.name, 'phone', cl.phone, 'city', cl.city, 'district', cl.district, 'id_number', cl.id_number,
-                                 'site_city', c.site_city, 'site_district', c.site_district),
+                                 'site_own', c.site_own, 'site_city', c.site_city, 'site_district', c.site_district),
     'contract', jsonb_build_object('number', c.number, 'status', c.status, 'service', c.service, 'project_type', c.project_type,
                                    'start_date', c.start_date, 'duration_days', c.duration_days, 'warranty_months', c.warranty_months,
                                    'total', c.total, 'notes', c.notes, 'accepted_at', c.accepted_at, 'accepted_name', c.accepted_name, 'created_at', c.created_at),
@@ -299,11 +315,11 @@ revoke all on function public.portal_view(text, text) from public, anon, authent
 grant execute on function public.portal_view(text, text) to service_role;
 
 -- backfill: contracts made before (from a survey with its own site), and accepted projects
-update public.contracts c set site_city = x.city, site_district = x.district
+update public.contracts c set site_own = true, site_city = x.city, site_district = x.district
   from public.quotes q, lateral private.quote_site_place(q.id) x
- where q.id = c.quote_id and c.site_city is null and c.site_district is null;
-insert into public.project_sites (organization_id, contract_id, latitude, longitude, from_survey)
-select c.organization_id, c.id, sv.latitude, sv.longitude, true
+ where q.id = c.quote_id and not c.site_own;
+insert into public.project_sites (organization_id, contract_id, latitude, longitude, from_survey, survey_latitude, survey_longitude)
+select c.organization_id, c.id, sv.latitude, sv.longitude, true, sv.latitude, sv.longitude
   from public.contracts c join public.quotes q on q.id = c.quote_id join public.surveys sv on sv.id = q.survey_id
  where c.status = 'accepted' and sv.latitude is not null
 on conflict (contract_id) do nothing;

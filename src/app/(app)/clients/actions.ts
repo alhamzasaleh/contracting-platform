@@ -113,6 +113,8 @@ const pinFields = {
   site_district: optionalText(80),
 };
 const pinPair = (v: { latitude: number | null; longitude: number | null }) => (v.latitude == null) === (v.longitude == null);
+/** «موقع ثاني» names its place (city or district) — the contract says where the project is */
+const placeNamed = (v: { latitude?: number | null; site_city?: string | null; site_district?: string | null }) => v.latitude == null || !!(v.site_city?.trim() || v.site_district?.trim());
 const round6 = (x: number | null) => (x == null ? null : Math.round(x * 1e6) / 1e6);
 /** «نفس موقع العميل» = no pin and no place of its own */
 const sitePart = (v: { latitude: number | null; longitude: number | null; site_city?: string | null; site_district?: string | null }) =>
@@ -129,6 +131,7 @@ export async function createSurvey(input: unknown): Promise<ActionResult<{ numbe
     .partial({ latitude: true, longitude: true, site_city: true, site_district: true })
     .strict()
     .refine((v) => pinPair({ latitude: v.latitude ?? null, longitude: v.longitude ?? null }))
+    .refine(placeNamed, { path: ["site_city"], message: "placeRequired" })
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
   const v = parsed.data;
@@ -172,7 +175,7 @@ export async function saveSurvey(input: unknown): Promise<ActionResult> {
 export async function saveSurveySite(input: unknown): Promise<ActionResult> {
   const ctx = await authorize("clients.manage");
   if (!isCtx(ctx)) return ctx;
-  const parsed = z.object({ id, ...pinFields }).strict().refine(pinPair).safeParse(input);
+  const parsed = z.object({ id, ...pinFields }).strict().refine(pinPair).refine(placeNamed, { path: ["site_city"], message: "placeRequired" }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
   const { id: surveyId, ...v } = parsed.data;
   const { error } = await ctx.supabase.from("surveys").update(sitePart(v)).eq("id", surveyId).eq("organization_id", ctx.orgId);

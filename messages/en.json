@@ -1389,7 +1389,8 @@
     "siteIsOwn": "This survey's own site",
     "siteIsClient": "Client's site",
     "siteNone": "No site set — set it so the supervisor can get there",
-    "siteProjectKept": "This survey has a project (<project></project>) that took its site when agreed — changing the site here doesn't move the project; change it on the project page."
+    "siteProjectKept": "This survey has a project (<project></project>) that took its site when agreed — changing the site here doesn't move the project; change it on the project page.",
+    "siteOtherNeedsPlace": "Enter the city or district of this site — the contract names where the project is."
   },
   "quotes": {
     "service_gypsum": "Gypsum",
@@ -1540,7 +1541,8 @@
     "item_exterior_facades": "Exterior façade painting",
     "item_exterior_walls": "Exterior wall painting",
     "item_exterior_ceilings": "Exterior ceiling painting",
-    "item_exterior_partitions": "Exterior painting"
+    "item_exterior_partitions": "Exterior painting",
+    "projectSite": "Project site: {place}"
   },
   "formulas": {
     "boards": "Boards = (ceiling area × layers + trough board + partition faces × layers) ÷ board area × (1 + waste), rounded up",

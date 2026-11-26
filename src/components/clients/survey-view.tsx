@@ -267,7 +267,7 @@ export function SurveyView({
         </div>
       </section>
 
-      <SurveySiteCard survey={survey} client={client} project={detail.project} base={base} canManage={canManage} save={(actions ?? siteActions)?.saveSite} readLink={(actions ?? siteActions)?.readLink} readPlace={(actions ?? siteActions)?.readPlace} />
+      <SurveySiteCard survey={survey} client={client} project={detail.project} canOpenProject={detail.canOpenProject} base={base} canManage={canManage} save={(actions ?? siteActions)?.saveSite} readLink={(actions ?? siteActions)?.readLink} readPlace={(actions ?? siteActions)?.readPlace} />
 
       {mode === "rooms" && (
         <section className="grid gap-3">

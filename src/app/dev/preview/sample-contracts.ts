@@ -17,7 +17,8 @@ export const SAMPLE_CONTRACT: ContractDetail = {
     id: "k1", number: "C-2026-004", status: "sent", service: "interior", project_type: "full", start_date: "2026-12-01", duration_days: 9,
     warranty_months: 6, total, notes: null, created_at: "2026-11-22T12:00:00Z", accepted_at: null, accepted_name: null, accepted_ip: null, accepted_user_agent: null, signed: false,
   },
-  client: { ...SAMPLE_QUOTE.client, district: "النرجس", id_number: "1012345678" },
+  // the client lives in العليا; the project is at its survey's own site (النرجس)
+  client: { ...SAMPLE_QUOTE.client, district: "العليا", id_number: "1012345678" },
   quote: { number: SAMPLE_QUOTE.quote.number, version: 2, date: "2026-11-22T09:00:00Z", valid_until: "2026-11-29", view, notes: SAMPLE_QUOTE.current!.notes },
   payments: SAMPLE_PAYMENTS,
   link: { active: true, expires_at: "2027-07-10T00:00:00Z", last_opened_at: "2026-11-22T18:00:00Z", open_count: 3 },
@@ -61,7 +62,7 @@ export const SAMPLE_CONTRACTS: ContractListItem[] = [
 
 export const SAMPLE_PORTAL: PortalData = {
   org: { name: "مؤسسة صالح للتشطيبات", legal_name: null, cr_number: "1010123456", vat_number: null, phone: "966551234567", city: "الرياض", address: "حي العليا، طريق الملك فهد", signatory_name: "صالح العتيبي", signatory_title: "المالك", logo_path: null, brand: { primary: "#B5653E", accent: "#D9CBB5" } },
-  client: { name: SAMPLE_QUOTE.client.name, phone: SAMPLE_QUOTE.client.phone, city: SAMPLE_QUOTE.client.city, district: "النرجس", id_number: "1012345678" },
+  client: { name: SAMPLE_QUOTE.client.name, phone: SAMPLE_QUOTE.client.phone, city: SAMPLE_QUOTE.client.city, district: "العليا", id_number: "1012345678", site_own: true, site_city: "الرياض", site_district: "النرجس" },
   contract: { ...SAMPLE_CONTRACT.contract },
   quote: { number: SAMPLE_QUOTE.quote.number, version: 2, date: "2026-11-22T09:00:00Z", valid_until: "2026-11-29", client_view: view, notes: SAMPLE_QUOTE.current!.notes },
   payments: SAMPLE_PAYMENTS,

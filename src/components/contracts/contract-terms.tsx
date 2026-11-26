@@ -45,6 +45,7 @@ export type ContractClient = {
   district?: string | null;
   id_number?: string | null;
   /** where the project is when not at the client's address (its survey's own site; set by the DB) */
+  site_own?: boolean;
   site_city?: string | null;
   site_district?: string | null;
 };
@@ -73,7 +74,8 @@ export function ContractTerms({ data, org, client, terms }: { data: ContractTerm
   const pt = data.project_type;
   const v = data.view;
   // the project's place: its survey's own site, else the client's address
-  const ownSite = !!(client.site_city || client.site_district);
+  // (a survey site without names: no place line — never the client's house by mistake)
+  const ownSite = client.site_own ?? !!(client.site_city || client.site_district);
   const location = (ownSite ? [client.site_city, client.site_district] : [client.city, client.district]).filter(Boolean).join(" — ");
 
   // numbered clauses, built in order so the numbering always matches; the owner's

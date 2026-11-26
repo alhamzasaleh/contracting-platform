@@ -36,7 +36,8 @@ export function QuoteDocument({
   version: number;
   date: string;
   validUntil: string | null;
-  client: { name: string; phone: string | null; city: string | null };
+  /** site_own: the project is at its survey's own site (shown as «موقع المشروع») */
+  client: { name: string; phone: string | null; city: string | null; site_own?: boolean; site_city?: string | null; site_district?: string | null };
   view: ClientView;
   notes: string | null;
   warrantyMonths: number;
@@ -93,6 +94,9 @@ export function QuoteDocument({
           <p className="text-[13px] text-doc-muted">
             {[client.city, phone].filter(Boolean).join(" · ")}
           </p>
+          {client.site_own && (client.site_city || client.site_district) && (
+            <p className="text-[13px]">{t("projectSite", { place: [client.site_city, client.site_district].filter(Boolean).join(" — ") })}</p>
+          )}
         </div>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[13px] sm:justify-self-end">
           <dt className="text-doc-muted">{t("date")}</dt>

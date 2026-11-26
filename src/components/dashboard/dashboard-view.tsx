@@ -130,8 +130,8 @@ export function DashboardView({ data }: { data: DashboardData }) {
                     {fmt.date(s.date)}
                     {s.time && <span className="font-latin tabular-nums" dir="ltr"> {s.time}</span>}
                   </span>
-                  {s.site && (
-                    <a href={mapLink(s.site)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
+                  {(s.site || s.link) && (
+                    <a href={s.site ? mapLink(s.site) : s.link!} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
                       <Navigation className="size-3.5" /> {t("upcomingDirections")}
                     </a>
                   )}

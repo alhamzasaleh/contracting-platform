@@ -18,7 +18,7 @@ import type { QuoteStatus } from "@/lib/supabase/database.types";
  */
 export type PortalData = {
   org: { name: string; legal_name: string | null; cr_number: string | null; vat_number: string | null; phone: string | null; city: string | null; address: string | null; signatory_name: string | null; signatory_title: string | null; logo_path: string | null; brand: Brand };
-  client: { name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null; site_city?: string | null; site_district?: string | null };
+  client: { name: string; phone: string | null; city: string | null; district: string | null; id_number: string | null; site_own?: boolean; site_city?: string | null; site_district?: string | null };
   contract: {
     number: string; status: "draft" | "sent" | "accepted" | "cancelled"; service: "gypsum" | "interior" | "exterior"; project_type: "full" | "labour" | "supply";
     start_date: string; duration_days: number; warranty_months: number; total: number; notes: string | null; accepted_at: string | null; accepted_name: string | null; created_at: string;

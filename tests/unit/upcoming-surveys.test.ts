@@ -30,3 +30,15 @@ describe("upcoming surveys", () => {
     expect(own.time).toBe("08:00");
   });
 });
+
+describe("upcoming surveys (review round 2)", () => {
+  it("a survey already done (measured or quoted) isn't upcoming", () => {
+    const r = upcomingSurveys([row("SV-1", "2026-11-26", null, { done: true }), row("SV-2", "2026-11-26", null, { done: false })], "2026-11-26");
+    expect(r.map((s) => s.number)).toEqual(["SV-2"]);
+  });
+  it("no pin yet: directions from the client's map link", () => {
+    const [s] = upcomingSurveys([row("SV-1", "2026-11-26", null, { client: { number: "CL-1", name: "ع", latitude: null, longitude: null, location_url: "https://maps.app.goo.gl/AbC" } })], "2026-11-26");
+    expect(s.site).toBeNull();
+    expect(s.link).toBe("https://maps.app.goo.gl/AbC");
+  });
+});

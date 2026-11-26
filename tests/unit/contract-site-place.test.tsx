@@ -24,3 +24,20 @@ describe("the contract's project location", () => {
     expect(html).toContain("موقع المشروع: الرياض — العليا");
   });
 });
+
+describe("a survey site without names", () => {
+  it("shows no place rather than the client's house", () => {
+    const html = render(<ContractTerms data={data} org={org} client={{ name: "عبدالله", phone: null, city: "الرياض", district: "العليا", site_own: true, site_city: null, site_district: null }} />);
+    expect(html).not.toContain("موقع المشروع:");
+  });
+});
+
+describe("the quote names the project's site", () => {
+  it("when its survey has its own site; not when at the client's", async () => {
+    const { QuoteDocument } = await import("@/components/quotes/quote-document");
+    const { SAMPLE_QUOTE } = await import("@/app/dev/preview/sample-quotes");
+    const props = { org: { name: "ملمس" } as never, number: "Q-2026-008", version: 2, date: "2026-11-22", validUntil: null, view: SAMPLE_QUOTE.current!.clientView, notes: null, warrantyMonths: 6 };
+    expect(render(<QuoteDocument {...props} client={{ name: "ع", phone: null, city: "الرياض", site_own: true, site_city: "الرياض", site_district: "النرجس" }} />)).toContain("موقع المشروع: الرياض — النرجس");
+    expect(render(<QuoteDocument {...props} client={{ name: "ع", phone: null, city: "الرياض" }} />)).not.toContain("موقع المشروع:");
+  });
+});

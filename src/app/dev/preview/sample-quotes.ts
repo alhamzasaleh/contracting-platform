@@ -21,7 +21,7 @@ const snap = buildSnapshot(sel, SAMPLE_QUANTITIES, outcome, { discountPercent: 5
 
 export const SAMPLE_QUOTE: QuoteDetail = {
   quote: { id: "q2", number: "Q-2026-008", service: "interior", status: "pending_approval", version: 2, valid_until: null, created_at: "2026-11-21T11:00:00Z" },
-  client: { number: "CL-2026-003", name: "أبو محمد العتيبي", phone: "966551234567", city: "الرياض" },
+  client: { number: "CL-2026-003", name: "أبو محمد العتيبي", phone: "966551234567", city: "الرياض", site_own: true, site_city: "الرياض", site_district: "النرجس" },
   survey: { number: "SV-2026-004" },
   current: { version: 2, clientView: snap.clientView, notes: "يبدأ العمل بعد اعتماد الألوان من العميل.", estimated: false, created_at: "2026-11-22T09:00:00Z", quantities: SAMPLE_QUANTITIES },
   versions: [

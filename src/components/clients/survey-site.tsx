@@ -120,6 +120,8 @@ export function NewSurveyDialog({
   const [time, setTime] = React.useState("");
   const [site, setSite] = React.useState<SiteValue>({ own: !clientHasSite, pin: null, city: "", district: "" });
   const missingPin = site.own && !site.pin;
+  // «موقع ثاني» names its place: the contract says where the project is
+  const missingPlace = site.own && !!site.pin && !site.city.trim() && !site.district.trim();
   return (
     <FormDialog
       open
@@ -130,6 +132,7 @@ export function NewSurveyDialog({
       submitLabel={t("create")}
       onSubmit={() =>
         !missingPin &&
+        !missingPlace &&
         run(create && (() => create({ client_id: clientId, mode, visit_date: date || null, visit_time: time || null, ...siteInput(site) })), {
           silent: true,
           onSuccess: (r) => {
@@ -149,6 +152,7 @@ export function NewSurveyDialog({
       </div>
       <SiteChoice value={site} onChange={setSite} clientHasSite={clientHasSite} readLink={readLink} readPlace={readPlace} />
       {missingPin && <p className="text-[12px] text-muted-foreground">{t("siteOtherNeedsPin")}</p>}
+      {missingPlace && <p className="text-[12px] text-muted-foreground">{t("siteOtherNeedsPlace")}</p>}
     </FormDialog>
   );
 }
@@ -161,6 +165,7 @@ export function SurveySiteCard({
   survey,
   client,
   project,
+  canOpenProject,
   base = "",
   canManage,
   save,
@@ -171,6 +176,8 @@ export function SurveySiteCard({
   client: { name: string; latitude?: number | null; longitude?: number | null; city?: string | null; district?: string | null; location_url?: string | null };
   /** an accepted project made from this survey (it keeps its own site) */
   project?: string | null;
+  /** projects.view: the number links to the project */
+  canOpenProject?: boolean;
   base?: string;
   canManage: boolean;
   save?: (i: Record<string, unknown>) => Promise<ActionResult>;
@@ -212,7 +219,9 @@ export function SurveySiteCard({
       </p>
       {project && (
         <p className="rounded-xl bg-surface-sunken px-3 py-2 text-[12px]">
-          {t.rich("siteProjectKept", { project: () => <Link href={`${base}/projects/${project}`} className="font-semibold text-primary hover:underline"><DocNo>{project}</DocNo></Link> })}
+          {t.rich("siteProjectKept", {
+            project: () => (canOpenProject ? <Link href={`${base}/projects/${project}`} className="font-semibold text-primary hover:underline"><DocNo>{project}</DocNo></Link> : <DocNo>{project}</DocNo>),
+          })}
         </p>
       )}
       {survey.visit_date && (
@@ -242,16 +251,19 @@ function SurveySiteDialog({ initial, clientHasSite, onClose, save, readLink, rea
   const { run, pending } = useActionRunner();
   const [site, setSite] = React.useState<SiteValue>(initial);
   const missingPin = site.own && !site.pin;
+  // «موقع ثاني» names its place: the contract says where the project is
+  const missingPlace = site.own && !!site.pin && !site.city.trim() && !site.district.trim();
   return (
     <FormDialog
       open
       onOpenChange={(v) => !v && onClose()}
       title={t("changeSite")}
       pending={pending}
-      onSubmit={() => !missingPin && run(save && (() => save(site)), { onSuccess: onClose })}
+      onSubmit={() => !missingPin && !missingPlace && run(save && (() => save(site)), { onSuccess: onClose })}
     >
       <SiteChoice value={site} onChange={setSite} clientHasSite={clientHasSite} readLink={readLink} readPlace={readPlace} />
       {missingPin && <p className="text-[12px] text-muted-foreground">{t("siteOtherNeedsPin")}</p>}
+      {missingPlace && <p className="text-[12px] text-muted-foreground">{t("siteOtherNeedsPlace")}</p>}
     </FormDialog>
   );
 }

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { as, asServer, closePool, createUser, expectDenied, resetDatabase } from "./db";
+import { as, asAdmin, asServer, closePool, createUser, expectDenied, resetDatabase } from "./db";
 
 /**
  * The survey keeps its own site (owner, Nov 2026): a survey is booked before the visit at «the
@@ -102,5 +102,68 @@ describe("a draft contract follows its survey's site until it is accepted", () =
     });
     const c = await as({ userId: owner }, (q) => q<{ site_district: string }>("select site_district from public.contracts where id = $1", [draft]));
     expect(c.rows[0].site_district).toBe("ظهرة لبن");
+  });
+});
+
+describe("an accepted project's site never follows later survey edits (review round 2)", () => {
+  let c2: string, s2: string;
+  beforeAll(async () => {
+    // a survey at the client's site → contract accepted → then someone gives the survey its own site
+    let number = "";
+    await as({ userId: owner }, async (q) => {
+      s2 = (await q<{ id: string }>("insert into public.surveys (organization_id, client_id, mode) values ($1,$2,'rooms') returning id", [org, client])).rows[0].id;
+      const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service, survey_id) values ($1,$2,'gypsum',$3) returning id", [org, client, s2])).rows[0].id;
+      await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1000,1000)", [org, quote]);
+      await q("select public.issue_quote($1, null)", [quote]);
+      const c = (await q<{ id: string; number: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total, status) values ($1,$2,1,$3,'gypsum',current_date,10,1000,'sent') returning id, number", [org, quote, client])).rows[0];
+      c2 = c.id;
+      number = c.number;
+      await q("insert into public.contract_payments (organization_id, contract_id, seq, label, percent, amount, due_event) values ($1,$2,1,'كامل',100,1000,'custom')", [org, c2]);
+      await q("insert into public.client_portal_links (organization_id, contract_id, token_hash, expires_at) values ($1,$2,$3, now() + interval '30 days')", [org, c2, hash("Zbcdefghijklmnop")]);
+    });
+    await as("service_role", (q) => q("select public.portal_accept($1,$2,'محمد',null,'1.1.1.1','x')", [number, "Zbcdefghijklmnop"]));
+  });
+  const site = () => as({ userId: sup }, (q) => q<{ latitude: string; source: string }>("select latitude, source from public.project_site_list($1) where contract_id = $2", [org, c2])).then((r) => r.rows[0]);
+  it("a survey given its own site after acceptance doesn't move the project (check-in stays at the agreed place)", async () => {
+    // the client's pin may have changed in earlier tests: read it now
+    const before = await site();
+    await as({ userId: owner }, (q) => q("update public.surveys set latitude = 25.1, longitude = 46.9, site_city = 'الرياض', site_district = 'بعيد' where id = $1", [s2]));
+    expect(await site()).toEqual(before);
+    const cs = await as({ userId: sup }, (q) => q<{ lat: string }>("select lat from private.contract_site($1)", [c2]));
+    expect(cs.rows[0].lat).toBe(before.latitude);
+  });
+  it("«back to the main site» after a project pin returns to the pin copied at acceptance, not the survey's current one", async () => {
+    // contract 1 (accepted with the survey's pin 24.8031): owner sets a project pin, then goes back
+    // state as after acceptance (pin copied from the survey: 24.8031) then a project pin set on the project page
+    await asAdmin((q) => q("insert into public.project_sites (organization_id, contract_id, latitude, longitude, from_survey, survey_latitude, survey_longitude) values ($1,$2,24.9,46.6,false,24.8031,46.6105) on conflict (contract_id) do update set latitude = 24.9, longitude = 46.6, from_survey = false, survey_latitude = 24.8031, survey_longitude = 46.6105", [org, contract]));
+    await as({ userId: owner }, (q) => q("update public.surveys set latitude = 25.2, longitude = 46.95 where id = $1", [survey]));
+    await as({ userId: owner }, (q) => q("select public.reset_project_site($1)", [contract]));
+    const r = await as({ userId: sup }, (q) => q<{ latitude: string; source: string }>("select latitude, source from public.project_site_list($1) where contract_id = $2", [org, contract]));
+    expect(r.rows[0]).toEqual({ latitude: "24.803100", source: "survey" });
+  });
+});
+
+describe("a survey's own site without names never reads as the client's house (review round 2)", () => {
+  it("the place is empty, not the client's district; re-pointing a draft's quote re-reads it", async () => {
+    const r = await as({ userId: owner }, async (q) => {
+      const s3 = (await q<{ id: string }>("insert into public.surveys (organization_id, client_id, mode, latitude, longitude) values ($1,$2,'rooms',24.61,46.71) returning id", [org, client])).rows[0].id;
+      const mk = async (sv: string | null) => {
+        const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service, survey_id) values ($1,$2,'gypsum',$3) returning id", [org, client, sv])).rows[0].id;
+        await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1000,1000)", [org, quote]);
+        await q("select public.issue_quote($1, null)", [quote]);
+        return quote;
+      };
+      const withSite = await mk(s3);
+      const plain = await mk(null);
+      const c = (await q<{ id: string; site_own: boolean; site_district: string | null }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total) values ($1,$2,1,$3,'gypsum',current_date,10,1000) returning id, site_own, site_district", [org, withSite, client])).rows[0];
+      const moved = (await q<{ site_own: boolean }>("update public.contracts set quote_id = $2 where id = $1 returning site_own", [c.id, plain])).rows[0];
+      return { c, moved };
+    });
+    expect(r.c.site_own).toBe(true);
+    expect(r.c.site_district).toBeNull();
+    expect(r.moved.site_own).toBe(false);
+  });
+  it("users can't write the place themselves", async () => {
+    await expectDenied(as({ userId: owner }, (q) => q("update public.contracts set site_own = true, site_district = 'x' where status = 'draft'")), /comes from its survey/);
   });
 });

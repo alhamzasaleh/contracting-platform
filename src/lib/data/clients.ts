@@ -145,6 +145,8 @@ export type SurveyDetail = {
   rooms: SurveyRoom[];
   /** an accepted contract made from this survey: its project keeps the site it had at acceptance */
   project?: string | null;
+  /** the project page opens (projects.view) — else the number is plain text */
+  canOpenProject?: boolean;
   /** the owner may delete it (public.delete_survey) — not while quotes are built on it */
   canDelete?: boolean;
   quotes?: number;
@@ -196,22 +198,40 @@ export async function loadSurvey(session: SessionContext, clientNumber: string, 
     })),
     canDelete: owner,
     project,
+    canOpenProject: can(session, "projects.view"),
     ...(owner ? { quotes: onSurvey.length } : {}),
   };
 }
 
-/** «معاينات قادمة» (home, clients.view): visits booked from today within 14 days. */
+/** «معاينات قادمة» (home, clients.view): visits booked from today within 14 days, not yet measured or quoted. */
 export async function loadUpcomingSurveys(session: SessionContext, today: string): Promise<UpcomingSurvey[]> {
   const supabase = await createClient();
   const orgId = session.organization.id;
   const end = new Date(`${today}T00:00:00Z`);
   end.setUTCDate(end.getUTCDate() + 14);
   const surveys = await rows(
-    supabase.from("surveys").select("number, visit_date, visit_time, latitude, longitude, client_id").eq("organization_id", orgId)
+    supabase.from("surveys").select("id, number, visit_date, visit_time, latitude, longitude, totals, client_id").eq("organization_id", orgId)
       .gte("visit_date", today).lte("visit_date", end.toISOString().slice(0, 10)).order("visit_date").limit(50),
   );
   if (!surveys.length) return [];
-  const clients = await rows(supabase.from("clients").select("id, number, name, latitude, longitude").in("id", [...new Set(surveys.map((s) => s.client_id))]));
+  const ids = surveys.map((s) => s.id);
+  const [clients, measured, quoted] = await Promise.all([
+    rows(supabase.from("clients").select("id, number, name, latitude, longitude, location_url").in("id", [...new Set(surveys.map((s) => s.client_id))])),
+    rows(supabase.from("survey_rooms").select("survey_id").in("survey_id", ids)),
+    rows(supabase.from("quotes").select("survey_id").in("survey_id", ids)),
+  ]);
   const byId = new Map(clients.map((c) => [c.id, c]));
-  return upcomingSurveys(surveys.map((s) => ({ ...s, visit_time: s.visit_time ?? null, latitude: s.latitude ?? null, longitude: s.longitude ?? null, client: byId.get(s.client_id) ?? null })).map((s) => ({ ...s, client: s.client ? { ...s.client, latitude: s.client.latitude ?? null, longitude: s.client.longitude ?? null } : null })), today);
+  const done = new Set([...measured.map((r) => r.survey_id), ...quoted.map((q) => q.survey_id)]);
+  return upcomingSurveys(
+    surveys.map((s) => {
+      const c = byId.get(s.client_id);
+      const totals = s.totals && typeof s.totals === "object" ? Object.keys(s.totals as object).length : 0;
+      return {
+        number: s.number, visit_date: s.visit_date, visit_time: s.visit_time ?? null, latitude: s.latitude ?? null, longitude: s.longitude ?? null,
+        done: done.has(s.id) || totals > 0,
+        client: c ? { number: c.number, name: c.name, latitude: c.latitude ?? null, longitude: c.longitude ?? null, location_url: c.location_url } : null,
+      };
+    }),
+    today,
+  );
 }

@@ -83,7 +83,8 @@ export async function saveProjectSite(input: unknown): Promise<ActionResult> {
   if (!(await contractOf(ctx, v.contract_id))) return { ok: false, error: "notAccepted" };
   const { error } =
     v.latitude == null || v.longitude == null
-      ? await ctx.supabase.from("project_sites").delete().eq("contract_id", v.contract_id).eq("organization_id", ctx.orgId)
+      ? // «ارجع للموقع الأساسي»: back to the pin copied at acceptance, else none (database rule)
+        await ctx.supabase.rpc("reset_project_site", { p_contract: v.contract_id })
       : await ctx.supabase.from("project_sites").upsert({
           contract_id: v.contract_id, organization_id: ctx.orgId,
           latitude: Math.round(v.latitude * 1e6) / 1e6, longitude: Math.round(v.longitude * 1e6) / 1e6, from_survey: false,
