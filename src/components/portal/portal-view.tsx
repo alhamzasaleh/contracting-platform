@@ -263,6 +263,15 @@ export function PortalView({
                 <PenLine className="size-5 text-primary" /> {t("acceptTitle")}
               </p>
               <p className="text-[13px] text-muted-foreground">{t("acceptHint")}</p>
+              {options.length > 0 &&
+                (picked ? (
+                  <p className="text-[13px] font-bold">{t("chosenOption", { label: picked.label })}</p>
+                ) : (
+                  // the options are above the contract (they change it): a link back up to them
+                  <a href="#options-title" className="text-[13px] font-bold text-primary underline">
+                    {t("chooseOption")}
+                  </a>
+                ))}
               {data.quote.client_accepted_at && <p className="text-[13px] text-success">{t("quoteAcceptedOn", { date: fmt.dateTime(data.quote.client_accepted_at) })}</p>}
               <Field id="pa-name" label={t("yourName")}>
                 <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />

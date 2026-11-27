@@ -30,3 +30,19 @@ test("contract with options: the option is chosen before the contract text it ch
   expect(await top(page.getByRole("radio").first())).toBeLessThan(await top(pdf));
   expect(await top(page.getByText("الموافقة على العرض والعقد", { exact: true }))).toBeGreaterThan(await top(pdf));
 });
+
+test("contract with options: at the signature, the missing choice is said with a link up to the options", async ({ page }) => {
+  await page.goto("/dev/preview/portal/options");
+  const box = page.locator("#accept");
+  await expect(box.getByRole("link", { name: "اختر الخيار اللي يناسبك" })).toHaveAttribute("href", "#options-title");
+  await page.getByRole("radio").nth(1).click();
+  await expect(box.getByText(/الخيار المختار:/)).toBeVisible();
+  await expect(box.getByText("راجع العرض والبنود بالأعلى", { exact: false })).toBeVisible();
+});
+
+test("no jump link once answered or under way", async ({ page }) => {
+  for (const p of ["/dev/preview/portal/quote-accepted", "/dev/preview/portal/quote-rejected", "/dev/preview/portal/work"]) {
+    await page.goto(p);
+    await expect(page.getByRole("link", { name: /انزل للرد على العرض|انزل للموافقة والتوقيع/ })).toHaveCount(0);
+  }
+});

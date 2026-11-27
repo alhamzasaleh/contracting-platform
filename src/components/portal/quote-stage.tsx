@@ -270,7 +270,15 @@ function Answer({
       {canAccept && (
         <div className="grid gap-3">
           <p className="text-[13px] text-muted-foreground">{t("quoteAcceptHint")}</p>
-          {needsOption && !picked && <p className="text-[13px] font-bold text-primary">{t("chooseOption")}</p>}
+          {needsOption &&
+            (picked ? (
+              <p className="text-[13px] font-bold">{t("chosenOption", { label: picked.label })}</p>
+            ) : (
+              // the options are above the quote (they change it): a link back up to them
+              <a href="#options-title" className="text-[13px] font-bold text-primary underline">
+                {t("chooseOption")}
+              </a>
+            ))}
           <Field id="qa-name" label={t("yourName")}>
             <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
           </Field>
