@@ -33,7 +33,7 @@ export function quoteStageState(q: { status: QuoteStatus; decision: QuoteDecisio
 }
 
 /** Which message a refused answer shows (portal_accept_quote / _request_quote_changes / _reject_quote). */
-export function quoteDecisionError(error: { code?: string; message?: string } | null | undefined): "chooseOption" | "quoteChanged" | "quoteExpired" | "alreadyDecided" | "quoteNotOpen" | "invalid" | null {
+export function quoteDecisionError(error: { code?: string; message?: string } | null | undefined): "chooseOption" | "quoteChanged" | "quoteExpired" | "alreadyDecided" | "quoteNotOpen" | "idRequired" | "invalid" | null {
   if (!error) return null;
   const m = error.message ?? "";
   if (/offer changed/.test(m)) return "quoteChanged";
@@ -41,6 +41,7 @@ export function quoteDecisionError(error: { code?: string; message?: string } | 
   if (/quote expired/.test(m)) return "quoteExpired";
   if (/already decided/.test(m)) return "alreadyDecided";
   if (/quote not open/.test(m)) return "quoteNotOpen";
+  if (/id required/.test(m)) return "idRequired";
   if (error.code === "22023") return "invalid";
   return null;
 }

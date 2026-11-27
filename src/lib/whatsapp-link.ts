@@ -5,7 +5,7 @@
  */
 export function waPhone(phone: string | null | undefined): string | null {
   if (!phone) return null;
-  const d = phone.replace(/[٠-٩]/g, (x) => String("٠١٢٣٤٥٦٧٨٩".indexOf(x))).replace(/\D/g, "");
+  const d = phone.replace(/[٠-٩]/g, (x) => String("٠١٢٣٤٥٦٧٨٩".indexOf(x))).replace(/[۰-۹]/g, (x) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(x))).replace(/\D/g, "");
   if (/^05\d{8}$/.test(d)) return `966${d.slice(1)}`;
   if (/^5\d{8}$/.test(d)) return `966${d}`;
   return /^\d{8,15}$/.test(d) ? d : null;

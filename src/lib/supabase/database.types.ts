@@ -537,6 +537,8 @@ export type ContractRow = OrgRow & Upd & {
   accepted_ip: string | null;
   accepted_user_agent: string | null;
   accepted_signature: string | null;
+  /** the client's ID number the contract was signed with (set by the database on acceptance) */
+  client_id_number?: string | null;
 };
 export type ContractPaymentRow = OrgRow & Upd & {
   contract_id: string;
@@ -1024,10 +1026,10 @@ export type Database = {
       schedule_roster: { Args: { p_org: string }; Returns: { id: string; full_name: string; job_title: string | null }[] };
       staff_employee_names: { Args: { p_org: string }; Returns: { user_id: string; full_name: string; job_title: string | null }[] };
       portal_view: { Args: { p_number: string; p_token: string }; Returns: Json };
-      portal_accept: { Args: { p_number: string; p_token: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string; p_version?: number | null }; Returns: boolean };
+      portal_accept: { Args: { p_number: string; p_token: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string; p_version?: number | null; p_id_number?: string | null }; Returns: boolean };
       portal_options: { Args: { p_number: string; p_token: string }; Returns: Json };
       issue_quote_link: { Args: { p_quote: string; p_token_hash: string }; Returns: string };
-      portal_accept_quote: { Args: { p_number: string; p_token: string; p_name: string; p_ip: string; p_user_agent: string; p_version?: number | null }; Returns: boolean };
+      portal_accept_quote: { Args: { p_number: string; p_token: string; p_name: string; p_ip: string; p_user_agent: string; p_version?: number | null; p_id_number?: string | null }; Returns: boolean };
       portal_request_quote_changes: { Args: { p_number: string; p_token: string; p_note: string; p_ip: string; p_user_agent: string }; Returns: boolean };
       portal_reject_quote: { Args: { p_number: string; p_token: string; p_reason: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };
       seed_pricing_engine: { Args: { p_org: string }; Returns: { products: number; rates: number } };

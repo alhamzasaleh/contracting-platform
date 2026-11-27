@@ -52,10 +52,10 @@ beforeAll(async () => {
   await as({ userId: owner }, async (q) => {
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'supervisor')", [org, sup]);
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'viewer')", [org, viewer]);
-    client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone) values ($1,'أبو فهد','966511119999') returning id", [org])).rows[0].id;
+    client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone, id_number) values ($1,'أبو فهد','966511119999','1000000008') returning id", [org])).rows[0].id;
   });
   await as({ userId: other }, async (q) => {
-    clientB = (await q<{ id: string }>("insert into public.clients (organization_id, phone, name) values ($1,'966500008888','عميل ب') returning id", [orgB])).rows[0].id;
+    clientB = (await q<{ id: string }>("insert into public.clients (organization_id, phone, name, id_number) values ($1,'966500008888','عميل ب','1000000008') returning id", [orgB])).rows[0].id;
   });
 });
 afterAll(closePool);

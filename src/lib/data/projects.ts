@@ -229,14 +229,15 @@ export async function loadProject(session: SessionContext, number: string): Prom
 export async function loadCertificate(session: SessionContext, number: string) {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const { data: c } = await supabase.from("contracts").select("id, number, service, start_date, warranty_months, client_id, total").eq("organization_id", orgId).eq("number", number).maybeSingle();
+  const { data: c } = await supabase.from("contracts").select("id, number, service, start_date, warranty_months, client_id, total, client_id_number").eq("organization_id", orgId).eq("number", number).maybeSingle();
   if (!c) notFound();
   const [{ data: client }, { data: final }] = await Promise.all([
     supabase.from("clients").select("name, phone, city, district, id_number").eq("id", c.client_id).maybeSingle(),
     supabase.from("project_stages").select("confirmed_at, confirmed_name, confirmed_signature, confirmed_ip").eq("contract_id", c.id).eq("is_final", true).eq("status", "confirmed").maybeSingle(),
   ]);
   if (!final) notFound();
-  return { contract: { ...c, total: Number(c.total) }, client, final };
+  // the certificate names the client by the ID number the contract was signed with
+  return { contract: { ...c, total: Number(c.total) }, client: client ? { ...client, id_number: c.client_id_number ?? client.id_number } : client, final };
 }
 
 async function loadProjectSubs(supabase: Awaited<ReturnType<typeof createClient>>, contractId: string) {

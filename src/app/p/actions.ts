@@ -1,5 +1,6 @@
 "use server";
 
+import { clientIdNumber } from "@/lib/validation/national-id";
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { after } from "next/server";
@@ -21,6 +22,8 @@ const acceptSchema = z
     signature: z.string().regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/).max(200_000).nullable(),
     /** the option the client chose (contracts offered with options) */
     version: z.number().int().min(1).max(1000).nullable().optional(),
+    /** asked only when the client's record has no ID number (the database ignores it otherwise) */
+    id_number: clientIdNumber.nullable().optional(),
   })
   .strict();
 
@@ -33,10 +36,11 @@ export async function acceptPortal(input: unknown): Promise<ActionResult> {
   const ua = (await headers()).get("user-agent") ?? "";
   const v = parsed.data;
   const { data, error } = await createAdminClient().rpc("portal_accept", {
-    p_number: v.number, p_token: v.token, p_name: v.name, p_signature: v.signature, p_ip: ip, p_user_agent: ua, p_version: v.version ?? null,
+    p_number: v.number, p_token: v.token, p_name: v.name, p_signature: v.signature, p_ip: ip, p_user_agent: ua, p_version: v.version ?? null, p_id_number: v.id_number ?? null,
   });
   if (error) {
     if (error.code === "22023" && /choose an option/.test(error.message)) return { ok: false, error: "chooseOption" };
+    if (error.code === "22023" && /id required/.test(error.message)) return { ok: false, error: "idRequired" };
     console.error("[portal] accept failed", { code: error.code });
     return { ok: false, error: "error" };
   }
@@ -220,6 +224,8 @@ const acceptQuoteSchema = z
     agree: z.literal(true),
     /** the option the client chose (quotes offered with options) */
     version: z.number().int().min(1).max(1000).nullable().optional(),
+    /** asked only when the client's record has no ID number (the database ignores it otherwise) */
+    id_number: clientIdNumber.nullable().optional(),
   })
   .strict();
 
@@ -232,7 +238,7 @@ export async function acceptQuotePortal(input: unknown): Promise<ActionResult> {
   const ua = (await headers()).get("user-agent") ?? "";
   const v = parsed.data;
   const { data, error } = await createAdminClient().rpc("portal_accept_quote", {
-    p_number: v.number, p_token: v.token, p_name: v.name, p_ip: ip, p_user_agent: ua, p_version: v.version ?? null,
+    p_number: v.number, p_token: v.token, p_name: v.name, p_ip: ip, p_user_agent: ua, p_version: v.version ?? null, p_id_number: v.id_number ?? null,
   });
   if (error) return quoteRefused(error, "accept");
   if (data) after(runBackground);

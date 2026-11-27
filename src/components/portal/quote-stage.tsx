@@ -14,6 +14,8 @@ import { useFailureText } from "@/lib/client/failure-text";
 import { lastValidDay } from "@/lib/contracts";
 import type { PortalQuoteData } from "@/lib/portal";
 import { acceptInput, quoteStageState } from "@/lib/portal-flow";
+import { IdNumberField, idNumberReady } from "@/components/portal/id-number-field";
+import { idDigits } from "@/lib/validation/national-id";
 import { Kpi, OptionsPicker, PortalHero, PortalTimeline } from "./portal-view";
 
 type Act = (i: Record<string, unknown>) => Promise<ActionResult>;
@@ -219,6 +221,9 @@ function Answer({
   const failure = useFailureText({ clientPage: true });
   const router = useRouter();
   const [name, setName] = React.useState(data.client.name);
+  // asked only when the client's record has no ID number (the contract names him by it)
+  const needsId = !data.client.id_number;
+  const [idNumber, setIdNumber] = React.useState("");
   const [agree, setAgree] = React.useState(false);
   const [note, setNote] = React.useState("");
   const [reason, setReason] = React.useState("");
@@ -235,6 +240,7 @@ function Answer({
       : e === "quoteExpired" ? t("errQuoteExpired")
       : e === "alreadyDecided" ? t("errAlreadyDecided")
       : e === "quoteNotOpen" ? t("errQuoteNotOpen")
+      : e === "idRequired" ? t("errIdRequired")
       : e === "invalid" ? t("errInvalid")
       : t("errGeneric"));
 
@@ -282,6 +288,7 @@ function Answer({
           <Field id="qa-name" label={t("yourName")}>
             <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
           </Field>
+          {needsId && <IdNumberField id="qa-id" value={idNumber} onChange={setIdNumber} />}
           <label className="flex items-start gap-3 text-[14px]">
             <input type="checkbox" className="mt-1 size-5 accent-[var(--primary)]" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
             <span>{t("quoteAgree")}</span>
@@ -289,8 +296,12 @@ function Answer({
           <Button
             size="lg"
             loading={pending}
-            disabled={!agree || name.trim().length < 2 || (needsOption && !picked)}
-            onClick={() => (needsOption && !picked ? setError(t("errChooseOption")) : send(onAccept, acceptInput({ name, shown: picked, quoteVersion: shownVersion })))}
+            disabled={!agree || name.trim().length < 2 || (needsOption && !picked) || (needsId && !idNumberReady(idNumber))}
+            onClick={() =>
+              needsOption && !picked
+                ? setError(t("errChooseOption"))
+                : send(onAccept, { ...acceptInput({ name, shown: picked, quoteVersion: shownVersion }), ...(needsId ? { id_number: String(idDigits(idNumber)) } : {}) })
+            }
           >
             <Check /> {picked ? t("quoteAcceptOption", { label: picked.label }) : t("quoteAcceptButton")}
           </Button>

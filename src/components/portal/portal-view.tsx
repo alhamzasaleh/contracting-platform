@@ -13,6 +13,8 @@ import { HandoverCertificate } from "@/components/projects/handover-certificate"
 import { QuoteDocument, workItemLabel } from "@/components/quotes/quote-document";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import { IdNumberField, idNumberReady } from "@/components/portal/id-number-field";
+import { idDigits } from "@/lib/validation/national-id";
 import { Input, Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
@@ -124,6 +126,9 @@ export function PortalView({
   const { fmt } = useFormatter();
   const router = useRouter();
   const [name, setName] = React.useState(data.client.name);
+  // asked only when the client's record has no ID number (the contract names him by it)
+  const needsId = !data.client.id_number;
+  const [idNumber, setIdNumber] = React.useState("");
   const [agree, setAgree] = React.useState(false);
   const [signature, setSignature] = React.useState<string | null>(null);
   const [pending, start] = React.useTransition();
@@ -150,11 +155,11 @@ export function PortalView({
       setError(null);
       if (!onAccept) return setDone(true);
       if (options.length && !picked) return setError(t("errChooseOption"));
-      const r = await settle(() => onAccept({ number, token, name: name.trim(), agree, signature, ...(picked ? { version: picked.version } : {}) }));
+      const r = await settle(() => onAccept({ number, token, name: name.trim(), agree, signature, ...(picked ? { version: picked.version } : {}), ...(needsId ? { id_number: String(idDigits(idNumber)) } : {}) }));
       if (r.ok) {
         setDone(true);
         router.refresh();
-      } else setError(failure(r.error) ?? (r.error === "rateLimited" ? t("errRate") : r.error === "chooseOption" ? t("errChooseOption") : r.error === "invalid" ? t("errInvalid") : t("errGeneric")));
+      } else setError(failure(r.error) ?? (r.error === "rateLimited" ? t("errRate") : r.error === "chooseOption" ? t("errChooseOption") : r.error === "idRequired" ? t("errIdRequired") : r.error === "invalid" ? t("errInvalid") : t("errGeneric")));
     });
 
   return (
@@ -297,6 +302,7 @@ export function PortalView({
               <Field id="pa-name" label={t("yourName")}>
                 <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
               </Field>
+              {needsId && <IdNumberField id="pa-id" value={idNumber} onChange={setIdNumber} />}
               <div className="grid gap-1.5">
                 <p className="text-[13px] font-bold">
                   {t("signature")} <span className="font-normal text-muted-foreground">({t("optional")})</span>
@@ -308,7 +314,7 @@ export function PortalView({
                 <span>{t("agree")}</span>
               </label>
               {error && <p className="text-[13px] text-danger">{error}</p>}
-              <Button size="lg" loading={pending} disabled={!agree || name.trim().length < 2 || (options.length > 0 && !picked)} onClick={accept}>
+              <Button size="lg" loading={pending} disabled={!agree || name.trim().length < 2 || (options.length > 0 && !picked) || (needsId && !idNumberReady(idNumber))} onClick={accept}>
                 <Check /> {picked ? t("acceptOption", { label: picked.label }) : t("acceptButton")}
               </Button>
             </section>

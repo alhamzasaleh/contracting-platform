@@ -294,7 +294,8 @@ export async function loadContract(session: SessionContext, number: string): Pro
       signed: !!c.accepted_signature,
     },
     // the project's place (its survey's own site) sits with the client for the contract text
-    client: { ...(client ?? { number: "", name: "—", phone: null, city: null, district: null, id_number: null }), site_own: c.site_own ?? false, site_city: c.site_city ?? null, site_district: c.site_district ?? null },
+    // a signed contract keeps the ID number it was signed with (contracts.client_id_number)
+    client: { ...(client ?? { number: "", name: "—", phone: null, city: null, district: null, id_number: null }), id_number: c.client_id_number ?? client?.id_number ?? null, site_own: c.site_own ?? false, site_city: c.site_city ?? null, site_district: c.site_district ?? null },
     quote: { number: q?.number ?? "", version: c.quote_version, date: ver?.created_at ?? c.created_at, valid_until: q?.valid_until ?? null, view: ver?.client_view as unknown as ClientView, notes: ver?.notes ?? null },
     payments: (payments ?? []).map((p) => ({
       ...p, label: p.kind === "measurement" ? settlementLabel : p.label, percent: n(p.percent), amount: n(p.amount), paid_amount: n(p.paid_amount), adjust: n(p.measure_adjust),

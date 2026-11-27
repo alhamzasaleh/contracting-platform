@@ -38,6 +38,8 @@ export function AuditView({ items }: { items: AuditItem[] }) {
   const tableLabel = (table: string) => (t.has(`audit.tables.${table}`) ? t(`audit.tables.${table}`) : table);
   const actionLabel = (a: string) => (t.has(`audit.${a}`) ? t(`audit.${a}`) : a);
   // column names that have a label (e.g. the success partner's reward); others stay as stored
+  // the client's own answers on his page have no staff actor
+  const actorless = (a: string) => (a.startsWith("client_") ? t("audit.clientPage") : t("settings.system"));
   const fieldLabel = (f: string) => (t.has(`audit.fields.${f}`) ? t(`audit.fields.${f}`) : f);
 
   return (
@@ -77,8 +79,8 @@ export function AuditView({ items }: { items: AuditItem[] }) {
                         <span className="text-muted-foreground">{tableLabel(e.table)}</span>
                       </p>
                       <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-                        <Avatar name={e.actor ?? t("settings.system")} className="size-4 text-[8px] ring-0" />
-                        {e.actor ?? t("settings.system")} · <time dateTime={e.at} title={fmt.dateTime(e.at)}>{fmt.relative(e.at)}</time>
+                        <Avatar name={e.actor ?? actorless(e.action)} className="size-4 text-[8px] ring-0" />
+                        {e.actor ?? actorless(e.action)} · <time dateTime={e.at} title={fmt.dateTime(e.at)}>{fmt.relative(e.at)}</time>
                       </p>
                     </div>
                     {hasChanges && (

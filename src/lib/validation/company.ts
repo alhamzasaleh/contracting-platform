@@ -4,7 +4,7 @@ const optional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((v) => (v === undefined || (typeof v === "string" && v.trim() === "") ? null : v), schema.nullable());
 
 const toAscii = (v: unknown) =>
-  typeof v === "string" ? v.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/\s+/g, "") : v;
+  typeof v === "string" ? v.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/\s+/g, "") : v;
 
 /** Company profile. Error messages are i18n keys under "settings". */
 export const companySchema = z

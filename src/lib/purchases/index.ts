@@ -399,7 +399,7 @@ export type PurchaseRow = {
 
 type ListRow = ListLine & { remaining: number };
 
-const numOf = (v: string) => Number(String(v).replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(",", ".")) || 0;
+const numOf = (v: string) => Number(String(v).replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(",", ".")) || 0;
 
 /** A line nobody has filled in (gives way to ready lines and to invoice lines). */
 export const isBlankRow = (r: PurchaseRow) => !r.description.trim() && !numOf(r.unit_price) && (r.item === "new" || !r.item);

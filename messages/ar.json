@@ -297,7 +297,10 @@
       "subcontractor_payments": "سند صرف مقاول",
       "subcontractor_portal_links": "رابط صفحة المقاول",
       "contract_measurements": "كشف قياس",
-      "credit_notes": "إشعار دائن"
+      "credit_notes": "إشعار دائن",
+      "clients": "العملاء",
+      "contracts": "العقود",
+      "quotes": "عروض الأسعار"
     },
     "fields": {
       "marketer_id": "شريك النجاح",
@@ -310,8 +313,16 @@
       "latitude": "خط العرض",
       "longitude": "خط الطول",
       "location_url": "رابط الموقع",
-      "number": "الرقم"
-    }
+      "number": "الرقم",
+      "id_number": "رقم الهوية",
+      "client_id_number": "رقم الهوية في العقد"
+    },
+    "client_accept": "وافق العميل على العقد",
+    "client_accept_quote": "وافق العميل على العرض",
+    "client_id_number": "أضاف العميل رقم هويته",
+    "client_quote_changes": "طلب العميل تعديل العرض",
+    "client_reject_quote": "اعتذر العميل عن العرض",
+    "clientPage": "العميل من صفحته"
   },
   "permissions": {
     "groups": {
@@ -1228,7 +1239,8 @@
     "cameThroughHint": "شريك النجاح اللي جاب العميل — يُقترح على عروضه ويمكن تغييره لكل عرض.",
     "cameThroughNone": "لا أحد",
     "cameThroughValue": "جاء عن طريق: {name}",
-    "surveyOwnSite": "موقع خاص"
+    "surveyOwnSite": "موقع خاص",
+    "idShown": "الهوية: {n}"
   },
   "survey": {
     "pageTitle": "المعاينة",
@@ -1875,7 +1887,8 @@
     "quoteAcceptedOnPage": "وافق العميل {name} على عرض السعر من صفحته في {date}.",
     "quoteNotAcceptedOnPage": "العميل ما وافق على عرض السعر من صفحته — تأكد من موافقته الشفهية قبل إرسال العقد.",
     "sendContract": "إرسال العقد للعميل",
-    "sendContractHint": "يوصل العقد على نفس الرابط اللي أرسلته لعرض السعر — ما يحتاج رابط جديد."
+    "sendContractHint": "يوصل العقد على نفس الرابط اللي أرسلته لعرض السعر — ما يحتاج رابط جديد.",
+    "idAskedOnPage": "العميل ما عنده رقم هوية مسجّل — بنطلبه منه في صفحته عند الموافقة، ويُكتب في العقد."
   },
   "portal": {
     "hello": "أهلاً {name}",
@@ -1987,7 +2000,12 @@
     "errQuoteNotOpen": "العرض يتعدّل الحين — حدّث الصفحة بعد شوي.",
     "errQuoteChanged": "تغيّر العرض — حدّث الصفحة",
     "quotePdf": "تحميل عرض السعر PDF",
-    "quotePrint": "طباعة العرض"
+    "quotePrint": "طباعة العرض",
+    "idNumber": "رقم الهوية أو الإقامة أو السجل التجاري",
+    "idNumberHint": "يُكتب في العقد باسمك. نطلبه مرة وحدة فقط.",
+    "errIdInvalid": "الرقم 10 أرقام فقط — تأكد منه.",
+    "errIdRequired": "اكتب رقم الهوية أو الإقامة قبل الموافقة.",
+    "idNumberCheck": "تأكد من الرقم قبل الموافقة — يُكتب في العقد."
   },
   "schedule": {
     "view": "العرض",

@@ -24,7 +24,7 @@ beforeAll(async () => {
     await q("select public.seed_starter_catalogue($1)", [org]);
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'viewer')", [org, viewer]);
     // the site pin: check-ins must be within 300 m of it (owner, Nov 2026)
-    const client = (await q<{ id: string }>("insert into public.clients (organization_id, phone, name, latitude, longitude) values ($1,'966500008888','عميل',24.71,46.67) returning id", [org])).rows[0].id;
+    const client = (await q<{ id: string }>("insert into public.clients (organization_id, phone, name, latitude, longitude, id_number) values ($1,'966500008888','عميل',24.71,46.67,'1000000008') returning id", [org])).rows[0].id;
     for (const svc of ["gypsum", "interior"]) {
       const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,$3) returning id", [org, client, svc])).rows[0].id;
       await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1000,1000)", [org, quote]);

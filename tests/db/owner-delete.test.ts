@@ -13,7 +13,7 @@ const hash = (t: string) => createHash("sha256").update(t, "utf8").digest("hex")
 const PAY = JSON.stringify([{ label: "عند التوقيع", percent: 100, due_event: "signing" }]);
 
 async function newClient(q: Q, o = org): Promise<{ id: string; number: string }> {
-  return (await q<{ id: string; number: string }>("insert into public.clients (organization_id, name, phone) values ($1,'عميل للحذف','966511110000') returning id, number", [o])).rows[0];
+  return (await q<{ id: string; number: string }>("insert into public.clients (organization_id, name, phone, id_number) values ($1,'عميل للحذف','966511110000','1000000008') returning id, number", [o])).rows[0];
 }
 async function newSurvey(q: Q, client: string, o = org): Promise<{ id: string; number: string }> {
   const s = (await q<{ id: string; number: string }>("insert into public.surveys (organization_id, client_id, mode) values ($1,$2,'rooms') returning id, number", [o, client])).rows[0];

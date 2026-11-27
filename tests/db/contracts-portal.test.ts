@@ -19,7 +19,7 @@ beforeAll(async () => {
   await asAdmin((q) => q("update private.platform_settings set allow_self_signup = false"));
   await as({ userId: owner }, async (q) => {
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'viewer')", [org, viewer]);
-    client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone) values ($1,'أبو محمد','966551234567') returning id", [org])).rows[0].id;
+    client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone, id_number) values ($1,'أبو محمد','966551234567','1000000008') returning id", [org])).rows[0].id;
     quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'interior') returning id", [org, client])).rows[0].id;
     await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{\"total\":10000}',10000,10000)", [org, quote]);
     await q("select public.issue_quote($1, null)", [quote]);

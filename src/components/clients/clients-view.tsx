@@ -340,6 +340,7 @@ export function ClientDetailView({
           <p className="flex flex-wrap gap-x-3 text-[14px] text-muted-foreground">
             {client.city && <span>{[client.city, client.district].filter(Boolean).join(" — ")}</span>}
             {client.phone && <span className="ltr-inline font-latin">{displayPhone(client.phone)}</span>}
+            {client.id_number && <span>{t("idShown", { n: client.id_number })}</span>}
           </p>
           {client.notes && <p className="max-w-prose text-[13px] leading-6">{client.notes}</p>}
           {client.marketer_id && (

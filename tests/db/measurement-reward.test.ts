@@ -50,7 +50,7 @@ beforeAll(async () => {
   org = await as({ userId: owner }, async (q) => (await q<{ id: string }>("select public.create_organization('Org R') as id")).rows[0].id);
   await as({ userId: owner }, async (q) => {
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'finance')", [org, fin]);
-    client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone) values ($1,'عميل','966511115555') returning id", [org])).rows[0].id;
+    client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone, id_number) values ($1,'عميل','966511115555','1000000008') returning id", [org])).rows[0].id;
     marketer = (await q<{ id: string }>("insert into public.marketers (organization_id, name, commission_percent) values ($1,'شريك',5) returning id", [org])).rows[0].id;
   });
 });

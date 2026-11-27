@@ -1,7 +1,7 @@
 "use client";
 import { RewardLine } from "@/components/marketers/reward-line";
 import { DocNo } from "@/components/doc-no";
-import { Wallet, AlertTriangle, CalendarClock, CalendarDays, Check, ClipboardList, Grid3x3, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, Ruler, Send, ShoppingCart, Trash2, Wrench, XCircle } from "lucide-react";
+import { Wallet, AlertTriangle, CalendarClock, CalendarDays, Check, ClipboardList, Grid3x3, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, Ruler, Send, ShoppingCart, Trash2, Wrench, XCircle, IdCard } from "lucide-react";
 import Link from "next/link";
 import { MEASURE_TONE, RefundDialog, type MeasurementActions } from "@/components/projects/measurements";
 import { useRouter } from "next/navigation";
@@ -440,6 +440,11 @@ export function ContractView({
           {detail.quoteAccepted
             ? t("quoteAcceptedOnPage", { name: detail.quoteAccepted.name ?? client.name, date: fmt.dateTime(detail.quoteAccepted.at) })
             : t("quoteNotAcceptedOnPage")}
+        </p>
+      )}
+      {(c.status === "draft" || c.status === "sent") && !client.id_number && (
+        <p className="flex items-start gap-2 rounded-2xl bg-surface-2 px-4 py-3 text-[13px]" data-testid="id-missing-note">
+          <IdCard className="mt-0.5 size-4 shrink-0" /> {t("idAskedOnPage")}
         </p>
       )}
       {c.status !== "draft" && c.status !== "sent" && detail.quoteAccepted && (

@@ -297,7 +297,10 @@
       "subcontractor_payments": "Subcontractor payment voucher",
       "subcontractor_portal_links": "Subcontractor page link",
       "contract_measurements": "Measurement sheet",
-      "credit_notes": "Credit note"
+      "credit_notes": "Credit note",
+      "clients": "Clients",
+      "contracts": "Contracts",
+      "quotes": "Quotes"
     },
     "fields": {
       "marketer_id": "Success partner",
@@ -310,8 +313,16 @@
       "latitude": "Latitude",
       "longitude": "Longitude",
       "location_url": "Location link",
-      "number": "Number"
-    }
+      "number": "Number",
+      "id_number": "ID number",
+      "client_id_number": "ID number on the contract"
+    },
+    "client_accept": "Client accepted the contract",
+    "client_accept_quote": "Client accepted the quote",
+    "client_id_number": "Client added their ID number",
+    "client_quote_changes": "Client asked for quote changes",
+    "client_reject_quote": "Client declined the quote",
+    "clientPage": "Client (from their page)"
   },
   "permissions": {
     "groups": {
@@ -1228,7 +1239,8 @@
     "cameThroughHint": "The success partner who brought this client — suggested on their quotes, changeable per quote.",
     "cameThroughNone": "Nobody",
     "cameThroughValue": "Came through: {name}",
-    "surveyOwnSite": "own site"
+    "surveyOwnSite": "own site",
+    "idShown": "ID: {n}"
   },
   "survey": {
     "pageTitle": "Survey",
@@ -1875,7 +1887,8 @@
     "quoteAcceptedOnPage": "{name} accepted the quotation on his page on {date}.",
     "quoteNotAcceptedOnPage": "The client did not accept the quotation on his page — make sure he agreed verbally before sending the contract.",
     "sendContract": "Send the contract to the client",
-    "sendContractHint": "The contract reaches the client on the same link you sent for the quotation — no new link needed."
+    "sendContractHint": "The contract reaches the client on the same link you sent for the quotation — no new link needed.",
+    "idAskedOnPage": "The client has no ID number on record — their page asks for it on acceptance, and it goes into the contract."
   },
   "portal": {
     "hello": "Hello {name}",
@@ -1987,7 +2000,12 @@
     "errQuoteNotOpen": "The quotation is being revised — refresh the page in a moment.",
     "errQuoteChanged": "The quotation has changed — refresh the page",
     "quotePdf": "Download the quotation (PDF)",
-    "quotePrint": "Print the quotation"
+    "quotePrint": "Print the quotation",
+    "idNumber": "National ID, iqama or commercial registration number",
+    "idNumberHint": "It goes into the contract under your name. We ask for it only once.",
+    "errIdInvalid": "The number is 10 digits — please check it.",
+    "errIdRequired": "Enter your ID or iqama number before accepting.",
+    "idNumberCheck": "Please double-check the number before accepting — it goes into the contract."
   },
   "schedule": {
     "view": "View",

@@ -14,7 +14,7 @@ beforeAll(async () => {
   owner = await createUser("966500004001");
   org = await as({ userId: owner }, async (q) => (await q<{ id: string }>("select public.create_organization('Org A') as id")).rows[0].id);
   await as({ userId: owner }, async (q) => {
-    client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone) values ($1,'أبو سعد','966511114444') returning id", [org])).rows[0].id;
+    client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone, id_number) values ($1,'أبو سعد','966511114444','1000000008') returning id", [org])).rows[0].id;
     quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'interior') returning id", [org, client])).rows[0].id;
     quote2 = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'interior') returning id", [org, client])).rows[0].id;
     for (const [t, qid] of [[11500, quote], [9200, quote], [5000, quote2]] as const) {

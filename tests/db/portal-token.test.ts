@@ -36,7 +36,7 @@ beforeAll(async () => {
   await resetDatabase();
   owner = await createUser("966500000901");
   org = await as({ userId: owner }, async (q) => (await q<{ id: string }>("select public.create_organization('Org T') as id")).rows[0].id);
-  client = await as({ userId: owner }, async (q) => (await q<{ id: string }>("insert into public.clients (organization_id, name, phone) values ($1,'أبو فهد','966551230000') returning id", [org])).rows[0].id);
+  client = await as({ userId: owner }, async (q) => (await q<{ id: string }>("insert into public.clients (organization_id, name, phone, id_number) values ($1,'أبو فهد','966551230000','1000000008') returning id", [org])).rows[0].id);
   // a link whose stored hash is of a 15-character token: the database must still refuse it
   numShort = await sentContract("interior", SHORT, TOO_SHORT);
   numOld = await sentContract("gypsum", OLD);
