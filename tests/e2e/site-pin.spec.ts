@@ -26,3 +26,15 @@ test("the client dialog: a typed district is kept, the map's one is offered", as
   await expect(page.locator('input[name="city"]')).toHaveValue("الرياض");
   await expect(page.getByText("تم تحديد الموقع.")).toBeVisible();
 });
+
+test("a number already on another client is said, with a link to his record (warn, don't block)", async ({ page }) => {
+  await page.goto("/dev/preview/clients");
+  await page.getByRole("button", { name: /عميل جديد/ }).first().click();
+  await page.locator('input[name="phone"]').fill("0537000044");
+  const note = page.getByText(/الرقم مسجّل للعميل م\. سارة القحطاني/);
+  await expect(note).toBeVisible();
+  await expect(page.getByRole("link", { name: "افتح ملفه" })).toHaveAttribute("href", "/dev/preview/clients/CL-2026-001");
+  // another number: the note goes
+  await page.locator('input[name="phone"]').fill("0537000099");
+  await expect(note).toHaveCount(0);
+});

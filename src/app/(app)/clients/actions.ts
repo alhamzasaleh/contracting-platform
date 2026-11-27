@@ -83,6 +83,22 @@ export async function readMapLink(input: unknown): Promise<ActionResult<LatLng |
   return { ok: true, data: r.pin };
 }
 
+/** «الرقم مسجّل لعميل ثاني»: another client of this organization holding the number (warn, don't block). */
+export async function findClientByPhone(input: unknown): Promise<ActionResult<{ number: string; name: string } | null>> {
+  const ctx = await authorize("clients.manage");
+  if (!isCtx(ctx)) return ctx;
+  const parsed = z.object({ phone: clientPhone, except: id.optional() }).strict().safeParse(input);
+  if (!parsed.success) return { ok: true, data: null };
+  // numbers saved before Nov 2026 may still carry +966 0… or 00… (the old rule kept them as typed)
+  const p = parsed.data.phone;
+  const forms = [p, `00${p}`, ...(p.startsWith("966") ? [`9660${p.slice(3)}`] : [])];
+  let q = ctx.supabase.from("clients").select("number, name").eq("organization_id", ctx.orgId).in("phone", forms);
+  if (parsed.data.except) q = q.neq("id", parsed.data.except);
+  const { data, error } = await q.order("created_at").limit(1).maybeSingle();
+  if (error) return { ok: false, error: "error" };
+  return { ok: true, data: data ?? null };
+}
+
 export async function saveClient(input: unknown): Promise<ActionResult<{ number: string }>> {
   const ctx = await authorize("clients.manage");
   if (!isCtx(ctx)) return ctx;

@@ -27,3 +27,9 @@ export async function previewNewSurvey(_input?: unknown): Promise<ActionResult<{
   void _input;
   return { ok: true, data: { number: "SV-2026-004" } };
 }
+
+/** Design preview only: «الرقم مسجّل لعميل ثاني» — the sample client م. سارة القحطاني holds 0537000044. */
+export async function previewFindPhone(input?: unknown): Promise<ActionResult<{ number: string; name: string } | null>> {
+  const phone = (input as { phone?: string } | undefined)?.phone;
+  return { ok: true, data: phone === "966537000044" ? { number: "CL-2026-001", name: "م. سارة القحطاني" } : null };
+}

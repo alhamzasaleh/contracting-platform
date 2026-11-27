@@ -15,7 +15,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input, Textarea } from "@/components/ui/input";
-import { phoneForInput } from "@/lib/validation/client-phone";
+import { clientPhone, phoneForInput } from "@/lib/validation/client-phone";
+import { settle } from "@/lib/client/action";
 import type { ActionResult } from "@/lib/actions";
 import type { ClientDetail, ClientListItem } from "@/lib/data/clients";
 import { DeleteRecord } from "@/components/forms/delete-record";
@@ -31,6 +32,8 @@ import dynamic from "next/dynamic";
 const SiteMap = dynamic(() => import("@/components/maps/site-map").then((m) => m.SiteMap), { ssr: false, loading: () => <div className="h-56 animate-pulse rounded-2xl bg-surface-sunken" /> });
 
 type SaveClient = (i: Record<string, unknown>) => Promise<ActionResult<{ number: string }>>;
+/** another client already holding this number (warn, don't block) */
+type FindPhone = (i: { phone: string; except?: string }) => Promise<ActionResult<{ number: string; name: string } | null>>;
 
 /** 966551234567 → 055 123 4567 */
 export function displayPhone(p: string | null) {
@@ -45,10 +48,12 @@ function ClientDialog({
   onSave,
   onReadLink,
   onReadPlace,
+  onFindPhone,
   base = "",
   marketers = [],
 }: {
   base?: string;
+  onFindPhone?: FindPhone;
   /** success partners («جاء عن طريق»); empty = the field isn't shown */
   marketers?: MarketerChoice[];
   client?: ClientDetail["client"];
@@ -62,6 +67,37 @@ function ClientDialog({
   const router = useRouter();
   const { run, pending, fieldText } = useActionRunner();
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  // the number typed already belongs to another client: said with a link to his record, never blocked
+  const [dup, setDup] = React.useState<{ number: string; name: string } | null>(null);
+  const asked = React.useRef(0);
+  const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // ask the server (after a short pause while typing); only the latest number's answer counts
+  const lookup = (typed: string, ask: number) => {
+    clearTimeout(timer.current);
+    const parsed = clientPhone.safeParse(typed);
+    if (!onFindPhone || !parsed.success) return;
+    timer.current = setTimeout(() => {
+      if (ask !== asked.current) return; // still typing
+      void settle(() => onFindPhone({ phone: parsed.data, except: client?.id })).then((r) => {
+        if (ask === asked.current && r.ok) setDup(r.data ?? null);
+      });
+    }, 350);
+  };
+  const checkPhone = (typed: string) => {
+    setDup(null);
+    lookup(typed, ++asked.current);
+  };
+  // editing a client whose saved number is already on another one: said at once; the timer stops with the dialog
+  React.useEffect(() => {
+    const ref = asked;
+    const t = timer;
+    if (client?.phone) lookup(phoneForInput(client.phone), ++ref.current);
+    return () => {
+      ref.current++;
+      clearTimeout(t.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the dialog opens
+  }, []);
   // the site pin (map / phone / link); without one the server reads it from the link
   const [pin, setPin] = React.useState<LatLng | null>(siteOf({ latitude: client?.latitude, longitude: client?.longitude }));
   // map = set here (kept) · auto = read from the link on save (a new link replaces the old pin) · none = cleared
@@ -116,8 +152,16 @@ function ClientDialog({
         hint={t("phoneRequiredHint")}
         error={errors.phone === "required" ? tc("required") : errors.phone ? t("phoneInvalid") : undefined}
       >
-        <Input name="phone" required defaultValue={phoneForInput(client?.phone)} inputMode="tel" dir="ltr" placeholder="05xxxxxxxx" className="font-latin rtl:text-right" />
+        <Input name="phone" required defaultValue={phoneForInput(client?.phone)} onChange={(e) => checkPhone(e.target.value)} inputMode="tel" dir="ltr" placeholder="05xxxxxxxx" className="font-latin rtl:text-right" />
       </Field>
+      {dup && (
+        <p role="status" className="-mt-2 rounded-xl bg-warning-soft px-3 py-2 text-[12px]">
+          {t("phoneOnClient", { name: dup.name })}{" "}
+          <Link className="font-semibold text-primary underline" href={`${base}/clients/${dup.number}`}>
+            {t("openTheirRecord")}
+          </Link>
+        </p>
+      )}
       <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="cl-city" label={t("city")} optional={tc("optional")}>
           <Input name="city" value={place.city} onChange={(e) => { const city = e.target.value; setPlace((p) => ({ ...p, city })); }} />
@@ -175,7 +219,7 @@ function ClientDialog({
   );
 }
 
-export function ClientsView({ clients, canManage, onSave, onReadLink, onReadPlace, base = "", marketers }: { clients: ClientListItem[]; canManage: boolean; onSave?: SaveClient; onReadLink?: ReadMapLink; onReadPlace?: ReadPlace; base?: string; marketers?: MarketerChoice[] }) {
+export function ClientsView({ clients, canManage, onSave, onReadLink, onReadPlace, onFindPhone, base = "", marketers }: { clients: ClientListItem[]; canManage: boolean; onSave?: SaveClient; onReadLink?: ReadMapLink; onReadPlace?: ReadPlace; onFindPhone?: FindPhone; base?: string; marketers?: MarketerChoice[] }) {
   const t = useTranslations("clients");
   const { fmt } = useFormatter();
   const [query, setQuery] = React.useState("");
@@ -242,7 +286,7 @@ export function ClientsView({ clients, canManage, onSave, onReadLink, onReadPlac
           {list.length === 0 && <p className="py-10 text-center text-muted-foreground">{t("noResults")}</p>}
         </>
       )}
-      {creating && <ClientDialog onClose={() => setCreating(false)} onSave={onSave} onReadLink={onReadLink} onReadPlace={onReadPlace} base={base} marketers={marketers} />}
+      {creating && <ClientDialog onClose={() => setCreating(false)} onSave={onSave} onReadLink={onReadLink} onReadPlace={onReadPlace} onFindPhone={onFindPhone} base={base} marketers={marketers} />}
     </div>
   );
 }
@@ -254,12 +298,14 @@ export function ClientDetailView({
   onSave,
   onReadLink,
   onReadPlace,
+  onFindPhone,
   onNewSurvey,
   onDelete,
   onDeleteSurvey,
   base = "",
 }: {
   base?: string;
+  onFindPhone?: FindPhone;
   detail: ClientDetail;
   canManage: boolean;
   canQuote: boolean;
@@ -489,7 +535,7 @@ export function ClientDetailView({
           )}
         </div>
       )}
-      {editing && <ClientDialog client={client} onClose={() => setEditing(false)} onSave={onSave} onReadLink={onReadLink} onReadPlace={onReadPlace} marketers={detail.marketers} />}
+      {editing && <ClientDialog client={client} onClose={() => setEditing(false)} onSave={onSave} onReadLink={onReadLink} onReadPlace={onReadPlace} onFindPhone={onFindPhone} base={base} marketers={detail.marketers} />}
       {newSurvey && (
         <NewSurveyDialog
           mode={newSurvey}

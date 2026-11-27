@@ -1183,6 +1183,8 @@
     "emptyBody": "Client, survey, quote — all in one place.",
     "name": "Client name",
     "phone": "Mobile",
+    "phoneOnClient": "This number is already on client {name} — check it isn't the same client.",
+    "openTheirRecord": "Open their record",
     "phoneRequiredHint": "Used for WhatsApp, sending the client page link, and the contract",
     "phoneInvalid": "Invalid mobile number",
     "city": "City",
