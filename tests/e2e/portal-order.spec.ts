@@ -23,3 +23,10 @@ test("contract stage: the signature and acceptance come after the contract and i
   await page.getByRole("link", { name: "انزل للموافقة والتوقيع" }).click();
   await expect(accept).toBeInViewport();
 });
+
+test("contract with options: the option is chosen before the contract text it changes", async ({ page }) => {
+  await page.goto("/dev/preview/portal/options");
+  const pdf = page.getByRole("link", { name: /تحميل العقد PDF/ });
+  expect(await top(page.getByRole("radio").first())).toBeLessThan(await top(pdf));
+  expect(await top(page.getByText("الموافقة على العرض والعقد", { exact: true }))).toBeGreaterThan(await top(pdf));
+});

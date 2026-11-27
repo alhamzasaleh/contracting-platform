@@ -192,10 +192,14 @@ export function PortalView({
           </section>
         ) : (
           c.status === "sent" && (
-            // read first, sign after: the acceptance sits under the contract; this jumps there
+            <>
+            {/* the option first: the contract text, payments and annex below follow it */}
+            {options.length > 0 && <OptionsPicker options={options} chosen={chosen} onChoose={(v) => { setChosen(v); setError(null); }} />}
+            {/* read first, sign after: the acceptance sits under the contract; this jumps there */}
             <a href="#accept" className="justify-self-center rounded-full border border-primary/40 bg-surface px-4 py-2 text-[14px] font-semibold text-primary hover:bg-primary/5 print:hidden">
               {t("jumpToAccept")}
             </a>
+            </>
           )
         )}
 
@@ -253,7 +257,7 @@ export function PortalView({
         />
         {awaitingAccept && (
           <div id="accept" className="grid scroll-mt-4 gap-6">
-            {options.length > 0 && <OptionsPicker options={options} chosen={chosen} onChoose={(v) => { setChosen(v); setError(null); }} />}
+
             <section className="grid gap-4 rounded-3xl border-2 border-primary/40 bg-surface p-5">
               <p className="flex items-center gap-2 text-[17px] font-bold">
                 <PenLine className="size-5 text-primary" /> {t("acceptTitle")}
