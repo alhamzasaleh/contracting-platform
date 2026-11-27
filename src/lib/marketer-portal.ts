@@ -16,6 +16,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export type MarketerPortalItem = {
   client: string; contract: string; date: string; contract_status: "draft" | "sent" | "accepted" | "cancelled"; handed_over: boolean;
   base: number; percent: number; amount: number; status: CommissionStatus; due_at: string | null; paid_at: string | null;
+  /** paid so far (several vouchers when a signed measurement raised it after it was paid) */
+  paid_amount: number;
   vouchers: { number: string; paid_on: string; amount: number; method: string }[];
 };
 export type MarketerPortalData = {
@@ -51,7 +53,7 @@ export async function loadMarketerPortal(number: string, token: string): Promise
       org: { name: raw.org.name, legal_name: raw.org.legal_name, phone: raw.org.phone, brand: raw.org.brand },
       marketer: { ...raw.marketer, commission_percent: n(raw.marketer.commission_percent) },
       expires_at: raw.expires_at,
-      items: (raw.items ?? []).map((i) => ({ ...i, base: n(i.base), percent: n(i.percent), amount: n(i.amount), vouchers: (i.vouchers ?? []).map((v) => ({ ...v, amount: n(v.amount) })) })),
+      items: (raw.items ?? []).map((i) => ({ ...i, base: n(i.base), percent: n(i.percent), amount: n(i.amount), paid_amount: n(i.paid_amount), vouchers: (i.vouchers ?? []).map((v) => ({ ...v, amount: n(v.amount) })) })),
     },
   };
 }
@@ -76,7 +78,7 @@ export async function loadMarketerVoucher(number: string, token: string, voucher
     brand,
     doc: {
       org: { ...org, logoUrl: await portalLogo(admin, id, logo_path) },
-      voucher: { ...raw.voucher, amount: n(raw.voucher.amount) },
+      voucher: { ...raw.voucher, amount: n(raw.voucher.amount), paid_before: n(raw.voucher.paid_before) },
       marketer: raw.marketer,
       contract: { ...raw.contract, base: n(raw.contract.base), percent: n(raw.contract.percent) },
     },

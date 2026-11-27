@@ -500,9 +500,13 @@ export type MarketerRow = OrgRow & Upd & { number: string; name: string; phone: 
 export type MarketerCommissionRow = OrgRow & Upd & {
   contract_id: string; marketer_id: string; base: number; percent: number; amount: number; status: "expected" | "due" | "paid" | "cancelled";
   due_at: string | null; paid_at: string | null; cancelled_at: string | null;
+  /** paid so far (several vouchers when a signed measurement raised it after it was paid) */
+  paid_amount: number;
 };
 export type CommissionPaymentRow = OrgRow & {
   number: string; commission_id: string; marketer_id: string; contract_id: string; amount: number; paid_on: string; method: "transfer" | "cash" | "cheque"; reference: string | null; note: string | null;
+  /** the base / % it was paid on, and what earlier vouchers of the same reward paid */
+  base: number | null; percent: number | null; paid_before: number;
 };
 export type MarketerPortalLinkRow = OrgRow & { marketer_id: string; token_hash: string; expires_at: string; revoked_at: string | null };
 export type ContractRow = OrgRow & Upd & {
@@ -751,7 +755,7 @@ export type PayrollLineRow = OrgRow & Upd & {
 export type NotificationKind = "approval" | "client_note" | "stage_confirmed" | "contract_accepted" | "addendum_accepted" | "payment_received" | "payment_late" | "doc_expiry" | "approval_reminder" | "maintenance_request"
   | "project_delay" | "project_over_budget" | "project_losing" | "missed_visit" | "agreement_review"
   | "quote_accepted" | "quote_changes_requested" | "quote_rejected" | "commission_due"
-  | "measurement_approved" | "measurement_objected" | "measurement_waiting" | "measurement_credit";
+  | "measurement_approved" | "measurement_objected" | "measurement_waiting" | "measurement_credit" | "commission_overpaid";
 export type ContractMeasurementRow = OrgRow & Upd & {
   contract_id: string;
   number: string;

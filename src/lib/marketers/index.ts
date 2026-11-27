@@ -16,13 +16,18 @@ export function commissionOnNet(subtotal: number, discountPercent: number, perce
   return commissionAmount(net, Math.max(0, percent));
 }
 
-/** expected / due / paid totals; a cancelled reward never counts */
-export function commissionTotals(rows: { status: CommissionStatus; amount: number }[]) {
+/**
+ * expected / due / paid totals; a cancelled reward never counts. Paid = what vouchers paid; expected / due =
+ * what is left of each reward (a signed measurement may raise one already paid in part).
+ */
+export function commissionTotals(rows: { status: CommissionStatus; amount: number; paid?: number; paid_amount?: number }[]) {
   const r2 = (x: number) => Math.round(x * 100) / 100;
-  const sum = (s: CommissionStatus) => r2(rows.filter((x) => x.status === s).reduce((a, x) => a + Number(x.amount), 0));
-  const expected = sum("expected");
-  const due = sum("due");
-  const paid = sum("paid");
+  const live = rows.filter((x) => x.status !== "cancelled");
+  const paidOf = (x: (typeof rows)[number]) => Number(x.paid ?? x.paid_amount ?? (x.status === "paid" ? x.amount : 0));
+  const left = (x: (typeof rows)[number]) => Math.max(0, Number(x.amount) - paidOf(x));
+  const expected = r2(live.filter((x) => x.status === "expected").reduce((a, x) => a + left(x), 0));
+  const due = r2(live.filter((x) => x.status === "due").reduce((a, x) => a + left(x), 0));
+  const paid = r2(live.reduce((a, x) => a + paidOf(x), 0));
   return { expected, due, paid, total: r2(expected + due + paid) };
 }
 

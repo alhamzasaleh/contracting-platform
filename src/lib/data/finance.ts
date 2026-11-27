@@ -152,7 +152,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     // collected this month = the receipt vouchers issued this month (contract payments and addenda, partial too)
     supabase.from("client_receipts").select("amount").eq("organization_id", orgId).gte("paid_on", `${today.slice(0, 7)}-01`).lte("paid_on", today),
     // success partners' rewards (RLS: finance.view / costs.view / marketers.manage) — not cancelled
-    rowsOf(supabase.from("marketer_commissions").select("contract_id, amount, status").eq("organization_id", orgId).in("status", ["expected", "due", "paid"])),
+    rowsOf(supabase.from("marketer_commissions").select("contract_id, amount, paid_amount, status").eq("organization_id", orgId).in("status", ["expected", "due", "paid"])),
     // quantity settlement the client signed (measurement sheets): changes the project's revenue (before VAT)
     rowsOf(supabase.from("contract_measurements").select("contract_id, diff_subtotal, credit_amount, refunded_at").eq("organization_id", orgId).eq("status", "approved")),
   ]);
@@ -223,12 +223,14 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     if (owed > 0.005) outflows.push({ date: today, amount: r2(owed), label: "petty", kind: "petty" });
   }
   // a due reward is paid now; an expected one when its contract's last payment comes in (it becomes due then)
+  // what is left of each reward (a measurement may have raised one already paid in part)
+  const left = (k: { amount: number; paid_amount?: number | null }) => Math.max(0, r2(n(k.amount) - n(k.paid_amount)));
   for (const k of rewardRows) {
-    if (k.status === "due") outflows.push({ date: today, amount: n(k.amount), label: "reward", kind: "reward" });
+    if (k.status === "due") outflows.push({ date: today, amount: left(k), label: "reward", kind: "reward" });
     if (k.status === "expected") {
       const own = rows.filter((r) => r.contract_id === k.contract_id && !r.id.startsWith("ad:"));
       const last = own.reduce((d, r) => (r.expected > d ? r.expected : d), today);
-      if (own.length) outflows.push({ date: last, amount: n(k.amount), label: "reward", kind: "reward" });
+      if (own.length && left(k) > 0) outflows.push({ date: last, amount: left(k), label: "reward", kind: "reward" });
     }
   }
   // money owed back to clients after a signed measurement (not paid back yet) — paid now
@@ -317,9 +319,9 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     owedToClients: r2(refunds),
     rewards: rewardRows.length
       ? {
-          due: r2(rewardRows.filter((k) => k.status === "due").reduce((s, k) => s + n(k.amount), 0)),
+          due: r2(rewardRows.filter((k) => k.status === "due").reduce((s, k) => s + Math.max(0, n(k.amount) - n(k.paid_amount)), 0)),
           dueCount: rewardRows.filter((k) => k.status === "due").length,
-          expected: r2(rewardRows.filter((k) => k.status === "expected").reduce((s, k) => s + n(k.amount), 0)),
+          expected: r2(rewardRows.filter((k) => k.status === "expected").reduce((s, k) => s + Math.max(0, n(k.amount) - n(k.paid_amount)), 0)),
         }
       : null,
     canManage: can(session, "finance.manage"),

@@ -48,6 +48,7 @@ export function PaymentVoucher({ data }: { data: PaymentVoucherDoc }) {
           <bdi dir="ltr" className="font-latin whitespace-nowrap">{data.contract.number}</bdi>
         </Row>
         <Row label={t("base")}>{fmt.money(data.contract.base)}</Row>
+        {!!v.paid_before && <Row label={t("paidBefore")}>{fmt.money(v.paid_before)}</Row>}
         <Row label={t("method")}>{t(`m_${v.method}`)}</Row>
         {v.reference && <Row label={t("reference")}><bdi dir="ltr" className="font-latin">{v.reference}</bdi></Row>}
         {data.marketer.iban && <Row label={t("iban")}><bdi dir="ltr" className="font-latin break-all">{data.marketer.iban}</bdi></Row>}

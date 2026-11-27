@@ -99,6 +99,12 @@ describe("helpers", () => {
     ])).toEqual({ expected: 100, due: 50, paid: 30, total: 180 });
   });
 
+  it("totals use what vouchers paid: a reward raised after it was paid counts only what is left (measurement settlement)", () => {
+    expect(commissionTotals([
+      { status: "expected", amount: 275, paid: 250 }, { status: "paid", amount: 225, paid: 250 }, { status: "due", amount: 100, paid_amount: 0 },
+    ])).toEqual({ expected: 25, due: 100, paid: 500, total: 625 });
+  });
+
   it("partner page link: number + token, number format checked", () => {
     expect(MARKETER_NUMBER_RE.test("MK-2026-001")).toBe(true);
     expect(MARKETER_NUMBER_RE.test("C-2026-001")).toBe(false);

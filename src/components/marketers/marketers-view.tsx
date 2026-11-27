@@ -162,24 +162,29 @@ function MarketerCard({ m, data, actions, onEdit, onPay, base, highlight }: { m:
                 <p className="text-muted-foreground">
                   {t("line", { base: fmt.money(k.base), percent: fmt.number(k.percent), amount: fmt.money(k.amount) })}
                 </p>
+                {k.paid > 0 && k.status !== "paid" && k.amount - k.paid > 0.005 && (
+                  <p className="text-[12px] text-muted-foreground">{t("paidSoFar", { paid: fmt.money(k.paid), left: fmt.money(k.amount - k.paid) })}</p>
+                )}
+                {k.paid - k.amount > 0.005 && <p className="rounded-xl bg-warning-soft px-3 py-1.5 text-[12px]">{t("overpaid", { amount: fmt.money(k.paid - k.amount) })}</p>}
                 <div className="flex flex-wrap gap-2">
                   {k.status === "due" && data.canPay && (
                     <Button size="sm" onClick={() => onPay(k)}>
                       <Wallet /> {t("pay")}
                     </Button>
                   )}
-                  {k.voucher && data.canSeeVouchers && (
-                    <Button asChild size="sm" variant="secondary">
-                      <Link href={`${base}/print/payment-vouchers/${k.voucher.number}`}>
-                        <Printer /> {t("voucher", { number: k.voucher.number })}
-                      </Link>
-                    </Button>
-                  )}
+                  {data.canSeeVouchers &&
+                    (k.vouchers?.length ? k.vouchers : k.voucher ? [{ number: k.voucher.number, paid_on: k.voucher.paid_on, amount: k.paid }] : []).map((v) => (
+                      <Button key={v.number} asChild size="sm" variant="secondary">
+                        <Link href={`${base}/print/payment-vouchers/${v.number}`}>
+                          <Printer /> {t("voucher", { number: v.number })}
+                        </Link>
+                      </Button>
+                    ))}
                   {k.status === "paid" && k.voucher && (
                     <WhatsAppButton
                       phone={m.phone}
                       label={t("waPaidButton")}
-                      text={t("waPaid", { name: m.name, amount: fmt.money(k.amount), contract: k.contract, voucher: k.voucher.number, org: data.orgName })}
+                      text={t("waPaid", { name: m.name, amount: fmt.money(k.vouchers?.at(-1)?.amount ?? k.paid), contract: k.contract, voucher: k.voucher.number, org: data.orgName })}
                     />
                   )}
                 </div>
@@ -329,9 +334,9 @@ function PayDialog({ k, onClose, pay }: { k: CommissionView; onClose: () => void
       open
       onOpenChange={(v) => !v && onClose()}
       title={t("pay")}
-      description={t("payHint", { amount: fmt.money(k.amount), contract: k.contract })}
+      description={t("payHint", { amount: fmt.money(Math.max(0, k.amount - k.paid)), contract: k.contract })}
       pending={pending}
-      submitLabel={t("payConfirm", { amount: fmt.money(k.amount) })}
+      submitLabel={t("payConfirm", { amount: fmt.money(Math.max(0, k.amount - k.paid)) })}
       onSubmit={() => run(pay && (() => pay({ id: k.id, paid_on: date, method, reference: ref || null, note: null })), { onSuccess: onClose })}
     >
       <Field id="mkp-d" label={t("date")}>

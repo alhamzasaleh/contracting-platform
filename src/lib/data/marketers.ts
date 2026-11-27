@@ -19,7 +19,11 @@ export async function loadMarketerChoices(supabase: Supa, orgId: string): Promis
 export type CommissionView = {
   id: string; contract_id: string; contract: string; client: string; marketer_id: string; base: number; percent: number; amount: number;
   status: CommissionStatus; due_at: string | null; paid_at: string | null; created_at: string;
+  /** paid so far (more than one voucher when a signed measurement raised it after it was paid) */
+  paid: number;
+  /** the latest voucher */
   voucher: { number: string; paid_on: string; method: string; reference: string | null } | null;
+  vouchers?: { number: string; paid_on: string; amount: number }[];
 };
 export type MarketerView = {
   id: string; number: string; name: string; phone: string | null; commission_percent: number; iban: string | null; notes: string | null; is_active: boolean;
@@ -50,8 +54,8 @@ export async function loadMarketers(session: SessionContext): Promise<MarketersD
   const canDelete = session.role === "owner";
   const [marketers, commissions, payments, clients, contracts, links, quoteRefs, versionRefs] = await Promise.all([
     rows(supabase.from("marketers").select("id, number, name, phone, commission_percent, iban, notes, is_active").eq("organization_id", orgId).order("is_active", { ascending: false }).order("name")),
-    rows(supabase.from("marketer_commissions").select("id, contract_id, marketer_id, base, percent, amount, status, due_at, paid_at, created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(5000)),
-    rows(supabase.from("commission_payments").select("commission_id, number, paid_on, method, reference").eq("organization_id", orgId).limit(5000)),
+    rows(supabase.from("marketer_commissions").select("id, contract_id, marketer_id, base, percent, amount, paid_amount, status, due_at, paid_at, created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(5000)),
+    rows(supabase.from("commission_payments").select("commission_id, number, paid_on, method, reference, amount, created_at").eq("organization_id", orgId).order("created_at").limit(5000)),
     rows(supabase.from("clients").select("id, number, name, marketer_id").eq("organization_id", orgId).not("marketer_id", "is", null)),
     rows(supabase.from("contracts").select("id, number, client_id, marketer_id").eq("organization_id", orgId).not("marketer_id", "is", null)),
     canManage
@@ -64,6 +68,7 @@ export async function loadMarketers(session: SessionContext): Promise<MarketersD
   const allClients = contracts.length ? await rows(supabase.from("clients").select("id, name").in("id", [...new Set(contracts.map((c) => c.client_id))])) : [];
   const clientName = new Map(allClients.map((c) => [c.id, c.name]));
   const contractOf = new Map(contracts.map((c) => [c.id, c]));
+  // oldest first, so the map keeps the latest voucher of each reward
   const voucherOf = new Map(payments.map((p) => [p.commission_id, p]));
   return {
     marketers: marketers.map((m) => ({
@@ -81,7 +86,8 @@ export async function loadMarketers(session: SessionContext): Promise<MarketersD
       const c = contractOf.get(k.contract_id);
       const v = voucherOf.get(k.id);
       return {
-        ...k, base: n(k.base), percent: n(k.percent), amount: n(k.amount), status: k.status as CommissionStatus,
+        ...k, base: n(k.base), percent: n(k.percent), amount: n(k.amount), paid: n(k.paid_amount), status: k.status as CommissionStatus,
+        vouchers: payments.filter((p) => p.commission_id === k.id).map((p) => ({ number: p.number, paid_on: p.paid_on, amount: n(p.amount) })),
         contract: c?.number ?? "—", client: (c && clientName.get(c.client_id)) ?? "—",
         voucher: v ? { number: v.number, paid_on: v.paid_on, method: v.method, reference: v.reference } : null,
       };
@@ -98,6 +104,8 @@ export async function loadMarketers(session: SessionContext): Promise<MarketersD
 /** The reward of one contract (costs.view / finance.view / marketers.manage — RLS), for the contract and project pages. */
 export type ContractCommission = {
   id: string | null; marketer: string; percent: number; amount: number; status: CommissionStatus; voucher: string | null;
+  /** paid so far (several vouchers after a measurement raised it) */
+  paid?: number;
   /** links shown only to who may open them: /partners (marketers.manage or finance.view), the voucher print page (finance.view) */
   canOpenPartners?: boolean; canOpenVoucher?: boolean;
 } | null;
@@ -108,7 +116,7 @@ const partnerLinks = (session: SessionContext) => ({
 export async function loadContractCommission(session: SessionContext, contractId: string): Promise<ContractCommission> {
   if (!can(session, "costs.view") && !can(session, "finance.view") && !can(session, "marketers.manage")) return null;
   const supabase = await createClient();
-  const { data: k } = await supabase.from("marketer_commissions").select("id, marketer_id, percent, amount, status").eq("contract_id", contractId).maybeSingle();
+  const { data: k } = await supabase.from("marketer_commissions").select("id, marketer_id, percent, amount, paid_amount, status").eq("contract_id", contractId).maybeSingle();
   if (!k) {
     // not accepted yet: the agreed version's frozen reward (costs.view — quote_version_costs RLS)
     if (!can(session, "costs.view")) return null;
@@ -122,14 +130,16 @@ export async function loadContractCommission(session: SessionContext, contractId
   }
   const [choices, { data: v }] = await Promise.all([
     loadMarketerChoices(supabase, session.organization.id),
-    supabase.from("commission_payments").select("number").eq("commission_id", k.id).maybeSingle(),
+    // the latest voucher (a reward raised by a measurement after it was paid has more than one)
+    supabase.from("commission_payments").select("number").eq("commission_id", k.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  return { id: k.id, marketer: choices.find((m) => m.id === k.marketer_id)?.name ?? "—", percent: n(k.percent), amount: n(k.amount), status: k.status as CommissionStatus, voucher: v?.number ?? null, ...partnerLinks(session) };
+  return { id: k.id, marketer: choices.find((m) => m.id === k.marketer_id)?.name ?? "—", percent: n(k.percent), amount: n(k.amount), paid: n(k.paid_amount), status: k.status as CommissionStatus, voucher: v?.number ?? null, ...partnerLinks(session) };
 }
 
 export type PaymentVoucherDoc = {
   org: { name: string; legal_name: string | null; cr_number: string | null; vat_number: string | null; phone: string | null; city: string | null; address: string | null; signatory_name: string | null; signatory_title: string | null; logoUrl?: string | null };
-  voucher: { number: string; paid_on: string; amount: number; method: string; reference: string | null; note: string | null };
+  /** paid_before: what earlier vouchers of the same reward paid (a measurement raised it after it was paid) */
+  voucher: { number: string; paid_on: string; amount: number; method: string; reference: string | null; note: string | null; paid_before?: number };
   marketer: { number: string; name: string; iban: string | null };
   contract: { number: string; client: string; base: number; percent: number };
 };
@@ -137,7 +147,7 @@ export type PaymentVoucherDoc = {
 /** One payment voucher (PV-) — finance.view (the print page's guard) + RLS. */
 export async function loadPaymentVoucher(session: SessionContext, number: string): Promise<PaymentVoucherDoc> {
   const supabase = await createClient();
-  const { data: p } = await supabase.from("commission_payments").select("number, paid_on, amount, method, reference, note, commission_id, marketer_id, contract_id").eq("organization_id", session.organization.id).eq("number", number).maybeSingle();
+  const { data: p } = await supabase.from("commission_payments").select("number, paid_on, amount, method, reference, note, commission_id, marketer_id, contract_id, base, percent, paid_before").eq("organization_id", session.organization.id).eq("number", number).maybeSingle();
   if (!p) notFound();
   const [{ data: k }, { data: c }, { data: m }, choices] = await Promise.all([
     supabase.from("marketer_commissions").select("base, percent").eq("id", p.commission_id).maybeSingle(),
@@ -150,8 +160,9 @@ export async function loadPaymentVoucher(session: SessionContext, number: string
   const o = session.organization;
   return {
     org: { name: o.name, legal_name: o.legal_name, cr_number: o.cr_number, vat_number: o.vat_number, phone: o.phone, city: o.city, address: o.address, signatory_name: o.signatory_name, signatory_title: o.signatory_title },
-    voucher: { number: p.number, paid_on: p.paid_on, amount: n(p.amount), method: p.method, reference: p.reference, note: p.note },
+    voucher: { number: p.number, paid_on: p.paid_on, amount: n(p.amount), method: p.method, reference: p.reference, note: p.note, paid_before: n(p.paid_before) },
     marketer: { number: m?.number ?? choice?.number ?? "—", name: m?.name ?? choice?.name ?? "—", iban: m?.iban ?? null },
-    contract: { number: c?.number ?? "—", client: cl?.name ?? "—", base: n(k?.base), percent: n(k?.percent) },
+    // the base / % this voucher was paid on (frozen on it), else the reward's
+    contract: { number: c?.number ?? "—", client: cl?.name ?? "—", base: n(p.base ?? k?.base), percent: n(p.percent ?? k?.percent) },
   };
 }

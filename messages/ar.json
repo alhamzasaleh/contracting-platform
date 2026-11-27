@@ -2664,7 +2664,9 @@
     "measurement_credit": "مبلغ مستحق للعميل {amount} من كشف القياس {measurement} على {number} — سجّل صرفه",
     "k_measurement_waiting": "كشف قياس ينتظر رد العميل",
     "k_measurement_credit": "مبلغ مستحق للعميل من تسوية الأمتار",
-    "agreement_review_measure": "العميل وقّع كشف القياس {addendum} على {number} — راجع كمية اتفاقيات مقاولي الباطن بالمتر ({count})"
+    "agreement_review_measure": "العميل وقّع كشف القياس {addendum} على {number} — راجع كمية اتفاقيات مقاولي الباطن بالمتر ({count})",
+    "commission_overpaid": "انصرف لشريك النجاح {name} أكثر من مكافأته بعد تسوية الأمتار بـ {amount} ({number})",
+    "k_commission_overpaid": "مكافأة انصرفت أكثر من المستحق"
   },
   "qoyod": {
     "title": "الربط مع قيود",
@@ -3115,7 +3117,7 @@
     "line": "قيمة العقد قبل الضريبة {base} · {percent}% · المكافأة {amount}",
     "rewardLine": "مكافأة شريك النجاح — {name} {percent}%",
     "pay": "صرف المكافأة",
-    "payHint": "صرف {amount} كاملة عن العقد {contract} — يطلع سند صرف مرقّم وتنحسب على تكلفة المشروع.",
+    "payHint": "صرف {amount} عن العقد {contract} (الباقي من المكافأة) — يطلع سند صرف مرقّم وتنحسب على تكلفة المشروع.",
     "payConfirm": "صرف {amount}",
     "voucher": "سند الصرف {number}",
     "pageTitle": "صفحة شريك النجاح",
@@ -3150,7 +3152,10 @@
     "method_cheque": "شيك",
     "reference": "المرجع",
     "waPaid": "أهلاً {name}، صُرفت مكافأتك {amount} عن العقد {contract} — سند الصرف {voucher} في صفحتك. شكراً لك من {org}.",
-    "waPaidButton": "صُرفت مكافأتك — واتساب"
+    "waPaidButton": "صُرفت مكافأتك — واتساب",
+    "paidSoFar": "انصرف {paid} — الباقي {left} بعد تسوية الأمتار",
+    "overpaid": "انصرف له {amount} أكثر من مكافأته بعد تسوية الأمتار — التطبيق ما يخصمها بنفسه، رتّبها معه.",
+    "vouchersAll": "السندات: "
   },
   "voucher": {
     "title": "سند صرف",
@@ -3169,7 +3174,8 @@
     "note": "ملاحظة",
     "payer": "الصارف",
     "receiver": "المستلم",
-    "signature": "التوقيع"
+    "signature": "التوقيع",
+    "paidBefore": "صُرف قبل هذا السند"
   },
   "partnerPage": {
     "intro": "صفحة شريك النجاح — مكافأتك {percent}%",
@@ -3191,7 +3197,8 @@
     "reward": "المكافأة",
     "expectedHint": "تستحق بعد ما يسدد العميل دفعات العقد كاملة.",
     "voucherLine": "صُرفت {amount} بتاريخ {date}",
-    "validUntil": "الرابط صالح حتى {date}"
+    "validUntil": "الرابط صالح حتى {date}",
+    "paidLeft": "انصرف لك {paid} — الباقي {left} بعد تسوية الأمتار"
   },
   "framing": {
     "title": "رسمة الهيكل الحديدي",

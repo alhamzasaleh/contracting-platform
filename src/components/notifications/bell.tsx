@@ -98,6 +98,8 @@ export function NotificationBell({ data, base, preview }: { data: Data; base: st
         return t("measurement_approved", { number, measurement: ltr(s("measurement")), amount: fmt.money(Number(p.amount ?? 0)) });
       case "measurement_objected":
         return t("measurement_objected", { number, measurement: ltr(s("measurement")) });
+      case "commission_overpaid":
+        return t("commission_overpaid", { number, name: s("marketer"), amount: fmt.money(Number(p.amount ?? 0)) });
       case "measurement_waiting":
         return t("measurement_waiting", { number, measurement: ltr(s("measurement")), days: fmt.number(Number(p.days ?? 0)) });
       case "measurement_credit":

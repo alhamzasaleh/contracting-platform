@@ -7,7 +7,7 @@ import type { NotificationKind } from "@/lib/supabase/database.types";
 export const NOTIFICATION_KINDS: NotificationKind[] = [
   "approval", "approval_reminder", "client_note", "stage_confirmed", "contract_accepted", "addendum_accepted", "payment_received", "payment_late", "doc_expiry", "maintenance_request",
   "project_delay", "project_over_budget", "project_losing", "missed_visit", "agreement_review",
-  "quote_accepted", "quote_changes_requested", "quote_rejected", "commission_due", "measurement_approved", "measurement_objected", "measurement_waiting", "measurement_credit",
+  "quote_accepted", "quote_changes_requested", "quote_rejected", "commission_due", "measurement_approved", "measurement_objected", "measurement_waiting", "measurement_credit", "commission_overpaid",
 ];
 
 export type NotificationItem = { id: string; kind: NotificationKind; params: Record<string, unknown>; link: string | null; read: boolean; created_at: string };
@@ -60,6 +60,8 @@ export function whatsappText(kind: NotificationKind, p: Record<string, unknown>)
       return `العميل وقّع كشف القياس ${s("measurement")} على ${s("number")} — الفرق ${money(p.amount)}`;
     case "measurement_objected":
       return `العميل اعترض على كشف القياس ${s("measurement")} على ${s("number")}`;
+    case "commission_overpaid":
+      return `انصرف لشريك النجاح ${s("marketer")} أكثر من مكافأته بعد تسوية الأمتار بـ ${money(p.amount)} (${s("number")})`;
     case "measurement_waiting":
       return `كشف القياس ${s("measurement")} على ${s("number")} ينتظر رد العميل من ${s("days")} أيام`;
     case "measurement_credit":

@@ -48,6 +48,9 @@ export function MarketerPortalView({ data, logoUrl, token }: { data: MarketerPor
                   <Stat label={t("percent")} value={`${fmt.number(i.percent)}%`} />
                   <Stat label={t("reward")} value={fmt.money(i.amount)} strong />
                 </div>
+                {i.paid_amount > 0 && i.amount - i.paid_amount > 0.005 && (
+                  <p className="text-[12px] text-muted-foreground">{t("paidLeft", { paid: fmt.money(i.paid_amount), left: fmt.money(i.amount - i.paid_amount) })}</p>
+                )}
                 {i.status === "expected" && <p className="text-[12px] text-muted-foreground">{t("expectedHint")}</p>}
                 {i.vouchers.map((v) => (
                   <p key={v.number} className="text-[13px]">

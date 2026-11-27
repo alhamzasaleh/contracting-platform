@@ -2664,7 +2664,9 @@
     "measurement_credit": "{amount} owed to the client from measurement sheet {measurement} on {number} — record the payment",
     "k_measurement_waiting": "Measurement sheet waiting for the client",
     "k_measurement_credit": "Amount owed to a client from a quantity settlement",
-    "agreement_review_measure": "The client signed measurement sheet {addendum} on {number} — review the quantity of per-m² subcontractor agreements ({count})"
+    "agreement_review_measure": "The client signed measurement sheet {addendum} on {number} — review the quantity of per-m² subcontractor agreements ({count})",
+    "commission_overpaid": "Success partner {name} was paid {amount} above the reward after the quantity settlement ({number})",
+    "k_commission_overpaid": "Reward paid above what is due"
   },
   "qoyod": {
     "title": "Qoyod accounting",
@@ -3115,7 +3117,7 @@
     "line": "Contract value before VAT {base} · {percent}% · reward {amount}",
     "rewardLine": "Success partner reward — {name} {percent}%",
     "pay": "Pay the reward",
-    "payHint": "Pay {amount} in full for contract {contract} — a numbered payment voucher is issued and it counts as a project cost.",
+    "payHint": "Pay {amount} for contract {contract} (what is left of the reward) — a numbered payment voucher is issued and it counts as a project cost.",
     "payConfirm": "Pay {amount}",
     "voucher": "Voucher {number}",
     "pageTitle": "Partner page",
@@ -3150,7 +3152,10 @@
     "method_cheque": "Cheque",
     "reference": "Reference",
     "waPaid": "Hello {name}, your reward of {amount} for contract {contract} has been paid — voucher {voucher} is on your page. Thank you from {org}.",
-    "waPaidButton": "Reward paid — WhatsApp"
+    "waPaidButton": "Reward paid — WhatsApp",
+    "paidSoFar": "{paid} paid — {left} left after the quantity settlement",
+    "overpaid": "{amount} was paid above the reward after the quantity settlement — the app doesn't take it back by itself; settle it with him.",
+    "vouchersAll": "Vouchers: "
   },
   "voucher": {
     "title": "Payment voucher",
@@ -3169,7 +3174,8 @@
     "note": "Note",
     "payer": "Paid by",
     "receiver": "Received by",
-    "signature": "Signature"
+    "signature": "Signature",
+    "paidBefore": "Paid before this voucher"
   },
   "partnerPage": {
     "intro": "Success partner page — your reward {percent}%",
@@ -3191,7 +3197,8 @@
     "reward": "Reward",
     "expectedHint": "Due once the client has paid the contract in full.",
     "voucherLine": "{amount} paid on {date}",
-    "validUntil": "Link valid until {date}"
+    "validUntil": "Link valid until {date}",
+    "paidLeft": "{paid} paid to you — {left} left after the quantity settlement"
   },
   "framing": {
     "title": "Metal framing plan",

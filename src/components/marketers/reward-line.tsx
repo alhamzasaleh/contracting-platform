@@ -24,6 +24,7 @@ export function RewardLine({ reward, base = "", noLinks = false }: { reward: Non
       )}
       <span className="font-latin font-bold tabular-nums">
         {fmt.money(reward.amount)} · {t(`status_${reward.status}`)}
+        {!!reward.paid && reward.status !== "paid" && reward.amount - reward.paid > 0.005 && <> · {t("paidSoFar", { paid: fmt.money(reward.paid), left: fmt.money(reward.amount - reward.paid) })}</>}
         {reward.voucher && (
           <>
             {" · "}

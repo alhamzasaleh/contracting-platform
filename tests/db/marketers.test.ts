@@ -172,7 +172,7 @@ describe("due only after the original contract is fully paid", () => {
     await pay(fin, c.payments[1], 1);
     const due = await commission(c.id);
     expect(due.status).toBe("due");
-    const n = await asAdmin((q) => q<{ user_id: string }>("select user_id from public.notifications where kind = 'commission_due' and dedupe_key = $1", [`commission_due:${k.id}`]));
+    const n = await asAdmin((q) => q<{ user_id: string }>("select user_id from public.notifications where kind = 'commission_due' and dedupe_key like $1", [`commission_due:${k.id}:%`]));
     expect(n.rows.map((r) => r.user_id).sort()).toEqual([owner, fin, restricted].filter((u) => u !== restricted).sort());
   });
 
@@ -329,7 +329,7 @@ describe("the marketer's page", () => {
     expect(v.items.length).toBeGreaterThan(0);
     const text = JSON.stringify(v);
     for (const secret of ["966511112222", "1012345678", "966500000777", "SA038", "cost", "margin", "quote"]) expect(text).not.toContain(secret);
-    expect(Object.keys(v.items[0]).sort()).toEqual(["amount", "base", "client", "contract", "contract_status", "date", "due_at", "handed_over", "paid_at", "percent", "status", "vouchers"]);
+    expect(Object.keys(v.items[0]).sort()).toEqual(["amount", "base", "client", "contract", "contract_status", "date", "due_at", "handed_over", "paid_amount", "paid_at", "percent", "status", "vouchers"]);
     expect(v.items.every((i) => i.client === "أبو خالد")).toBe(true);
     // wrong token, wrong number, anonymous and signed-in callers
     expect(await view(marketerNo, tok())).toBeNull();
