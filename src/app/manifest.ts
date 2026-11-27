@@ -13,7 +13,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "any",
-    background_color: "#EFEBE3",
+    // Android's splash = this colour + the icon (a basalt square): the same basalt, so no box shows
+    background_color: "#22262A",
     theme_color: "#22262A",
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
