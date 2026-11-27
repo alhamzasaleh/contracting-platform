@@ -415,6 +415,28 @@ export function ProjectView({ data, actions, base = "", focusMeasure }: { data: 
             </section>
           )}
 
+          {/* subcontractors on this project (purchases.view) */}
+          {!!data.subcontractors?.length && (
+            <section className="grid gap-2 rounded-3xl border border-border bg-surface p-5 text-[13px]" data-testid="project-subs">
+              <p className="flex items-center gap-2 text-[15px] font-bold">
+                <HardHat className="size-4" /> {t("subsTitle")}
+              </p>
+              {data.subcontractors.map((x) => (
+                <div key={`${x.number}-${x.scope}`} className="grid gap-1 border-t border-border/60 pt-2">
+                  <Link href={`${base}/purchases/subcontractors?s=${x.number}#${x.number}`} className="font-bold hover:text-primary hover:underline">
+                    {x.name} · <DocNo>{x.number}</DocNo>
+                  </Link>
+                  <p className="text-muted-foreground">{x.scope}</p>
+                  <p className="flex flex-wrap gap-x-3 font-latin tabular-nums">
+                    <span>{t("subsAgreed", { v: fmt.money(x.agreed) })}</span>
+                    <span>{t("subsEarned", { v: fmt.money(x.earned) })}</span>
+                    <span>{t("subsPaid", { v: fmt.money(x.paid) })}</span>
+                  </p>
+                </div>
+              ))}
+            </section>
+          )}
+
           {/* cost (costs.view) */}
           {data.cost && (
             <CostCard href={data.canOpenCosts ? `${base}/purchases/costs` : null}>

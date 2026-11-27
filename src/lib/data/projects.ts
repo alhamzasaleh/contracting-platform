@@ -111,6 +111,8 @@ export type ProjectDetail = {
   measure?: { basis: MeasureBasis | null; sheets: Measurement[]; owed: number };
   /** may record a refund to the client (finance.manage) */
   canRefund?: boolean;
+  /** subcontractors on this project (purchases.view, RLS): agreed / earned / paid, linked to their card */
+  subcontractors?: { number: string; name: string; scope: string; agreed: number; earned: number; paid: number }[];
   /** accepted additional works: their own payment, and the days they add */
   addenda?: { number: string; title: string; total: number; payment_status: "pending" | "requested" | "paid"; extra_days: number }[];
   /** planned start, delivery (incl. accepted addenda days) and the warranty end once handed over */
@@ -145,7 +147,7 @@ export async function loadProject(session: SessionContext, number: string): Prom
   const notesP = Promise.resolve(supabase.from("client_notes").select("id, body, photos, status, reply, stage_id, created_at").eq("contract_id", c.id).order("created_at", { ascending: false }));
   const [
     { data: client }, { data: stages }, { data: updates }, { data: visits }, { data: notes }, { data: payments }, who,
-    { data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam, signed, reward, sites, measures,
+    { data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam, signed, reward, sites, measures, subs,
   ] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city, district, location_url").eq("id", c.client_id).maybeSingle(),
     supabase.from("project_stages").select("*").eq("contract_id", c.id).order("seq"),
@@ -174,6 +176,8 @@ export async function loadProject(session: SessionContext, number: string): Prom
     // this project's client: a short map link not read yet is read first (≤ 3 s), so check-in works
     readPendingPins({ orgId, clientIds: [c.client_id], budgetMs: 3000 }).then(() => loadProjectSites(supabase, orgId)),
     measuresP,
+    // subcontractors on this project: their agreements, work and payments (purchases.view under RLS)
+    can(session, "purchases.view") ? loadProjectSubs(supabase, c.id) : Promise.resolve([]),
   ]);
   const extraDays = (addenda ?? []).reduce((s, a) => s + a.extra_days, 0);
   const own = costs?.find((x) => x.id === c.id);
@@ -204,6 +208,7 @@ export async function loadProject(session: SessionContext, number: string): Prom
       owed: measurementTotals(measures.sheets).owed,
     },
     canRefund: can(session, "finance.manage"),
+    subcontractors: subs,
     addenda: (addenda ?? []).map((a) => ({ ...a, total: Number(a.total) })),
     // delivery: the same date as the contract page (start + duration + accepted addenda days)
     dates: { start: c.start_date, delivery: deliveryDate(c.start_date, c.duration_days, extraDays), extraDays, warrantyEnd },
@@ -232,4 +237,25 @@ export async function loadCertificate(session: SessionContext, number: string) {
   ]);
   if (!final) notFound();
   return { contract: { ...c, total: Number(c.total) }, client, final };
+}
+
+async function loadProjectSubs(supabase: Awaited<ReturnType<typeof createClient>>, contractId: string) {
+  const { data: ags } = await supabase.from("subcontractor_agreements").select("id, subcontractor_id, scope, basis, rate, quantity_m2").eq("contract_id", contractId);
+  const ids = (ags ?? []).map((g) => g.id);
+  if (!ids.length) return [];
+  const [{ data: subs }, { data: work }, { data: pays }] = await Promise.all([
+    supabase.from("subcontractors").select("id, number, name").in("id", [...new Set((ags ?? []).map((g) => g.subcontractor_id))]),
+    supabase.from("subcontractor_work").select("agreement_id, amount").in("agreement_id", ids),
+    supabase.from("subcontractor_payments").select("agreement_id, amount").in("agreement_id", ids),
+  ]);
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  return (ags ?? []).map((g) => {
+    const sub = (subs ?? []).find((x) => x.id === g.subcontractor_id);
+    return {
+      number: sub?.number ?? "", name: sub?.name ?? "—", scope: g.scope,
+      agreed: r2(g.basis === "lump" ? Number(g.rate) : Number(g.rate) * Number(g.quantity_m2 ?? 0)),
+      earned: r2((work ?? []).filter((w) => w.agreement_id === g.id).reduce((a, w) => a + Number(w.amount), 0)),
+      paid: r2((pays ?? []).filter((x) => x.agreement_id === g.id).reduce((a, x) => a + Number(x.amount), 0)),
+    };
+  });
 }

@@ -40,7 +40,23 @@ describe("numbers", () => {
   });
 });
 
+describe("numbers stay", () => {
+  it("users can't change a subcontractor's or a voucher's number", async () => {
+    await expectDenied(as({ userId: owner }, (q) => q("update public.subcontractors set number = 'SC-2026-999' where id = $1", [sub])));
+  });
+});
+
 describe("his page", () => {
+  it("someone who sees only some projects can't issue or revoke his page (it shows all his projects)", async () => {
+    const sup = await createUser("966500006004");
+    await as({ userId: owner }, async (q) => {
+      await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'supervisor')", [org, sup]);
+      await q("update public.memberships set project_scope = 'assigned' where organization_id = $1 and user_id = $2", [org, sup]);
+    });
+    await expectDenied(as({ userId: sup }, (q) => q("select public.issue_subcontractor_link($1,$2)", [sub, hash(token())])), /not allowed/);
+    await expectDenied(as({ userId: sup }, (q) => q("select public.revoke_subcontractor_links($1)", [sub])), /not allowed/);
+  });
+
   it("only purchases.manage issues a link; a new link revokes the old one", async () => {
     await expectDenied(as({ userId: viewer }, (q) => q("select public.issue_subcontractor_link($1,$2)", [sub, hash(token())])), /not allowed/);
     const t1 = token();
@@ -61,6 +77,14 @@ describe("his page", () => {
     const voucher = (t: string, n: string) => as("service_role", async (q) => (await q<{ v: unknown }>("select public.subcontractor_portal_voucher($1,$2,$3) as v", [subNumber, t, n])).rows[0].v);
     expect(await voucher(t2, pv)).not.toBeNull();
     expect(await voucher(t1, pv)).toBeNull();
+    // another subcontractor's voucher never opens under his link
+    const other = await as({ userId: owner }, async (q) => {
+      const s2 = (await q<{ id: string }>("insert into public.subcontractors (organization_id, name) values ($1,'مقاول ثاني') returning id", [org])).rows[0].id;
+      const g2 = (await q<{ id: string }>("insert into public.subcontractor_agreements (organization_id, subcontractor_id, contract_id, scope, basis, rate, schedule, auto_progress) values ($1,$2,$3,'دهان','lump',1000,'weekly',false) returning id", [org, s2, contract])).rows[0].id;
+      return g2;
+    });
+    const otherPv = await as({ userId: fin }, async (q) => (await q<{ number: string }>("insert into public.subcontractor_payments (organization_id, agreement_id, paid_on, amount, method) values ($1,$2,current_date,100,'cash') returning number", [org, other])).rows[0].number);
+    expect(await voucher(t2, otherPv)).toBeNull();
     // users can't call the page functions
     await expectDenied(as({ userId: owner }, (q) => q("select public.subcontractor_portal_view($1,$2)", [subNumber, t2])));
     // deactivating him closes the page

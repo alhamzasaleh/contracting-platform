@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DocNo } from "@/components/doc-no";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { subTotals } from "@/lib/subcontractors/statement";
+import { projectHref } from "@/lib/finance";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
@@ -34,13 +35,13 @@ const today = () => new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 
 // --- Subcontractors -----------------------------------------------------------------
 
 /** All his projects in one line: agreed, earned, received, due now. */
-function SubAccount({ own }: { own: SubAgreementView[] }) {
+function SubAccount({ own, all }: { own: SubAgreementView[]; all: boolean }) {
   const t = useTranslations("subs");
   const { fmt } = useFormatter();
   const x = subTotals(own);
   return (
     <div className="grid gap-2 rounded-2xl border border-border p-3">
-      <p className="text-[13px] font-bold">{t("accountTitle", { n: x.projects })}</p>
+      <p className="text-[13px] font-bold">{all ? t("accountTitle", { n: x.projects }) : t("accountTitleSeen", { n: x.projects })}</p>
       <div className="grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-4">
         <Stat label={t("agreed")} value={fmt.money(x.agreed)} />
         <Stat label={t("earned")} value={fmt.money(x.earned)} />
@@ -122,7 +123,7 @@ export type SubActions = {
   issueLink?: Act<{ url: string }>; revokeLinks?: Act;
 };
 
-export function SubcontractorsView({ data, actions, base = "", orgName = "" }: { data: SubcontractorsData; actions?: SubActions; base?: string; orgName?: string }) {
+export function SubcontractorsView({ data, actions, base = "", orgName = "", highlight = null }: { data: SubcontractorsData; actions?: SubActions; base?: string; orgName?: string; /** SC- number from a link (/purchases/subcontractors?s=SC-…): that card is marked */ highlight?: string | null }) {
   const sep = useListSep();
   const t = useTranslations("subs");
   const tp = useTranslations("pricing");
@@ -147,12 +148,15 @@ export function SubcontractorsView({ data, actions, base = "", orgName = "" }: {
       ) : (
         data.subs.map((s) => {
           const own = data.agreements.filter((g) => g.subcontractor_id === s.id);
-          const due = own.reduce((x, g) => x + subSummary(g, g.work.reduce((a, w) => a + w.amount, 0), g.payments.reduce((a, p) => a + p.amount, 0)).due, 0);
+          // one rule everywhere (card, statement, his page, forecast): what he earned less what he received, all projects together
+          const due = Math.max(0, subTotals(own).due);
           return (
-            <section key={s.id} className={cn("grid gap-3 rounded-3xl border border-border bg-surface p-5", !s.is_active && "opacity-60")}>
+            <section key={s.id} id={s.number} className={cn("grid scroll-mt-4 gap-3 rounded-3xl border bg-surface p-5", highlight === s.number ? "border-primary" : "border-border", !s.is_active && "opacity-60")}>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="text-[16px] font-bold">{s.name}</p>
+                  <p className="flex flex-wrap items-center gap-2 text-[16px] font-bold">
+                    {s.name} <span className="text-[12px] font-normal text-muted-foreground"><DocNo>{s.number}</DocNo></span>
+                  </p>
                   <p className="text-[13px] text-muted-foreground">
                     {[s.services.map((x) => tp(`kind_${x}`)).join(sep), s.phone && phoneForInput(s.phone)].filter(Boolean).join(" · ")}
                   </p>
@@ -180,7 +184,7 @@ export function SubcontractorsView({ data, actions, base = "", orgName = "" }: {
                   )}
                 </div>
               </div>
-              {own.length > 0 && <SubAccount own={own} />}
+              {own.length > 0 && <SubAccount own={own} all={data.allProjects !== false} />}
               <div className="flex flex-wrap gap-2">
                 <Button asChild size="sm" variant="secondary">
                   <Link href={`${base}/print/subcontractors/${s.number}/statement`} target="_blank">
@@ -188,7 +192,7 @@ export function SubcontractorsView({ data, actions, base = "", orgName = "" }: {
                   </Link>
                 </Button>
               </div>
-              {data.canManage && s.is_active && <SubLink s={s} link={(data.links ?? []).find((l) => l.subcontractor_id === s.id) ?? null} orgName={orgName} actions={actions} />}
+              {data.canManage && s.is_active && data.allProjects !== false && <SubLink s={s} link={(data.links ?? []).find((l) => l.subcontractor_id === s.id) ?? null} orgName={orgName} actions={actions} />}
               {own.length === 0 && <p className="text-[13px] text-muted-foreground">{t("noAgreements")}</p>}
               {own.map((g) => {
                 const earned = g.work.reduce((a, w) => a + w.amount, 0);
@@ -199,7 +203,14 @@ export function SubcontractorsView({ data, actions, base = "", orgName = "" }: {
                   <div key={g.id} className="grid gap-3 rounded-2xl bg-surface-sunken/50 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-bold">
-                        {p ? `${p.client} · ${ltr(p.number)}` : "—"} — {g.scope}
+                        {p ? (
+                          (() => {
+                            const href = data.projectLinks ? projectHref(p.number, data.projectLinks) : null;
+                            const label = `${p.client} · ${ltr(p.number)}`;
+                            return href ? <Link href={`${base}${href}`} className="hover:text-primary hover:underline">{label}</Link> : label;
+                          })()
+                        ) : "—"}{" "}
+                        — {g.scope}
                       </p>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Badge>{g.basis === "per_m2" ? t("perM2", { rate: fmt.money(g.rate) }) : t("lump")}</Badge>
@@ -251,7 +262,7 @@ export function SubcontractorsView({ data, actions, base = "", orgName = "" }: {
                           .sort((a, b) => (a.date < b.date ? 1 : -1))
                           .slice(0, 8)
                           .map((e) => (
-                            <li key={e.id} className="flex items-center justify-between gap-2 border-t border-border/60 pt-1">
+                            <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-1">
                               <span>
                                 {fmt.date(e.date)} ·{" "}
                                 {e.type === "work"
@@ -270,13 +281,20 @@ export function SubcontractorsView({ data, actions, base = "", orgName = "" }: {
                                   <span className="ms-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{t("autoEntry")}</span>
                                 )}
                               </span>
-                              <span className="flex items-center gap-1">
+                              <span className="flex flex-wrap items-center gap-1">
                                 <span className={cn("font-latin tabular-nums", e.type === "pay" && "text-success")}>
                                   {e.type === "pay" ? "− " : "+ "}
                                   {fmt.money(e.amount)}
                                 </span>
                                 {e.type === "work" && data.canManage && actions && (
                                   <DeleteWork id={e.id} del={actions.deleteWork} />
+                                )}
+                                {e.type === "pay" && (
+                                  <WhatsAppButton
+                                    phone={s.phone}
+                                    label={t("waPaidButton")}
+                                    text={t("waPaid", { name: s.name, amount: fmt.money(e.amount), voucher: ltr(e.number), project: p ? ltr(p.number) : "", org: orgName })}
+                                  />
                                 )}
                               </span>
                             </li>

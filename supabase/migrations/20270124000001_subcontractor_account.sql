@@ -112,6 +112,11 @@ begin
   if s.id is null or not private.has_permission(s.organization_id, 'purchases.manage') then
     raise exception 'not allowed' using errcode = '42501';
   end if;
+  -- his page shows every project he works on: only someone who can see all of them may issue it
+  if exists (select 1 from public.subcontractor_agreements g where g.subcontractor_id = s.id
+             and not private.can_access_contract(g.organization_id, g.contract_id)) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
   if p_token_hash is null or p_token_hash !~ '^[0-9a-f]{64}$' then
     raise exception 'invalid link' using errcode = '22023';
   end if;
@@ -140,6 +145,10 @@ declare
 begin
   select * into s from public.subcontractors where id = p_sub;
   if s.id is null or not private.has_permission(s.organization_id, 'purchases.manage') then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  if exists (select 1 from public.subcontractor_agreements g where g.subcontractor_id = s.id
+             and not private.can_access_contract(g.organization_id, g.contract_id)) then
     raise exception 'not allowed' using errcode = '42501';
   end if;
   update public.subcontractor_portal_links set revoked_at = now() where subcontractor_id = s.id and revoked_at is null;

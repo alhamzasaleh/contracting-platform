@@ -47,7 +47,7 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
   const entitiesP = jobsP.then(({ data: jobs }) => {
     const ids = (t: string) => [...new Set((jobs ?? []).filter((j) => j.entity_type === t).map((j) => j.entity_id))];
     const paysP = ids("contract_payment").length ? rows(supabase.from("contract_payments").select("id, seq, label, contract_id").in("id", ids("contract_payment"))) : Promise.resolve([]);
-    const subPaysP = ids("subcontractor_payment").length ? rows(supabase.from("subcontractor_payments").select("id, paid_on, agreement_id").in("id", ids("subcontractor_payment"))) : Promise.resolve([]);
+    const subPaysP = ids("subcontractor_payment").length ? rows(supabase.from("subcontractor_payments").select("id, number, paid_on, agreement_id").in("id", ids("subcontractor_payment"))) : Promise.resolve([]);
     return Promise.all([
       paysP,
       ids("addendum").length ? rows(supabase.from("addenda").select("id, number").in("id", ids("addendum"))) : [],
@@ -95,7 +95,7 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
     ...ads.map((a) => [a.id, a.number] as [string, string]),
     ...pos.map((p) => [p.id, p.supplier_name ? `${p.number} · ${p.supplier_name}` : p.number] as [string, string]),
     ...runs.map((r) => [r.id, r.month.slice(0, 7)] as [string, string]),
-    ...subPays.map((p) => [p.id, `${subName.get(p.agreement_id) ?? ""} · ${p.paid_on}`] as [string, string]),
+    ...subPays.map((p) => [p.id, `${p.number} · ${subName.get(p.agreement_id) ?? ""} · ${p.paid_on}`] as [string, string]),
     ...petty.map((e) => [e.id, e.supplier_name ? `${e.supplier_name} · ${e.description}` : e.description] as [string, string]),
     ...rewards.map((v) => [v.id, v.number] as [string, string]),
     ...creditRows.map((v) => [v.id, v.number] as [string, string]),

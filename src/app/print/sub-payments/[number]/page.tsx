@@ -1,14 +1,16 @@
 import { BrandStyle } from "@/components/brand-style";
 import { PrintButton } from "@/components/quotes/print-button";
 import { SubVoucherDocument } from "@/components/subcontractors/documents";
-import { requirePermission } from "@/lib/auth/session";
+import { notFound } from "next/navigation";
+import { can, requirePermission } from "@/lib/auth/session";
 import { loadSubVoucher } from "@/lib/data/subcontractors";
 import { orgLogoUrl } from "@/lib/org";
 
-/** A subcontractor payment voucher (SP-) — finance.view, like every money document. */
+/** A subcontractor payment voucher (SP-) — finance.view (money document) and purchases.view (the subcontractor, his agreement). */
 export default async function PrintSubVoucherPage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
   const session = await requirePermission("finance.view");
+  if (!can(session, "purchases.view")) notFound();
   const o = session.organization;
   const n = decodeURIComponent(number);
   const [doc, logoUrl] = await Promise.all([loadSubVoucher(session, n), orgLogoUrl(o)]);

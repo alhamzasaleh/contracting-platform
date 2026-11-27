@@ -292,7 +292,12 @@
       "marketer_commissions": "Success partner reward",
       "commission_payments": "Reward payment voucher",
       "marketer_portal_links": "Partner page link",
-      "project_sites": "Project site"
+      "project_sites": "Project site",
+      "subcontractors": "Subcontractor",
+      "subcontractor_payments": "Subcontractor payment voucher",
+      "subcontractor_portal_links": "Subcontractor page link",
+      "contract_measurements": "Measurement sheet",
+      "credit_notes": "Credit note"
     },
     "fields": {
       "marketer_id": "Success partner",
@@ -304,7 +309,8 @@
       "commission_setup_at": "Rewards account setup",
       "latitude": "Latitude",
       "longitude": "Longitude",
-      "location_url": "Location link"
+      "location_url": "Location link",
+      "number": "Number"
     }
   },
   "permissions": {
@@ -2270,7 +2276,11 @@
     "savedOffline": "Saved on this device — it will be sent when you are back online",
     "recordPurchase": "Record purchase for project",
     "materialsTable": "Bill of quantities",
-    "framingPlan": "Metal framing plan"
+    "framingPlan": "Metal framing plan",
+    "subsTitle": "Subcontractors",
+    "subsAgreed": "Agreed {v}",
+    "subsEarned": "Earned {v}",
+    "subsPaid": "Paid {v}"
   },
   "addenda": {
     "estimate": "Estimated cost",
@@ -2410,7 +2420,10 @@
     "balance": "Balance",
     "statementEmpty": "No entries yet.",
     "paymentLine": "Payment",
-    "statementNote": "Balance = value of recorded work done less amounts paid. A positive balance is owed to the subcontractor."
+    "statementNote": "Balance = value of recorded work done less amounts paid. A positive balance is owed to the subcontractor.",
+    "accountTitleSeen": "His account in the projects you can see ({n})",
+    "waPaidButton": "Tell him by WhatsApp",
+    "waPaid": "Hello {name}, {amount} was paid to you — voucher {voucher} for project {project}. You can see it on your page. Thank you — {org}"
   },
   "petty": {
     "newAccount": "New petty cash account",

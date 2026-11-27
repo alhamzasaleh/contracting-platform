@@ -47,6 +47,10 @@ export type SubcontractorsData = {
   links?: { subcontractor_id: string; created_at: string; expires_at: string }[];
   /** finance.view: opens the payment vouchers */
   canSeeVouchers?: boolean;
+  /** the viewer sees every project (owner or project scope «all»): totals are his whole account and his page link can be issued */
+  allProjects?: boolean;
+  /** project links: /contracts (quotes.view) else /projects (projects.view) else text */
+  projectLinks?: { contracts: boolean; projects: boolean };
   agreements: SubAgreementView[];
   projects: ProjectRef[];
   canManage: boolean;
@@ -59,7 +63,7 @@ export async function loadSubcontractors(session: SessionContext): Promise<Subco
   const supabase = await createClient();
   const orgId = session.organization.id;
   const agreementsP = once(supabase.from("subcontractor_agreements").select("id, subcontractor_id, contract_id, scope, basis, rate, quantity_m2, schedule, status, auto_progress, review_addendum_id, review_measurement_id").eq("organization_id", orgId).order("created_at", { ascending: false }));
-  const [{ data: subs }, { data: agreements }, { data: work }, { data: payments }, projectList, reviewAds, rates, links] = await Promise.all([
+  const [{ data: subs }, { data: agreements }, { data: work }, { data: payments }, projectList, reviewAds, rates, links, { data: me }] = await Promise.all([
     supabase.from("subcontractors").select("id, number, name, phone, services, iban, vat_number, notes, is_active").eq("organization_id", orgId).order("name"),
     agreementsP,
     supabase.from("subcontractor_work").select("id, agreement_id, work_date, quantity_m2, percent, amount, note, auto").eq("organization_id", orgId).order("work_date", { ascending: false }).limit(5000),
@@ -81,10 +85,13 @@ export async function loadSubcontractors(session: SessionContext): Promise<Subco
     can(session, "purchases.manage")
       ? rows(supabase.from("subcontractor_portal_links").select("subcontractor_id, created_at, expires_at").eq("organization_id", orgId).is("revoked_at", null).gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }))
       : Promise.resolve([] as { subcontractor_id: string; created_at: string; expires_at: string }[]),
+    supabase.from("memberships").select("project_scope").eq("organization_id", orgId).eq("user_id", session.userId).maybeSingle(),
   ]);
   return {
     subs: subs ?? [],
     links,
+    allProjects: session.role === "owner" || (me?.project_scope ?? "all") === "all",
+    projectLinks: { contracts: can(session, "quotes.view"), projects: can(session, "projects.view") },
     canSeeVouchers: can(session, "finance.view"),
     agreements: (agreements ?? []).map(({ review_addendum_id, review_measurement_id, ...g }) => ({
       ...g, review: review_addendum_id || review_measurement_id ? (reviewAds?.find((a) => a.id === (review_addendum_id ?? review_measurement_id))?.number ?? null) : null, rate: n(g.rate), quantity_m2: g.quantity_m2 == null ? null : n(g.quantity_m2),

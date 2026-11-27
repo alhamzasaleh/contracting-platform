@@ -364,7 +364,8 @@ export function autoSetupNext(cur: Partial<SetupState> | null | undefined, auto:
   };
 }
 export const billPaymentRef = (purchaseNumber: string) => `${purchaseNumber}/PAID`;
-/** Subcontractor payments and petty-cash expenses have no document number: a short, unique id. */
+/** Petty-cash expenses have no document number: a short, unique id. Subcontractor payments keep it as their
+ * reference (jobs already sent must be found again); their SP- voucher number leads the description. */
 const shortId = (uuid: string) => uuid.replace(/-/g, "").slice(0, 12).toUpperCase();
 export const subcontractorBillRef = (paymentId: string) => `SUB-${shortId(paymentId)}`;
 export const pettyBillRef = (entryId: string) => `PC-${shortId(entryId)}`;

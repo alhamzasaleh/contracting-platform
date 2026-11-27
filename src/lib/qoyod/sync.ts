@@ -198,7 +198,7 @@ async function companyVatPercent(ctx: Ctx): Promise<number> {
 async function billSource(ctx: Ctx, job: QoyodJobRow): Promise<BillSource> {
   const { admin, s } = ctx;
   if (job.entity_type === "subcontractor_payment") {
-    const { data: p } = await admin.from("subcontractor_payments").select("id, agreement_id, paid_on, amount, reference, note").eq("id", job.entity_id).single();
+    const { data: p } = await admin.from("subcontractor_payments").select("id, number, agreement_id, paid_on, amount, reference, note").eq("id", job.entity_id).single();
     const pay = need(p, "subcontractor_payment");
     const { data: g } = await admin.from("subcontractor_agreements").select("subcontractor_id, contract_id, scope").eq("id", pay.agreement_id).single();
     const agr = need(g, "agreement");
@@ -214,7 +214,8 @@ async function billSource(ctx: Ctx, job: QoyodJobRow): Promise<BillSource> {
     const amounts = subcontractorBillAmounts(Number(pay.amount), vatPercent, sub?.vat_number);
     return {
       reference: subcontractorBillRef(pay.id), contactId, issueDate: pay.paid_on, expenseAccountId,
-      description: [c?.number, agr.scope, pay.reference].filter(Boolean).join(" — ").slice(0, 250), ...amounts,
+      // the voucher number first (SP-…) so it is found in Qoyod; the reference stays the earlier one (no duplicates for jobs already sent)
+      description: [pay.number, c?.number, agr.scope, pay.reference].filter(Boolean).join(" — ").slice(0, 250), ...amounts,
     };
   }
   if (job.entity_type === "commission_payment") {
@@ -253,10 +254,10 @@ async function billSource(ctx: Ctx, job: QoyodJobRow): Promise<BillSource> {
 async function billPayment(ctx: Ctx, job: QoyodJobRow): Promise<{ billRef: string; reference: string; from: "bank" | "cash"; cashAccountId?: number; date: string; amount: number; description: string }> {
   const { admin } = ctx;
   if (job.entity_type === "subcontractor_payment") {
-    const { data: p } = await admin.from("subcontractor_payments").select("id, paid_on, amount, method, reference").eq("id", job.entity_id).single();
+    const { data: p } = await admin.from("subcontractor_payments").select("id, number, paid_on, amount, method, reference").eq("id", job.entity_id).single();
     const pay = need(p, "subcontractor_payment");
     const ref = subcontractorBillRef(pay.id);
-    return { billRef: `sb:${pay.id}`, reference: billPaymentRef(ref), from: pay.method === "cash" ? "cash" : "bank", date: pay.paid_on, amount: Number(job.amount ?? pay.amount), description: pay.reference ? `${ref} — ${pay.reference}` : ref };
+    return { billRef: `sb:${pay.id}`, reference: billPaymentRef(ref), from: pay.method === "cash" ? "cash" : "bank", date: pay.paid_on, amount: Number(job.amount ?? pay.amount), description: [pay.number, ref, pay.reference].filter(Boolean).join(" — ") };
   }
   if (job.entity_type === "commission_payment") {
     const { data: p } = await admin.from("commission_payments").select("id, number, paid_on, amount, method, reference").eq("id", job.entity_id).single();

@@ -81,4 +81,7 @@ it("every staff PDF document has a print page behind it", () => {
   const kinds = STAFF_DOCS.source.match(/\^\(([^)]*)\)/)![1].split("|").concat("payroll");
   const missing = kinds.filter((k) => !routes.some((r) => r.re.test(`/print/${k}/X`)));
   expect(missing).toEqual([]);
+  // the subcontractor statement (its own pattern)
+  expect(STAFF_DOCS.test("subcontractors/SC-2026-001/statement")).toBe(true);
+  expect(routes.some((r) => r.re.test("/print/subcontractors/X/statement"))).toBe(true);
 });

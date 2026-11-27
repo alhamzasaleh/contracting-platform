@@ -292,7 +292,12 @@
       "marketer_commissions": "مكافأة شريك نجاح",
       "commission_payments": "سند صرف مكافأة",
       "marketer_portal_links": "رابط صفحة شريك النجاح",
-      "project_sites": "موقع المشروع"
+      "project_sites": "موقع المشروع",
+      "subcontractors": "مقاول باطن",
+      "subcontractor_payments": "سند صرف مقاول",
+      "subcontractor_portal_links": "رابط صفحة المقاول",
+      "contract_measurements": "كشف قياس",
+      "credit_notes": "إشعار دائن"
     },
     "fields": {
       "marketer_id": "شريك النجاح",
@@ -304,7 +309,8 @@
       "commission_setup_at": "إعداد حساب المكافآت",
       "latitude": "خط العرض",
       "longitude": "خط الطول",
-      "location_url": "رابط الموقع"
+      "location_url": "رابط الموقع",
+      "number": "الرقم"
     }
   },
   "permissions": {
@@ -2270,7 +2276,11 @@
     "savedOffline": "انحفظ على جهازك — بيرسل تلقائياً أول ما يرجع الاتصال",
     "recordPurchase": "تسجيل مشتريات للمشروع",
     "materialsTable": "جدول الكميات",
-    "framingPlan": "رسمة الهيكل الحديدي"
+    "framingPlan": "رسمة الهيكل الحديدي",
+    "subsTitle": "مقاولو الباطن",
+    "subsAgreed": "المتفق {v}",
+    "subsEarned": "المنجز {v}",
+    "subsPaid": "المصروف {v}"
   },
   "addenda": {
     "estimate": "التكلفة التقديرية",
@@ -2410,7 +2420,10 @@
     "balance": "الرصيد",
     "statementEmpty": "ما فيه حركات بعد.",
     "paymentLine": "دفعة مصروفة",
-    "statementNote": "الرصيد = قيمة الأعمال المنجزة المسجلة ناقص المبالغ المصروفة. الرصيد الموجب مستحق للمقاول."
+    "statementNote": "الرصيد = قيمة الأعمال المنجزة المسجلة ناقص المبالغ المصروفة. الرصيد الموجب مستحق للمقاول.",
+    "accountTitleSeen": "حسابه في المشاريع اللي تشوفها ({n})",
+    "waPaidButton": "إبلاغه بالواتساب",
+    "waPaid": "أهلاً {name}، انصرف لك {amount} — سند الصرف {voucher} عن المشروع {project}. تقدر تشوفه في صفحتك. شكراً لك — {org}"
   },
   "petty": {
     "newAccount": "عهدة جديدة",

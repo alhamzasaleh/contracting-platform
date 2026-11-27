@@ -79,6 +79,7 @@ export const SAMPLE_PROJECT: ProjectDetail = {
     owed: 0,
   },
   canRefund: true,
+  subcontractors: [{ number: "SC-2026-001", name: "مؤسسة الإتقان للجبس", scope: "تركيب أسقف الدور الأرضي", agreed: 6000, earned: 4200, paid: 1800 }],
   addenda: [{ number: "AD-2026-001", title: "بيت إنارة إضافي في المجلس", total: 1800, payment_status: "requested", extra_days: 3 }],
   dates: { start: "2026-11-21", delivery: "2026-12-07", extraDays: 3, warrantyEnd: null },
   cost: { estimated: 8100, materials: 5200, actual: 6420, reward: { id: "k1", marketer: "سعد بن فهد الدوسري", percent: 5, amount: 2300, status: "due", voucher: null, canOpenPartners: true, canOpenVoucher: true } },

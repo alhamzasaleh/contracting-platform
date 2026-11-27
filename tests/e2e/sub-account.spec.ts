@@ -33,3 +33,9 @@ test("payment voucher document", async ({ page }) => {
   await expect(doc.getByText("سند صرف")).toBeVisible();
   await expect(doc.getByText(/مؤسسة الإتقان للجبس/).first()).toBeVisible();
 });
+
+test("project page: its subcontractors, linked to their card", async ({ page }) => {
+  await page.goto("/dev/preview/projects/detail");
+  const box = page.getByTestId("project-subs");
+  await expect(box.getByRole("link", { name: /مؤسسة الإتقان للجبس/ })).toHaveAttribute("href", "/dev/preview/purchases/subcontractors?s=SC-2026-001#SC-2026-001");
+});

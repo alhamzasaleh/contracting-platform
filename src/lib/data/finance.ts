@@ -130,6 +130,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
           supabase.from("subcontractor_payments").select("agreement_id, amount").eq("organization_id", orgId).limit(20000),
           supabase.from("purchases").select("number, total").eq("organization_id", orgId).eq("status", "pending_approval"),
           supabase.from("petty_cash_entries").select("account_id, kind, amount").eq("organization_id", orgId).limit(20000),
+          supabase.from("subcontractor_agreements").select("id, subcontractor_id").eq("organization_id", orgId).limit(20000),
         ])
       : Promise.resolve(null),
     loadProjectCosts(session),
@@ -211,10 +212,14 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     outflows.push(...payrollFlows(paydays(today, payday, horizon), runNets, payroll, statutory));
   }
   if (spend) {
-    const [{ data: work }, { data: paid }, { data: pending }, { data: petty }] = spend;
-    const earned = (work ?? []).reduce((s, w) => s + n(w.amount), 0);
-    const paidSubs = (paid ?? []).reduce((s, p) => s + n(p.amount), 0);
-    if (earned - paidSubs > 0.005) outflows.push({ date: today, amount: r2(earned - paidSubs), label: "subcontractors", kind: "subcontractors" });
+    const [{ data: work }, { data: paid }, { data: pending }, { data: petty }, { data: subAgreements }] = spend;
+    // what each subcontractor is owed (earned − received, all his projects): one paid ahead never lowers another's due
+    const subOf = new Map((subAgreements ?? []).map((g) => [g.id, g.subcontractor_id]));
+    const owedBySub = new Map<string, number>();
+    for (const w of work ?? []) owedBySub.set(subOf.get(w.agreement_id) ?? w.agreement_id, (owedBySub.get(subOf.get(w.agreement_id) ?? w.agreement_id) ?? 0) + n(w.amount));
+    for (const p of paid ?? []) owedBySub.set(subOf.get(p.agreement_id) ?? p.agreement_id, (owedBySub.get(subOf.get(p.agreement_id) ?? p.agreement_id) ?? 0) - n(p.amount));
+    const subsDue = [...owedBySub.values()].reduce((a, v) => a + Math.max(0, v), 0);
+    if (subsDue > 0.005) outflows.push({ date: today, amount: r2(subsDue), label: "subcontractors", kind: "subcontractors" });
     for (const p of pending ?? []) outflows.push({ date: today, amount: n(p.total), label: p.number, kind: "purchase" });
     // a holder who fronted money (negative petty cash) is reimbursed now
     const byAccount = new Map<string, number>();
