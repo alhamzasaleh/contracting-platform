@@ -5,7 +5,18 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import type { ShellData } from "./types";
 
-export function AppShell({ data, banner, children }: { data: ShellData; banner?: React.ReactNode; children: React.ReactNode }) {
+export function AppShell({
+  data,
+  banner,
+  children,
+  assistantAsk,
+}: {
+  data: ShellData;
+  banner?: React.ReactNode;
+  children: React.ReactNode;
+  /** design preview: the floating assistant answers with a fixed reply */
+  assistantAsk?: React.ComponentProps<typeof AssistantLauncher>["ask"];
+}) {
   return (
     <div className="flex min-h-dvh">
       <Sidebar data={data} />
@@ -17,7 +28,7 @@ export function AppShell({ data, banner, children }: { data: ShellData; banner?:
           {children}
           <Rights name={data.org.name} />
         </main>
-        {data.assistant && <AssistantLauncher ready={data.assistant.ready} preview={!!data.basePath} />}
+        {data.assistant && <AssistantLauncher ready={data.assistant.ready} preview={!!data.basePath} ask={assistantAsk} />}
       </div>
     </div>
   );

@@ -5,13 +5,24 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { askFinanceAssistant } from "@/app/(app)/assistant/actions";
+import type { ActionResult } from "@/lib/actions";
+import type { AssistantAnswer } from "@/lib/ai/assistant";
 import { AssistantView } from "./assistant-view";
 
 /**
  * Small floating assistant button on every page (finance users). The panel stays
  * mounted while hidden, so the conversation survives moving between pages.
  */
-export function AssistantLauncher({ ready, preview }: { ready: boolean; preview?: boolean }) {
+export function AssistantLauncher({
+  ready,
+  preview,
+  ask,
+}: {
+  ready: boolean;
+  preview?: boolean;
+  /** the design preview's stand-in (a fixed answer); the app uses the real assistant */
+  ask?: (i: unknown) => Promise<ActionResult<AssistantAnswer>>;
+}) {
   const t = useTranslations("assistant");
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
@@ -63,7 +74,7 @@ export function AssistantLauncher({ ready, preview }: { ready: boolean; preview?
             </div>
           </header>
           <div className="min-h-0 flex-1 p-3">
-            <AssistantView compact ready={ready} ask={preview ? undefined : askFinanceAssistant} onNavigate={() => setOpen(false)} />
+            <AssistantView compact ready={ready} ask={ask ?? (preview ? undefined : askFinanceAssistant)} onNavigate={() => setOpen(false)} />
           </div>
         </section>
       )}

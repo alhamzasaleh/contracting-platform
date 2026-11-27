@@ -33,6 +33,7 @@ export function AssistantView({ ready, ask, base = "", sample, compact, onNaviga
   const [listening, setListening] = React.useState(false);
   const canSpeak = React.useSyncExternalStore(noop, () => !!speechRecognition(), () => false);
   const rec = React.useRef<Recognition | null>(null);
+  const asking = React.useRef(false);
   const end = React.useRef<HTMLDivElement>(null);
 
   // braces on purpose: newer Chrome returns a Promise from scrollIntoView, and an effect must return
@@ -43,12 +44,16 @@ export function AssistantView({ ready, ask, base = "", sample, compact, onNaviga
 
   const send = (text: string) => {
     const question = text.trim();
-    if (question.length < 2 || !ask) return;
+    // one question at a time: Enter pressed twice must not send a second before the first answer
+    // (a ref, not `pending`: two presses can land before React re-renders)
+    if (question.length < 2 || !ask || asking.current) return;
+    asking.current = true;
     const history = msgs.slice(-8).map((m) => ({ role: m.role, text: m.role === "assistant" && m.answer ? m.answer.answer : m.text }));
     setMsgs((m) => [...m, { role: "user", text: question }]);
     setQ("");
     start(async () => {
       const r = await settle(() => ask({ question, history }));
+      asking.current = false;
       if (r.ok && r.data) setMsgs((m) => [...m, { role: "assistant", text: r.data!.answer, answer: r.data }]);
       else setMsgs((m) => [...m, { role: "assistant", error: true, text: (!r.ok && failure(r.error)) || (t.has(`e_${r.ok ? "aiFailed" : r.error}`) ? t(`e_${r.ok ? "aiFailed" : r.error}`) : t("e_aiFailed")) }]);
     });

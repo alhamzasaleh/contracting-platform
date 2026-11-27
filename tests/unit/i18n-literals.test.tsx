@@ -13,7 +13,9 @@ const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((f) => {
     const p = join(dir, f);
     if (statSync(p).isDirectory()) return p.includes(join("dev", "preview")) ? [] : walk(p);
-    return /\.tsx$/.test(f) ? [p] : [];
+    // global-error.tsx renders without the messages (the root layout failed): its fixed text lives in
+    // src/lib/error-page.ts
+    return /\.tsx$/.test(f) && f !== "global-error.tsx" ? [p] : [];
   });
 const files = ROOTS.flatMap((r) => walk(join(process.cwd(), r)));
 
