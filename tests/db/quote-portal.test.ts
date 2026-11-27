@@ -55,7 +55,7 @@ beforeAll(async () => {
     client = (await q<{ id: string }>("insert into public.clients (organization_id, name, phone) values ($1,'أبو فهد','966511119999') returning id", [org])).rows[0].id;
   });
   await as({ userId: other }, async (q) => {
-    clientB = (await q<{ id: string }>("insert into public.clients (organization_id, name) values ($1,'عميل ب') returning id", [orgB])).rows[0].id;
+    clientB = (await q<{ id: string }>("insert into public.clients (organization_id, phone, name) values ($1,'966500008888','عميل ب') returning id", [orgB])).rows[0].id;
   });
 });
 afterAll(closePool);

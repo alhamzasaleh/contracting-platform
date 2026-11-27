@@ -27,7 +27,7 @@ describe("clients and surveys", () => {
   it("numbers clients and surveys per organization and year", async () => {
     const r = await as({ userId: owner }, async (q) => {
       const c = await q<{ id: string; number: string }>("insert into public.clients (organization_id, name, phone) values ($1, 'أبو محمد', '966551234567') returning id, number", [org]);
-      const c2 = await q<{ number: string }>("insert into public.clients (organization_id, name) values ($1, 'شركة البناء') returning number", [org]);
+      const c2 = await q<{ number: string }>("insert into public.clients (organization_id, phone, name) values ($1,'966500008888', 'شركة البناء') returning number", [org]);
       const s = await q<{ id: string; number: string }>("insert into public.surveys (organization_id, client_id, mode) values ($1, $2, 'rooms') returning id, number", [org, c.rows[0].id]);
       return { c: c.rows[0], c2: c2.rows[0].number, s: s.rows[0] };
     });
@@ -40,7 +40,7 @@ describe("clients and surveys", () => {
 
   it("rejects bad data and number changes", async () => {
     await expectDenied(as({ userId: owner }, (q) => q("insert into public.clients (organization_id, name, phone) values ($1, 'x y', '05-55')", [org])));
-    await expectDenied(as({ userId: owner }, (q) => q("insert into public.clients (organization_id, name, location_url) values ($1, 'x y', 'javascript:alert(1)')", [org])));
+    await expectDenied(as({ userId: owner }, (q) => q("insert into public.clients (organization_id, phone, name, location_url) values ($1,'966500008888', 'x y', 'javascript:alert(1)')", [org])));
     await expectDenied(as({ userId: owner }, (q) => q("update public.clients set number = 'CL-1' where id = $1", [client])), /cannot change/);
   });
 
@@ -55,7 +55,7 @@ describe("clients and surveys", () => {
   it("viewers read, only managers write; other organizations see nothing", async () => {
     const v = await as({ userId: viewer }, (q) => q("select count(*)::int as n from public.clients"));
     expect(v.rows[0].n).toBe(2);
-    await expectDenied(as({ userId: viewer }, (q) => q("insert into public.clients (organization_id, name) values ($1, 'x y')", [org])));
+    await expectDenied(as({ userId: viewer }, (q) => q("insert into public.clients (organization_id, phone, name) values ($1,'966500008888', 'x y')", [org])));
     const b = await as({ userId: ownerB }, (q) => q("select (select count(*)::int from public.clients) + (select count(*)::int from public.surveys) + (select count(*)::int from public.survey_rooms) as n"));
     expect(b.rows[0].n).toBe(0);
     await expectDenied(

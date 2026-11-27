@@ -5,7 +5,7 @@ import type { ClientDetail, ClientListItem, SurveyDetail } from "@/lib/data/clie
 export const SAMPLE_CLIENTS: ClientListItem[] = [
   { id: "c1", number: "CL-2026-003", name: "أبو محمد العتيبي", phone: "966551234567", city: "الرياض", surveys: 1, quotes: 2, created_at: "2026-11-20T09:00:00Z" },
   { id: "c2", number: "CL-2026-002", name: "شركة البناء المتقن", phone: "966501112233", city: "الرياض", surveys: 2, quotes: 1, created_at: "2026-11-12T09:00:00Z" },
-  { id: "c3", number: "CL-2026-001", name: "م. سارة القحطاني", phone: null, city: "الخرج", surveys: 0, quotes: 0, created_at: "2026-11-02T09:00:00Z" },
+  { id: "c3", number: "CL-2026-001", name: "م. سارة القحطاني", phone: "966537000044", city: "الخرج", surveys: 0, quotes: 0, created_at: "2026-11-02T09:00:00Z" },
 ];
 
 export const SAMPLE_CLIENT_DETAIL: ClientDetail = {

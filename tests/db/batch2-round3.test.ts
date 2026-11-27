@@ -44,7 +44,7 @@ beforeAll(async () => {
   org = await as({ userId: owner }, async (q) => (await q<{ id: string }>("select public.create_organization('Org R3') as id")).rows[0].id);
   await as({ userId: owner }, async (q) => {
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'supervisor'),($1,$3,'supervisor')", [org, sup, restricted]);
-    client = (await q<{ id: string }>("insert into public.clients (organization_id, name) values ($1,'عميل') returning id", [org])).rows[0].id;
+    client = (await q<{ id: string }>("insert into public.clients (organization_id, phone, name) values ($1,'966500008888','عميل') returning id", [org])).rows[0].id;
   });
   // quotes.manage, but limited to assigned projects (none)
   await asAdmin((q) => q("update public.memberships set permission_overrides = '{\"grant\":[\"quotes.manage\"]}', project_scope = 'assigned' where organization_id = $1 and user_id = $2", [org, restricted]));

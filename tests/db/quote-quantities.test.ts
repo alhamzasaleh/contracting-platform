@@ -37,7 +37,7 @@ beforeAll(async () => {
     ),
   );
   version = await as({ userId: owner }, async (q) => {
-    const client = (await q<{ id: string }>("insert into public.clients (organization_id, name) values ($1,'أبو سعد') returning id", [org])).rows[0].id;
+    const client = (await q<{ id: string }>("insert into public.clients (organization_id, phone, name) values ($1,'966500008888','أبو سعد') returning id", [org])).rows[0].id;
     const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'exterior') returning id", [org, client])).rows[0].id;
     const v = (await asServer<{ id: string }>(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, vat_percent, vat, total) values ($1,$2,1,'{}','{}','{}',1000,0,0,1000) returning id", [org, quote])).rows[0].id;
     await asServer(q, "insert into public.quote_version_costs (quote_version_id, organization_id, cost, cost_with_contingency, margin_percent, lines, purchase_list) values ($1,$2,650,680,30,$3::jsonb,$4::jsonb)", [v, org, JSON.stringify(LINES), JSON.stringify(LIST)]);

@@ -468,13 +468,7 @@ export function ContractView({
                 >
                   {copied ? <Check /> : <Copy />} {copied ? t("copied") : t("copy")}
                 </Button>
-                {phone && (
-                  <Button asChild size="sm">
-                    <a href={`https://wa.me/${phone}?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer">
-                      <MessageCircle /> {t("sendWhatsapp")}
-                    </a>
-                  </Button>
-                )}
+                <WhatsAppButton phone={phone} text={message} label={t("sendWhatsapp")} variant="primary" />
               </div>
             </div>
           )}

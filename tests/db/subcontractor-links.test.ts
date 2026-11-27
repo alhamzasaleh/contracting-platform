@@ -49,7 +49,7 @@ describe("booking a subcontractor's team prepares his agreement", () => {
     const { rows: [rate] } = await asAdmin((q) => q<{ id: string }>("select id from public.labour_rates where subcontractor_id = $1 and basis = 'external_per_unit'", [sub.id]));
     const { rows: [team] } = await asAdmin((q) => q<{ id: string }>("select id from public.teams where subcontractor_id = $1", [sub.id]));
     const contract = await as({ userId: owner }, async (q) => {
-      const client = (await q<{ id: string }>("insert into public.clients (organization_id, name) values ($1,'عميل') returning id", [org])).rows[0].id;
+      const client = (await q<{ id: string }>("insert into public.clients (organization_id, phone, name) values ($1,'966500008888','عميل') returning id", [org])).rows[0].id;
       const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service) values ($1,$2,'exterior') returning id", [org, client])).rows[0].id;
       await asServer(q,
         `insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total)

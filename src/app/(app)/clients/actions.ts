@@ -17,6 +17,7 @@ import { readFacade } from "@/lib/ai/facade";
 import { cleanFacade, elevationSheetSchema, printedLevels, facadesSchema, facadesTotal, type ElevationSheet, type Facade } from "@/lib/survey/facade";
 import { cleanPlanDraft, planSheetSchema, PLAN_SHEET_MAX_BYTES, PLAN_TILE_MAX_BYTES, type PlanSheet } from "@/lib/survey/plan";
 import { clientDbError } from "@/lib/marketers";
+import { clientPhone } from "@/lib/validation/client-phone";
 import { pinToSave, type LatLng } from "@/lib/geo";
 import { linkCoords } from "@/lib/geo-server";
 import { reversePlace, type Place } from "@/lib/geo-place";
@@ -51,14 +52,9 @@ const clientSchema = z
   .object({
     id: id.optional(),
     name: z.string().trim().min(2, "required").max(160),
-    // Saudi mobile: 05xxxxxxxx or 9665xxxxxxxx → stored as 9665xxxxxxxx
-    phone: z.preprocess((v) => {
-      const d = digits(v);
-      if (typeof d !== "string" || d === "") return null;
-      if (/^05\d{8}$/.test(d)) return `966${d.slice(1)}`;
-      if (/^5\d{8}$/.test(d)) return `966${d}`;
-      return d;
-    }, z.string().regex(/^\d{8,15}$/, "phoneInvalid").nullable()),
+    // required (owner, Nov 2026): WhatsApp, the client page and the contract use it.
+    // Saudi mobile: 05xxxxxxxx or 9665xxxxxxxx → stored as 9665xxxxxxxx (an international number as typed)
+    phone: clientPhone,
     city: optionalText(80),
     district: optionalText(80),
     // national ID / iqama / CR — needed to name the second party in the contract
@@ -103,6 +99,8 @@ export async function saveClient(input: unknown): Promise<ActionResult<{ number:
     ? ctx.supabase.from("clients").update(data).eq("id", clientId).eq("organization_id", ctx.orgId).select("number").single()
     : ctx.supabase.from("clients").insert({ ...data, organization_id: ctx.orgId }).select("number").single();
   const { data: row, error } = await q;
+  // the database's own rule (a client always has a phone): shown on the phone field
+  if (error?.message.includes("client phone required")) return { ok: false, error: "invalid", fieldErrors: { phone: "required" } };
   return dbError(error) ?? done({ number: row!.number });
 }
 

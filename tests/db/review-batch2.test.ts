@@ -68,7 +68,7 @@ beforeAll(async () => {
   await as({ userId: owner }, async (q) => {
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'supervisor'),($1,$3,'finance'),($1,$4,'viewer'),($1,$5,'supervisor')", [org, sup, fin, viewer, restricted]);
     await q("update public.memberships set project_scope = 'assigned' where organization_id = $1 and user_id = $2", [org, restricted]);
-    client = (await q<{ id: string }>("insert into public.clients (organization_id, name) values ($1,'عميل') returning id", [org])).rows[0].id;
+    client = (await q<{ id: string }>("insert into public.clients (organization_id, phone, name) values ($1,'966500008888','عميل') returning id", [org])).rows[0].id;
     await q("insert into public.pricing_settings (organization_id, min_margin_percent) values ($1, 20) on conflict (organization_id) do update set min_margin_percent = 20", [org]);
   });
 });

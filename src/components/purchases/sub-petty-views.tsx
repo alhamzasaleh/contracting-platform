@@ -1,4 +1,5 @@
 "use client";
+import { phoneForInput } from "@/lib/validation/client-phone";
 import { AlertTriangle, Banknote, Camera, HardHat, Plus, Receipt, Sparkles, Trash2, Wallet } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -62,7 +63,7 @@ export function SubcontractorsView({ data, actions }: { data: SubcontractorsData
                 <div>
                   <p className="text-[16px] font-bold">{s.name}</p>
                   <p className="text-[13px] text-muted-foreground">
-                    {[s.services.map((x) => tp(`kind_${x}`)).join(sep), s.phone && `0${s.phone.slice(3)}`].filter(Boolean).join(" · ")}
+                    {[s.services.map((x) => tp(`kind_${x}`)).join(sep), s.phone && phoneForInput(s.phone)].filter(Boolean).join(" · ")}
                   </p>
                   {(data.rates ?? []).some((r) => r.subcontractor_id === s.id) && (
                     <p className="text-[12px] text-muted-foreground">
@@ -225,7 +226,7 @@ function SubDialog({ initial, onClose, save }: { initial: Partial<Subcontractors
   const tp = useTranslations("pricing");
   const { run, pending, fieldText } = useActionRunner();
   const [name, setName] = React.useState(initial.name ?? "");
-  const [phone, setPhone] = React.useState(initial.phone ? `0${initial.phone.slice(3)}` : "");
+  const [phone, setPhone] = React.useState(phoneForInput(initial.phone));
   const [services, setServices] = React.useState<ServiceKind[]>(initial.services ?? []);
   const [vat, setVat] = React.useState(initial.vat_number ?? "");
   const [iban, setIban] = React.useState(initial.iban ?? "");

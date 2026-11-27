@@ -1183,6 +1183,7 @@
     "emptyBody": "Client, survey, quote — all in one place.",
     "name": "Client name",
     "phone": "Mobile",
+    "phoneRequiredHint": "Used for WhatsApp, sending the client page link, and the contract",
     "phoneInvalid": "Invalid mobile number",
     "city": "City",
     "district": "District",

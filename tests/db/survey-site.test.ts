@@ -25,7 +25,7 @@ beforeAll(async () => {
     await q("select public.seed_starter_catalogue($1)", [org]);
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'supervisor'), ($1,$3,'viewer')", [org, sup, viewer]);
     // the client's own site (his house)
-    client = (await q<{ id: string }>("insert into public.clients (organization_id, name, latitude, longitude) values ($1,'عميل',24.7000,46.6000) returning id", [org])).rows[0].id;
+    client = (await q<{ id: string }>("insert into public.clients (organization_id, phone, name, latitude, longitude) values ($1,'966500008888','عميل',24.7000,46.6000) returning id", [org])).rows[0].id;
     // the survey at a second villa, booked before the visit
     survey = (await q<{ id: string }>("insert into public.surveys (organization_id, client_id, mode, visit_date, visit_time, latitude, longitude, site_city, site_district) values ($1,$2,'rooms','2026-12-01','09:30',24.8031,46.6105,'الرياض','الملقا') returning id", [org, client])).rows[0].id;
     const quote = (await q<{ id: string }>("insert into public.quotes (organization_id, client_id, service, survey_id) values ($1,$2,'gypsum',$3) returning id", [org, client, survey])).rows[0].id;

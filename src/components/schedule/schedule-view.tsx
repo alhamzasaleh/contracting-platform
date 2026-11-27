@@ -1,4 +1,5 @@
 "use client";
+import { phoneForInput } from "@/lib/validation/client-phone";
 import { DocNo } from "@/components/doc-no";
 import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, Pencil, Plus, Sparkles, Trash2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -520,7 +521,7 @@ function Teams({ data, onEdit }: { data: ScheduleData; onEdit?: (t: Partial<Sche
               {team.members.length ? team.members.map((m) => names.get(m) ?? "—").join(sep) : t("noMembers")}
             </p>
           ) : (
-            team.contact_phone && <p className="font-latin text-[13px] text-muted-foreground">0{team.contact_phone.slice(3)}</p>
+            team.contact_phone && <p className="font-latin text-[13px] text-muted-foreground" dir="ltr">{phoneForInput(team.contact_phone)}</p>
           )}
         </li>
       ))}
@@ -537,7 +538,7 @@ function TeamDialog({ data, initial, onClose, actions }: { data: ScheduleData; i
   const [kind, setKind] = React.useState<ScheduleTeam["kind"]>(initial.kind ?? "inhouse");
   const [services, setServices] = React.useState<ServiceKind[]>(initial.services ?? []);
   const [color, setColor] = React.useState(initial.color ?? COLORS[0]);
-  const [phone, setPhone] = React.useState(initial.contact_phone ? `0${initial.contact_phone.slice(3)}` : "");
+  const [phone, setPhone] = React.useState(phoneForInput(initial.contact_phone));
   const [members, setMembers] = React.useState<string[]>(initial.members ?? []);
   const [active, setActive] = React.useState(initial.is_active ?? true);
   const [notes, setNotes] = React.useState(initial.notes ?? "");

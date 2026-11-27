@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input, Textarea } from "@/components/ui/input";
+import { phoneForInput } from "@/lib/validation/client-phone";
 import type { ActionResult } from "@/lib/actions";
 import type { ClientDetail, ClientListItem } from "@/lib/data/clients";
 import { DeleteRecord } from "@/components/forms/delete-record";
@@ -109,8 +110,13 @@ function ClientDialog({
       <Field id="cl-name" label={t("name")} error={fieldText(errors.name)}>
         <Input name="name" defaultValue={client?.name} autoFocus />
       </Field>
-      <Field id="cl-phone" label={t("phone")} optional={tc("optional")} error={errors.phone ? t("phoneInvalid") : undefined}>
-        <Input name="phone" defaultValue={client?.phone ? `0${client.phone.slice(3)}` : ""} inputMode="tel" dir="ltr" placeholder="05xxxxxxxx" className="font-latin rtl:text-right" />
+      <Field
+        id="cl-phone"
+        label={t("phone")}
+        hint={t("phoneRequiredHint")}
+        error={errors.phone === "required" ? tc("required") : errors.phone ? t("phoneInvalid") : undefined}
+      >
+        <Input name="phone" required defaultValue={phoneForInput(client?.phone)} inputMode="tel" dir="ltr" placeholder="05xxxxxxxx" className="font-latin rtl:text-right" />
       </Field>
       <div className="field-row grid gap-4 sm:grid-cols-2">
         <Field id="cl-city" label={t("city")} optional={tc("optional")}>
