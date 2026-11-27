@@ -1,4 +1,5 @@
 "use client";
+import { Paper } from "@/components/documents/paper";
 import { Check, Download, MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -17,6 +18,9 @@ import type { PortalData, PortalMeasurement } from "@/lib/portal";
 import { cn } from "@/lib/utils";
 
 /** Measurement sheets on the client page: read the quantities first, then sign — or send a comment. */
+/** the sheet width of the measurement table on the client page (its table is at least 480 px) */
+const MEASURE_SHEET = 560;
+
 export function PortalMeasurements({
   list,
   payments = [],
@@ -54,7 +58,10 @@ export function PortalMeasurements({
               </a>
             )}
           </p>
-          <MeasurementTable m={m} />
+          {/* the sheet he signs: one layout on every screen, scaled to fit (no column behind a sideways scroll) */}
+          <Paper width={MEASURE_SHEET}>
+            <MeasurementTable m={m} />
+          </Paper>
           {m.notes && <p className="whitespace-pre-line text-[14px] leading-7">{m.notes}</p>}
           {m.photos.length > 0 && (
             <div className="flex flex-wrap gap-2">

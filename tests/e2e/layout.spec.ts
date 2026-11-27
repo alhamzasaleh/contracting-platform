@@ -31,7 +31,7 @@ const ENGLISH_SIZES = new Set([390, 1180]);
 const ENGLISH_CLICK_SIZE = 390;
 
 /** dynamic preview segments → the sample values to open */
-const PARAMS: Record<string, string> = { "[code]": "gypsum", "[number]": "C-2026-003" };
+const PARAMS: Record<string, string> = { "[code]": "gypsum", "[number]": "C-2026-003", "[month]": "2026-11" };
 
 function previewRoutes(): string[] {
   const dir = path.join(process.cwd(), "src/app/dev/preview");

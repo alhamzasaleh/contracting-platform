@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { paperScale, PAPER_WIDTH } from "@/lib/paper";
 
@@ -14,19 +15,24 @@ describe("the paper scales as a whole to the screen (owner, Nov 2026)", () => {
   });
 
   // every document keeps one layout: no screen breakpoints inside it (the sheet is always
-  // its own width; only print:… variants may change it)
-  const DOCS = [
-    "src/components/projects/measurement-document.tsx",
-    "src/components/projects/handover-certificate.tsx",
-    "src/components/quotes/framing-document.tsx",
-    "src/components/quotes/materials-document.tsx",
-    "src/components/quotes/quote-document.tsx",
-    "src/components/finance/invoice-document.tsx",
-    "src/components/finance/receipt-voucher.tsx",
-    "src/components/contracts/contract-terms.tsx",
-    "src/components/marketers/payment-voucher.tsx",
-    "src/components/subcontractors/documents.tsx",
-  ];
+  // its own width; only print:… variants may change it). Documents are found by themselves:
+  // a white <article> in basalt ink — the paper look — anywhere under src/components.
+  const walk = (dir: string): string[] =>
+    readdirSync(dir).flatMap((n) => {
+      const f = path.join(dir, n);
+      return statSync(f).isDirectory() ? walk(f) : f.endsWith(".tsx") ? [f] : [];
+    });
+  const DOCS = walk("src/components").filter((f) => {
+    const src = readFileSync(f, "utf8");
+    return /<article\b[^>]*\bbg-white\b/.test(src) || /const ARTICLE = "[^"]*\bbg-white\b/.test(src);
+  });
+  it("finds the documents (the list isn't hand-written)", () => {
+    expect(DOCS.length).toBeGreaterThanOrEqual(11);
+    expect(DOCS).toContain(path.join("src/components/team/payslips.tsx"));
+  });
+  it("the measurement sheet the client signs on his page is on a sheet too", () => {
+    expect(readFileSync("src/components/portal/measurements.tsx", "utf8")).toMatch(/<Paper[^>]*>\s*<MeasurementTable/);
+  });
   it.each(DOCS)("%s sits on a Paper and has no screen breakpoints", (f) => {
     const src = readFileSync(f, "utf8");
     expect(src).toMatch(/<Paper\b/);

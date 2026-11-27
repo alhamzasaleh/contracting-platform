@@ -18,8 +18,14 @@ export function Paper({ width = PAPER_WIDTH, children }: { width?: number; child
   useIsoLayoutEffect(() => {
     const el = outer.current;
     if (!el) return;
+    // a browser without CSS zoom keeps the container's width (globals.css @supports)
+    if (typeof CSS !== "undefined" && CSS.supports && !CSS.supports("zoom", "1")) return;
     const measure = () => setScale(paperScale(el.clientWidth, width));
     measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();

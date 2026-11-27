@@ -1,6 +1,7 @@
 "use client";
 import { useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand-logo";
+import { Paper } from "@/components/documents/paper";
 import { useFormatter } from "@/components/formatter-provider";
 import type { PayrollLineView } from "@/lib/data/payroll";
 
@@ -18,7 +19,8 @@ export function Payslips({ org, month, lines }: { org: { name: string; legal_nam
   return (
     <div className="grid gap-6 print:gap-0">
       {lines.map((l) => (
-        <article key={l.id} className="mx-auto grid w-full max-w-[720px] gap-4 rounded-3xl border border-border bg-white p-8 text-[14px] text-basalt print:break-after-page print:rounded-none print:border-0">
+        <Paper key={l.id}>
+        <article className="mx-auto grid w-full max-w-[720px] gap-4 rounded-3xl border border-border bg-white p-8 text-[14px] text-basalt print:break-after-page print:rounded-none print:border-0">
           <header className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-primary pb-3">
             <div className="flex items-center gap-3">
               {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="text-basalt" fit="h-auto w-[120px] max-h-14" />}
@@ -49,6 +51,7 @@ export function Payslips({ org, month, lines }: { org: { name: string; legal_nam
             <p className="border-t border-sand pt-2">{t("employeeSignature")}</p>
           </footer>
         </article>
+        </Paper>
       ))}
     </div>
   );
