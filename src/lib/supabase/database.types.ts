@@ -547,6 +547,10 @@ export type ContractPaymentRow = OrgRow & Upd & {
   requested_at: string | null;
   paid_amount: number | null;
   paid_method: "transfer" | "cash" | "cheque" | "card" | null;
+  /** schedule = agreed payment; measurement = «تسوية الأمتار» (0 %, made by the database) */
+  kind: "schedule" | "measurement";
+  /** what approved measurement sheets took off this payment (≤ 0; database only) */
+  measure_adjust: number;
   paid_reference: string | null;
 };
 export type PortalLinkRow = OrgRow & {
@@ -744,7 +748,33 @@ export type PayrollLineRow = OrgRow & Upd & {
 
 export type NotificationKind = "approval" | "client_note" | "stage_confirmed" | "contract_accepted" | "addendum_accepted" | "payment_received" | "payment_late" | "doc_expiry" | "approval_reminder" | "maintenance_request"
   | "project_delay" | "project_over_budget" | "project_losing" | "missed_visit" | "agreement_review"
-  | "quote_accepted" | "quote_changes_requested" | "quote_rejected" | "commission_due";
+  | "quote_accepted" | "quote_changes_requested" | "quote_rejected" | "commission_due"
+  | "measurement_approved" | "measurement_objected";
+export type ContractMeasurementRow = OrgRow & Upd & {
+  contract_id: string;
+  number: string;
+  status: "draft" | "sent" | "approved" | "objected";
+  lines: { work_type: string; measured_area: number; agreed_area?: number; price_per_m2?: number; diff_area?: number; diff_amount?: number }[];
+  notes: string | null;
+  photos: string[];
+  diff_subtotal: number;
+  diff_vat: number;
+  diff_total: number;
+  sent_at: string | null;
+  sent_by: string | null;
+  client_decided_at: string | null;
+  client_name: string | null;
+  client_note: string | null;
+  client_ip: string | null;
+  client_user_agent: string | null;
+  client_signature: string | null;
+  applied: Json | null;
+  credit_amount: number;
+  refunded_at: string | null;
+  refunded_method: "transfer" | "cash" | "cheque" | "card" | null;
+  refunded_reference: string | null;
+  refunded_by: string | null;
+};
 export type NotificationRow = { id: string; organization_id: string; user_id: string; kind: NotificationKind; params: Json; link: string | null; dedupe_key: string | null; read_at: string | null; created_at: string };
 export type NotificationPrefRow = { organization_id: string; user_id: string; kind: NotificationKind; in_app: boolean; whatsapp: boolean; push: boolean; updated_at: string };
 export type PushSubscriptionRow = { id: string; organization_id: string; user_id: string; endpoint: string; p256dh: string; auth: string; device: string | null; failures: number; last_success_at: string | null; created_at: string; created_by: string | null };
@@ -838,6 +868,7 @@ export type Database = {
       approvals: Table<ApprovalRow>;
       contracts: Table<ContractRow>;
       contract_payments: Table<ContractPaymentRow>;
+      contract_measurements: Table<ContractMeasurementRow>;
       client_portal_links: Table<PortalLinkRow>;
       teams: Table<TeamRow>;
       team_members: Table<TeamMemberRow>;
@@ -942,6 +973,14 @@ export type Database = {
       portal_addenda: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_accept_addendum: { Args: { p_number: string; p_token: string; p_addendum: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };
       portal_execution: { Args: { p_number: string; p_token: string }; Returns: Json };
+      portal_measurements: { Args: { p_number: string; p_token: string }; Returns: Json };
+      portal_answer_measurement: {
+        Args: { p_number: string; p_token: string; p_measurement: string; p_approve: boolean; p_name: string; p_note: string | null; p_signature: string | null; p_ip: string; p_user_agent: string };
+        Returns: boolean;
+      };
+      measurement_basis: { Args: { p_contract: string }; Returns: Json };
+      send_measurement: { Args: { p_id: string }; Returns: undefined };
+      record_measurement_refund: { Args: { p_id: string; p_paid_on: string; p_method: string; p_reference: string | null }; Returns: undefined };
       portal_confirm_stage: { Args: { p_number: string; p_token: string; p_stage: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };
       portal_add_note: { Args: { p_number: string; p_token: string; p_stage: string | null; p_body: string; p_photos: string[] }; Returns: string | null };
       submit_purchase: { Args: { p_id: string }; Returns: string };

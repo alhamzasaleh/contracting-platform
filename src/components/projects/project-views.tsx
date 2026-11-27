@@ -25,6 +25,8 @@ import { FAR_METERS, mapLink, visitPins, type LatLng } from "@/lib/geo";
 import { SitePinField } from "@/components/maps/site-pin-field";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MapLegend } from "@/components/maps/map-legend";
+import { MeasurementsCard, type MeasurementActions } from "@/components/projects/measurements";
+import { canMeasure, measurableTypes } from "@/lib/measurements";
 import dynamic from "next/dynamic";
 
 const SiteMap = dynamic(() => import("@/components/maps/site-map").then((m) => m.SiteMap), { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-surface-sunken" /> });
@@ -107,9 +109,11 @@ export type ProjectActions = {
   /** this project's own site (projects.manage); null = back to the client's */
   saveSite?: (i: Record<string, unknown>) => Promise<ActionResult>;
   readSiteLink?: (i: { url: string }) => Promise<ActionResult<{ lat: number; lng: number } | null>>;
+  /** measurement sheets (owner, Nov 2026) */
+  measure?: Omit<MeasurementActions, "uploadPhoto">;
 };
 
-export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail; actions?: ProjectActions; base?: string }) {
+export function ProjectView({ data, actions, base = "", focusMeasure }: { data: ProjectDetail; actions?: ProjectActions; base?: string; focusMeasure?: string | null }) {
   const unitText = useUnitText();
   const tw = useTranslations("wa");
   const t = useTranslations("projects");
@@ -125,6 +129,7 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
   const placeText = (data.place ? [data.place.city, data.place.district] : [data.client.city, data.client.district]).filter(Boolean).join(" — ");
   const [editSite, setEditSite] = React.useState(false);
   const tm = useTranslations("maps");
+  const tms = useTranslations("measure");
   const pins = visitPins(site, data.visits);
   const progress = overallProgress(data.stages);
   const final = data.stages.find((s) => s.is_final && s.status === "confirmed");
@@ -288,6 +293,21 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
           {data.stages.map((s) => (
             <StageCard key={s.id} stage={s} open={open === s.id} onToggle={() => setOpen(open === s.id ? null : s.id)} data={data} actions={actions} />
           ))}
+          {data.measure && (
+            <MeasurementsCard
+              basis={data.measure.basis}
+              sheets={data.measure.sheets}
+              owed={data.measure.owed}
+              contract={data.contract}
+              client={data.client}
+              orgName={data.orgName}
+              canManage={data.canManage}
+              canRefund={data.canRefund}
+              actions={actions?.measure && { ...actions.measure, uploadPhoto: actions.uploadPhoto }}
+              base={base}
+              focus={focusMeasure}
+            />
+          )}
         </section>
 
         <aside className="grid content-start gap-5">
@@ -372,7 +392,8 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
               {data.payments.map((p) => (
                 <p key={p.seq} className="flex flex-wrap items-center justify-between gap-2 text-[13px]">
                   <span>
-                    {p.seq}. {p.label}
+                    {p.seq}. {p.kind === "measurement" ? tms("settlementLabel") : p.label}
+                    {!!p.adjust && <span className="ms-1 text-[12px] text-muted-foreground">({tms("adjusted", { amount: fmt.money(p.adjust) })})</span>}
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="font-latin tabular-nums">{fmt.money(p.amount)}</span>
@@ -438,6 +459,24 @@ export function ProjectView({ data, actions, base = "" }: { data: ProjectDetail;
         </aside>
       </div>
     </div>
+  );
+}
+
+/** Warn (don't block) before the final handover: items not measured yet, or a sheet still with the client. */
+function FinalMeasureWarning({ data }: { data: ProjectDetail }) {
+  const t = useTranslations("measure");
+  const m = data.measure;
+  if (!m?.basis || !canMeasure(m.basis)) return null;
+  const open = m.sheets.some((x) => x.status === "sent");
+  const missing = measurableTypes(m.basis, m.sheets).length > 0 || m.sheets.some((x) => x.status === "draft" || x.status === "objected");
+  if (!open && !missing) return null;
+  return (
+    <p className="rounded-xl bg-warning-soft px-3 py-2 text-[12px]">
+      {open ? t("finalSheetOpen") : t("finalNotMeasured")}{" "}
+      <a href="#measurements" className="font-bold text-primary underline">
+        {t("title")}
+      </a>
+    </p>
   );
 }
 
@@ -610,6 +649,7 @@ function StageCard({ stage: s, open, onToggle, data, actions }: { stage: StageVi
                 )}
               </div>
               <p className="text-[12px] text-muted-foreground">{s.is_final ? t("finalHint") : t("sendHint")}</p>
+              {s.is_final && <FinalMeasureWarning data={data} />}
             </div>
           )}
           {locked && s.report && <p className="whitespace-pre-line rounded-2xl bg-surface-sunken/60 p-4 text-[14px] leading-7">{s.report}</p>}

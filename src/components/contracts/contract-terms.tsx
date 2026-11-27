@@ -22,7 +22,7 @@ export type ContractTermsData = {
   method: "unit" | "lump";
   quoteNumber: string;
   view: ClientView | null;
-  payments: { seq: number; label: string; percent: number; amount: number; status?: string }[];
+  payments: { seq: number; label: string; percent: number; amount: number; status?: string; kind?: "schedule" | "measurement"; adjust?: number }[];
   accepted?: { at: string; name: string } | null;
 };
 
@@ -167,13 +167,14 @@ export function ContractTerms({ data, org, client, terms }: { data: ContractTerm
           </tr>
         </thead>
         <tbody className="font-latin tabular-nums">
-          {data.payments.map((p) => (
+          {/* the agreed schedule: a quantity settlement isn't part of the contract text, and a payment shows its agreed amount */}
+          {data.payments.filter((p) => p.kind !== "measurement").map((p) => (
             <tr key={p.seq} className="border-b border-sand">
               <td className="px-3 py-2 font-sans">
                 {p.seq}. {p.label}
               </td>
               <td className="px-3 py-2 text-end">{fmt.number(p.percent, p.percent % 1 ? 2 : 0)}%</td>
-              <td className="px-3 py-2 text-end">{fmt.money(p.amount)}</td>
+              <td className="px-3 py-2 text-end">{fmt.money(Math.round((p.amount - (p.adjust ?? 0)) * 100) / 100)}</td>
             </tr>
           ))}
         </tbody>

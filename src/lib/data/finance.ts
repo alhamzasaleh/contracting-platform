@@ -93,7 +93,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   const [
     { data: contracts }, { data: clients }, { data: settings }, { data: addenda }, { data: approvals }, { data: stages },
     payments, versions, requestableRows,
-    hr, spend, costs, estimatedTotals, { data: tc }, { data: monthReceipts }, rewardRows,
+    hr, spend, costs, estimatedTotals, { data: tc }, { data: monthReceipts }, rewardRows, measureRows,
   ] = await Promise.all([
     contractsP,
     supabase.from("clients").select("id, name, phone").eq("organization_id", orgId),
@@ -149,7 +149,11 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     supabase.from("client_receipts").select("amount").eq("organization_id", orgId).gte("paid_on", `${today.slice(0, 7)}-01`).lte("paid_on", today),
     // success partners' rewards (RLS: finance.view / costs.view / marketers.manage) — not cancelled
     rowsOf(supabase.from("marketer_commissions").select("contract_id, amount, status").eq("organization_id", orgId).in("status", ["expected", "due", "paid"])),
+    // quantity settlement the client signed (measurement sheets): changes the project's revenue (before VAT)
+    rowsOf(supabase.from("contract_measurements").select("contract_id, diff_subtotal").eq("organization_id", orgId).eq("status", "approved")),
   ]);
+  const measured = new Map<string, number>();
+  for (const m of measureRows) measured.set(m.contract_id, (measured.get(m.contract_id) ?? 0) + n(m.diff_subtotal));
   const requestable = new Set((requestableRows ?? []).map((r) => r.payment_id));
   const clientName = new Map((clients ?? []).map((c) => [c.id, c.name]));
   const clientPhone = new Map((clients ?? []).map((c) => [c.id, (c as { phone?: string | null }).phone ?? null]));
@@ -252,7 +256,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   const profits: ProfitRow[] = (contracts ?? []).map((c) => {
     const view = (versions as { quote_id: string; version: number; client_view: { vat?: number } }[] | null)?.find((v) => v.quote_id === c.quote_id && v.version === c.quote_version)?.client_view;
     const addRevenue = (addenda ?? []).filter((a) => a.contract_id === c.id).reduce((s, a) => s + n(a.amount), 0);
-    const revenue = r2(n(c.total) - n(view?.vat) + addRevenue);
+    const revenue = r2(n(c.total) - n(view?.vat) + addRevenue + (measured.get(c.id) ?? 0));
     const cost = costOf.get(c.id);
     // the same actual as the costs page: materials, expenses, petty cash, subcontractors and (with hr.view) our team
     const actualCost = r2(cost?.actual ?? 0);

@@ -1,3 +1,4 @@
+import type { Measurement } from "@/lib/measurements";
 import "server-only";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import type { ClientView } from "@/lib/quotes";
@@ -25,7 +26,8 @@ export type PortalData = {
   };
   /** client_accepted_at: the client accepted the quote on his page before the contract (one link for every stage) */
   quote: { number: string; version: number; date: string; valid_until: string | null; client_view: ClientView; notes: string | null; client_accepted_at?: string | null };
-  payments: { seq: number; label: string; percent: number; amount: number; due_event: string; status: string }[];
+  /** kind measurement = «تسوية الأمتار» (0 %); adjust = what measurement sheets took off this payment (≤ 0) */
+  payments: { seq: number; label: string; percent: number; amount: number; due_event: string; status: string; kind?: "schedule" | "measurement"; adjust?: number }[];
   expires_at: string;
   execution?: PortalExecution | null;
   addenda?: PortalAddendum[];
@@ -37,7 +39,11 @@ export type PortalData = {
   warranty?: PortalWarranty | null;
   /** 2–3 options offered side by side; the client picks one while accepting (empty = single quote) */
   options?: PortalOption[];
+  /** measurement sheets sent to the client (sign / comment), photos as 10-minute signed URLs */
+  measurements?: PortalMeasurement[];
 };
+
+export type PortalMeasurement = Omit<Measurement, "photos"> & { photos: string[] };
 
 /**
  * The quote stage of the same link (issued from the quote, before a contract — or while the
@@ -142,13 +148,13 @@ export async function loadPortal(number: string, token: string): Promise<Loaded>
   // Everything below needs only the token-checked view: one parallel round, each part chained only
   // where it needs another's answer (the warranty call is shared: logo + warranty section).
   const accepted = d.contract.status === "accepted";
-  type PortalFn = "portal_warranty" | "portal_execution" | "portal_addenda" | "portal_invoices" | "portal_receipts" | "portal_options" | "portal_contract_terms" | "portal_invoice_docs";
+  type PortalFn = "portal_measurements" | "portal_warranty" | "portal_execution" | "portal_addenda" | "portal_invoices" | "portal_receipts" | "portal_options" | "portal_contract_terms" | "portal_invoice_docs";
   const call = async <T,>(fn: PortalFn): Promise<T | null> => {
     const { data: x } = await admin.rpc(fn, { p_number: number, p_token: token });
     return x as unknown as T | null;
   };
   const warrantyP = call<PortalWarranty & { org_id?: string; contract_id: string }>("portal_warranty");
-  const [logoUrl, execution, addenda, invoices, receipts, options, rawTerms, invoiceDocs, warranty] = await Promise.all([
+  const [logoUrl, execution, addenda, invoices, receipts, options, rawTerms, invoiceDocs, warranty, measurements] = await Promise.all([
     warrantyP.then((w) => portalLogo(admin, w?.org_id, d.org.logo_path)),
     // execution: stages, the client's notes, and 10-minute signed photo URLs (this contract's files only)
     (async (): Promise<PortalExecution | null> => {
@@ -190,8 +196,23 @@ export async function loadPortal(number: string, token: string): Promise<Loaded>
         requests: x.requests.map((r) => ({ ...r, photos: r.photos.map((p) => url.get(p)).filter((u): u is string => !!u) })),
       };
     })(),
+    (async (): Promise<PortalMeasurement[]> => {
+      if (!accepted) return [];
+      const list = (await call<(Omit<PortalMeasurement, "photos"> & { photos: string[] })[]>("portal_measurements")) ?? [];
+      if (!list.length) return [];
+      // photos of this contract's sheets only (<org>/<contract>/measure/…), signed for 10 minutes
+      const paths = [...new Set(list.flatMap((m) => m.photos))].filter((p) => /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/measure\/[0-9a-f-]{36}\.jpg$/.test(p));
+      const { data: signed } = paths.length ? await admin.storage.from("project-photos").createSignedUrls(paths, 600) : { data: [] };
+      const url = new Map((signed ?? []).map((x) => [x.path, x.signedUrl]));
+      return list.map((m) => ({
+        ...m,
+        lines: m.lines.map((l) => ({ ...l, agreed_area: Number(l.agreed_area), measured_area: Number(l.measured_area), price_per_m2: Number(l.price_per_m2), diff_area: Number(l.diff_area), diff_amount: Number(l.diff_amount) })),
+        diff_subtotal: Number(m.diff_subtotal), diff_vat: Number(m.diff_vat), diff_total: Number(m.diff_total), credit_amount: Number(m.credit_amount),
+        photos: m.photos.map((p) => url.get(p)).filter((u): u is string => !!u),
+      }));
+    })(),
   ]);
   const parsedTerms = termsSchema.safeParse(rawTerms ?? {});
   const terms = parsedTerms.success ? parsedTerms.data : null;
-  return { data: { ...d, options, execution, addenda, invoices, receipts, warranty, invoiceDocs, terms, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount) })) }, logoUrl, limited: false };
+  return { data: { ...d, options, execution, addenda, measurements, invoices, receipts, warranty, invoiceDocs, terms, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount), adjust: Number(p.adjust ?? 0) })) }, logoUrl, limited: false };
 }

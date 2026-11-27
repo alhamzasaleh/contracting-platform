@@ -1,5 +1,6 @@
 import type { ProjectDetail, ProjectListItem } from "@/lib/data/projects";
-import type { PortalData } from "@/lib/portal";
+import type { PortalData, PortalMeasurement } from "@/lib/portal";
+import type { Measurement } from "@/lib/measurements";
 import { SAMPLE_PORTAL } from "./sample-contracts";
 
 // Sample photos are tiny inline SVGs (no network, no database).
@@ -16,6 +17,23 @@ const stage = (seq: number, name: string, status: ProjectDetail["stages"][number
   id: `s${seq}`, seq, name, status, progress, is_final: false, payment_event: null, report: null, report_ai: false, sent_at: null,
   confirmed_at: null, confirmed_name: null, signed: false, updates: [], ...extra,
 });
+
+// measurement sheets (quantity settlement): ceilings signed (+6 m²), partitions with the client (−2 m²)
+const line = (work_type: string, agreed: number, measured: number, price: number) => ({
+  work_type, agreed_area: agreed, measured_area: measured, price_per_m2: price, diff_area: Math.round((measured - agreed) * 100) / 100, diff_amount: Math.round((measured - agreed) * price * 100) / 100,
+});
+export const SAMPLE_MEASUREMENTS: Measurement[] = [
+  {
+    id: "ms1", number: "MS-2026-001", status: "approved", lines: [line("ceilings", 180, 186, 75)], notes: "قياس فعلي بعد تقفيل الألواح — زادت مساحة سقف المجلس.",
+    photos: [{ path: "m1", url: ph("#d9cbb5") }], diff_subtotal: 450, diff_vat: 67.5, diff_total: 517.5, sent_at: "2026-11-24T10:00:00Z",
+    client_decided_at: "2026-11-24T18:00:00Z", client_name: "م. خالد", client_note: null, credit_amount: 0, refunded_at: null,
+  },
+  {
+    id: "ms2", number: "MS-2026-002", status: "sent", lines: [line("partitions", 40, 38, 95)], notes: null,
+    photos: [], diff_subtotal: -190, diff_vat: -28.5, diff_total: -218.5, sent_at: "2026-11-25T09:00:00Z",
+    client_decided_at: null, client_name: null, client_note: null, credit_amount: 0, refunded_at: null,
+  },
+];
 
 export const SAMPLE_PROJECT: ProjectDetail = {
   contract: { id: "k0", number: "C-2026-003", service: "gypsum", start_date: "2026-11-21", duration_days: 14, warranty_months: 6, accepted_at: "2026-11-19T10:00:00Z" },
@@ -51,7 +69,15 @@ export const SAMPLE_PROJECT: ProjectDetail = {
     { seq: 1, label: "عند توقيع العقد", amount: 12000, due_event: "signing", status: "paid" },
     { seq: 2, label: "بعد تقفيل الألواح", amount: 9000, due_event: "board_closing", status: "pending" },
     { seq: 3, label: "عند التسليم النهائي", amount: 9000, due_event: "handover", status: "pending" },
+    { seq: 4, label: "تسوية الأمتار", amount: 517.5, due_event: "handover", status: "pending", kind: "measurement", adjust: 0 },
   ],
+  measure: {
+    basis: { method: "unit", discountPercent: 0, vatPercent: 15, workTypes: [{ workType: "ceilings", area: 180, pricePerM2: 75 }, { workType: "partitions", area: 40, pricePerM2: 95 }] },
+    // the partitions sheet came back with the client's comment (edit and send again)
+    sheets: SAMPLE_MEASUREMENTS.map((m) => (m.status === "sent" ? { ...m, status: "objected" as const, client_decided_at: "2026-11-25T17:00:00Z", client_name: "م. خالد", client_note: "القواطع 39 م² مو 38 — راجعوا الجدار عند الدرج." } : m)),
+    owed: 0,
+  },
+  canRefund: true,
   addenda: [{ number: "AD-2026-001", title: "بيت إنارة إضافي في المجلس", total: 1800, payment_status: "requested", extra_days: 3 }],
   dates: { start: "2026-11-21", delivery: "2026-12-07", extraDays: 3, warrantyEnd: null },
   cost: { estimated: 8100, materials: 5200, actual: 6420, reward: { id: "k1", marketer: "سعد بن فهد الدوسري", percent: 5, amount: 2300, status: "due", voucher: null, canOpenPartners: true, canOpenVoucher: true } },
@@ -79,6 +105,7 @@ export const SAMPLE_PORTAL_WORK: PortalData = {
     })),
     notes: [{ id: "n1", body: "نبي فتحة التكييف في المجلس أكبر شوي لو سمحتوا.", photos: [], status: "resolved", reply: "أكيد، تم توسيعها اليوم.", stage_id: "s3", created_at: "2026-11-22T16:00:00Z" }],
   },
+  measurements: SAMPLE_MEASUREMENTS.map((m): PortalMeasurement => ({ ...m, photos: m.photos.map((p) => p.url!) })),
   addenda: [
     { id: "ad3", number: "AD-2026-003", title: "دهان سقف الملحق", description: "معجون وجهين ودهان وجهين لسقف الملحق الخارجي 35 م²، بنفس مواصفات العقد.", amount: 1400, vat_percent: 0, vat: 0, total: 1400, extra_days: 2, status: "sent", payment_status: "pending", accepted_at: null, accepted_name: null },
   ],

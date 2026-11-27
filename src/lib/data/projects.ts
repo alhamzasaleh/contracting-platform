@@ -10,6 +10,8 @@ import { currentStage, overallProgress } from "@/lib/execution";
 import { deliveryDate } from "@/lib/contracts";
 import { loadBookingTeam, loadWarrantyEnd } from "@/lib/data/contracts";
 import { loadStaffNames } from "@/lib/data/staff";
+import { loadMeasurements } from "@/lib/data/measurements";
+import { measurementTotals, type MeasureBasis, type Measurement } from "@/lib/measurements";
 import { readPendingPins } from "@/lib/geo-pins";
 import type { ServiceKind } from "@/lib/pricing";
 import type { StageStatus } from "@/lib/supabase/database.types";
@@ -103,7 +105,12 @@ export type ProjectDetail = {
   stages: StageView[];
   visits: { id: string; checked_in_at: string; latitude: number | null; longitude: number | null; accuracy_m: number | null; note: string | null; by: string | null }[];
   notes: { id: string; body: string; photos: { path: string; url: string | null }[]; status: "new" | "seen" | "resolved"; reply: string | null; stage_id: string | null; created_at: string }[];
-  payments: { seq: number; label: string; amount: number; due_event: string; status: string }[];
+  /** kind measurement = «تسوية الأمتار»; adjust = what measurement sheets took off this payment (≤ 0) */
+  payments: { seq: number; label: string; amount: number; due_event: string; status: string; kind?: "schedule" | "measurement"; adjust?: number }[];
+  /** measurement sheets (owner, Nov 2026): what can be measured, the sheets, and what is owed back to the client */
+  measure?: { basis: MeasureBasis | null; sheets: Measurement[]; owed: number };
+  /** may record a refund to the client (finance.manage) */
+  canRefund?: boolean;
   /** accepted additional works: their own payment, and the days they add */
   addenda?: { number: string; title: string; total: number; payment_status: "pending" | "requested" | "paid"; extra_days: number }[];
   /** planned start, delivery (incl. accepted addenda days) and the warranty end once handed over */
@@ -134,17 +141,18 @@ export async function loadProject(session: SessionContext, number: string): Prom
   // Promise.resolve: a query builder runs again on every .then(); a real promise runs it once and can be shared
   const updatesP = Promise.resolve(supabase.from("progress_updates").select("id, stage_id, progress, note, photos, created_at, visible_to_client").eq("contract_id", c.id).order("created_at", { ascending: false }).limit(300));
   const visitsP = Promise.resolve(supabase.from("site_visits").select("id, checked_in_at, latitude, longitude, accuracy_m, note, created_by").eq("contract_id", c.id).order("checked_in_at", { ascending: false }).limit(30));
+  const measuresP = loadMeasurements(supabase, c.id);
   const notesP = Promise.resolve(supabase.from("client_notes").select("id, body, photos, status, reply, stage_id, created_at").eq("contract_id", c.id).order("created_at", { ascending: false }));
   const [
     { data: client }, { data: stages }, { data: updates }, { data: visits }, { data: notes }, { data: payments }, who,
-    { data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam, signed, reward, sites,
+    { data: addenda }, { count: openMaintenance }, costs, warrantyEnd, bookTeam, signed, reward, sites, measures,
   ] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city, district, location_url").eq("id", c.client_id).maybeSingle(),
     supabase.from("project_stages").select("*").eq("contract_id", c.id).order("seq"),
     updatesP,
     visitsP,
     notesP,
-    supabase.from("contract_payments").select("seq, label, amount, due_event, status").eq("contract_id", c.id).order("seq"),
+    supabase.from("contract_payments").select("seq, label, amount, due_event, status, kind, measure_adjust").eq("contract_id", c.id).order("seq"),
     // the visitors' names only (linked employees: «name · job», no hr data)
     visitsP.then(({ data }) => loadStaffNames(supabase, orgId, (data ?? []).map((v) => v.created_by))),
     supabase.from("addenda").select("number, title, total, payment_status, extra_days").eq("contract_id", c.id).eq("status", "accepted").order("created_at"),
@@ -156,8 +164,8 @@ export async function loadProject(session: SessionContext, number: string): Prom
     // G1: the team priced on the quote, pre-selected when booking
     supabase.from("quote_versions").select("selection").eq("quote_id", c.quote_id).eq("version", c.quote_version).maybeSingle().then(({ data }) => loadBookingTeam(session, data?.selection)),
     // short-lived signed URLs for every photo on the page (private bucket)
-    Promise.all([updatesP, notesP]).then(async ([u, nt]): Promise<{ path: string | null; signedUrl: string | null }[]> => {
-      const paths = [...new Set([...(u.data ?? []).flatMap((x) => x.photos), ...(nt.data ?? []).flatMap((x) => x.photos)])];
+    Promise.all([updatesP, notesP, measuresP]).then(async ([u, nt, ms]): Promise<{ path: string | null; signedUrl: string | null }[]> => {
+      const paths = [...new Set([...(u.data ?? []).flatMap((x) => x.photos), ...(nt.data ?? []).flatMap((x) => x.photos), ...ms.sheets.flatMap((x) => x.photos)])];
       return paths.length ? ((await supabase.storage.from("project-photos").createSignedUrls(paths, 600)).data ?? []) : [];
     }),
     // the success partner's reward on this project (internal: costs.view)
@@ -165,6 +173,7 @@ export async function loadProject(session: SessionContext, number: string): Prom
     // the site (this project's own pin, else the client's) — projects.view is enough
     // this project's client: a short map link not read yet is read first (≤ 3 s), so check-in works
     readPendingPins({ orgId, clientIds: [c.client_id], budgetMs: 3000 }).then(() => loadProjectSites(supabase, orgId)),
+    measuresP,
   ]);
   const extraDays = (addenda ?? []).reduce((s, a) => s + a.extra_days, 0);
   const own = costs?.find((x) => x.id === c.id);
@@ -188,7 +197,13 @@ export async function loadProject(session: SessionContext, number: string): Prom
     })),
     visits: (visits ?? []).map((v) => ({ ...v, latitude: v.latitude == null ? null : Number(v.latitude), longitude: v.longitude == null ? null : Number(v.longitude), accuracy_m: v.accuracy_m == null ? null : Number(v.accuracy_m), by: v.created_by ? (who.get(v.created_by) ?? null) : null })),
     notes: (notes ?? []).map((n) => ({ ...n, photos: n.photos.map(photo) })),
-    payments: (payments ?? []).map((p) => ({ ...p, amount: Number(p.amount) })),
+    payments: (payments ?? []).map((p) => ({ seq: p.seq, label: p.label, amount: Number(p.amount), due_event: p.due_event, status: p.status, kind: p.kind, adjust: Number(p.measure_adjust ?? 0) })),
+    measure: {
+      basis: measures.basis,
+      sheets: measures.sheets.map((m) => ({ ...m, photos: m.photos.map(photo) })),
+      owed: measurementTotals(measures.sheets).owed,
+    },
+    canRefund: can(session, "finance.manage"),
     addenda: (addenda ?? []).map((a) => ({ ...a, total: Number(a.total) })),
     // delivery: the same date as the contract page (start + duration + accepted addenda days)
     dates: { start: c.start_date, delivery: deliveryDate(c.start_date, c.duration_days, extraDays), extraDays, warrantyEnd },

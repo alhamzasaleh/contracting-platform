@@ -67,6 +67,7 @@ export async function confirmStagePortal(input: unknown): Promise<ActionResult> 
   });
   if (error) {
     console.error("[portal] confirm failed", { code: error.code });
+    if (error.message?.includes("measurement pending")) return { ok: false, error: "measurePending" };
     return { ok: false, error: error.message?.includes("signature") ? "signatureRequired" : "error" };
   }
   if (data) after(runBackground);
@@ -266,6 +267,40 @@ export async function rejectQuotePortal(input: unknown): Promise<ActionResult> {
   const v = parsed.data;
   const { data, error } = await createAdminClient().rpc("portal_reject_quote", { p_number: v.number, p_token: v.token, p_reason: v.reason || null, p_ip: ip, p_user_agent: ua });
   if (error) return quoteRefused(error, "reject");
+  if (data) after(runBackground);
+  return data ? { ok: true } : { ok: false, error: "linkInvalid" };
+}
+
+const measureSchema = z
+  .object({
+    number: z.string().regex(NUMBER_RE),
+    token: z.string().regex(TOKEN_RE),
+    measurement_id: z.uuid(),
+    approve: z.boolean(),
+    name: z.string().trim().min(2, "required").max(160),
+    note: z.string().trim().max(2000).nullable(),
+    signature: z.string().regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/).max(200_000).nullable(),
+  })
+  .strict()
+  // approving needs the signature; a comment needs the text
+  .refine((v) => (v.approve ? !!v.signature : (v.note ?? "").length >= 3), { path: ["note"], message: "required" });
+
+/** The client signs a measurement sheet, or sends a comment on it (owner, Nov 2026). */
+export async function answerMeasurementPortal(input: unknown): Promise<ActionResult> {
+  const parsed = measureSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: Object.fromEntries(parsed.error.issues.map((i) => [String(i.path[0]), i.message])) };
+  const ip = await clientIp();
+  if ((await rateLimit(`portal:measure:${ip}`, 10, 600)) !== "ok") return { ok: false, error: "rateLimited" };
+  const ua = (await headers()).get("user-agent") ?? "";
+  const v = parsed.data;
+  const { data, error } = await createAdminClient().rpc("portal_answer_measurement", {
+    p_number: v.number, p_token: v.token, p_measurement: v.measurement_id, p_approve: v.approve, p_name: v.name, p_note: v.note,
+    p_signature: v.approve ? v.signature : null, p_ip: ip, p_user_agent: ua,
+  });
+  if (error) {
+    console.error("[portal] measurement answer failed", { code: error.code });
+    return { ok: false, error: error.message?.includes("signature") ? "signatureRequired" : "error" };
+  }
   if (data) after(runBackground);
   return data ? { ok: true } : { ok: false, error: "linkInvalid" };
 }

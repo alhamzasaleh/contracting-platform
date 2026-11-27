@@ -94,6 +94,10 @@ export function NotificationBell({ data, base, preview }: { data: Data; base: st
         return s("note") ? t("quote_rejected_reason", { number, note: s("note") }) : t("quote_rejected", { number });
       case "commission_due":
         return t("commission_due", { number, name: s("marketer"), amount: fmt.money(Number(p.amount ?? 0)) });
+      case "measurement_approved":
+        return t("measurement_approved", { number, measurement: ltr(s("measurement")), amount: fmt.money(Number(p.amount ?? 0)) });
+      case "measurement_objected":
+        return t("measurement_objected", { number, measurement: ltr(s("measurement")) });
       case "doc_expiry":
         return Number(p.days) <= 0
           ? t("doc_expired", { doc: t(`doc_${s("doc")}`), name: s("name") })

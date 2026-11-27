@@ -11,14 +11,16 @@ export async function loadReceipt(session: SessionContext, number: string): Prom
   const supabase = await createClient();
   const { data: rec } = await supabase.from("client_receipts").select("contract_id").eq("organization_id", session.organization.id).eq("number", number).maybeSingle();
   if (!rec) notFound();
-  const [{ data: c }, { data: all }, { data: ads }] = await Promise.all([
+  const [{ data: c }, { data: all }, { data: ads }, { data: ms }] = await Promise.all([
     supabase.from("contracts").select("number, total, client_id").eq("id", rec.contract_id).single(),
     supabase.from("client_receipts").select("number, label, amount, paid_on, method, reference, created_at").eq("contract_id", rec.contract_id),
     supabase.from("addenda").select("total").eq("contract_id", rec.contract_id).eq("status", "accepted"),
+    // the quantity settlement the client signed (measurement sheets)
+    supabase.from("contract_measurements").select("diff_total").eq("contract_id", rec.contract_id).eq("status", "approved"),
   ]);
   if (!c) notFound();
   const { data: client } = await supabase.from("clients").select("name, phone").eq("id", c.client_id).maybeSingle();
-  const value = n(c.total) + (ads ?? []).reduce((s, a) => s + n(a.total), 0);
+  const value = n(c.total) + (ads ?? []).reduce((s, a) => s + n(a.total), 0) + (ms ?? []).reduce((s, m) => s + n(m.diff_total), 0);
   const items: ReceiptItem[] = (all ?? []).map((r) => ({ ...r, amount: n(r.amount) }));
   const totals = receiptTotals(items, number, value);
   if (!totals) notFound();

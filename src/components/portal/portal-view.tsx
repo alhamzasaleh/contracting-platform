@@ -18,6 +18,7 @@ import type { ActionResult } from "@/lib/actions";
 import { shrinkImage } from "@/lib/client/image";
 import { lastValidDay } from "@/lib/contracts";
 import { portalStep } from "@/lib/execution";
+import { PortalMeasurements } from "@/components/portal/measurements";
 import type { PortalData, PortalOption, PortalStage } from "@/lib/portal";
 import { cn } from "@/lib/utils";
 import { settle } from "@/lib/client/action";
@@ -26,7 +27,7 @@ import { useFailureText } from "@/lib/client/failure-text";
 const STEPS = ["quote", "contract", "accepted", "work", "handover", "warranty"] as const;
 
 /** Finger / mouse signature, exported as a small PNG data URL. */
-function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void }) {
+export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void }) {
   const t = useTranslations("portal");
   const ref = React.useRef<HTMLCanvasElement>(null);
   const drawing = React.useRef(false);
@@ -100,6 +101,7 @@ export function PortalView({
   onAcceptAddendum,
   onAddMaintenance,
   onConfirmMaintenance,
+  onAnswerMeasurement,
 }: {
   data: PortalData;
   logoUrl: string | null;
@@ -111,8 +113,11 @@ export function PortalView({
   onAcceptAddendum?: (i: Record<string, unknown>) => Promise<ActionResult>;
   onAddMaintenance?: (fd: FormData) => Promise<ActionResult>;
   onConfirmMaintenance?: (i: Record<string, unknown>) => Promise<ActionResult>;
+  /** the client signs a measurement sheet or comments on it */
+  onAnswerMeasurement?: (i: Record<string, unknown>) => Promise<ActionResult>;
 }) {
   const t = useTranslations("portal");
+  const tms = useTranslations("measure");
   const failure = useFailureText({ clientPage: true });
   const tc = useTranslations("common");
   const tp = useTranslations("pricing");
@@ -180,8 +185,15 @@ export function PortalView({
             }}
           />
         )}
+        {/* a measurement sheet waiting for the client: say so at the top, the sheet sits after the work */}
+        {(data.measurements ?? []).some((m) => m.status === "sent") && (
+          <a href="#measurements" className="justify-self-center rounded-full border border-primary/40 bg-surface px-4 py-2 text-[14px] font-semibold text-primary hover:bg-primary/5 print:hidden">
+            {tms("jumpToMeasure")}
+          </a>
+        )}
         {(data.addenda ?? []).length > 0 && <Addenda list={data.addenda!} clientName={data.client.name} number={number} token={token} onAccept={onAcceptAddendum} />}
         {ex && ex.stages.length > 0 && <WorkProgress stages={ex.stages} clientName={data.client.name} number={number} token={token} onConfirm={onConfirmStage} />}
+        <PortalMeasurements list={data.measurements ?? []} clientName={data.client.name} number={number} token={token} onAnswer={onAnswerMeasurement} />
         {ex && <ClientNotes data={data} number={number} token={token} onAdd={onAddNote} />}
 
         {ex && ex.stages.length > 0 ? null : accepted ? (
@@ -406,6 +418,7 @@ function ConfirmStage({ stage, clientName, number, token, onConfirm }: { stage: 
   const [signature, setSignature] = React.useState<string | null>(null);
   const [pending, start] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
+  const tms = useTranslations("measure");
   const needSig = stage.is_final;
   return (
     <div className="grid gap-3 border-t border-border pt-3">
@@ -424,7 +437,7 @@ function ConfirmStage({ stage, clientName, number, token, onConfirm }: { stage: 
             if (!onConfirm) return;
             const r = await settle(() => onConfirm({ number, token, stage_id: stage.id, name: name.trim(), signature: needSig ? signature : null }));
             if (r.ok) router.refresh();
-            else setError(failure(r.error) ?? (r.error === "rateLimited" ? t("errRate") : t("errGeneric")));
+            else setError(failure(r.error) ?? (r.error === "rateLimited" ? t("errRate") : r.error === "measurePending" ? tms("portalPending") : t("errGeneric")));
           })
         }
       >

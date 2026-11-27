@@ -7,7 +7,7 @@ import type { NotificationKind } from "@/lib/supabase/database.types";
 export const NOTIFICATION_KINDS: NotificationKind[] = [
   "approval", "approval_reminder", "client_note", "stage_confirmed", "contract_accepted", "addendum_accepted", "payment_received", "payment_late", "doc_expiry", "maintenance_request",
   "project_delay", "project_over_budget", "project_losing", "missed_visit", "agreement_review",
-  "quote_accepted", "quote_changes_requested", "quote_rejected", "commission_due",
+  "quote_accepted", "quote_changes_requested", "quote_rejected", "commission_due", "measurement_approved", "measurement_objected",
 ];
 
 export type NotificationItem = { id: string; kind: NotificationKind; params: Record<string, unknown>; link: string | null; read: boolean; created_at: string };
@@ -55,6 +55,10 @@ export function whatsappText(kind: NotificationKind, p: Record<string, unknown>)
       return `العميل اعتذر عن عرض السعر ${s("number")}${s("note") ? `: ${s("note")}` : ""}`;
     case "commission_due":
       return `مكافأة شريك النجاح ${s("marketer")} مستحقة الصرف — ${money(p.amount)} (${s("number")})`;
+    case "measurement_approved":
+      return `العميل وقّع كشف القياس ${s("measurement")} على ${s("number")} — الفرق ${money(p.amount)}`;
+    case "measurement_objected":
+      return `العميل اعترض على كشف القياس ${s("measurement")} على ${s("number")}`;
     case "missed_visit":
       return `ما فيه زيارة موقع للمشروع ${s("number")} (${s("client")}) من ${s("days")} أيام`;
     case "doc_expiry":

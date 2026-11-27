@@ -1,5 +1,6 @@
 import { termsSchema, type ContractTermsConfig } from "@/lib/contracts/terms";
 import "server-only";
+import { measurementTotals } from "@/lib/measurements";
 import { loadContractCommission, type ContractCommission } from "@/lib/data/marketers";
 import { notFound } from "next/navigation";
 import { can, type SessionContext } from "@/lib/auth/session";
@@ -133,7 +134,13 @@ export type ContractDetail = {
     requestable?: boolean;
     /** requested 7+ days ago: days since the request (the WhatsApp reminder says it's late) */
     late_days?: number | null;
+    /** measurement = «تسوية الأمتار» (0 %, made by the database) */
+    kind?: "schedule" | "measurement";
+    /** what measurement sheets took off this payment (≤ 0) */
+    adjust?: number;
   }[];
+  /** measurement sheets: the value change the client signed (net before VAT / total) and what is owed back to him */
+  measurements?: { sheets: { number: string; status: "draft" | "sent" | "approved" | "objected"; diff_subtotal: number; diff_total: number; credit_amount: number; refunded_at: string | null }[]; net: number; total: number; owed: number };
   link: { active: boolean; expires_at: string | null; last_opened_at: string | null; open_count: number };
   /** the client accepted the quote on his page before this contract (one link for every stage) */
   quoteAccepted?: { at: string; name: string | null } | null;
@@ -223,12 +230,12 @@ export async function loadContract(session: SessionContext, number: string): Pro
     { data: client }, { data: q }, { data: ver }, { data: payments }, { data: links },
     { data: addenda }, settings, { data: receipts }, { data: tpl }, { data: requestableRows },
     bookTeam, warrantyEnd, { data: invoices }, { count: openMaintenance },
-    adCosts, approvals, { data: optRows }, materialCostValue, reward,
+    adCosts, approvals, { data: optRows }, materialCostValue, reward, { data: sheets },
   ] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city, district, id_number").eq("id", c.client_id).maybeSingle(),
     supabase.from("quotes").select("number, valid_until, client_decision, client_decided_at, client_name").eq("id", c.quote_id).maybeSingle(),
     verP,
-    supabase.from("contract_payments").select("id, seq, label, percent, amount, due_event, status, paid_amount, requested_at").eq("contract_id", c.id).order("seq"),
+    supabase.from("contract_payments").select("id, seq, label, percent, amount, due_event, status, paid_amount, requested_at, kind, measure_adjust").eq("contract_id", c.id).order("seq"),
     supabase.from("client_portal_links").select("expires_at, revoked_at, last_opened_at, open_count").eq("contract_id", c.id).order("created_at", { ascending: false }),
     addendaP,
     loadPricingSettings(session),
@@ -261,7 +268,12 @@ export async function loadContract(session: SessionContext, number: string): Pro
       : Promise.resolve({ data: [] as { version: number; total: number }[] }),
     can(session, "costs.view") ? materialCost(supabase, c.quote_id, c.quote_version) : Promise.resolve(null),
     loadContractCommission(session, c.id),
+    // measurement sheets (quantity settlement): number, status and money only
+    c.status === "accepted"
+      ? supabase.from("contract_measurements").select("number, status, diff_subtotal, diff_total, credit_amount, refunded_at").eq("contract_id", c.id).order("created_at")
+      : Promise.resolve({ data: [] as { number: string; status: "draft" | "sent" | "approved" | "objected"; diff_subtotal: number; diff_total: number; credit_amount: number; refunded_at: string | null }[] }),
   ]);
+  const measureSheets = (sheets ?? []).map((m) => ({ number: m.number, status: m.status, diff_subtotal: n(m.diff_subtotal), diff_total: n(m.diff_total), credit_amount: n(m.credit_amount), refunded_at: m.refunded_at }));
   const active = (links ?? []).find((l) => !l.revoked_at && new Date(l.expires_at) > new Date());
   const requestable = new Set((requestableRows ?? []).map((r) => r.payment_id));
   return {
@@ -277,7 +289,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
     client: { ...(client ?? { number: "", name: "—", phone: null, city: null, district: null, id_number: null }), site_own: c.site_own ?? false, site_city: c.site_city ?? null, site_district: c.site_district ?? null },
     quote: { number: q?.number ?? "", version: c.quote_version, date: ver?.created_at ?? c.created_at, valid_until: q?.valid_until ?? null, view: ver?.client_view as unknown as ClientView, notes: ver?.notes ?? null },
     payments: (payments ?? []).map((p) => ({
-      ...p, percent: n(p.percent), amount: n(p.amount), paid_amount: n(p.paid_amount),
+      ...p, percent: n(p.percent), amount: n(p.amount), paid_amount: n(p.paid_amount), adjust: n(p.measure_adjust),
       requestable: requestable.has(p.id),
       late_days: p.status === "requested" ? lateDays(p.requested_at, today) : null,
     })),
@@ -306,6 +318,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
     receipts: (receipts ?? []).map((r) => ({ number: r.number, label: r.label, amount: Number(r.amount), paid_on: r.paid_on })),
     invoices: (invoices ?? []).map((i) => ({ number: i.number, label: i.description, amount: Number(i.total), paid_on: i.issue_date })),
     openMaintenance: openMaintenance ?? 0,
+    measurements: { sheets: measureSheets, ...measurementTotals(measureSheets) },
     vatPercent: effectiveVatPercent(session.organization.vat_number, Number(settings?.vat_percent ?? 15)),
   };
 }

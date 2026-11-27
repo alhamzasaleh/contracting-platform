@@ -17,6 +17,16 @@ const ACCEPTED: ContractDetail = {
     // requested 9 days ago: the WhatsApp reminder says it's late
     late_days: i === 0 ? 9 : null,
   })),
+  // quantity settlement: one sheet signed by the client (+517.50), one still with him
+  measurements: {
+    sheets: [
+      { number: "MS-2026-001", status: "approved", diff_subtotal: 450, diff_total: 517.5, credit_amount: 0, refunded_at: null },
+      { number: "MS-2026-002", status: "sent", diff_subtotal: -190, diff_total: -218.5, credit_amount: 0, refunded_at: null },
+    ],
+    net: 450,
+    total: 517.5,
+    owed: 0,
+  },
 };
 
 export default function P() {

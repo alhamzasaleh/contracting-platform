@@ -4,7 +4,7 @@ import { BrandStyle } from "@/components/brand-style";
 import { PortalView } from "@/components/portal/portal-view";
 import { loadPortal } from "@/lib/portal";
 import { QuoteStageView } from "@/components/portal/quote-stage";
-import { acceptAddendumPortal, acceptPortal, acceptQuotePortal, addMaintenancePortal, addNotePortal, confirmMaintenancePortal, confirmStagePortal, rejectQuotePortal, requestQuoteChangesPortal } from "../../actions";
+import { acceptAddendumPortal, acceptPortal, answerMeasurementPortal, acceptQuotePortal, addMaintenancePortal, addNotePortal, confirmMaintenancePortal, confirmStagePortal, rejectQuotePortal, requestQuoteChangesPortal } from "../../actions";
 
 // Private link: never indexed, never leaked to other sites through the Referer header.
 export const metadata: Metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" };
@@ -36,7 +36,7 @@ export default async function ClientPage({ params }: { params: Promise<{ number:
   return (
     <>
       <BrandStyle primary={data.org.brand.primary} accent={data.org.brand.accent} />
-      <PortalView data={data} logoUrl={logoUrl} number={n} token={token} onAccept={acceptPortal} onConfirmStage={confirmStagePortal} onAddNote={addNotePortal} onAcceptAddendum={acceptAddendumPortal} onAddMaintenance={addMaintenancePortal} onConfirmMaintenance={confirmMaintenancePortal} />
+      <PortalView data={data} logoUrl={logoUrl} number={n} token={token} onAccept={acceptPortal} onConfirmStage={confirmStagePortal} onAddNote={addNotePortal} onAcceptAddendum={acceptAddendumPortal} onAddMaintenance={addMaintenancePortal} onConfirmMaintenance={confirmMaintenancePortal} onAnswerMeasurement={answerMeasurementPortal} />
     </>
   );
 }

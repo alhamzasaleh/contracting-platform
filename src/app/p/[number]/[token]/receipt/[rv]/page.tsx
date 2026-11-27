@@ -5,6 +5,7 @@ import { ReceiptVoucher } from "@/components/finance/receipt-voucher";
 import { PrintButton } from "@/components/quotes/print-button";
 import { loadPortal } from "@/lib/portal";
 import { receiptTotals } from "@/lib/receipts";
+import { measurementTotals } from "@/lib/measurements";
 
 export const metadata: Metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" };
 
@@ -16,7 +17,8 @@ export default async function PortalReceiptPage({ params }: { params: Promise<{ 
   if (!/^RV-\d{4}-\d{3,6}$/.test(rvNumber)) notFound();
   const { data, logoUrl } = await loadPortal(n, token);
   if (!data) notFound();
-  const value = data.contract.total + (data.addenda ?? []).filter((a) => a.status === "accepted").reduce((s, a) => s + a.total, 0);
+  // contract + accepted additional works + the quantity settlement the client signed
+  const value = data.contract.total + (data.addenda ?? []).filter((a) => a.status === "accepted").reduce((s, a) => s + a.total, 0) + measurementTotals(data.measurements ?? []).total;
   const totals = receiptTotals(data.receipts ?? [], rvNumber, value);
   if (!totals) notFound();
   const o = data.org;

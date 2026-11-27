@@ -10,6 +10,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { visitRefusal } from "@/lib/geo";
 import { linkCoords } from "@/lib/geo-server";
+import { measurementError } from "@/lib/measurements";
 
 const id = z.uuid();
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -115,7 +116,8 @@ export async function uploadPhoto(fd: FormData): Promise<ActionResult<{ path: st
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (!isJpeg(bytes)) return { ok: false, error: "fileType" };
   if (!(await contractOf(ctx, contractId))) return { ok: false, error: "notAccepted" };
-  const path = `${ctx.orgId}/${contractId}/${randomUUID()}.jpg`;
+  // measurement-sheet photos live in their own folder (the sheet accepts only <org>/<contract>/measure/<uuid>.jpg)
+  const path = fd.get("kind") === "measure" ? `${ctx.orgId}/${contractId}/measure/${randomUUID()}.jpg` : `${ctx.orgId}/${contractId}/${randomUUID()}.jpg`;
   const { error } = await ctx.supabase.storage.from("project-photos").upload(path, bytes, { contentType: "image/jpeg", upsert: false });
   if (error) {
     console.error("[projects] photo upload failed");
@@ -197,4 +199,78 @@ export async function updateNote(input: unknown): Promise<ActionResult> {
   const { error } = await ctx.supabase.from("client_notes").update({ status: parsed.data.status, reply: parsed.data.reply || null }).eq("id", parsed.data.id).eq("organization_id", ctx.orgId);
   if (error) return fail(error, "note");
   return done();
+}
+
+// --- Measurement sheets (owner, Nov 2026) -------------------------------------------------------
+
+function measureFail(error: { code?: string; message?: string } | null, what: string): ActionResult<never> {
+  console.error(`[projects] ${what} failed`, { code: error?.code });
+  if (error?.code === "42501" && !error.message?.includes("can't")) return { ok: false, error: "noAccess" };
+  return { ok: false, error: measurementError(error?.message) };
+}
+
+const measureSchema = z
+  .object({
+    id: id.nullable(),
+    contract_id: id,
+    lines: z.array(z.object({ work_type: z.string().min(1).max(40), measured_area: z.number().min(0).max(1_000_000) }).strict()).min(1).max(20),
+    notes: z.string().trim().max(2000).nullable(),
+    photos: z.array(z.string().max(200)).max(12),
+  })
+  .strict()
+  .refine((v) => new Set(v.lines.map((l) => l.work_type)).size === v.lines.length);
+
+/** Save a draft sheet (new or edited while draft / objected); the database computes agreed m² and money. */
+export async function saveMeasurement(input: unknown): Promise<ActionResult<{ id: string; number: string }>> {
+  const ctx = await authorize();
+  if (!isCtx(ctx)) return ctx;
+  const parsed = measureSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
+  const v = parsed.data;
+  const row = { lines: v.lines, notes: v.notes || null, photos: v.photos };
+  const q = v.id
+    ? ctx.supabase.from("contract_measurements").update(row).eq("id", v.id).eq("organization_id", ctx.orgId).eq("contract_id", v.contract_id).select("id, number").single()
+    : ctx.supabase.from("contract_measurements").insert({ ...row, organization_id: ctx.orgId, contract_id: v.contract_id }).select("id, number").single();
+  const { data, error } = await q;
+  if (error || !data) return measureFail(error, "save measurement");
+  return done(data);
+}
+
+export async function sendMeasurement(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize();
+  if (!isCtx(ctx)) return ctx;
+  const parsed = z.object({ id }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { error } = await ctx.supabase.rpc("send_measurement", { p_id: parsed.data.id });
+  if (error) return measureFail(error, "send measurement");
+  return done();
+}
+
+export async function deleteMeasurement(input: unknown): Promise<ActionResult> {
+  const ctx = await authorize();
+  if (!isCtx(ctx)) return ctx;
+  const parsed = z.object({ id }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { error, count } = await ctx.supabase.from("contract_measurements").delete({ count: "exact" }).eq("id", parsed.data.id).eq("organization_id", ctx.orgId);
+  if (error) return measureFail(error, "delete measurement");
+  if (!count) return { ok: false, error: "noAccess" };
+  return done();
+}
+
+/** Money owed back to the client after a measurement (finance.manage). */
+export async function recordMeasurementRefund(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "finance.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z
+    .object({ id, paid_on: z.iso.date(), method: z.enum(["transfer", "cash", "cheque", "card"]), reference: z.string().trim().max(80).nullable() })
+    .strict()
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid", fieldErrors: fieldErrors(parsed.error) };
+  const v = parsed.data;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("record_measurement_refund", { p_id: v.id, p_paid_on: v.paid_on, p_method: v.method, p_reference: v.reference || null });
+  if (error) return measureFail(error, "measurement refund");
+  revalidatePath("/projects", "layout");
+  revalidatePath("/contracts", "layout");
+  return { ok: true };
 }
