@@ -71,3 +71,13 @@ describe("credit notes (review)", () => {
     expect(invoiceRemaining({ total: 9000, paid: 4000, credited: 103.5 })).toBe(4896.5);
   });
 });
+
+describe("credit allocation is never sent twice (review)", () => {
+  it("finds an earlier allocation of the credit note in the invoice answer", async () => {
+    const { allocationExists } = await import("@/lib/qoyod/payloads");
+    expect(allocationExists({ invoice: { id: 3, allocations: [{ source_type: "CreditNote", source_id: 8, amount: "103.5" }] } }, 8)).toBe(true);
+    expect(allocationExists({ invoice: { id: 3, allocations: [{ source_type: "Receipt", source_id: 8 }] } }, 8)).toBe(false);
+    expect(allocationExists({ invoice: { id: 3, allocations: [{ source_type: "CreditNote", source_id: 9 }] } }, 8)).toBe(false);
+    expect(allocationExists(null, 8)).toBe(false);
+  });
+});

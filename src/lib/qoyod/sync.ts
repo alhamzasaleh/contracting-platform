@@ -4,7 +4,7 @@ import type { QoyodJobRow, QoyodSettingsRow } from "@/lib/supabase/database.type
 import { qoyod, QoyodError } from "./client";
 import { qoyodAutoSetup } from "./setup";
 import { effectiveVatPercent } from "@/lib/costing";
-import { approveSimpleBillBody, autoSetupDue, autoSetupNext, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyOpeningBody, pettyOpeningTag, pettyPlan, pettyReconcileAccounts, pettyTag, pettyTransferBody, simpleBillBody, simpleBillPaymentBody, commissionBillRef, commissionExpenseAccount, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved, creditAllocationBody, creditNoteBody } from "./payloads";
+import { approveSimpleBillBody, autoSetupDue, autoSetupNext, billPaymentRef, customerBody, documentStatus, invoiceBody, invoicePaymentBody, invoiceRef, paymentRef, paymentStep, findJournalEntry, payrollJournalBody, payrollTag, PETTY_VENDOR, pettyBillRef, pettyOpeningBody, pettyOpeningTag, pettyPlan, pettyReconcileAccounts, pettyTag, pettyTransferBody, simpleBillBody, simpleBillPaymentBody, commissionBillRef, commissionExpenseAccount, subcontractExpenseAccount, subcontractorBillAmounts, subcontractorBillRef, vendorBody, waitsForApproved, allocationExists, creditAllocationBody, creditNoteBody } from "./payloads";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Ctx = { admin: Admin; key: string; s: QoyodSettingsRow };
@@ -379,6 +379,11 @@ async function runJob(ctx: Ctx, job: QoyodJobRow): Promise<number | { skipped: s
       if (!invoiceId) throw new Blocked("waiting:invoice");
       const invoice = await qoyod<unknown>(ctx.key, "GET", `/invoices/${invoiceId}`);
       if (paymentStep("invoice_payment", documentStatus(invoice, "invoice")) === "wait") throw new Deferred("waiting:invoice_draft");
+      // a credit note sent while sending was "Draft" must be approved in Qoyod before it can be allocated
+      const note = await qoyod<unknown>(ctx.key, "GET", `/credit_notes/${creditNoteId}`);
+      if (documentStatus(note, "credit_note") === "Draft") throw new Deferred("waiting:credit_note_draft");
+      // already allocated (an earlier try whose answer was lost): done, never twice
+      if (allocationExists(invoice, creditNoteId)) return creditNoteId;
       await qoyod(ctx.key, "POST", `/invoices/${invoiceId}/allocations`, creditAllocationBody({ creditNoteId, amount: Number(job.amount ?? cn.total), date: cn.issue_date }));
       return creditNoteId;
     }

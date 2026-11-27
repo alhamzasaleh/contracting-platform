@@ -23,7 +23,7 @@ export function waitsForApproved(kind: string, invoiceStatus: string | null | un
 }
 
 /** A document's status from Qoyod's GET /invoices/:id or /simple_bills/:id answer. */
-export function documentStatus(r: unknown, key: "invoice" | "simple_bill"): string | null {
+export function documentStatus(r: unknown, key: "invoice" | "simple_bill" | "credit_note"): string | null {
   const doc = (r as Record<string, { status?: unknown } | undefined> | null)?.[key];
   return typeof doc?.status === "string" ? doc.status : null;
 }
@@ -125,6 +125,25 @@ export function creditNoteBody(c: { contactId: number; reference: string; issueD
       ],
     },
   };
+}
+
+/**
+ * Is this credit note already allocated to the invoice? Looks through Qoyod's GET /invoices/:id answer for an
+ * allocation whose source is the credit note — a retry after a lost answer never allocates it twice.
+ */
+export function allocationExists(invoice: unknown, creditNoteId: number): boolean {
+  const seen = new Set<unknown>();
+  const walk = (v: unknown): boolean => {
+    if (!v || typeof v !== "object" || seen.has(v)) return false;
+    seen.add(v);
+    if (Array.isArray(v)) return v.some(walk);
+    const o = v as Record<string, unknown>;
+    const type = String(o.source_type ?? o.allocatable_type ?? "");
+    const id = Number(o.source_id ?? o.allocatable_id ?? NaN);
+    if (/credit/i.test(type) && id === creditNoteId) return true;
+    return Object.values(o).some(walk);
+  };
+  return walk(invoice);
 }
 
 /** Allocate a credit note to the invoice it reduces (both approved in Qoyod). */

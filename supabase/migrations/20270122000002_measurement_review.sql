@@ -277,7 +277,7 @@ declare
   v_row public.contract_payments;
   v_handed boolean;
   v_seq int;
-  v_inv uuid;
+  v_credit numeric;
   v_count int;
   v_number text;
 begin
@@ -357,10 +357,20 @@ begin
       v_applied := v_applied || jsonb_build_object('kind', 'credited', 'payment', r.id, 'amount', v_take);
       v_left := v_left - v_take;
     end loop;
-    -- d) everything paid: owed back to the client, with a credit note on the latest invoice
+    -- d) everything paid: owed back to the client, with credit notes on the contract's paid payment invoices
+    -- (newest first, each at most what is still on that invoice — never on an addendum's invoice)
     if v_left > 0 then
-      select i.id into v_inv from public.invoices i where i.contract_id = m.contract_id order by i.issue_date desc, i.number desc limit 1;
-      perform private.issue_credit_note(m.id, v_inv, null, v_left);
+      v_credit := v_left;
+      for r in select i.id, i.total - coalesce((select sum(n.total) from public.credit_notes n where n.invoice_id = i.id), 0) as room
+               from public.invoices i join public.contract_payments p on p.id = i.payment_id
+               where i.contract_id = m.contract_id and p.status = 'paid'
+               order by i.issue_date desc, i.number desc loop
+        exit when v_credit <= 0;
+        continue when r.room <= 0.005;
+        v_take := least(v_credit, r.room);
+        perform private.issue_credit_note(m.id, r.id, null, v_take);
+        v_credit := v_credit - v_take;
+      end loop;
       v_applied := v_applied || jsonb_build_object('kind', 'credit', 'amount', v_left);
     end if;
   end if;
@@ -638,3 +648,99 @@ end;
 $$;
 revoke all on function public.portal_credit_notes(text, text) from public, anon, authenticated;
 grant execute on function public.portal_credit_notes(text, text) to service_role;
+
+-- 9) «send from date» also sends credit notes made while Qoyod was off
+create or replace function public.qoyod_backfill(p_org uuid, p_from date)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_before int;
+  v_after int;
+begin
+  if not private.has_permission(p_org, 'settings.manage') then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  if p_from is null or p_from > current_date then
+    raise exception 'invalid date' using errcode = '22023';
+  end if;
+  select count(*) into v_before from public.qoyod_sync_jobs where organization_id = p_org;
+  update public.qoyod_settings set sync_from = p_from where organization_id = p_org;
+
+  perform private.qoyod_enqueue(p.organization_id, 'invoice', 'contract_payment', p.id, 'cp:' || p.id)
+  from public.contract_payments p
+  where p.organization_id = p_org and p.status in ('requested', 'paid') and coalesce(p.requested_at, p.paid_at, p.created_at) >= p_from;
+  perform private.qoyod_enqueue(p.organization_id, 'invoice_payment', 'contract_payment', p.id, 'cp:' || p.id || ':' || p.paid_amount, p.paid_amount)
+  from public.contract_payments p
+  where p.organization_id = p_org and coalesce(p.paid_amount, 0) > 0 and coalesce(p.paid_at, p.created_at) >= p_from;
+
+  perform private.qoyod_enqueue(a.organization_id, 'invoice', 'addendum', a.id, 'ad:' || a.id)
+  from public.addenda a
+  where a.organization_id = p_org and a.status = 'accepted' and coalesce(a.accepted_at, a.created_at) >= p_from;
+  perform private.qoyod_enqueue(a.organization_id, 'invoice_payment', 'addendum', a.id, 'ad:' || a.id || ':' || a.paid_amount, a.paid_amount)
+  from public.addenda a
+  where a.organization_id = p_org and coalesce(a.paid_amount, 0) > 0 and coalesce(a.paid_at::timestamptz, a.created_at) >= p_from;
+
+  perform private.qoyod_enqueue(p.organization_id, 'bill', 'purchase', p.id, 'po:' || p.id)
+  from public.purchases p
+  where p.organization_id = p_org and p.status = 'recorded' and p.total > 0 and coalesce(p.invoice_date::timestamptz, p.recorded_at, p.created_at) >= p_from;
+  perform private.qoyod_enqueue(p.organization_id, 'bill_payment', 'purchase', p.id, 'pp:' || p.id, p.total)
+  from public.purchases p
+  where p.organization_id = p_org and p.status = 'recorded' and p.total > 0 and p.paid_on is not null and p.paid_on >= p_from;
+
+  perform private.qoyod_enqueue(s.organization_id, 'bill', 'subcontractor_payment', s.id, 'sb:' || s.id)
+  from public.subcontractor_payments s where s.organization_id = p_org and s.paid_on >= p_from;
+  perform private.qoyod_enqueue(s.organization_id, 'bill_payment', 'subcontractor_payment', s.id, 'sp:' || s.id, s.amount)
+  from public.subcontractor_payments s where s.organization_id = p_org and s.paid_on >= p_from;
+
+  perform private.qoyod_enqueue(k.organization_id, 'bill', 'commission_payment', k.id, 'mk:' || k.id)
+  from public.commission_payments k where k.organization_id = p_org and k.paid_on >= p_from;
+  perform private.qoyod_enqueue(k.organization_id, 'bill_payment', 'commission_payment', k.id, 'mkp:' || k.id, k.amount)
+  from public.commission_payments k where k.organization_id = p_org and k.paid_on >= p_from;
+
+  -- credit notes (a signed measurement reduced what was invoiced) and their allocation to an unpaid invoice
+  perform private.qoyod_enqueue(n.organization_id, 'credit_note', 'credit_note', n.id, 'cn:' || n.id)
+  from public.credit_notes n where n.organization_id = p_org and n.issue_date >= p_from;
+  perform private.qoyod_enqueue(n.organization_id, 'credit_allocation', 'credit_note', n.id, 'cna:' || n.id, n.total)
+  from public.credit_notes n where n.organization_id = p_org and n.payment_id is not null and n.issue_date >= p_from;
+
+  perform private.qoyod_enqueue_petty(p_org, p_from);
+
+  select count(*) into v_after from public.qoyod_sync_jobs where organization_id = p_org;
+  return v_after - v_before;
+end;
+$function$;
+
+-- 10) client page invoices: paid in full = the invoice less its credit notes (same rule as invoicePaid in the app)
+create or replace function public.portal_invoice_docs(p_number text, p_token text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_link public.client_portal_links;
+begin
+  v_link := private.portal_link(p_number, p_token);
+  if v_link.id is null then
+    return null;
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', i.id, 'number', i.number, 'kind', i.kind, 'issue_date', i.issue_date, 'due_date', i.due_date,
+      'description', i.description, 'seller', i.seller, 'buyer', i.buyer, 'subtotal', i.subtotal, 'vat_percent', i.vat_percent, 'vat', i.vat,
+      'total', i.total, 'created_at', i.created_at,
+      'paid', case when p.status = 'paid' or a.payment_status = 'paid'
+                   then greatest(i.total - coalesce((select sum(n.total) from public.credit_notes n where n.invoice_id = i.id), 0), coalesce(p.paid_amount, a.paid_amount, 0))
+                   else coalesce(p.paid_amount, a.paid_amount, 0) end,
+      'official', case when i.payment_id is not null then 'p' || p.seq else a.number end,
+      'has_official', exists (select 1 from public.qoyod_sync_jobs j where j.entity_id = coalesce(i.payment_id, i.addendum_id) and j.kind = 'invoice' and j.status = 'done' and j.qoyod_id is not null))
+      order by i.issue_date, i.number)
+    from public.invoices i
+    left join public.contract_payments p on p.id = i.payment_id
+    left join public.addenda a on a.id = i.addendum_id
+    where i.contract_id = v_link.contract_id), '[]'::jsonb);
+end;
+$$;

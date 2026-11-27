@@ -321,6 +321,57 @@ describe("review fixes", () => {
     }
   });
 
+  it("client page: a partly paid invoice reduced by a credit note shows what was really paid", async () => {
+    const c = await makeContract();
+    const pay1 = await asAdmin(async (q) => (await q<{ id: string }>("select id from public.contract_payments where contract_id = $1 and seq = 1", [c.id])).rows[0].id);
+    await as({ userId: fin }, (q) => q("select public.record_client_payment($1, current_date, 1000, 'transfer', null)", [pay1]));
+    const m = await draft(c.id, [{ work_type: "ceilings", measured_area: 0 }, { work_type: "partitions", measured_area: 0 }]); // −8073
+    await send(m.id);
+    await answer(c, m.id, true);
+    const docs = await as("service_role", async (q) => (await q<{ v: { total: number; paid: number }[] }>("select public.portal_invoice_docs($1,$2) as v", [c.number, c.token])).rows[0].v);
+    expect(Number(docs[0].paid)).toBe(1000);
+  });
+
+  it("owed to the client: credit notes sit on paid payment invoices, never on an addendum's, never above an invoice", async () => {
+    const c = await makeContract();
+    const pay1 = await asAdmin(async (q) => (await q<{ id: string; amount: string }>("select id, amount from public.contract_payments where contract_id = $1 and seq = 1", [c.id])).rows[0]);
+    await as({ userId: fin }, (q) => q("select public.record_client_payment($1, current_date, $2, 'transfer', null)", [pay1.id, Number(pay1.amount)]));
+    // an addendum accepted afterwards (its invoice is the newest, unpaid)
+    await asAdmin(async (q) => {
+      const ad = (await q<{ id: string }>("insert into public.addenda (organization_id, contract_id, title, description, amount, total, extra_days, status) values ($1,$2,'إضافي','وصف',500,500,1,'sent') returning id", [org, c.id])).rows[0].id;
+      await q("update public.addenda set status = 'accepted', payment_status = 'requested', accepted_at = now() where id = $1", [ad]);
+    });
+    const m = await draft(c.id, [{ work_type: "ceilings", measured_area: 0 }, { work_type: "partitions", measured_area: 0 }]); // −8073
+    await send(m.id);
+    await answer(c, m.id, true);
+    const notes = await asAdmin((q) => q<{ total: string; inv_total: string; addendum_id: string | null }>("select n.total, i.total as inv_total, i.addendum_id from public.credit_notes n join public.invoices i on i.id = n.invoice_id where n.measurement_id = $1", [m.id]));
+    expect(notes.rows.length).toBeGreaterThan(0);
+    for (const n of notes.rows) {
+      expect(n.addendum_id).toBeNull();
+      expect(Number(n.total)).toBeLessThanOrEqual(Number(n.inv_total));
+    }
+  });
+
+  it("«send from date» also queues credit notes made while Qoyod was off", async () => {
+    const c = await makeContract();
+    await handOver(c);
+    const m = await draft(c.id, [{ work_type: "ceilings", measured_area: 98 }]);
+    await send(m.id);
+    await answer(c, m.id, true); // Qoyod off: no job yet
+    await asAdmin((q) => q("insert into public.qoyod_settings (organization_id, enabled) values ($1, true)", [org]));
+    try {
+      await as({ userId: owner }, (q) => q("select public.qoyod_backfill($1, current_date - 1)", [org]));
+      const cn = await asAdmin(async (q) => (await q<{ id: string }>("select id from public.credit_notes where measurement_id = $1", [m.id])).rows[0].id);
+      const jobs = await asAdmin((q) => q<{ ref: string }>("select ref from public.qoyod_sync_jobs where entity_id = $1 order by ref", [cn]));
+      expect(jobs.rows.map((j) => j.ref)).toEqual([`cn:${cn}`, `cna:${cn}`]);
+    } finally {
+      await asAdmin(async (q) => {
+        await q("delete from public.qoyod_sync_jobs where organization_id = $1", [org]);
+        await q("delete from public.qoyod_settings where organization_id = $1", [org]);
+      });
+    }
+  });
+
   it("a sheet waiting for the client is reminded after 3 days", async () => {
     const c = await makeContract();
     const m = await draft(c.id, [{ work_type: "ceilings", measured_area: 100 }]);

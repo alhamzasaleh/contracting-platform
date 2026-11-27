@@ -2776,7 +2776,11 @@
     "rewardAccount": "Success partner rewards account",
     "rewardHint": "Rewards are recorded as an expense bill on this account, then paid. Without one they go to the purchases & expenses account.",
     "missing_marketer": "Success partner not found",
-    "missing_commission_payment": "Payment voucher not found"
+    "missing_commission_payment": "Payment voucher not found",
+    "kind_credit_note": "Credit note",
+    "kind_credit_allocation": "Credit note allocation",
+    "waiting_credit_note_draft": "The credit note is a draft in Qoyod — approve it there and it is then applied to the invoice automatically.",
+    "waiting_credit_note": "Waiting for the credit note to reach Qoyod first."
   },
   "receipt": {
     "title": "Receipt voucher",

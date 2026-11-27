@@ -34,12 +34,14 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
   const supabase = await createClient();
   const org = session.organization.id;
   const seeInvoices = can(session, "finance.view");
-  const jobsP = once(supabase.from("qoyod_sync_jobs").select("id, kind, status, attempts, last_error, qoyod_id, amount, created_at, done_at, entity_type, entity_id, from_account_id, to_account_id").eq("organization_id", org).in("kind", ["invoice", "invoice_payment", "bill", "bill_payment", "payroll", "transfer"]).order("created_at", { ascending: false }).limit(50));
+  const jobsP = once(supabase.from("qoyod_sync_jobs").select("id, kind, status, attempts, last_error, qoyod_id, amount, created_at, done_at, entity_type, entity_id, from_account_id, to_account_id").eq("organization_id", org).in("kind", ["invoice", "invoice_payment", "bill", "bill_payment", "payroll", "transfer", "credit_note", "credit_allocation"]).order("created_at", { ascending: false }).limit(50));
   // payments waiting for a draft invoice to be approved in Qoyod (all of them, not only the latest 50)
-  const waitingP = once(supabase.from("qoyod_sync_jobs").select("entity_type, entity_id").eq("organization_id", org).eq("kind", "invoice_payment").in("status", ["queued", "running"]).eq("last_error", "waiting:invoice_draft").limit(200));
+  const waitingP = once(supabase.from("qoyod_sync_jobs").select("entity_type, entity_id").eq("organization_id", org).in("kind", ["invoice_payment", "credit_allocation"]).in("status", ["queued", "running"]).in("last_error", ["waiting:invoice_draft", "waiting:credit_note_draft"]).limit(200));
   const waitIds = waitingP.then(({ data: waiting }) => ({
     pay: [...new Set((waiting ?? []).filter((w) => w.entity_type === "contract_payment").map((w) => w.entity_id))],
     ad: [...new Set((waiting ?? []).filter((w) => w.entity_type === "addendum").map((w) => w.entity_id))],
+    // credit notes waiting to be approved in Qoyod before their allocation
+    cn: [...new Set((waiting ?? []).filter((w) => w.entity_type === "credit_note").map((w) => w.entity_id))],
   }));
   // what each job is about, for its label (chained onto the jobs: payments → contracts, subcontractor payments → agreements → names)
   const entitiesP = jobsP.then(({ data: jobs }) => {
@@ -55,6 +57,7 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
       ids("petty_cash").length ? rows(supabase.from("petty_cash_entries").select("id, description, supplier_name").in("id", ids("petty_cash"))) : [],
       // success partners' rewards: the payment voucher number (RLS: finance / costs / marketers.manage)
       ids("commission_payment").length ? rows(supabase.from("commission_payments").select("id, number").in("id", ids("commission_payment"))) : [],
+      ids("credit_note").length ? rows(supabase.from("credit_notes").select("id, number").in("id", ids("credit_note"))) : [],
       paysP.then((pays) => {
         const cids = [...new Set(pays.map((p) => p.contract_id))];
         return cids.length ? rows(supabase.from("contracts").select("id, number").in("id", cids)) : [];
@@ -68,7 +71,7 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
       }),
     ]);
   });
-  const [{ data: s }, { data: jobs }, { pay: waitPay, ad: waitAd }, [wp, wa], [pays, ads, pos, runs, subPays, petty, rewards, cons, subName], ...counts] = await Promise.all([
+  const [{ data: s }, { data: jobs }, { pay: waitPay, ad: waitAd, cn: waitCn }, [wp, wa], [pays, ads, pos, runs, subPays, petty, rewards, creditRows, cons, subName], ...counts] = await Promise.all([
     supabase.from("qoyod_settings").select("enabled, invoice_status, inventory_id, receive_account_id, expense_account_id, salary_account_id, cash_account_id, subcontract_account_id, commission_account_id, service_products, addendum_product_id, key_last4, key_set_at, sync_from").eq("organization_id", org).maybeSingle(),
     jobsP,
     waitIds,
@@ -81,7 +84,7 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
     ),
     entitiesP,
     ...(["queued", "done", "failed"] as const).map((st) =>
-      supabase.from("qoyod_sync_jobs").select("id", { count: "exact", head: true }).eq("organization_id", org).in("kind", ["invoice", "invoice_payment", "bill", "bill_payment", "payroll", "transfer"]).in("status", st === "queued" ? ["queued", "running"] : [st]),
+      supabase.from("qoyod_sync_jobs").select("id", { count: "exact", head: true }).eq("organization_id", org).in("kind", ["invoice", "invoice_payment", "bill", "bill_payment", "payroll", "transfer", "credit_note", "credit_allocation"]).in("status", st === "queued" ? ["queued", "running"] : [st]),
     ),
   ]);
   const jobRows = jobs ?? [];
@@ -95,13 +98,14 @@ export async function loadQoyod(session: SessionContext): Promise<QoyodPageData>
     ...subPays.map((p) => [p.id, `${subName.get(p.agreement_id) ?? ""} · ${p.paid_on}`] as [string, string]),
     ...petty.map((e) => [e.id, e.supplier_name ? `${e.supplier_name} · ${e.description}` : e.description] as [string, string]),
     ...rewards.map((v) => [v.id, v.number] as [string, string]),
+    ...creditRows.map((v) => [v.id, v.number] as [string, string]),
   ]);
   return {
     settings: s ? { ...s, service_products: (s.service_products ?? {}) as Record<string, number> } : EMPTY,
     jobs: jobRows.map((j) => ({ id: j.id, kind: j.kind, status: j.status, attempts: j.attempts, last_error: j.last_error, qoyod_id: j.qoyod_id, created_at: j.created_at, done_at: j.done_at, amount: j.amount == null ? null : Number(j.amount), label: label.get(j.entity_id) ?? "—", opening: j.entity_type === "petty_cash_opening", ...(j.entity_type === "petty_cash_opening" ? { from_account_id: j.from_account_id, to_account_id: j.to_account_id } : {}) })),
     counts: { queued: counts[0].count ?? 0, done: counts[1].count ?? 0, failed: counts[2].count ?? 0 },
     draftInvoices,
-    draftCount: waitPay.length + waitAd.length,
+    draftCount: waitPay.length + waitAd.length + waitCn.length,
     canManage: can(session, "settings.manage"),
     canViewInvoices: can(session, "finance.view"),
     canRetry: can(session, "settings.manage") || can(session, "finance.manage"),
