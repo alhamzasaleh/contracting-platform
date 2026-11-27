@@ -1,4 +1,5 @@
 import "server-only";
+import { getTranslations } from "next-intl/server";
 import { can, type SessionContext } from "@/lib/auth/session";
 import { loadProjectCosts } from "@/lib/data/purchases";
 import type { Line } from "@/lib/engine";
@@ -51,6 +52,8 @@ export type OwnerFinance = {
   labourHidden?: boolean;
   /** success partners' rewards: due now (to pay) and expected (paid once their contracts are fully paid) */
   rewards?: { due: number; dueCount: number; expected: number } | null;
+  /** owed back to clients after signed measurement sheets, not paid back yet */
+  owedToClients?: number;
   canManage: boolean;
   canDecide: boolean;
   /** which pages the viewer may open from here: contracts (quotes.view), projects (projects.view), costs (costs.view + purchases.view), schedule (schedule.view) */
@@ -79,6 +82,7 @@ export async function loadPendingApprovals(session: SessionContext): Promise<App
 
 /** Everything the owner's home needs (§3.16). finance.view; each part follows its own permission via RLS. */
 export async function loadOwnerFinance(session: SessionContext, today: string): Promise<OwnerFinance> {
+  const settlementLabel = (await getTranslations("measure"))("settlementLabel");
   const supabase = await createClient();
   const orgId = session.organization.id;
   // Every query starts at once; the few that need another's answer are chained onto it, so the
@@ -102,7 +106,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     supabase.from("approvals").select("id, kind, entity, entity_id, details, created_at").eq("organization_id", orgId).eq("status", "pending").order("created_at"),
     supabase.from("project_stages").select("contract_id, status, progress, is_final").eq("organization_id", orgId),
     contractsP.then(({ data: list }) =>
-      list?.length ? rowsOf(supabase.from("contract_payments").select("id, contract_id, seq, label, amount, due_event, status, requested_at, expected_date, paid_amount, paid_at").in("contract_id", list.map((c) => c.id)).order("seq")) : [],
+      list?.length ? rowsOf(supabase.from("contract_payments").select("id, contract_id, seq, label, amount, due_event, status, requested_at, expected_date, paid_amount, paid_at, kind").in("contract_id", list.map((c) => c.id)).order("seq")) : [],
     ),
     versionsP,
     // exactly what request_contract_payment accepts for this user (stages may be hidden from him)
@@ -150,7 +154,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     // success partners' rewards (RLS: finance.view / costs.view / marketers.manage) — not cancelled
     rowsOf(supabase.from("marketer_commissions").select("contract_id, amount, status").eq("organization_id", orgId).in("status", ["expected", "due", "paid"])),
     // quantity settlement the client signed (measurement sheets): changes the project's revenue (before VAT)
-    rowsOf(supabase.from("contract_measurements").select("contract_id, diff_subtotal").eq("organization_id", orgId).eq("status", "approved")),
+    rowsOf(supabase.from("contract_measurements").select("contract_id, diff_subtotal, credit_amount, refunded_at").eq("organization_id", orgId).eq("status", "approved")),
   ]);
   const measured = new Map<string, number>();
   for (const m of measureRows) measured.set(m.contract_id, (measured.get(m.contract_id) ?? 0) + n(m.diff_subtotal));
@@ -162,13 +166,13 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
   const contractOf = new Map((contracts ?? []).map((c) => [c.id, c]));
 
   // --- payments (collections) -------------------------------------------------------
-  const rows: PaymentRow[] = ((payments ?? []) as { id: string; contract_id: string; seq: number; label: string; amount: number; due_event: DueEvent; status: "pending" | "requested" | "paid"; requested_at: string | null; expected_date: string | null; paid_amount: number | null; paid_at: string | null }[]).map((p) => {
+  const rows: PaymentRow[] = ((payments ?? []) as { id: string; contract_id: string; seq: number; label: string; amount: number; due_event: DueEvent; status: "pending" | "requested" | "paid"; requested_at: string | null; expected_date: string | null; paid_amount: number | null; paid_at: string | null; kind?: "schedule" | "measurement" }[]).map((p) => {
     const c = contractOf.get(p.contract_id)!;
     const amount = n(p.amount);
     const paid = n(p.paid_amount);
     const expected = expectedPaymentDate(p, { start_date: c.start_date, days: c.duration_days + (extraDays.get(c.id) ?? 0) }, today);
     return {
-      id: p.id, contract_id: p.contract_id, contract: c.number, client: clientName.get(c.client_id) ?? "—", seq: p.seq, label: p.label, amount, paid,
+      id: p.id, contract_id: p.contract_id, contract: c.number, client: clientName.get(c.client_id) ?? "—", seq: p.seq, label: p.kind === "measurement" ? settlementLabel : p.label, amount, paid,
       outstanding: remainingAmount(amount, paid), status: p.status, requested_at: p.requested_at, expected, paid_at: p.paid_at,
       late: p.status === "requested" && !!p.requested_at && p.requested_at.slice(0, 10) <= addDays(today, -7),
       client_phone: clientPhone.get(c.client_id) ?? null, due_event: p.due_event,
@@ -227,6 +231,9 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
       if (own.length) outflows.push({ date: last, amount: n(k.amount), label: "reward", kind: "reward" });
     }
   }
+  // money owed back to clients after a signed measurement (not paid back yet) — paid now
+  const refunds = measureRows.filter((m) => !m.refunded_at).reduce((s, m) => s + n(m.credit_amount), 0);
+  if (refunds > 0.005) outflows.push({ date: today, amount: r2(refunds), label: "refund", kind: "refund" });
   const inflows: Flow[] = rows.filter((r) => r.outstanding > 0).map((r) => ({ date: r.expected, amount: r.outstanding, label: `${r.client} · ${r.label}`, kind: "client" }));
   const opening = n(settings?.cash_balance);
 
@@ -307,6 +314,7 @@ export async function loadOwnerFinance(session: SessionContext, today: string): 
     approvals: (approvals ?? []).map(approvalRow),
     teamCost,
     labourHidden: can(session, "costs.view") && !can(session, "hr.view"),
+    owedToClients: r2(refunds),
     rewards: rewardRows.length
       ? {
           due: r2(rewardRows.filter((k) => k.status === "due").reduce((s, k) => s + n(k.amount), 0)),

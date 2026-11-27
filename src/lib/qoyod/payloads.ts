@@ -12,7 +12,7 @@ export const TAX = { vat15: "1", zero: "2", exempt: "3" } as const;
  * Jobs that can't be posted on a draft document in Qoyod (a draft invoice/bill can't be paid;
  * a journal entry posts at once): they wait until sending is "Approved".
  */
-export const NEEDS_APPROVED_KINDS = ["invoice_payment", "bill_payment", "payroll", "transfer"] as const;
+export const NEEDS_APPROVED_KINDS = ["invoice_payment", "bill_payment", "payroll", "transfer", "credit_allocation"] as const;
 /**
  * The database's `qoyod_claim_jobs` doesn't claim these kinds while sending is "Draft" (the same
  * list, kept in sync by tests/unit/qoyod-petty-r4.test.tsx).
@@ -106,6 +106,30 @@ export function invoiceBody(i: InvoiceInput) {
       ],
     },
   };
+}
+
+/** A credit note (إشعار دائن) — tax-inclusive like the invoice it reduces; its CN number is the reference. */
+export function creditNoteBody(c: { contactId: number; reference: string; issueDate: string; status: string; inventoryId: number; productId: number; description: string; gross: number; vatPercent: number }) {
+  return {
+    credit_note: {
+      contact_id: c.contactId,
+      reference: c.reference,
+      issue_date: c.issueDate,
+      status: c.status,
+      inventory_id: c.inventoryId,
+      notes: c.reference,
+      line_items: [
+        c.vatPercent > 0
+          ? { product_id: c.productId, description: c.description, quantity: 1, unit_price: r2(c.gross), tax_percent: c.vatPercent, is_inclusive: true }
+          : { product_id: c.productId, description: c.description, quantity: 1, unit_price: r2(c.gross), tax_percent: 0 },
+      ],
+    },
+  };
+}
+
+/** Allocate a credit note to the invoice it reduces (both approved in Qoyod). */
+export function creditAllocationBody(a: { creditNoteId: number; amount: number; date: string }) {
+  return { invoice: { allocations_attributes: [{ source_type: "CreditNote", source_id: a.creditNoteId, amount: r2(a.amount).toFixed(2), date: a.date }] } };
 }
 
 export function invoicePaymentBody(p: { reference: string; invoiceId: number; accountId: number; date: string; amount: number }) {

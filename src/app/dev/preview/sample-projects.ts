@@ -1,6 +1,7 @@
 import type { ProjectDetail, ProjectListItem } from "@/lib/data/projects";
 import type { PortalData, PortalMeasurement } from "@/lib/portal";
 import type { Measurement } from "@/lib/measurements";
+import type { CreditNoteDoc } from "@/lib/credit-notes";
 import { SAMPLE_PORTAL } from "./sample-contracts";
 
 // Sample photos are tiny inline SVGs (no network, no database).
@@ -105,8 +106,30 @@ export const SAMPLE_PORTAL_WORK: PortalData = {
     })),
     notes: [{ id: "n1", body: "نبي فتحة التكييف في المجلس أكبر شوي لو سمحتوا.", photos: [], status: "resolved", reply: "أكيد، تم توسيعها اليوم.", stage_id: "s3", created_at: "2026-11-22T16:00:00Z" }],
   },
-  measurements: SAMPLE_MEASUREMENTS.map((m): PortalMeasurement => ({ ...m, photos: m.photos.map((p) => p.url!) })),
+  measurements: [...SAMPLE_MEASUREMENTS, { ...SAMPLE_MEASUREMENTS[0], id: "ms0", number: "MS-2026-000", lines: [line("partitions", 40, 39, 95)], diff_subtotal: -95, diff_vat: -14.25, diff_total: -109.25, credit_amount: 109.25 }].map((m): PortalMeasurement => ({ ...m, photos: m.photos.map((p) => p.url!) })),
+  // the ceilings sheet added a settlement payment, requested with the final handover
+  payments: [...SAMPLE_PORTAL.payments, { seq: SAMPLE_PORTAL.payments.length + 1, label: "تسوية الأمتار", percent: 0, amount: 517.5, due_event: "handover", status: "pending", kind: "measurement", adjust: 0 }],
+  creditNotes: [{ ...{ number: "CN-2026-001", kind: "simple" as const, issue_date: "2026-11-24", description: "MS-2026-000 — تسوية الأمتار", seller: { name: "مؤسسة ملمس" }, buyer: { name: "أبو محمد" }, subtotal: 109.25, vat_percent: 0, vat: 0, total: 109.25, invoice: "INV-2026-001", contract: "C-2026-004" } }],
   addenda: [
     { id: "ad3", number: "AD-2026-003", title: "دهان سقف الملحق", description: "معجون وجهين ودهان وجهين لسقف الملحق الخارجي 35 م²، بنفس مواصفات العقد.", amount: 1400, vat_percent: 0, vat: 0, total: 1400, extra_days: 2, status: "sent", payment_status: "pending", accepted_at: null, accepted_name: null },
   ],
+};
+
+// fully paid, then fewer m² measured: 517.50 owed back to the client (credit note on the last invoice)
+const CREDIT_SHEET: Measurement = {
+  id: "ms3", number: "MS-2026-003", status: "approved", lines: [line("ceilings", 180, 174, 75)], notes: null, photos: [],
+  diff_subtotal: -450, diff_vat: -67.5, diff_total: -517.5, sent_at: "2026-11-24T10:00:00Z",
+  client_decided_at: "2026-11-24T18:00:00Z", client_name: "م. خالد", client_note: null, credit_amount: 517.5, refunded_at: null,
+};
+export const SAMPLE_PROJECT_CREDIT: ProjectDetail = {
+  ...SAMPLE_PROJECT,
+  payments: SAMPLE_PROJECT.payments.filter((p) => p.kind !== "measurement").map((p) => ({ ...p, status: "paid" })),
+  measure: { ...SAMPLE_PROJECT.measure!, sheets: [CREDIT_SHEET], owed: 517.5 },
+};
+
+export const SAMPLE_CREDIT_NOTE: CreditNoteDoc = {
+  number: "CN-2026-001", kind: "tax", issue_date: "2026-11-24", description: "MS-2026-003 — تسوية الأمتار",
+  seller: { name: "مؤسسة ملمس", legal_name: "مؤسسة ملمس للمقاولات", cr_number: "1010123456", vat_number: "310123456700003", city: "الرياض" },
+  buyer: { name: "شركة البناء المتقن", city: "الرياض", district: "الملقا" },
+  subtotal: 450, vat_percent: 15, vat: 67.5, total: 517.5, invoice: "INV-2026-009", contract: "C-2026-003",
 };

@@ -27,6 +27,7 @@ const ACCEPTED: ContractDetail = {
     total: 517.5,
     owed: 0,
   },
+  creditNotes: [{ number: "CN-2026-001", label: "MS-2026-000 — تسوية الأمتار", amount: 109.25, paid_on: "2026-11-24" }],
 };
 
 export default function P() {

@@ -8,6 +8,8 @@ export type MeasureBasis = {
   workTypes: { workType: string; area: number; pricePerM2: number }[];
   discountPercent: number;
   vatPercent: number;
+  /** accepted additional works on the contract (measured apart — never inside these work types) */
+  addenda?: number;
 };
 
 export type MeasureLine = {
@@ -48,7 +50,7 @@ export function r2(x: number): number {
 /** The database's basis (public.measurement_basis) → typed; null when missing. */
 export function toBasis(raw: unknown): MeasureBasis | null {
   if (!raw || typeof raw !== "object") return null;
-  const b = raw as { method?: string; work_types?: { workType?: string; area?: unknown; pricePerM2?: unknown }[]; discount_percent?: unknown; vat_percent?: unknown };
+  const b = raw as { method?: string; work_types?: { workType?: string; area?: unknown; pricePerM2?: unknown }[]; discount_percent?: unknown; vat_percent?: unknown; addenda?: unknown };
   return {
     method: b.method === "lump" ? "lump" : "unit",
     workTypes: (Array.isArray(b.work_types) ? b.work_types : [])
@@ -56,6 +58,7 @@ export function toBasis(raw: unknown): MeasureBasis | null {
       .map((w) => ({ workType: w.workType as string, area: Number(w.area) || 0, pricePerM2: Number(w.pricePerM2) || 0 })),
     discountPercent: Math.min(100, Math.max(0, Number(b.discount_percent) || 0)),
     vatPercent: Math.max(0, Number(b.vat_percent) || 0),
+    addenda: Math.max(0, Number(b.addenda) || 0),
   };
 }
 

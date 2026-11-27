@@ -317,6 +317,7 @@ function MeasurementDialog({
         );
       }}
     >
+      {!!basis.addenda && <p className="rounded-xl bg-warning-soft px-3 py-2 text-[13px]">{t("addendaWarning")}</p>}
       <div className="field-row grid gap-4 sm:grid-cols-2">
         {types.map((w) => {
           const agreed = basis.workTypes.find((x) => x.workType === w)?.area ?? 0;
@@ -367,7 +368,7 @@ function MeasurementDialog({
   );
 }
 
-function RefundDialog({ m, onClose, submit }: { m: Measurement; onClose: () => void; submit?: MeasurementActions["refund"] }) {
+export function RefundDialog({ m, onClose, submit }: { m: Pick<Measurement, "id" | "number" | "credit_amount">; onClose: () => void; submit?: MeasurementActions["refund"] }) {
   const t = useTranslations("measure");
   const tf = useTranslations("finance");
   const { fmt } = useFormatter();

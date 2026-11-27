@@ -43,3 +43,28 @@ test("contract page: the value after the quantity settlement", async ({ page }) 
   await expect(page.getByText("قيمة العقد بعد تسوية الأمتار (شامل الضريبة)")).toBeVisible();
   await expect(page.getByRole("link", { name: "افتح كشوف القياس في صفحة المشروع" })).toHaveAttribute("href", "/dev/preview/projects/C-2026-004#measurements");
 });
+
+test("owed to the client: the amount is said and finance records the payment back", async ({ page }) => {
+  await page.goto("/dev/preview/projects/detail-credit");
+  await expect(page.getByText(/مبلغ مستحق للعميل من تسوية الأمتار/)).toBeVisible();
+  await page.getByRole("button", { name: "تسجيل صرف المبلغ للعميل" }).click();
+  await expect(page.getByRole("dialog").getByText(/MS-2026-003/)).toBeVisible();
+});
+
+test("lump-sum contract: no measurement sheet", async ({ page }) => {
+  await page.goto("/dev/preview/projects/detail-lump");
+  await expect(page.getByText("العقد بمبلغ مقطوع — ما فيه تسوية أمتار.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "كشف قياس جديد" })).toHaveCount(0);
+});
+
+test("client page: credit notes and the payments after the settlement", async ({ page }) => {
+  await page.goto("/dev/preview/portal/work");
+  await expect(page.getByRole("heading", { name: "الإشعارات الدائنة" })).toBeVisible();
+  await expect(page.getByText("الدفعات بعد تسوية الأمتار").first()).toBeVisible();
+});
+
+test("credit note document", async ({ page }) => {
+  await page.goto("/dev/preview/print/credit-notes/CN-2026-001");
+  await expect(page.getByText("إشعار دائن ضريبي")).toBeVisible();
+  await expect(page.getByText("INV-2026-009")).toBeVisible();
+});

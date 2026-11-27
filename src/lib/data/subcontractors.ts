@@ -52,7 +52,7 @@ export type SubcontractorsData = {
 export async function loadSubcontractors(session: SessionContext): Promise<SubcontractorsData> {
   const supabase = await createClient();
   const orgId = session.organization.id;
-  const agreementsP = once(supabase.from("subcontractor_agreements").select("id, subcontractor_id, contract_id, scope, basis, rate, quantity_m2, schedule, status, auto_progress, review_addendum_id").eq("organization_id", orgId).order("created_at", { ascending: false }));
+  const agreementsP = once(supabase.from("subcontractor_agreements").select("id, subcontractor_id, contract_id, scope, basis, rate, quantity_m2, schedule, status, auto_progress, review_addendum_id, review_measurement_id").eq("organization_id", orgId).order("created_at", { ascending: false }));
   const [{ data: subs }, { data: agreements }, { data: work }, { data: payments }, projectList, reviewAds, rates] = await Promise.all([
     supabase.from("subcontractors").select("id, name, phone, services, iban, vat_number, notes, is_active").eq("organization_id", orgId).order("name"),
     agreementsP,
@@ -62,7 +62,12 @@ export async function loadSubcontractors(session: SessionContext): Promise<Subco
     // the addenda an agreement must be reviewed for (chained onto the agreements)
     agreementsP.then(({ data }) => {
       const reviewIds = [...new Set((data ?? []).map((g) => g.review_addendum_id).filter((x): x is string => !!x))];
-      return reviewIds.length ? rows(supabase.from("addenda").select("id, number").in("id", reviewIds)) : [];
+      const sheetIds = [...new Set((data ?? []).map((g) => g.review_measurement_id).filter((x): x is string => !!x))];
+      // an accepted addendum or a signed measurement sheet: either may change the quantity
+      return Promise.all([
+        reviewIds.length ? rows(supabase.from("addenda").select("id, number").in("id", reviewIds)) : [],
+        sheetIds.length ? rows(supabase.from("contract_measurements").select("id, number").in("id", sheetIds)) : [],
+      ]).then(([a, m]) => [...a, ...m]);
     }),
     can(session, "costs.view")
       ? rows(supabase.from("labour_rates").select("subcontractor_id, basis, rate").eq("organization_id", orgId).eq("is_active", true).not("subcontractor_id", "is", null))
@@ -70,8 +75,8 @@ export async function loadSubcontractors(session: SessionContext): Promise<Subco
   ]);
   return {
     subs: subs ?? [],
-    agreements: (agreements ?? []).map(({ review_addendum_id, ...g }) => ({
-      ...g, review: review_addendum_id ? (reviewAds?.find((a) => a.id === review_addendum_id)?.number ?? null) : null, rate: n(g.rate), quantity_m2: g.quantity_m2 == null ? null : n(g.quantity_m2),
+    agreements: (agreements ?? []).map(({ review_addendum_id, review_measurement_id, ...g }) => ({
+      ...g, review: review_addendum_id || review_measurement_id ? (reviewAds?.find((a) => a.id === (review_addendum_id ?? review_measurement_id))?.number ?? null) : null, rate: n(g.rate), quantity_m2: g.quantity_m2 == null ? null : n(g.quantity_m2),
       work: (work ?? []).filter((w) => w.agreement_id === g.id).map((w) => ({ ...w, amount: n(w.amount), quantity_m2: w.quantity_m2 == null ? null : n(w.quantity_m2), percent: w.percent == null ? null : n(w.percent) })),
       payments: (payments ?? []).filter((p) => p.agreement_id === g.id).map((p) => ({ ...p, amount: n(p.amount) })),
     })),

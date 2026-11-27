@@ -7,7 +7,7 @@ import type { NotificationKind } from "@/lib/supabase/database.types";
 export const NOTIFICATION_KINDS: NotificationKind[] = [
   "approval", "approval_reminder", "client_note", "stage_confirmed", "contract_accepted", "addendum_accepted", "payment_received", "payment_late", "doc_expiry", "maintenance_request",
   "project_delay", "project_over_budget", "project_losing", "missed_visit", "agreement_review",
-  "quote_accepted", "quote_changes_requested", "quote_rejected", "commission_due", "measurement_approved", "measurement_objected",
+  "quote_accepted", "quote_changes_requested", "quote_rejected", "commission_due", "measurement_approved", "measurement_objected", "measurement_waiting", "measurement_credit",
 ];
 
 export type NotificationItem = { id: string; kind: NotificationKind; params: Record<string, unknown>; link: string | null; read: boolean; created_at: string };
@@ -46,6 +46,7 @@ export function whatsappText(kind: NotificationKind, p: Record<string, unknown>)
         ? `المشروع ${s("number")} (${s("client")}) يخسر — الربح الفعلي ${money(p.profit)}`
         : `ربح المشروع ${s("number")} (${s("client")}) أقل من نصف المتوقع — الفعلي ${money(p.profit)}`;
     case "agreement_review":
+      if (s("addendum").startsWith("MS-")) return `العميل وقّع كشف القياس ${s("addendum")} على ${s("number")} — راجع كمية اتفاقيات مقاولي الباطن بالمتر (${s("count")})`;
       return `الملحق ${s("addendum")} على ${s("number")} مقبول — راجع كمية وسعر اتفاقيات مقاولي الباطن (${s("count")})`;
     case "quote_accepted":
       return `وافق العميل ${s("name")} على عرض السعر ${s("number")}`;
@@ -59,6 +60,10 @@ export function whatsappText(kind: NotificationKind, p: Record<string, unknown>)
       return `العميل وقّع كشف القياس ${s("measurement")} على ${s("number")} — الفرق ${money(p.amount)}`;
     case "measurement_objected":
       return `العميل اعترض على كشف القياس ${s("measurement")} على ${s("number")}`;
+    case "measurement_waiting":
+      return `كشف القياس ${s("measurement")} على ${s("number")} ينتظر رد العميل من ${s("days")} أيام`;
+    case "measurement_credit":
+      return `مبلغ مستحق للعميل ${money(p.amount)} من كشف القياس ${s("measurement")} على ${s("number")} — سجّل صرفه`;
     case "missed_visit":
       return `ما فيه زيارة موقع للمشروع ${s("number")} (${s("client")}) من ${s("days")} أيام`;
     case "doc_expiry":

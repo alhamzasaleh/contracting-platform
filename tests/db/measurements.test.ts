@@ -209,16 +209,47 @@ describe("settlement in the final payment", () => {
     expect([p[2].kind, p[2].amount]).toEqual(["measurement", 207]);
   });
 
-  it("fewer m² once everything is billed → owed to the client; finance records the refund", async () => {
+  it("fewer m² on a requested final payment → its unpaid part goes down, with a credit note on its invoice", async () => {
+    const c = await makeContract();
+    await handOver(c); // final payment requested and invoiced, not paid
+    const before = await payments(c.id);
+    const m = await draft(c.id, [{ work_type: "ceilings", measured_area: 98 }]); // −103.50
+    await send(m.id);
+    await answer(c, m.id, true);
+    const p = await payments(c.id);
+    expect(p[1].amount).toBe(before[1].amount - 103.5);
+    expect([p[1].status, p[1].adjust]).toEqual(["requested", -103.5]);
+    expect(Number((await measurement(m.id)).credit_amount)).toBe(0);
+    const cn = await asAdmin((q) => q<{ number: string; total: string; inv: string; payment_id: string }>("select n.number, n.total, i.payment_id as inv, n.payment_id from public.credit_notes n join public.invoices i on i.id = n.invoice_id where n.measurement_id = $1", [m.id]));
+    expect(cn.rows).toHaveLength(1);
+    expect(cn.rows[0].number).toMatch(/^CN-\d{4}-\d{3}$/);
+    expect(Number(cn.rows[0].total)).toBe(103.5);
+    expect(cn.rows[0].inv).toBe(cn.rows[0].payment_id);
+    // the client pays exactly what is left
+    const pay = await asAdmin(async (q) => (await q<{ id: string }>("select id from public.contract_payments where contract_id = $1 and seq = 2", [c.id])).rows[0].id);
+    const r = await as({ userId: fin }, (q) => q<{ s: string }>("select public.record_client_payment($1, current_date, $2, 'transfer', null) as s", [pay, before[1].amount - 103.5]));
+    expect(r.rows[0].s).toBe("paid");
+  });
+
+  it("fewer m² once everything is paid → owed to the client (credit note, finance told); finance records the refund", async () => {
     const c = await makeContract();
     await handOver(c);
+    for (const p of await asAdmin(async (q) => (await q<{ id: string; amount: string }>("select id, amount from public.contract_payments where contract_id = $1", [c.id])).rows)) {
+      await as({ userId: fin }, (q) => q("select public.record_client_payment($1, current_date, $2, 'transfer', null)", [p.id, Number(p.amount)]));
+    }
     const m = await draft(c.id, [{ work_type: "ceilings", measured_area: 98 }]);
     await send(m.id);
     await answer(c, m.id, true);
     expect(Number((await measurement(m.id)).credit_amount)).toBe(103.5);
+    const cn = await asAdmin((q) => q<{ total: string; payment_id: string | null }>("select total, payment_id from public.credit_notes where measurement_id = $1", [m.id]));
+    expect(cn.rows.map((x) => [Number(x.total), x.payment_id])).toEqual([[103.5, null]]);
+    const n = await asAdmin((q) => q("select 1 from public.notifications where kind = 'measurement_credit' and user_id = $1", [fin]));
+    expect(n.rowCount).toBe(1);
     await expectDenied(as({ userId: sup }, (q) => q("select public.record_measurement_refund($1, current_date, 'transfer', null)", [m.id])), /not allowed/);
     await as({ userId: fin }, (q) => q("select public.record_measurement_refund($1, current_date, 'transfer', 'TR-1')", [m.id]));
     await expectDenied(as({ userId: fin }, (q) => q("select public.record_measurement_refund($1, current_date, 'transfer', null)", [m.id])), /nothing to refund/);
+    // a credit note can't be written by users
+    await expectDenied(as({ userId: owner }, (q) => q("insert into public.credit_notes (organization_id, contract_id, invoice_id, kind, issue_date, description, seller, buyer, subtotal, total) select organization_id, contract_id, invoice_id, kind, issue_date, description, seller, buyer, 1, 1 from public.credit_notes limit 1")));
   });
 
   it("a final payment reduced to nothing is settled at the handover — no invoice, no Qoyod job", async () => {
@@ -228,13 +259,76 @@ describe("settlement in the final payment", () => {
     await answer(c, m.id, true);
     const p = await payments(c.id);
     expect(p[1].amount).toBe(0);
-    expect(p[0].amount).toBe(7669.35); // the signing payment was already requested — never changed
-    expect(Number((await measurement(m.id)).credit_amount)).toBe(113.85); // 517.50 − 403.65 owed to the client
+    // the rest (517.50 − 403.65) comes off the signing payment's unpaid part, with a credit note on its invoice
+    expect(p[0].amount).toBe(7555.5);
+    expect(Number((await measurement(m.id)).credit_amount)).toBe(0);
+    const cn = await asAdmin((q) => q<{ total: string }>("select total from public.credit_notes where measurement_id = $1", [m.id]));
+    expect(cn.rows.map((x) => Number(x.total))).toEqual([113.85]);
     await handOver(c);
     const after = await payments(c.id);
     expect([after[1].status, after[1].paid]).toEqual(["paid", 0]);
     const inv = await asAdmin((q) => q("select 1 from public.invoices where payment_id = (select id from public.contract_payments where contract_id = $1 and seq = 2)", [c.id]));
     expect(inv.rowCount).toBe(0);
+  });
+});
+
+describe("review fixes", () => {
+  it("the client sees the sheet as sent, not the staff's unsent correction", async () => {
+    const c = await makeContract();
+    const m = await draft(c.id, [{ work_type: "ceilings", measured_area: 104 }]);
+    await send(m.id);
+    await answer(c, m.id, false, "راجعوا السقف", null);
+    await as({ userId: sup }, (q) => q("update public.contract_measurements set lines = '[{\"work_type\":\"ceilings\",\"measured_area\":101}]' where id = $1", [m.id]));
+    const seen = async () => (await as("service_role", (q) => q<{ v: { lines: { measured_area: number }[] }[] }>("select public.portal_measurements($1,$2) as v", [c.number, c.token]))).rows[0].v[0];
+    expect(Number((await seen()).lines[0].measured_area)).toBe(104);
+    await send(m.id);
+    expect(Number((await seen()).lines[0].measured_area)).toBe(101);
+    await expectDenied(as({ userId: sup }, (q) => q("update public.contract_measurements set sent_snapshot = '{}' where id = $1", [m.id])));
+  });
+
+  it("per-m² subcontractor agreements on the project are flagged for review", async () => {
+    const c = await makeContract();
+    const g = await as({ userId: owner }, async (q) => {
+      const sub = (await q<{ id: string }>("insert into public.subcontractors (organization_id, name) values ($1, 'مقاول ' || gen_random_uuid()) returning id", [org])).rows[0].id;
+      return (await q<{ id: string }>("insert into public.subcontractor_agreements (organization_id, subcontractor_id, contract_id, scope, basis, rate, quantity_m2, schedule, auto_progress) values ($1,$2,$3,'تركيب','per_m2',20,100,'weekly',false) returning id", [org, sub, c.id])).rows[0].id;
+    });
+    const m = await draft(c.id, [{ work_type: "ceilings", measured_area: 110 }]);
+    await send(m.id);
+    await answer(c, m.id, true);
+    const f = await asAdmin((q) => q<{ r: string }>("select review_measurement_id as r from public.subcontractor_agreements where id = $1", [g]));
+    expect(f.rows[0].r).toBe(m.id);
+  });
+
+  it("credit notes go to Qoyod; the allocation to an unpaid invoice waits for Approved", async () => {
+    // Qoyod switched on for this test only (sending stays Draft)
+    await asAdmin((q) => q("insert into public.qoyod_settings (organization_id, enabled) values ($1, true)", [org]));
+    try {
+      const c = await makeContract();
+      await handOver(c);
+      const m = await draft(c.id, [{ work_type: "ceilings", measured_area: 98 }]);
+      await send(m.id);
+      await answer(c, m.id, true);
+      const jobs = await asAdmin((q) => q<{ kind: string }>("select kind from public.qoyod_sync_jobs where organization_id = $1 and kind in ('credit_note','credit_allocation') order by kind", [org]));
+      expect(jobs.rows.map((j) => j.kind)).toEqual(["credit_allocation", "credit_note"]);
+      const claimed = await as("service_role", (q) => q<{ kind: string }>("select kind from public.qoyod_claim_jobs(50)"));
+      expect(claimed.rows.map((j) => j.kind)).toContain("credit_note");
+      expect(claimed.rows.map((j) => j.kind)).not.toContain("credit_allocation");
+    } finally {
+      await asAdmin(async (q) => {
+        await q("delete from public.qoyod_sync_jobs where organization_id = $1", [org]);
+        await q("delete from public.qoyod_settings where organization_id = $1", [org]);
+      });
+    }
+  });
+
+  it("a sheet waiting for the client is reminded after 3 days", async () => {
+    const c = await makeContract();
+    const m = await draft(c.id, [{ work_type: "ceilings", measured_area: 100 }]);
+    await send(m.id);
+    await asAdmin((q) => q("update public.contract_measurements set sent_at = now() - interval '3 days' where id = $1", [m.id]));
+    await asAdmin((q) => q("select public.run_daily_reminders()"));
+    const n = await asAdmin((q) => q<{ link: string }>("select link from public.notifications where kind = 'measurement_waiting' and dedupe_key like $1", [`measurement_waiting:${m.id}:%`]));
+    expect(n.rows[0]?.link).toBe(`/projects/${c.number}?m=${m.number}`);
   });
 });
 

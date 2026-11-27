@@ -1,5 +1,6 @@
 import { termsSchema, type ContractTermsConfig } from "@/lib/contracts/terms";
 import "server-only";
+import { getTranslations } from "next-intl/server";
 import { measurementTotals } from "@/lib/measurements";
 import { loadContractCommission, type ContractCommission } from "@/lib/data/marketers";
 import { notFound } from "next/navigation";
@@ -140,7 +141,9 @@ export type ContractDetail = {
     adjust?: number;
   }[];
   /** measurement sheets: the value change the client signed (net before VAT / total) and what is owed back to him */
-  measurements?: { sheets: { number: string; status: "draft" | "sent" | "approved" | "objected"; diff_subtotal: number; diff_total: number; credit_amount: number; refunded_at: string | null }[]; net: number; total: number; owed: number };
+  /** credit notes issued on this contract's invoices (finance.view) */
+  creditNotes?: { number: string; label: string; amount: number; paid_on: string }[];
+  measurements?: { sheets: { id?: string; number: string; status: "draft" | "sent" | "approved" | "objected"; diff_subtotal: number; diff_total: number; credit_amount: number; refunded_at: string | null }[]; net: number; total: number; owed: number };
   link: { active: boolean; expires_at: string | null; last_opened_at: string | null; open_count: number };
   /** the client accepted the quote on his page before this contract (one link for every stage) */
   quoteAccepted?: { at: string; name: string | null } | null;
@@ -230,7 +233,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
     { data: client }, { data: q }, { data: ver }, { data: payments }, { data: links },
     { data: addenda }, settings, { data: receipts }, { data: tpl }, { data: requestableRows },
     bookTeam, warrantyEnd, { data: invoices }, { count: openMaintenance },
-    adCosts, approvals, { data: optRows }, materialCostValue, reward, { data: sheets },
+    adCosts, approvals, { data: optRows }, materialCostValue, reward, { data: sheets }, { data: creditNotes },
   ] = await Promise.all([
     supabase.from("clients").select("number, name, phone, city, district, id_number").eq("id", c.client_id).maybeSingle(),
     supabase.from("quotes").select("number, valid_until, client_decision, client_decided_at, client_name").eq("id", c.quote_id).maybeSingle(),
@@ -270,10 +273,15 @@ export async function loadContract(session: SessionContext, number: string): Pro
     loadContractCommission(session, c.id),
     // measurement sheets (quantity settlement): number, status and money only
     c.status === "accepted"
-      ? supabase.from("contract_measurements").select("number, status, diff_subtotal, diff_total, credit_amount, refunded_at").eq("contract_id", c.id).order("created_at")
-      : Promise.resolve({ data: [] as { number: string; status: "draft" | "sent" | "approved" | "objected"; diff_subtotal: number; diff_total: number; credit_amount: number; refunded_at: string | null }[] }),
+      ? supabase.from("contract_measurements").select("id, number, status, diff_subtotal, diff_total, credit_amount, refunded_at").eq("contract_id", c.id).order("created_at")
+      : Promise.resolve({ data: [] as { id: string; number: string; status: "draft" | "sent" | "approved" | "objected"; diff_subtotal: number; diff_total: number; credit_amount: number; refunded_at: string | null }[] }),
+    // credit notes (finance.view, RLS)
+    can(session, "finance.view") && c.status === "accepted"
+      ? supabase.from("credit_notes").select("number, description, total, issue_date").eq("contract_id", c.id).order("created_at")
+      : Promise.resolve({ data: [] as { number: string; description: string; total: number; issue_date: string }[] }),
   ]);
-  const measureSheets = (sheets ?? []).map((m) => ({ number: m.number, status: m.status, diff_subtotal: n(m.diff_subtotal), diff_total: n(m.diff_total), credit_amount: n(m.credit_amount), refunded_at: m.refunded_at }));
+  const measureSheets = (sheets ?? []).map((m) => ({ id: m.id, number: m.number, status: m.status, diff_subtotal: n(m.diff_subtotal), diff_total: n(m.diff_total), credit_amount: n(m.credit_amount), refunded_at: m.refunded_at }));
+  const settlementLabel = (await getTranslations("measure"))("settlementLabel");
   const active = (links ?? []).find((l) => !l.revoked_at && new Date(l.expires_at) > new Date());
   const requestable = new Set((requestableRows ?? []).map((r) => r.payment_id));
   return {
@@ -289,7 +297,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
     client: { ...(client ?? { number: "", name: "—", phone: null, city: null, district: null, id_number: null }), site_own: c.site_own ?? false, site_city: c.site_city ?? null, site_district: c.site_district ?? null },
     quote: { number: q?.number ?? "", version: c.quote_version, date: ver?.created_at ?? c.created_at, valid_until: q?.valid_until ?? null, view: ver?.client_view as unknown as ClientView, notes: ver?.notes ?? null },
     payments: (payments ?? []).map((p) => ({
-      ...p, percent: n(p.percent), amount: n(p.amount), paid_amount: n(p.paid_amount), adjust: n(p.measure_adjust),
+      ...p, label: p.kind === "measurement" ? settlementLabel : p.label, percent: n(p.percent), amount: n(p.amount), paid_amount: n(p.paid_amount), adjust: n(p.measure_adjust),
       requestable: requestable.has(p.id),
       late_days: p.status === "requested" ? lateDays(p.requested_at, today) : null,
     })),
@@ -319,6 +327,7 @@ export async function loadContract(session: SessionContext, number: string): Pro
     invoices: (invoices ?? []).map((i) => ({ number: i.number, label: i.description, amount: Number(i.total), paid_on: i.issue_date })),
     openMaintenance: openMaintenance ?? 0,
     measurements: { sheets: measureSheets, ...measurementTotals(measureSheets) },
+    creditNotes: (creditNotes ?? []).map((x) => ({ number: x.number, label: x.description, amount: Number(x.total), paid_on: x.issue_date })),
     vatPercent: effectiveVatPercent(session.organization.vat_number, Number(settings?.vat_percent ?? 15)),
   };
 }

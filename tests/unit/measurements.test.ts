@@ -47,3 +47,27 @@ describe("measurements (mirror of the database rule)", () => {
     expect(measurementError("boom")).toBe("error");
   });
 });
+
+describe("credit notes (review)", () => {
+  it("Qoyod credit note: tax-inclusive like its invoice, CN number as reference; allocation to the invoice", async () => {
+    const { creditNoteBody, creditAllocationBody, waitsForApproved } = await import("@/lib/qoyod/payloads");
+    const b = creditNoteBody({ contactId: 3, reference: "CN-2026-001", issueDate: "2026-11-24", status: "Draft", inventoryId: 1, productId: 9, description: "MS-2026-003 — تسوية الأمتار", gross: 517.5, vatPercent: 15 });
+    expect(b.credit_note.reference).toBe("CN-2026-001");
+    expect(b.credit_note.line_items).toEqual([{ product_id: 9, description: "MS-2026-003 — تسوية الأمتار", quantity: 1, unit_price: 517.5, tax_percent: 15, is_inclusive: true }]);
+    expect(creditNoteBody({ contactId: 3, reference: "x", issueDate: "d", status: "Draft", inventoryId: 1, productId: 9, description: "d", gross: 10, vatPercent: 0 }).credit_note.line_items[0].tax_percent).toBe(0);
+    expect(creditAllocationBody({ creditNoteId: 8, amount: 103.5, date: "2026-11-24" })).toEqual({ invoice: { allocations_attributes: [{ source_type: "CreditNote", source_id: 8, amount: "103.50", date: "2026-11-24" }] } });
+    // the allocation waits for Approved (a draft invoice can't take it); the credit note itself doesn't
+    expect(waitsForApproved("credit_allocation", "Draft")).toBe(true);
+    expect(waitsForApproved("credit_note", "Draft")).toBe(false);
+  });
+
+  it("an invoice's remaining part excludes what credit notes took off it", async () => {
+    const { invoicePaid, invoiceRemaining, invoiceStatus } = await import("@/lib/invoices");
+    // 9000 invoiced, 103.50 credited, the rest paid → paid shows 8896.50, nothing remaining
+    const paid = invoicePaid(9000, { amount: 8896.5, full: true }, 103.5);
+    expect(paid).toBe(8896.5);
+    expect(invoiceRemaining({ total: 9000, paid, credited: 103.5 })).toBe(0);
+    expect(invoiceStatus({ total: 9000, paid, credited: 103.5, due_date: "2026-01-01" }, "2026-11-24")).toBe("paid");
+    expect(invoiceRemaining({ total: 9000, paid: 4000, credited: 103.5 })).toBe(4896.5);
+  });
+});

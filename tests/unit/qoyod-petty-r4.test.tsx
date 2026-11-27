@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { render } from "./helpers/render";
@@ -46,7 +46,10 @@ describe("#4 the owner's choice of optional accounts sticks", () => {
 
 describe("#5 jobs that wait for Approved: the worker doesn't claim them while sending is Draft", () => {
   it("the database's claim list is the same as NEEDS_APPROVED", () => {
-    const sql = readFileSync(path.resolve(__dirname, "../../supabase/migrations/20270102000001_review_batch2.sql"), "utf8");
+    // the latest migration that (re)defines the claim function
+    const dir = path.resolve(__dirname, "../../supabase/migrations");
+    const file = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort().filter((f) => readFileSync(path.join(dir, f), "utf8").includes("create or replace function public.qoyod_claim_jobs")).at(-1)!;
+    const sql = readFileSync(path.join(dir, file), "utf8");
     const fn = sql.slice(sql.lastIndexOf("create or replace function public.qoyod_claim_jobs"));
     const list = fn.match(/q\.kind not in \(([^)]*)\)/)?.[1];
     expect(list?.split(",").map((x) => x.trim().replace(/'/g, "")).sort()).toEqual([...NEEDS_APPROVED_KINDS].sort());

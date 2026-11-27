@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
- * Client page → PDF of one document: quote-<version> | contract | handover | RV-… | INV-….
+ * Client page → PDF of one document: quote-<version> | contract | handover | RV-… | INV-… | CN-… | MS-….
  * The token in the URL is checked again by the page being rendered; this route
  * only maps the document to that page and rate-limits per visitor.
  */
@@ -24,6 +24,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ number: 
     : d === "handover" ? `${base}/handover`
     : /^RV-\d{4}-\d{3,6}$/.test(d) ? `${base}/receipt/${d}`
     : /^INV-\d{4}-\d{3,6}$/.test(d) ? `${base}/bill/${d}`
+    : /^CN-\d{4}-\d{3,6}$/.test(d) ? `${base}/credit/${d}`
+    : /^MS-\d{4}-\d{3,6}$/.test(d) ? `${base}/measure/${d}`
     : null;
   if (!path) return new NextResponse("Not found", { status: 404 });
   if ((await rateLimit(`portal:pdf:${await clientIp()}`, 10, 600)) !== "ok") return new NextResponse("Too many requests", { status: 429 });

@@ -106,7 +106,7 @@ export function SubcontractorsView({ data, actions }: { data: SubcontractorsData
                         <Badge tone="info">{t(`sched_${g.schedule}`)}</Badge>
                         {g.schedule === "progress" && g.auto_progress && g.status === "active" && <Badge tone="primary">{t("autoFollows")}</Badge>}
                         {g.status === "closed" && <Badge tone="neutral">{t("closed")}</Badge>}
-                        {g.review && g.status === "active" && <Badge tone="warning">{t("reviewAddendum", { number: ltr(g.review) })}</Badge>}
+                        {g.review && g.status === "active" && <Badge tone="warning">{t(g.review.startsWith("MS-") ? "reviewMeasurement" : "reviewAddendum", { number: ltr(g.review) })}</Badge>}
                         {data.canManage && (
                           <Button size="sm" variant="ghost" onClick={() => setEditAgreement(g)}>
                             {t("edit")}

@@ -2386,7 +2386,8 @@
     "agreementActive": "Agreement active",
     "leftArea": "Left on the agreement: {n} m²",
     "leftPct": "Left of the lump sum: {n}%",
-    "overLeft": "More than what is left on the agreement — edit the agreement first if the work grew."
+    "overLeft": "More than what is left on the agreement — edit the agreement first if the work grew.",
+    "reviewMeasurement": "Measurement sheet {number} signed — review the quantity and price"
   },
   "petty": {
     "newAccount": "New petty cash account",
@@ -2521,7 +2522,8 @@
     "overOutstanding": "More than what is left on this payment — not accepted",
     "rewardsTitle": "Success partner rewards due",
     "rewardsDue": "{n, plural, =0 {nothing due now} one {# reward} other {# rewards}} · expected later {expected}",
-    "out_reward": "Success partner rewards"
+    "out_reward": "Success partner rewards",
+    "out_refund": "Owed back to clients (quantity settlement)"
   },
   "payroll": {
     "expiringTitle": "Documents expiring soon",
@@ -2657,7 +2659,12 @@
     "measurement_approved": "The client signed measurement sheet {measurement} on {number} — difference {amount}",
     "measurement_objected": "The client objected to measurement sheet {measurement} on {number}",
     "k_measurement_approved": "Client signed a measurement sheet",
-    "k_measurement_objected": "Client objected to a measurement sheet"
+    "k_measurement_objected": "Client objected to a measurement sheet",
+    "measurement_waiting": "Measurement sheet {measurement} on {number} has waited {days} days for the client's answer",
+    "measurement_credit": "{amount} owed to the client from measurement sheet {measurement} on {number} — record the payment",
+    "k_measurement_waiting": "Measurement sheet waiting for the client",
+    "k_measurement_credit": "Amount owed to a client from a quantity settlement",
+    "agreement_review_measure": "The client signed measurement sheet {addendum} on {number} — review the quantity of per-m² subcontractor agreements ({count})"
   },
   "qoyod": {
     "title": "Qoyod accounting",
@@ -2956,7 +2963,13 @@
     "qoyod_failed": "Couldn't send to Qoyod — check the Qoyod log in Settings.",
     "vatNeedsQoyod": "The company is VAT-registered: official tax invoices must be issued electronically via ZATCA — connect Qoyod in Settings so they are sent automatically.",
     "amount": "Amount",
-    "qrAlt": "Tax invoice QR code (ZATCA)"
+    "qrAlt": "Tax invoice QR code (ZATCA)",
+    "creditTitle": "Credit note",
+    "creditTaxTitle": "Tax credit note",
+    "againstInvoice": "Against invoice",
+    "credited": "Credit notes",
+    "noteCredit": "A credit note reducing the invoice above after the quantity settlement in the measurement sheet signed by the client.",
+    "creditLink": "Credit note"
   },
   "clauses": {
     "hint": "Hide any clause, change its title and text, or add your own clauses after any clause. Tables (scope, specifications, payments) stay automatic from the quote.",
@@ -3361,6 +3374,11 @@
     "finalSheetOpen": "A measurement sheet is with the client — he must answer it before signing the final handover.",
     "finalNotMeasured": "Some items have no signed measurement sheet — if you hand over now, the final payment is requested at its original amount and the difference is settled separately later.",
     "valueAfter": "Contract value after the quantity settlement (incl. VAT)",
-    "openOnProject": "Open the measurement sheets on the project page"
+    "openOnProject": "Open the measurement sheets on the project page",
+    "paymentsNow": "Payments after the quantity settlement",
+    "creditNotesTitle": "Credit notes",
+    "creditNotesHint": "They reduce earlier invoices after the quantity settlement in the signed measurement sheets.",
+    "pdf": "Download PDF",
+    "addendaWarning": "The contract has accepted additional works — enter only the original contract's m²; additional works have their own payment and must not be counted here again."
   }
 }

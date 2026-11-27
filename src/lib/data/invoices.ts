@@ -4,7 +4,7 @@ import { can, type SessionContext } from "@/lib/auth/session";
 import { invoicePaid, type InvoiceDoc } from "@/lib/invoices";
 import { createClient } from "@/lib/supabase/server";
 
-export type InvoiceListItem = InvoiceDoc & { id: string; client: string; qoyod: "none" | "queued" | "done" | "failed"; qoyodJob: string | null };
+export type InvoiceListItem = InvoiceDoc & { id: string; client: string; creditNotes?: { number: string; amount: number; paid_on: string }[]; qoyod: "none" | "queued" | "done" | "failed"; qoyodJob: string | null };
 export type InvoicesPageData = { invoices: InvoiceListItem[]; qoyodEnabled: boolean; vatRegistered: boolean; canFinance: boolean };
 
 const n = (v: unknown) => Number(v ?? 0);
@@ -23,7 +23,8 @@ async function build(session: SessionContext, filter?: { number: string }): Prom
   const cIds = [...new Set(list.map((i) => i.contract_id))];
   const entityIds = [...payIds, ...adIds];
   const one = filter && list.length === 1 ? list[0] : null;
-  const [{ data: pays }, { data: ads }, { data: cons }, { data: jobs }, { data: receipts }] = await Promise.all([
+  const invIds = list.map((i) => i.id);
+  const [{ data: pays }, { data: ads }, { data: cons }, { data: jobs }, { data: receipts }, { data: credits }] = await Promise.all([
     payIds.length ? supabase.from("contract_payments").select("id, paid_amount, status").in("id", payIds) : Promise.resolve({ data: [] }),
     adIds.length ? supabase.from("addenda").select("id, paid_amount, payment_status").in("id", adIds) : Promise.resolve({ data: [] }),
     cIds.length ? supabase.from("contracts").select("id, number").in("id", cIds) : Promise.resolve({ data: [] }),
@@ -32,7 +33,11 @@ async function build(session: SessionContext, filter?: { number: string }): Prom
     one
       ? (one.payment_id ? supabase.from("client_receipts").select("number, amount, paid_on").eq("payment_id", one.payment_id) : supabase.from("client_receipts").select("number, amount, paid_on").eq("addendum_id", one.addendum_id!)).order("created_at")
       : Promise.resolve({ data: [] as Receipt[] }),
+    // credit notes against these invoices (a signed measurement took part off)
+    invIds.length ? supabase.from("credit_notes").select("invoice_id, number, total, issue_date").in("invoice_id", invIds) : Promise.resolve({ data: [] as { invoice_id: string; number: string; total: number; issue_date: string }[] }),
   ]);
+  const creditedOn = new Map<string, number>();
+  for (const c of credits ?? []) creditedOn.set(c.invoice_id, (creditedOn.get(c.invoice_id) ?? 0) + n(c.total));
   // marked paid = paid in full (also rows from before amounts were recorded: paid_amount null)
   const paidIn = new Map<string, { amount: number; full: boolean }>([
     ...(pays ?? []).map((p) => [p.id, { amount: n(p.paid_amount), full: p.status === "paid" }] as const),
@@ -49,7 +54,8 @@ async function build(session: SessionContext, filter?: { number: string }): Prom
       return {
         id: i.id, number: i.number, kind: i.kind, issue_date: i.issue_date, due_date: i.due_date, description: i.description,
         seller: i.seller, buyer: i.buyer, subtotal: n(i.subtotal), vat_percent: n(i.vat_percent), vat: n(i.vat), total: n(i.total),
-        paid: invoicePaid(n(i.total), paidIn.get(ent)), created_at: i.created_at, contract: cnum.get(i.contract_id) ?? "—", client: i.buyer?.name ?? "—",
+        paid: invoicePaid(n(i.total), paidIn.get(ent), creditedOn.get(i.id) ?? 0), credited: creditedOn.get(i.id) ?? 0,
+        creditNotes: (credits ?? []).filter((c) => c.invoice_id === i.id).map((c) => ({ number: c.number, amount: n(c.total), paid_on: c.issue_date })), created_at: i.created_at, contract: cnum.get(i.contract_id) ?? "—", client: i.buyer?.name ?? "—",
         qoyod: !j ? "none" : j.status === "done" ? "done" : j.status === "failed" ? "failed" : "queued", qoyodJob: j?.status === "done" ? j.id : null,
       };
     }),

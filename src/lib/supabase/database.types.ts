@@ -702,6 +702,8 @@ export type SubAgreementRow = OrgRow & Upd & {
   subcontractor_id: string;
   /** an accepted addendum grew the project: review this agreement (cleared by any staff edit) */
   review_addendum_id?: string | null;
+  /** a signed measurement sheet changed the m²: review this agreement (cleared by any staff edit) */
+  review_measurement_id?: string | null;
   contract_id: string;
   scope: string;
   basis: "lump" | "per_m2";
@@ -749,7 +751,7 @@ export type PayrollLineRow = OrgRow & Upd & {
 export type NotificationKind = "approval" | "client_note" | "stage_confirmed" | "contract_accepted" | "addendum_accepted" | "payment_received" | "payment_late" | "doc_expiry" | "approval_reminder" | "maintenance_request"
   | "project_delay" | "project_over_budget" | "project_losing" | "missed_visit" | "agreement_review"
   | "quote_accepted" | "quote_changes_requested" | "quote_rejected" | "commission_due"
-  | "measurement_approved" | "measurement_objected";
+  | "measurement_approved" | "measurement_objected" | "measurement_waiting" | "measurement_credit";
 export type ContractMeasurementRow = OrgRow & Upd & {
   contract_id: string;
   number: string;
@@ -774,6 +776,11 @@ export type ContractMeasurementRow = OrgRow & Upd & {
   refunded_method: "transfer" | "cash" | "cheque" | "card" | null;
   refunded_reference: string | null;
   refunded_by: string | null;
+  sent_snapshot: Json | null;
+};
+export type CreditNoteRow = OrgRow & {
+  number: string; contract_id: string; invoice_id: string; measurement_id: string | null; payment_id: string | null; kind: "tax" | "simple";
+  issue_date: string; description: string; seller: InvoiceParty; buyer: InvoiceParty; subtotal: number; vat_percent: number; vat: number; total: number;
 };
 export type NotificationRow = { id: string; organization_id: string; user_id: string; kind: NotificationKind; params: Json; link: string | null; dedupe_key: string | null; read_at: string | null; created_at: string };
 export type NotificationPrefRow = { organization_id: string; user_id: string; kind: NotificationKind; in_app: boolean; whatsapp: boolean; push: boolean; updated_at: string };
@@ -816,9 +823,9 @@ export type AddendumCostRow = {
   addendum_id: string; organization_id: string; contract_id: string; material_cost: number; other_cost: number;
   created_at: string; created_by: string | null; updated_at: string;
 };
-export type QoyodJobKind = "customer" | "vendor" | "invoice" | "invoice_payment" | "bill" | "bill_payment" | "payroll" | "transfer";
+export type QoyodJobKind = "customer" | "vendor" | "invoice" | "invoice_payment" | "bill" | "bill_payment" | "payroll" | "transfer" | "credit_note" | "credit_allocation";
 export type QoyodJobRow = {
-  id: string; organization_id: string; kind: QoyodJobKind; entity_type: "client" | "supplier" | "subcontractor" | "contract_payment" | "addendum" | "purchase" | "payroll_run" | "subcontractor_payment" | "petty_cash" | "petty_cash_opening" | "marketer" | "commission_payment"; entity_id: string; ref: string;
+  id: string; organization_id: string; kind: QoyodJobKind; entity_type: "client" | "supplier" | "subcontractor" | "contract_payment" | "addendum" | "purchase" | "payroll_run" | "subcontractor_payment" | "petty_cash" | "petty_cash_opening" | "marketer" | "commission_payment" | "credit_note"; entity_id: string; ref: string;
   amount: number | null; status: "queued" | "running" | "done" | "failed"; attempts: number; next_attempt_at: string; last_error: string | null; qoyod_id: number | null; done_at: string | null; created_at: string; updated_at: string;
   /** petty-cash jobs only: the account fixed when queued */
   route: "bank" | "cash" | null;
@@ -869,6 +876,7 @@ export type Database = {
       contracts: Table<ContractRow>;
       contract_payments: Table<ContractPaymentRow>;
       contract_measurements: Table<ContractMeasurementRow>;
+      credit_notes: Table<CreditNoteRow>;
       client_portal_links: Table<PortalLinkRow>;
       teams: Table<TeamRow>;
       team_members: Table<TeamMemberRow>;
@@ -974,6 +982,7 @@ export type Database = {
       portal_accept_addendum: { Args: { p_number: string; p_token: string; p_addendum: string; p_name: string; p_signature: string | null; p_ip: string; p_user_agent: string }; Returns: boolean };
       portal_execution: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_measurements: { Args: { p_number: string; p_token: string }; Returns: Json };
+      portal_credit_notes: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_answer_measurement: {
         Args: { p_number: string; p_token: string; p_measurement: string; p_approve: boolean; p_name: string; p_note: string | null; p_signature: string | null; p_ip: string; p_user_agent: string };
         Returns: boolean;

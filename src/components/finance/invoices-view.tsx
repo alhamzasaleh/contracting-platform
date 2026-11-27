@@ -84,7 +84,7 @@ export function InvoicesView({ data, base = "", today }: { data: InvoicesPageDat
 }
 
 /** Links under an invoice: its contract (only for quotes.view — else plain text) and the receipt vouchers it was paid with. */
-export function InvoiceLinks({ contract, canViewContract, receipts, base = "" }: { contract: string; canViewContract: boolean; receipts: { number: string; amount: number }[]; base?: string }) {
+export function InvoiceLinks({ contract, canViewContract, receipts, creditNotes = [], base = "" }: { contract: string; canViewContract: boolean; receipts: { number: string; amount: number }[]; creditNotes?: { number: string; amount: number }[]; base?: string }) {
   const t = useTranslations("invoice");
   const { fmt } = useFormatter();
   const no = <bdi dir="ltr" className="font-latin">{contract}</bdi>;
@@ -102,6 +102,11 @@ export function InvoiceLinks({ contract, canViewContract, receipts, base = "" }:
       {receipts.map((r) => (
         <Link key={r.number} href={`${base}/print/receipts/${r.number}`} target="_blank" className="text-primary hover:underline">
           {t("receiptLink")} <bdi dir="ltr" className="font-latin">{r.number}</bdi> · {fmt.money(r.amount)}
+        </Link>
+      ))}
+      {creditNotes.map((c) => (
+        <Link key={c.number} href={`${base}/print/credit-notes/${c.number}`} target="_blank" className="text-primary hover:underline">
+          {t("creditLink")} <bdi dir="ltr" className="font-latin">{c.number}</bdi> · {fmt.money(c.amount)}
         </Link>
       ))}
     </p>

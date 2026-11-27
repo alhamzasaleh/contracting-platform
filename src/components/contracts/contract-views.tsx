@@ -1,9 +1,9 @@
 "use client";
 import { RewardLine } from "@/components/marketers/reward-line";
 import { DocNo } from "@/components/doc-no";
-import { AlertTriangle, CalendarClock, CalendarDays, Check, ClipboardList, Grid3x3, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, Ruler, Send, ShoppingCart, Trash2, Wrench, XCircle } from "lucide-react";
+import { Wallet, AlertTriangle, CalendarClock, CalendarDays, Check, ClipboardList, Grid3x3, Copy, FileSignature, HardHat, Link2, MessageCircle, Pencil, Plus, Printer, Ruler, Send, ShoppingCart, Trash2, Wrench, XCircle } from "lucide-react";
 import Link from "next/link";
-import { MEASURE_TONE } from "@/components/projects/measurements";
+import { MEASURE_TONE, RefundDialog, type MeasurementActions } from "@/components/projects/measurements";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -280,6 +280,7 @@ export function ContractView({
   addendaActions,
   termsSave,
   requestPayment,
+  refundMeasurement,
   base = "",
 }: {
   detail: ContractDetail;
@@ -293,9 +294,12 @@ export function ContractView({
   termsSave?: (i: { contract_id: string; terms: ContractTermsConfig }) => Promise<ActionResult>;
   /** ask the client for a payment no stage confirmation will request (quotes.manage or finance.manage) */
   requestPayment?: (i: { payment_id: string }) => Promise<ActionResult>;
+  /** money owed back to the client after a measurement (finance.manage) */
+  refundMeasurement?: MeasurementActions["refund"];
   base?: string;
 }) {
   const ts = useTranslations("schedule");
+  const tms = useTranslations("measure");
   const t = useTranslations("contract");
   const tq = useTranslations("quotes");
   const { fmt } = useFormatter();
@@ -527,7 +531,8 @@ export function ContractView({
       {c.status === "accepted" && <PaymentRequests detail={detail} request={requestPayment} />}
       {(c.status === "accepted" || c.status === "sent") && <ClientMessages detail={detail} orgName={org.name} />}
       <AddendaSection detail={detail} actions={addendaActions} />
-      {c.status === "accepted" && <MeasurementSummary detail={detail} base={base} />}
+      {c.status === "accepted" && <MeasurementSummary detail={detail} base={base} refund={refundMeasurement} />}
+      <ReceiptsList items={detail.creditNotes ?? []} hrefFor={(n) => `/print/credit-notes/${encodeURIComponent(n)}`} newTab title={tms("creditNotesTitle")} hint={tms("creditNotesHint")} id="credit-notes-title" />
       <ReceiptsList items={detail.invoices ?? []} hrefFor={(n) => `${base}/invoices/${encodeURIComponent(n)}`} title={t("invoicesTitle")} hint={t("invoicesHint")} id="invoices-title" />
       <ReceiptsList items={detail.receipts ?? []} hrefFor={(n) => `/print/receipts/${encodeURIComponent(n)}`} newTab />
       {termsSave && detail.canManage && (c.status === "draft" || c.status === "sent") && (
@@ -560,12 +565,16 @@ export function ContractView({
   );
 }
 
-/** Quantity settlement (measurement sheets): the contract value after what the client signed, and what is owed back to him. */
-function MeasurementSummary({ detail, base }: { detail: ContractDetail; base: string }) {
+/** Quantity settlement (measurement sheets): the contract value after what the client signed, the payments as they
+ * stand now (the contract text keeps the agreed schedule), and what is owed back to him. */
+function MeasurementSummary({ detail, base, refund }: { detail: ContractDetail; base: string; refund?: MeasurementActions["refund"] }) {
   const t = useTranslations("measure");
+  const tp = useTranslations("projects");
   const { fmt } = useFormatter();
+  const [refunding, setRefunding] = React.useState<{ id: string; number: string; credit_amount: number } | null>(null);
   const m = detail.measurements;
   if (!m || !m.sheets.length) return null;
+  const changed = detail.payments.filter((p) => p.kind === "measurement" || !!p.adjust);
   return (
     <section className="grid gap-2 rounded-3xl border border-border bg-surface p-5 text-[13px]">
       <p className="flex items-center gap-2 text-[15px] font-bold">
@@ -578,7 +587,14 @@ function MeasurementSummary({ detail, base }: { detail: ContractDetail; base: st
               <DocNo>{x.number}</DocNo>
               <Badge tone={MEASURE_TONE[x.status]}>{t(`st_${x.status}`)}</Badge>
             </span>
-            <span className="font-latin tabular-nums">{`${x.diff_total > 0 ? "+" : ""}${fmt.money(x.diff_total)}`}</span>
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="font-latin tabular-nums">{`${x.diff_total > 0 ? "+" : ""}${fmt.money(x.diff_total)}`}</span>
+              {x.status === "approved" && x.credit_amount > 0 && !x.refunded_at && detail.canFinance && x.id && (
+                <Button size="sm" variant="secondary" onClick={() => setRefunding({ id: x.id!, number: x.number, credit_amount: x.credit_amount })}>
+                  <Wallet /> {t("recordRefund")}
+                </Button>
+              )}
+            </span>
           </li>
         ))}
       </ul>
@@ -586,12 +602,30 @@ function MeasurementSummary({ detail, base }: { detail: ContractDetail; base: st
         <span>{t("valueAfter")}</span>
         <span className="font-latin tabular-nums">{fmt.money(detail.contract.total + m.total)}</span>
       </p>
+      {changed.length > 0 && (
+        <div className="grid gap-1 rounded-2xl bg-surface-sunken/60 p-3">
+          <p className="font-bold">{t("paymentsNow")}</p>
+          {changed.map((p) => (
+            <p key={p.seq} className="flex flex-wrap justify-between gap-2">
+              <span>
+                {p.seq}. {p.kind === "measurement" ? t("settlementLabel") : p.label}
+                {!!p.adjust && <span className="ms-1 text-muted-foreground">({t("adjusted", { amount: fmt.money(p.adjust) })})</span>}
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="font-latin tabular-nums">{fmt.money(p.amount)}</span>
+                <Badge tone={p.status === "paid" ? "success" : p.status === "requested" ? "warning" : "neutral"}>{tp(`pay_${p.status}` as "pay_pending")}</Badge>
+              </span>
+            </p>
+          ))}
+        </div>
+      )}
       {m.owed > 0 && <p className="rounded-xl bg-warning-soft px-3 py-2 font-bold">{t("owedToClient", { amount: fmt.money(m.owed) })}</p>}
       {detail.canViewProject && (
         <Link href={`${base}/projects/${detail.contract.number}#measurements`} className="justify-self-start text-primary underline">
           {t("openOnProject")}
         </Link>
       )}
+      {refunding && <RefundDialog m={refunding} onClose={() => setRefunding(null)} submit={refund} />}
     </section>
   );
 }

@@ -32,6 +32,8 @@ export type AssistantFacts = {
   labourHidden: boolean;
   /** success partners' rewards («مكافآت شركاء النجاح»): due now and expected later (totals only; a cost of each project once paid) */
   partnerRewards: { due: number; dueCount: number; expected: number } | null;
+  /** owed back to clients after signed measurement sheets (quantity settlement), not paid back yet */
+  owedToClients: number;
 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -76,6 +78,7 @@ export function buildFacts(
     pendingApprovals: f.approvals.map((a) => ({ kind: a.kind, number: typeof a.details.number === "string" ? a.details.number : null, since: a.created_at.slice(0, 10) })),
     labourHidden: !!f.labourHidden,
     partnerRewards: f.rewards ?? null,
+    owedToClients: f.owedToClients ?? 0,
   };
 }
 

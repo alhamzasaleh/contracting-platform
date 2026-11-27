@@ -1,4 +1,5 @@
 import type { Measurement } from "@/lib/measurements";
+import type { CreditNoteDoc } from "@/lib/credit-notes";
 import "server-only";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import type { ClientView } from "@/lib/quotes";
@@ -41,9 +42,11 @@ export type PortalData = {
   options?: PortalOption[];
   /** measurement sheets sent to the client (sign / comment), photos as 10-minute signed URLs */
   measurements?: PortalMeasurement[];
+  /** credit notes (a signed measurement reduced what was invoiced) */
+  creditNotes?: CreditNoteDoc[];
 };
 
-export type PortalMeasurement = Omit<Measurement, "photos"> & { photos: string[] };
+export type PortalMeasurement = Omit<Measurement, "photos"> & { photos: string[]; client_signature?: string | null };
 
 /**
  * The quote stage of the same link (issued from the quote, before a contract — or while the
@@ -70,6 +73,8 @@ export type PortalOption = { version: number; label: string; subtotal: number; v
 export type PortalInvoice = {
   id: string; number: string; kind: "tax" | "simple"; issue_date: string; due_date: string; description: string; seller: InvoiceParty; buyer: InvoiceParty;
   subtotal: number; vat_percent: number; vat: number; total: number; paid: number; official: string; has_official: boolean; created_at?: string;
+  /** credit notes against it */
+  credited?: number;
 };
 
 export type PortalMaintenance = {
@@ -148,13 +153,13 @@ export async function loadPortal(number: string, token: string): Promise<Loaded>
   // Everything below needs only the token-checked view: one parallel round, each part chained only
   // where it needs another's answer (the warranty call is shared: logo + warranty section).
   const accepted = d.contract.status === "accepted";
-  type PortalFn = "portal_measurements" | "portal_warranty" | "portal_execution" | "portal_addenda" | "portal_invoices" | "portal_receipts" | "portal_options" | "portal_contract_terms" | "portal_invoice_docs";
+  type PortalFn = "portal_credit_notes" | "portal_measurements" | "portal_warranty" | "portal_execution" | "portal_addenda" | "portal_invoices" | "portal_receipts" | "portal_options" | "portal_contract_terms" | "portal_invoice_docs";
   const call = async <T,>(fn: PortalFn): Promise<T | null> => {
     const { data: x } = await admin.rpc(fn, { p_number: number, p_token: token });
     return x as unknown as T | null;
   };
   const warrantyP = call<PortalWarranty & { org_id?: string; contract_id: string }>("portal_warranty");
-  const [logoUrl, execution, addenda, invoices, receipts, options, rawTerms, invoiceDocs, warranty, measurements] = await Promise.all([
+  const [logoUrl, execution, addenda, invoices, receipts, options, rawTerms, invoiceDocs, warranty, measurements, creditNotes] = await Promise.all([
     warrantyP.then((w) => portalLogo(admin, w?.org_id, d.org.logo_path)),
     // execution: stages, the client's notes, and 10-minute signed photo URLs (this contract's files only)
     (async (): Promise<PortalExecution | null> => {
@@ -211,8 +216,16 @@ export async function loadPortal(number: string, token: string): Promise<Loaded>
         photos: m.photos.map((p) => url.get(p)).filter((u): u is string => !!u),
       }));
     })(),
+    accepted
+      ? call<CreditNoteDoc[]>("portal_credit_notes").then((cn) =>
+          (cn ?? []).map((c) => ({ ...c, subtotal: Number(c.subtotal), vat_percent: Number(c.vat_percent), vat: Number(c.vat), total: Number(c.total), contract: d.contract.number })),
+        )
+      : Promise.resolve([] as CreditNoteDoc[]),
   ]);
+  // an invoice's remaining part excludes what credit notes took off it
+  const creditedOn = new Map<string, number>();
+  for (const c of creditNotes) creditedOn.set(c.invoice, (creditedOn.get(c.invoice) ?? 0) + c.total);
   const parsedTerms = termsSchema.safeParse(rawTerms ?? {});
   const terms = parsedTerms.success ? parsedTerms.data : null;
-  return { data: { ...d, options, execution, addenda, measurements, invoices, receipts, warranty, invoiceDocs, terms, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount), adjust: Number(p.adjust ?? 0) })) }, logoUrl, limited: false };
+  return { data: { ...d, options, execution, addenda, measurements, creditNotes, invoices, receipts, warranty, invoiceDocs: invoiceDocs.map((i) => ({ ...i, credited: creditedOn.get(i.number) ?? 0 })), terms, contract: { ...d.contract, total: Number(d.contract.total) }, payments: d.payments.map((p) => ({ ...p, percent: Number(p.percent), amount: Number(p.amount), adjust: Number(p.adjust ?? 0) })) }, logoUrl, limited: false };
 }

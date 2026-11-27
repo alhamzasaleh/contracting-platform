@@ -7,7 +7,7 @@ import { amountInWords } from "@/lib/tafqeet";
 import { useListSep } from "@/components/forms/form-kit";
 
 /** Invoice (فاتورة / فاتورة ضريبية) — print-grade and branded; "tax" only when issued with a VAT number. */
-export function InvoiceDocument({ data, logoUrl, qr }: { data: InvoiceDoc; logoUrl?: string | null; qr?: string | null }) {
+export function InvoiceDocument({ data, logoUrl, qr, credit }: { data: InvoiceDoc; logoUrl?: string | null; qr?: string | null; credit?: { invoice: string } }) {
   const sep = useListSep();
   const t = useTranslations("invoice");
   const locale = useLocale() as "ar" | "en";
@@ -30,8 +30,8 @@ export function InvoiceDocument({ data, logoUrl, qr }: { data: InvoiceDoc; logoU
           </div>
         </div>
         <div className="text-end">
-          <p className="text-[26px] font-extrabold text-primary">{tax ? t("taxTitle") : t("title")}</p>
-          {tax && <p className="font-latin text-[12px] text-doc-muted">Tax Invoice</p>}
+          <p className="text-[26px] font-extrabold text-primary">{credit ? (tax ? t("creditTaxTitle") : t("creditTitle")) : tax ? t("taxTitle") : t("title")}</p>
+          {tax && <p className="font-latin text-[12px] text-doc-muted">{credit ? "Tax Credit Note" : "Tax Invoice"}</p>}
           <p className="font-latin text-[13px]"><bdi dir="ltr" className="whitespace-nowrap">{data.number}</bdi></p>
           {qr && (
             // eslint-disable-next-line @next/next/no-img-element -- a small server-made data URL
@@ -50,7 +50,15 @@ export function InvoiceDocument({ data, logoUrl, qr }: { data: InvoiceDoc; logoU
         </dl>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-2xl border border-sand p-4 text-[13px]">
           <dt className="text-doc-muted">{t("issueDate")}</dt><dd className="font-semibold">{fmt.date(data.issue_date)}</dd>
-          <dt className="text-doc-muted">{t("dueDate")}</dt><dd className="font-semibold">{fmt.date(data.due_date)}</dd>
+          {credit ? (
+            <>
+              <dt className="text-doc-muted">{t("againstInvoice")}</dt><dd className="font-semibold"><bdi dir="ltr" className="font-latin whitespace-nowrap">{credit.invoice}</bdi></dd>
+            </>
+          ) : (
+            <>
+              <dt className="text-doc-muted">{t("dueDate")}</dt><dd className="font-semibold">{fmt.date(data.due_date)}</dd>
+            </>
+          )}
           <dt className="text-doc-muted">{t("contract")}</dt><dd className="font-semibold"><bdi dir="ltr" className="font-latin whitespace-nowrap">{data.contract}</bdi></dd>
         </dl>
       </section>
@@ -86,13 +94,22 @@ export function InvoiceDocument({ data, logoUrl, qr }: { data: InvoiceDoc; logoU
             </>
           )}
           <dt className="border-t border-sand pt-1.5 font-bold">{t("total")}</dt><dd className="border-t border-sand pt-1.5 text-end text-[16px] font-extrabold tabular-nums">{fmt.money(data.total)}</dd>
-          <dt className="text-doc-muted">{t("paid")}</dt><dd className="text-end tabular-nums">{fmt.money(data.paid)}</dd>
-          <dt className="font-bold">{t("remaining")}</dt><dd className="text-end font-bold tabular-nums">{fmt.money(invoiceRemaining(data))}</dd>
+          {!credit && (
+            <>
+              <dt className="text-doc-muted">{t("paid")}</dt><dd className="text-end tabular-nums">{fmt.money(data.paid)}</dd>
+              {!!data.credited && (
+                <>
+                  <dt className="text-doc-muted">{t("credited")}</dt><dd className="text-end tabular-nums">{fmt.money(data.credited)}</dd>
+                </>
+              )}
+              <dt className="font-bold">{t("remaining")}</dt><dd className="text-end font-bold tabular-nums">{fmt.money(invoiceRemaining(data))}</dd>
+            </>
+          )}
         </dl>
       </section>
 
       <footer className="border-t border-sand pt-4 text-[12px] text-doc-muted">
-        {tax ? t("noteTax") : t("noteSimple")}
+        {credit ? t("noteCredit") : tax ? t("noteTax") : t("noteSimple")}
       </footer>
     </article>
   );

@@ -193,7 +193,7 @@ export function PortalView({
         )}
         {(data.addenda ?? []).length > 0 && <Addenda list={data.addenda!} clientName={data.client.name} number={number} token={token} onAccept={onAcceptAddendum} />}
         {ex && ex.stages.length > 0 && <WorkProgress stages={ex.stages} clientName={data.client.name} number={number} token={token} onConfirm={onConfirmStage} />}
-        <PortalMeasurements list={data.measurements ?? []} clientName={data.client.name} number={number} token={token} onAnswer={onAnswerMeasurement} />
+        <PortalMeasurements list={data.measurements ?? []} payments={data.payments} clientName={data.client.name} number={number} token={token} onAnswer={onAnswerMeasurement} />
         {ex && <ClientNotes data={data} number={number} token={token} onAdd={onAddNote} />}
 
         {ex && ex.stages.length > 0 ? null : accepted ? (
@@ -242,6 +242,15 @@ export function PortalView({
             </ul>
           </section>
         )}
+
+        <ReceiptsList
+          items={(data.creditNotes ?? []).map((x) => ({ number: x.number, label: x.description, amount: x.total, paid_on: x.issue_date }))}
+          hrefFor={(cn) => `/p/${encodeURIComponent(number)}/${token}/credit/${encodeURIComponent(cn)}`}
+          newTab
+          title={tms("creditNotesTitle")}
+          hint={tms("creditNotesHint")}
+          id="credit-notes-title"
+        />
 
         <a href={`/p/${encodeURIComponent(c.number)}/${token}/pdf/contract`} className="flex items-center justify-center gap-2 text-[14px] font-semibold text-primary hover:underline print:hidden">
           <Download className="size-4" /> {t("contractPdf")}

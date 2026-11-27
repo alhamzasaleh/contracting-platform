@@ -85,7 +85,7 @@ export function NotificationBell({ data, base, preview }: { data: Data; base: st
       case "missed_visit":
         return t("missed_visit", { number, client: s("client"), days: fmt.number(Number(p.days ?? 0)) });
       case "agreement_review":
-        return t("agreement_review", { number, addendum: ltr(s("addendum")), count: fmt.number(Number(p.count ?? 0)) });
+        return t(s("addendum").startsWith("MS-") ? "agreement_review_measure" : "agreement_review", { number, addendum: ltr(s("addendum")), count: fmt.number(Number(p.count ?? 0)) });
       case "quote_accepted":
         return t("quote_accepted", { number, name: s("name") });
       case "quote_changes_requested":
@@ -98,6 +98,10 @@ export function NotificationBell({ data, base, preview }: { data: Data; base: st
         return t("measurement_approved", { number, measurement: ltr(s("measurement")), amount: fmt.money(Number(p.amount ?? 0)) });
       case "measurement_objected":
         return t("measurement_objected", { number, measurement: ltr(s("measurement")) });
+      case "measurement_waiting":
+        return t("measurement_waiting", { number, measurement: ltr(s("measurement")), days: fmt.number(Number(p.days ?? 0)) });
+      case "measurement_credit":
+        return t("measurement_credit", { number, measurement: ltr(s("measurement")), amount: fmt.money(Number(p.amount ?? 0)) });
       case "doc_expiry":
         return Number(p.days) <= 0
           ? t("doc_expired", { doc: t(`doc_${s("doc")}`), name: s("name") })

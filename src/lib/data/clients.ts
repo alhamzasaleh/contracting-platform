@@ -81,7 +81,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
     ? once(supabase.from("contracts").select("id, number, service, status, total").eq("client_id", client.id).neq("status", "cancelled").order("created_at", { ascending: false }))
     : Promise.resolve({ data: [] });
   // one parallel round after the client; queries that need his surveys / quotes / contracts are chained onto them
-  const [{ data: surveys }, rooms, { data: quotes }, versions, { data: contracts }, [repairs, addenda, receipts, invoices], allContracts, marketers] = await Promise.all([
+  const [{ data: surveys }, rooms, { data: quotes }, versions, { data: contracts }, [repairs, addenda, receipts, invoices, measured], allContracts, marketers] = await Promise.all([
     surveysP,
     // rooms of his surveys only (counted per survey)
     surveysP.then(({ data }) => {
@@ -102,6 +102,8 @@ export async function loadClientDetail(session: SessionContext, number: string):
         finance && accepted.length ? rows(supabase.from("addenda").select("contract_id, total").in("contract_id", accepted).eq("status", "accepted")) : [],
         finance && cids.length ? rows(supabase.from("client_receipts").select("amount").in("contract_id", cids)) : [],
         finance && cids.length ? rows(supabase.from("invoices").select("number, total, issue_date").in("contract_id", cids).order("issue_date", { ascending: false }).limit(100)) : [],
+        // the quantity settlement the client signed (measurement sheets)
+        finance && accepted.length ? rows(supabase.from("contract_measurements").select("diff_total").in("contract_id", accepted).eq("status", "approved")) : [],
       ]);
     }),
     // owner: every contract of his, cancelled included — any contract keeps the client and its quote
@@ -109,7 +111,7 @@ export async function loadClientDetail(session: SessionContext, number: string):
     loadMarketerChoices(supabase, orgId),
   ]);
   const accepted = (contracts ?? []).filter((c) => c.status === "accepted").map((c) => c.id);
-  const billed = (contracts ?? []).filter((c) => c.status === "accepted").reduce((s, c) => s + n(c.total), 0) + addenda.reduce((s, a) => s + n(a.total), 0);
+  const billed = (contracts ?? []).filter((c) => c.status === "accepted").reduce((s, c) => s + n(c.total), 0) + addenda.reduce((s, a) => s + n(a.total), 0) + measured.reduce((s, m) => s + n(m.diff_total), 0);
   const received = receipts.reduce((s, r) => s + n(r.amount), 0);
   const r2 = (x: number) => Math.round(x * 100) / 100;
   return {

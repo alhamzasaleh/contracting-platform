@@ -43,7 +43,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ number
           </div>
         }
       />
-      <InvoiceLinks contract={inv.contract} canViewContract={can(session, "quotes.view")} receipts={inv.receipts} />
+      <InvoiceLinks contract={inv.contract} canViewContract={can(session, "quotes.view")} receipts={inv.receipts} creditNotes={inv.creditNotes} />
       {inv.qoyodEnabled && <p className="text-[13px] text-muted-foreground">{t(`qoyod_${inv.qoyod}`)}</p>}
       <InvoiceDocument data={inv} logoUrl={logoUrl} qr={await invoiceQr(inv)} />
     </div>
