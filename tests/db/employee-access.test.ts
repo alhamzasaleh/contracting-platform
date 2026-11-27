@@ -26,14 +26,14 @@ beforeAll(async () => {
     emp = (await q<{ id: string }>("insert into public.employees (organization_id, full_name, job_title, phone, basic_salary) values ($1,'احمد','مشرف','966537087857',4000) returning id", [org])).rows[0].id;
     emp2 = (await q<{ id: string }>("insert into public.employees (organization_id, full_name, job_title, phone) values ($1,'سالم','دهان','966537000002') returning id", [org])).rows[0].id;
   });
-  empB = await as({ userId: ownerB }, async (q) => (await q<{ id: string }>("insert into public.employees (organization_id, full_name) values ($1,'موظف ب') returning id", [orgB])).rows[0].id);
+  empB = await as({ userId: ownerB }, async (q) => (await q<{ id: string }>("insert into public.employees (organization_id, phone, full_name) values ($1,'966500009999','موظف ب') returning id", [orgB])).rows[0].id);
 });
 afterAll(closePool);
 
 describe("employee ↔ account", () => {
   it("users can't write employees.user_id, on insert or update", async () => {
     await expectDenied(as({ userId: owner }, (q) => q("update public.employees set user_id = $2 where id = $1", [emp, viewer])), /set by the database/);
-    await expectDenied(as({ userId: owner }, (q) => q("insert into public.employees (organization_id, full_name, user_id) values ($1,'xx yy',$2)", [org, viewer])), /set by the database/);
+    await expectDenied(as({ userId: owner }, (q) => q("insert into public.employees (organization_id, phone, full_name, user_id) values ($1,'966500009999','xx yy',$2)", [org, viewer])), /set by the database/);
   });
 
   it("an invitation can't point at another organization's employee, nor be made without members.manage", async () => {
@@ -79,7 +79,7 @@ describe("employee ↔ account", () => {
 
   it("accepting never fails sign-in when that account already has an employee in the organization", async () => {
     const u = await createUser("966537000002");
-    const emp3 = await as({ userId: owner }, async (q) => (await q<{ id: string }>("insert into public.employees (organization_id, full_name) values ($1,'ثالث') returning id", [org])).rows[0].id);
+    const emp3 = await as({ userId: owner }, async (q) => (await q<{ id: string }>("insert into public.employees (organization_id, phone, full_name) values ($1,'966500009999','ثالث') returning id", [org])).rows[0].id);
     await as({ userId: owner }, (q) => q("insert into public.member_invitations (organization_id, phone, role, employee_id) values ($1,'966537000002','viewer',$2)", [org, emp2]));
     await asAdmin((q) => q("update public.employees set user_id = $2 where id = $1", [emp3, u])); // already linked elsewhere
     expect((await as({ userId: u }, (q) => q<{ n: number }>("select public.accept_pending_invitations() as n"))).rows[0].n).toBe(1);
@@ -194,7 +194,8 @@ describe("employee ↔ account: review", () => {
   });
 
   it("an employee without a phone on file can't be invited (the number must be his own)", async () => {
-    const e = await as({ userId: owner }, async (q) => (await q<{ id: string }>("insert into public.employees (organization_id, full_name) values ($1,'بلا رقم') returning id", [org])).rows[0].id);
+    // an older row saved before the phone became required (the app can't add one any more)
+    const e = await asAdmin(async (q) => (await q<{ id: string }>("insert into public.employees (organization_id, full_name) values ($1,'بلا رقم') returning id", [org])).rows[0].id);
     await expectDenied(as({ userId: owner }, (q) => q("insert into public.member_invitations (organization_id, phone, role, employee_id) values ($1,'966511119913','viewer',$2)", [org, e])), /not the employee's phone/);
   });
 });

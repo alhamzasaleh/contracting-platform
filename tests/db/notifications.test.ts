@@ -71,7 +71,7 @@ describe("notifications", () => {
   });
 
   it("daily reminders run only from the server and don't repeat", async () => {
-    await asAdmin((q) => q("insert into public.employees (organization_id, full_name, id_expiry) values ($1,'أحمد', (now() at time zone 'Asia/Riyadh')::date + 30)", [org]));
+    await asAdmin((q) => q("insert into public.employees (organization_id, phone, full_name, id_expiry) values ($1,'966500009999','أحمد', (now() at time zone 'Asia/Riyadh')::date + 30)", [org]));
     await expectDenied(as({ userId: owner }, (q) => q("select public.run_daily_reminders()")));
     await as("service_role", (q) => q("select public.run_daily_reminders()"));
     await as("service_role", (q) => q("select public.run_daily_reminders()"));

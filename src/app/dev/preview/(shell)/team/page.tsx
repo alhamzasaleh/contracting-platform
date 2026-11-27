@@ -2,11 +2,12 @@ import { EmployeesView } from "@/components/team/employees-view";
 import { previewNoop } from "../../preview-actions";
 import { SAMPLE_COST_ITEMS, SAMPLE_EMPLOYEES } from "../../sample-catalogue";
 
-// three access states: محمد linked (supervisor), أنور invitation pending, رحيم without access
+// access states: محمد linked (supervisor), أنور invitation pending, رحيم without access, سعيد saved before
+// the phone became required («أضف جواله أولاً»)
 export default function P() {
   return (
     <EmployeesView
-      employees={SAMPLE_EMPLOYEES}
+      employees={[...SAMPLE_EMPLOYEES, { ...SAMPLE_EMPLOYEES[0], id: "e4", full_name: "سعيد علي", phone: null }]}
       costItems={SAMPLE_COST_ITEMS}
       workingDays={26}
       canManage

@@ -130,7 +130,7 @@ describe("employees (HR)", () => {
 
   it("hides employees and salaries from supervisors", async () => {
     await as({ userId: owner }, (q) =>
-      q("insert into public.employees (organization_id, full_name, basic_salary) values ($1, 'عامل', 2000)", [org]),
+      q("insert into public.employees (organization_id, phone, full_name, basic_salary) values ($1,'966500009999', 'عامل', 2000)", [org]),
     );
     const sup = await as({ userId: supervisor }, (q) => q("select count(*)::int as n from public.employees"));
     expect(sup.rows[0].n).toBe(0);
@@ -146,7 +146,7 @@ describe("employees (HR)", () => {
   it("validates Saudi IBAN and ID formats", async () => {
     await expectDenied(
       as({ userId: owner }, (q) =>
-        q("insert into public.employees (organization_id, full_name, iban) values ($1, 'x y', 'DE123')", [org]),
+        q("insert into public.employees (organization_id, phone, full_name, iban) values ($1,'966500009999', 'x y', 'DE123')", [org]),
       ),
       /check constraint/,
     );

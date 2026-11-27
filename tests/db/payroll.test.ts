@@ -15,8 +15,8 @@ beforeAll(async () => {
   await asAdmin((q) => q("update private.platform_settings set allow_self_signup = false"));
   await as({ userId: owner }, async (q) => {
     await q("insert into public.memberships (organization_id, user_id, role) values ($1,$2,'supervisor')", [org, supervisor]);
-    emp1 = (await q<{ id: string }>("insert into public.employees (organization_id, full_name, basic_salary, housing_allowance, transport_allowance, iban) values ($1,'أحمد',3000,750,300,'SA0380000000608010167519') returning id", [org])).rows[0].id;
-    await q("insert into public.employees (organization_id, full_name, basic_salary, status) values ($1,'سالم',2500,'final_exit')", [org]);
+    emp1 = (await q<{ id: string }>("insert into public.employees (organization_id, phone, full_name, basic_salary, housing_allowance, transport_allowance, iban) values ($1,'966500009999','أحمد',3000,750,300,'SA0380000000608010167519') returning id", [org])).rows[0].id;
+    await q("insert into public.employees (organization_id, phone, full_name, basic_salary, status) values ($1,'966500009999','سالم',2500,'final_exit')", [org]);
     await q("insert into public.employee_advances (organization_id, employee_id, amount) values ($1,$2,500)", [org, emp1]);
   });
 });

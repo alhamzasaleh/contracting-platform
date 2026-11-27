@@ -20,7 +20,7 @@ beforeAll(async () => {
     await asServer(q, "insert into public.quote_versions (organization_id, quote_id, version, selection, quantities, client_view, subtotal, total) values ($1,$2,1,'{}','{}','{}',1,1)", [org, quote]);
     await q("select public.issue_quote($1, null)", [quote]);
     contract = (await q<{ id: string }>("insert into public.contracts (organization_id, quote_id, quote_version, client_id, service, start_date, duration_days, total) values ($1,$2,1,$3,'gypsum','2026-12-01',10,1) returning id", [org, quote, client])).rows[0].id;
-    employee = (await q<{ id: string }>("insert into public.employees (organization_id, full_name, job_title, basic_salary) values ($1,'أحمد','مركب جبس',3000) returning id", [org])).rows[0].id;
+    employee = (await q<{ id: string }>("insert into public.employees (organization_id, phone, full_name, job_title, basic_salary) values ($1,'966500009999','أحمد','مركب جبس',3000) returning id", [org])).rows[0].id;
   });
 });
 afterAll(closePool);

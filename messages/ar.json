@@ -612,11 +612,15 @@
     "accessCancelled": "ألغينا الدعوة",
     "accessRemoved": "حسابه ما عاد عضواً",
     "giveAccess": "اعطه دخول للنظام",
+    "noPhoneAskHr": "ما له جوال مسجّل — يضيفه من يدير ملفات الموظفين",
+    "addPhoneFirst": "أضف جواله أولاً",
     "suspendedAccess": "حسابه موقوف ({role})",
     "exitActive": "خروج نهائي — أوقف الحساب",
     "memberSamePhone": "عضو بنفس الرقم ({role})",
     "linkMember": "اربطه بملفه",
     "unlink": "فك الربط",
+    "phoneTaken": "الرقم مسجّل لموظف ثاني: {name} — تأكد منه",
+    "phoneRequiredHint": "رقم جوال سعودي — يدخل فيه للنظام لو أعطيته دخول",
     "pendingPhoneHint": "تغيير الجوال يلغي دعوة الدخول المعلّقة"
   },
   "errors": {

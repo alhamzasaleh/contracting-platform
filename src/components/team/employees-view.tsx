@@ -19,7 +19,7 @@ import type { EmployeeRow } from "@/lib/supabase/database.types";
 import { InviteDialog, memberErrorText, type InviteInput } from "@/components/settings/members-view";
 import { settle } from "@/lib/client/action";
 import { useFailureText } from "@/lib/client/failure-text";
-import { employeeAccess, suggestRole, type AccessInvite, type AccessMember } from "@/lib/hr/access";
+import { employeeAccess, phoneTakenBy, suggestRole, type AccessInvite, type AccessMember } from "@/lib/hr/access";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -99,6 +99,8 @@ export function EmployeesView({
     if (focus) document.getElementById(`employee-${focus}`)?.scrollIntoView({ block: "center" });
   }, [focus]);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  // the number typed already belongs to another employee: said, never blocked
+  const [taken, setTaken] = React.useState<Employee | null>(null);
   const [saudi, setSaudi] = React.useState<"saudi" | "non_saudi">("non_saudi");
 
   const active = employees.filter((e) => e.status !== "final_exit");
@@ -108,6 +110,7 @@ export function EmployeesView({
 
   const open = (e: Employee | "new") => {
     setErrors({});
+    setTaken(null);
     setSaudi(e !== "new" && e.is_saudi ? "saudi" : "non_saudi");
     setEditing(e);
   };
@@ -197,11 +200,19 @@ export function EmployeesView({
           <Field
             id="em-phone"
             label={t("phone")}
-            optional={tc("optional")}
             error={fieldText(errors.phone)}
-            hint={e && access?.invites.some((i) => i.employeeId === e.id) ? t("pendingPhoneHint") : undefined}
+            hint={
+              taken
+                ? t("phoneTaken", { name: taken.full_name })
+                : e && access?.invites.some((i) => i.employeeId === e.id)
+                  ? t("pendingPhoneHint")
+                  : t("phoneRequiredHint")
+            }
           >
-            <Input name="phone" defaultValue={e?.phone ? `0${e.phone.slice(3)}` : ""} inputMode="tel" dir="ltr" className="font-latin rtl:text-right" />
+            <Input
+              name="phone"
+              onChange={(ev) => setTaken(phoneTakenBy(ev.target.value, employees, e?.id))}
+              required defaultValue={e?.phone ? `0${e.phone.slice(3)}` : ""} inputMode="tel" dir="ltr" className="font-latin rtl:text-right" />
           </Field>
           <Field id="em-id" label={t("idNumber")} optional={tc("optional")} error={fieldText(errors.id_number)}>
             <Input name="id_number" defaultValue={e?.id_number ?? ""} inputMode="numeric" dir="ltr" className="font-latin rtl:text-right" />
@@ -320,7 +331,7 @@ export function EmployeesView({
                   <Button variant="ghost" size="icon-sm" aria-label={t("monthlyBreakdown")} aria-expanded={isOpen} onClick={() => setExpanded(isOpen ? null : e.id)}>
                     <ChevronDown className={cn("transition-transform", isOpen && "rotate-180")} />
                   </Button>
-                  {access && <AccessLine employee={e} access={access} linkedUsers={linkedUsers} onGive={() => setGiving(e)} />}
+                  {access && <AccessLine employee={e} access={access} linkedUsers={linkedUsers} onGive={() => setGiving(e)} onEdit={canManage ? () => open(e) : undefined} />}
                 </div>
                 <AnimatePresence initial={false}>
                   {isOpen && (
@@ -366,7 +377,20 @@ export function EmployeesView({
 }
 
 /** «له دخول للنظام (الدور)» / «دعوة معلّقة» + cancel / «اعطه دخول للنظام» / link / unlink. */
-function AccessLine({ employee, access, linkedUsers, onGive }: { employee: Employee; access: EmployeeAccessProps; linkedUsers: Set<string>; onGive: () => void }) {
+function AccessLine({
+  employee,
+  access,
+  linkedUsers,
+  onGive,
+  onEdit,
+}: {
+  employee: Employee;
+  access: EmployeeAccessProps;
+  linkedUsers: Set<string>;
+  onGive: () => void;
+  /** opens his record (an older employee saved without a phone adds it there first) */
+  onEdit?: () => void;
+}) {
   const t = useTranslations();
   const failure = useFailureText();
   const router = useRouter();
@@ -425,11 +449,19 @@ function AccessLine({ employee, access, linkedUsers, onGive }: { employee: Emplo
           {unlink}
         </>
       ) : (
-        employee.status !== "final_exit" && (
+        employee.status !== "final_exit" &&
+        // his sign-in number is his own phone: without one an invitation would be refused
+        (employee.phone ? (
           <Button size="sm" variant="secondary" onClick={onGive}>
             <KeyRound /> {t("hr.giveAccess")}
           </Button>
-        )
+        ) : onEdit ? (
+          <Button size="sm" variant="secondary" onClick={onEdit}>
+            <KeyRound /> {t("hr.addPhoneFirst")}
+          </Button>
+        ) : (
+          <span className="text-[12px] text-muted-foreground">{t("hr.noPhoneAskHr")}</span>
+        ))
       )}
       {(state.kind === "member" || state.kind === "suspended" || state.kind === "exitActive") && unlink}
       {state.kind !== "none" && state.kind !== "memberSamePhone" && state.kind !== "exitActive" && (

@@ -171,8 +171,8 @@ describe("#4 an employee's day is counted once", () => {
     const c2 = await makeContract(5000);
     const day = "2026-11-02"; // a Monday
     const { e, f } = await as({ userId: owner }, async (q) => {
-      const e = (await q<{ id: string }>("insert into public.employees (organization_id, full_name, is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances) values ($1,'مشترك',false,2600,0,0,0) returning id", [org])).rows[0].id;
-      const f = (await q<{ id: string }>("insert into public.employees (organization_id, full_name, is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances) values ($1,'ثاني',false,5200,0,0,0) returning id", [org])).rows[0].id;
+      const e = (await q<{ id: string }>("insert into public.employees (organization_id, phone, full_name, is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances) values ($1,'966500009999','مشترك',false,2600,0,0,0) returning id", [org])).rows[0].id;
+      const f = (await q<{ id: string }>("insert into public.employees (organization_id, phone, full_name, is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances) values ($1,'966500009999','ثاني',false,5200,0,0,0) returning id", [org])).rows[0].id;
       const t1 = (await q<{ id: string }>("insert into public.teams (organization_id, name, kind) values ($1,'فريق ١','inhouse') returning id", [org])).rows[0].id;
       const t2 = (await q<{ id: string }>("insert into public.teams (organization_id, name, kind) values ($1,'فريق ٢','inhouse') returning id", [org])).rows[0].id;
       await q("insert into public.team_members (organization_id, team_id, employee_id) values ($1,$2,$3),($1,$2,$4),($1,$5,$3)", [org, t1, e, f, t2]);

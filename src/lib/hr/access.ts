@@ -63,6 +63,13 @@ export function matchEmployee<T extends LinkableEmployee>(typed: string, employe
   return employees.find((e) => !e.user_id && e.phone === phone) ?? null;
 }
 
+/** Another employee already holding the typed number (warn, don't block — owner rule), else null. */
+export function phoneTakenBy<T extends { id: string; phone: string | null }>(typed: string, employees: T[], selfId?: string): T | null {
+  const phone = normalizeSaudiMobile(typed);
+  if (!phone) return null;
+  return employees.find((e) => e.id !== selfId && e.phone === phone) ?? null;
+}
+
 /** A refused invitation (database error) → the error key the dialogs show. */
 export function inviteError(error: { code?: string; message?: string }): string {
   const m = error.message ?? "";

@@ -233,7 +233,7 @@ describe("#4 stale approvals", () => {
 describe("#5 payroll advances", () => {
   it("settles only what the line deducts; the rest carries to next month", async () => {
     const { emp, run } = await as({ userId: owner }, async (q) => {
-      const emp = (await q<{ id: string }>("insert into public.employees (organization_id, full_name, basic_salary) values ($1,'خالد',3000) returning id", [org])).rows[0].id;
+      const emp = (await q<{ id: string }>("insert into public.employees (organization_id, phone, full_name, basic_salary) values ($1,'966500009999','خالد',3000) returning id", [org])).rows[0].id;
       await q("insert into public.employee_advances (organization_id, employee_id, amount) values ($1,$2,500)", [org, emp]);
       const run = (await q<{ id: string }>("select public.create_payroll_run($1, '2026-10-01') as id", [org])).rows[0].id;
       return { emp, run };
@@ -256,7 +256,7 @@ describe("#5 payroll advances", () => {
 
   it("a line can't deduct more than the employee's open advances; deducted amounts aren't writable", async () => {
     const { emp, adv, run } = await as({ userId: owner }, async (q) => {
-      const emp = (await q<{ id: string }>("insert into public.employees (organization_id, full_name, basic_salary) values ($1,'ماجد',3000) returning id", [org])).rows[0].id;
+      const emp = (await q<{ id: string }>("insert into public.employees (organization_id, phone, full_name, basic_salary) values ($1,'966500009999','ماجد',3000) returning id", [org])).rows[0].id;
       const adv = (await q<{ id: string }>("insert into public.employee_advances (organization_id, employee_id, amount) values ($1,$2,100) returning id", [org, emp])).rows[0].id;
       return { emp, adv, run: (await q<{ id: string }>("select public.create_payroll_run($1, '2026-09-01') as id", [org])).rows[0].id };
     });
@@ -358,8 +358,8 @@ describe("#8 in-house labour actual cost", () => {
       }
       // only the items above count
       await q("update public.employee_cost_items set is_active = false where organization_id = $1 and code <> all($2::text[])", [org, items.map((i) => i.code)]);
-      emp1 = (await q<{ id: string }>("insert into public.employees (organization_id, full_name, is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances) values ($1,'عامل ١',false,3000,750,300,0) returning id", [org])).rows[0].id;
-      emp2 = (await q<{ id: string }>("insert into public.employees (organization_id, full_name, is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances) values ($1,'عامل ٢',true,5000,1250,500,250) returning id", [org])).rows[0].id;
+      emp1 = (await q<{ id: string }>("insert into public.employees (organization_id, phone, full_name, is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances) values ($1,'966500009999','عامل ١',false,3000,750,300,0) returning id", [org])).rows[0].id;
+      emp2 = (await q<{ id: string }>("insert into public.employees (organization_id, phone, full_name, is_saudi, basic_salary, housing_allowance, transport_allowance, other_allowances) values ($1,'966500009999','عامل ٢',true,5000,1250,500,250) returning id", [org])).rows[0].id;
       const team = (await q<{ id: string }>("insert into public.teams (organization_id, name, kind) values ($1,'فريقنا','inhouse') returning id", [org])).rows[0].id;
       await q("insert into public.team_members (organization_id, team_id, employee_id) values ($1,$2,$3),($1,$2,$4)", [org, team, emp1, emp2]);
       const d = "(now() at time zone 'Asia/Riyadh')::date";

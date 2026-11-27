@@ -612,11 +612,15 @@
     "accessCancelled": "Invitation cancelled",
     "accessRemoved": "His account is no longer a member",
     "giveAccess": "Give access",
+    "noPhoneAskHr": "No phone on file — whoever manages employee records adds it",
+    "addPhoneFirst": "Add his phone first",
     "suspendedAccess": "Account suspended ({role})",
     "exitActive": "Final exit — suspend the account",
     "memberSamePhone": "A member has this number ({role})",
     "linkMember": "Link to his record",
     "unlink": "Unlink",
+    "phoneTaken": "This number is already on another employee: {name} — check it",
+    "phoneRequiredHint": "A Saudi mobile — the number he signs in with if you give him access",
     "pendingPhoneHint": "Changing the phone cancels the pending sign-in invitation"
   },
   "errors": {

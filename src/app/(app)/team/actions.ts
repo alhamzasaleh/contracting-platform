@@ -5,8 +5,8 @@ import { z } from "zod";
 import { fieldErrors, type ActionResult } from "@/lib/actions";
 import { can, getSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { num, optionalDate, optionalNum, optionalText } from "@/lib/validation/numbers";
-import { normalizeSaudiMobile } from "@/lib/validation/phone";
+import { num, optionalNum } from "@/lib/validation/numbers";
+import { employeeSchema } from "@/lib/hr/employee-schema";
 
 async function ctx() {
   const session = await getSession();
@@ -28,35 +28,6 @@ const done = (): ActionResult => {
   return { ok: true };
 };
 
-const digits = (v: unknown) =>
-  typeof v === "string" ? v.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/\s+/g, "").toUpperCase() : v;
-
-const employeeSchema = z
-  .object({
-    id: z.uuid().optional(),
-    full_name: z.string().trim().min(2, "required").max(120),
-    is_saudi: z.boolean(),
-    nationality: optionalText(60),
-    job_title: optionalText(80),
-    phone: z.preprocess(
-      (v) => (typeof v === "string" && v.trim() ? normalizeSaudiMobile(v) ?? "invalid" : null),
-      z.string().regex(/^\d{8,15}$/, "phoneInvalid").nullable(),
-    ),
-    id_number: z.preprocess((v) => (v === "" ? null : digits(v)), z.string().regex(/^\d{10}$/, "idInvalid").nullable()),
-    id_expiry: optionalDate,
-    passport_expiry: optionalDate,
-    insurance_expiry: optionalDate,
-    start_date: optionalDate,
-    basic_salary: num({ min: 0, max: 1_000_000 }),
-    housing_allowance: num({ min: 0, max: 1_000_000 }),
-    transport_allowance: num({ min: 0, max: 1_000_000 }),
-    other_allowances: num({ min: 0, max: 1_000_000 }),
-    iban: z.preprocess((v) => (v === "" ? null : digits(v)), z.string().regex(/^SA\d{22}$/, "ibanInvalid").nullable()),
-    status: z.enum(["active", "on_leave", "final_exit"]),
-    notes: optionalText(1000),
-  })
-  .strict();
-
 export async function saveEmployee(input: unknown): Promise<ActionResult> {
   const c = await ctx();
   if (!c) return { ok: false, error: "noAccess" };
@@ -66,6 +37,8 @@ export async function saveEmployee(input: unknown): Promise<ActionResult> {
   const { error } = id
     ? await c.supabase.from("employees").update(data).eq("id", id).eq("organization_id", c.orgId)
     : await c.supabase.from("employees").insert({ ...data, organization_id: c.orgId });
+  // the database's own rule (an employee always has a phone): shown on the phone field
+  if (error?.message.includes("employee phone required")) return { ok: false, error: "invalid", fieldErrors: { phone: "required" } };
   return dbError(error) ?? done();
 }
 
