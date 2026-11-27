@@ -1,4 +1,5 @@
 "use client";
+import { Paper } from "@/components/documents/paper";
 import { useLocale, useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand-logo";
 import { useFormatter } from "@/components/formatter-provider";
@@ -15,11 +16,12 @@ export function ReceiptVoucher({ data }: { data: ReceiptDoc }) {
   const r = data.receipt;
   const org = data.org.legal_name ?? data.org.name;
   return (
-    <article className="relative mx-auto grid min-w-0 max-w-[820px] gap-6 overflow-hidden rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-basalt sm:p-10 print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-10">
+    <Paper>
+      <article className="relative mx-auto grid min-w-0 max-w-[820px] gap-6 overflow-hidden rounded-3xl border border-border bg-white text-[14px] leading-7 text-basalt print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-10 p-10">
       <span aria-hidden className="absolute end-0 top-0 size-10 bg-clay [clip-path:polygon(0_0,100%_0,100%_100%)] rtl:[clip-path:polygon(0_0,100%_0,0_100%)] print:size-8" />
       <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-primary pb-4">
         <div className="flex flex-wrap items-center gap-3">
-          {data.org.logoUrl && <BrandLogo src={data.org.logoUrl} label={data.org.name} className="text-basalt" fit="h-auto w-[min(140px,40vw)] max-h-16" />}
+          {data.org.logoUrl && <BrandLogo src={data.org.logoUrl} label={data.org.name} className="text-basalt" fit="h-auto w-[140px] max-h-16" />}
           <div className="text-[12px] leading-6 text-doc-muted">
             <p className="text-[14px] font-extrabold text-basalt">{org}</p>
             {data.org.cr_number && <p>{t("cr", { n: data.org.cr_number })}</p>}
@@ -49,13 +51,13 @@ export function ReceiptVoucher({ data }: { data: ReceiptDoc }) {
         {r.reference && <Row label={t("reference")}><bdi dir="ltr" className="font-latin">{r.reference}</bdi></Row>}
       </dl>
 
-      <section className="grid gap-2 rounded-2xl border border-sand p-4 text-[13px] sm:grid-cols-3">
+      <section className="grid gap-2 rounded-2xl border border-sand p-4 text-[13px] grid-cols-3">
         <p><span className="block text-doc-muted">{t("contractValue")}</span><span className="font-bold">{fmt.money(data.contract.value)}</span></p>
         <p><span className="block text-doc-muted">{t("receivedToDate")}</span><span className="font-bold">{fmt.money(data.receivedToDate)}</span></p>
         <p><span className="block text-doc-muted">{t("remaining")}</span><span className="font-bold">{fmt.money(data.remaining)}</span></p>
       </section>
 
-      <footer className="grid gap-6 border-t border-sand pt-5 sm:grid-cols-2">
+      <footer className="grid gap-6 border-t border-sand pt-5 grid-cols-2">
         <div className="grid content-start gap-1">
           <p className="font-bold">{t("receiver")}</p>
           <p className="text-[13px]">{org}</p>
@@ -64,6 +66,7 @@ export function ReceiptVoucher({ data }: { data: ReceiptDoc }) {
         <p className="self-end text-[12px] text-doc-muted">{t("note", { date: fmt.dateTime(r.created_at) })}</p>
       </footer>
     </article>
+    </Paper>
   );
 }
 

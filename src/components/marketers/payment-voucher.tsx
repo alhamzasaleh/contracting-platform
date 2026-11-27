@@ -1,4 +1,5 @@
 "use client";
+import { Paper } from "@/components/documents/paper";
 import { useLocale, useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand-logo";
 import { useFormatter } from "@/components/formatter-provider";
@@ -15,11 +16,12 @@ export function PaymentVoucher({ data }: { data: PaymentVoucherDoc }) {
   const v = data.voucher;
   const org = data.org.legal_name ?? data.org.name;
   return (
-    <article className="relative mx-auto grid min-w-0 max-w-[820px] gap-6 overflow-hidden rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-basalt sm:p-10 print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-10" data-testid="payment-voucher">
+    <Paper>
+      <article className="relative mx-auto grid min-w-0 max-w-[820px] gap-6 overflow-hidden rounded-3xl border border-border bg-white text-[14px] leading-7 text-basalt print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-10 p-10" data-testid="payment-voucher">
       <span aria-hidden className="absolute end-0 top-0 size-10 bg-clay [clip-path:polygon(0_0,100%_0,100%_100%)] rtl:[clip-path:polygon(0_0,100%_0,0_100%)] print:size-8" />
       <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-primary pb-4">
         <div className="flex flex-wrap items-center gap-3">
-          {data.org.logoUrl && <BrandLogo src={data.org.logoUrl} label={data.org.name} className="text-basalt" fit="h-auto w-[min(140px,40vw)] max-h-16" />}
+          {data.org.logoUrl && <BrandLogo src={data.org.logoUrl} label={data.org.name} className="text-basalt" fit="h-auto w-[140px] max-h-16" />}
           <div className="text-[12px] leading-6 text-doc-muted">
             <p className="text-[14px] font-extrabold text-basalt">{org}</p>
             {data.org.cr_number && <p>{t("cr", { n: data.org.cr_number })}</p>}
@@ -55,7 +57,7 @@ export function PaymentVoucher({ data }: { data: PaymentVoucherDoc }) {
         {v.note && <Row label={t("note")}>{v.note}</Row>}
       </dl>
 
-      <footer className="grid gap-6 border-t border-sand pt-5 sm:grid-cols-2">
+      <footer className="grid gap-6 border-t border-sand pt-5 grid-cols-2">
         <div className="grid content-start gap-1">
           <p className="font-bold">{t("payer")}</p>
           <p className="text-[13px]">{org}</p>
@@ -68,6 +70,7 @@ export function PaymentVoucher({ data }: { data: PaymentVoucherDoc }) {
         </div>
       </footer>
     </article>
+    </Paper>
   );
 }
 

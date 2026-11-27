@@ -1,4 +1,5 @@
 "use client";
+import { Paper } from "@/components/documents/paper";
 import { useLocale, useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand-logo";
 import { useFormatter } from "@/components/formatter-provider";
@@ -16,7 +17,7 @@ function Header({ org, title, number, date }: { org: DocOrg; title: string; numb
   return (
     <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-primary pb-4">
       <div className="flex flex-wrap items-center gap-3">
-        {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="text-basalt" fit="h-auto w-[min(140px,40vw)] max-h-16" />}
+        {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="text-basalt" fit="h-auto w-[140px] max-h-16" />}
         <div className="text-[12px] leading-6 text-doc-muted">
           <p className="text-[14px] font-extrabold text-basalt">{name}</p>
           {org.cr_number && <p>{t("cr", { n: org.cr_number })}</p>}
@@ -24,7 +25,7 @@ function Header({ org, title, number, date }: { org: DocOrg; title: string; numb
         </div>
       </div>
       <div className="text-end">
-        <p className="text-[20px] font-extrabold text-primary sm:text-[24px]">{title}</p>
+        <p className="font-extrabold text-primary text-[24px]">{title}</p>
         <p className="font-latin text-[13px]">
           <bdi dir="ltr" className="whitespace-nowrap">{number}</bdi>
         </p>
@@ -35,7 +36,7 @@ function Header({ org, title, number, date }: { org: DocOrg; title: string; numb
 }
 
 const Corner = () => <span aria-hidden className="absolute end-0 top-0 size-10 bg-clay [clip-path:polygon(0_0,100%_0,100%_100%)] rtl:[clip-path:polygon(0_0,100%_0,0_100%)] print:size-8" />;
-const ARTICLE = "relative mx-auto grid min-w-0 max-w-[820px] gap-6 overflow-hidden rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-basalt sm:p-10 print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-10";
+const ARTICLE = "relative mx-auto grid min-w-0 max-w-[820px] gap-6 overflow-hidden rounded-3xl border border-border bg-white text-[14px] leading-7 text-basalt print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-10 p-10";
 
 /** سند صرف — a payment to a subcontractor (SP-), signed by him on receipt. */
 export function SubVoucherDocument({ org, data }: { org: DocOrg; data: SubVoucherDoc }) {
@@ -45,7 +46,8 @@ export function SubVoucherDocument({ org, data }: { org: DocOrg; data: SubVouche
   const { fmt } = useFormatter();
   const v = data.voucher;
   return (
-    <article className={ARTICLE} data-testid="sub-voucher">
+    <Paper>
+      <article className={ARTICLE} data-testid="sub-voucher">
       <Corner />
       <Header org={org} title={t("title")} number={v.number} date={v.paid_on} />
       <div className="flex flex-wrap items-baseline justify-between gap-3 rounded-2xl bg-gypsum px-5 py-4">
@@ -65,7 +67,7 @@ export function SubVoucherDocument({ org, data }: { org: DocOrg; data: SubVouche
         {data.sub.iban && <Row label={t("iban")}><bdi dir="ltr" className="font-latin break-all">{data.sub.iban}</bdi></Row>}
         {v.note && <Row label={t("note")}>{v.note}</Row>}
       </dl>
-      <footer className="grid gap-6 border-t border-sand pt-5 sm:grid-cols-2 print:break-inside-avoid">
+      <footer className="grid gap-6 border-t border-sand pt-5 print:break-inside-avoid grid-cols-2">
         <div className="grid content-start gap-1">
           <p className="font-bold">{t("payer")}</p>
           <p className="text-[13px]">{org.legal_name ?? org.name}</p>
@@ -78,6 +80,7 @@ export function SubVoucherDocument({ org, data }: { org: DocOrg; data: SubVouche
         </div>
       </footer>
     </article>
+    </Paper>
   );
 }
 
@@ -88,13 +91,14 @@ export function SubStatementDocument({ org, data }: { org: DocOrg; data: Pick<Su
   const { rows, totals } = data.statement;
   const cell = "px-2 py-1.5";
   return (
-    <article className={ARTICLE} data-testid="sub-statement">
+    <Paper>
+      <article className={ARTICLE} data-testid="sub-statement">
       <Corner />
       <Header org={org} title={t("statementTitle")} number={data.sub.number} date={data.today} />
       <p className="font-bold">
         {data.sub.name}
       </p>
-      <div className="grid grid-cols-1 gap-3 rounded-2xl bg-gypsum p-4 text-[13px] min-[400px]:grid-cols-3">
+      <div className="grid gap-3 rounded-2xl bg-gypsum p-4 text-[13px] grid-cols-3">
         <Total label={t("earned")} value={fmt.money(totals.earned)} />
         <Total label={t("paid")} value={fmt.money(totals.paid)} />
         <Total label={totals.balance < 0 ? t("paidAhead") : t("due")} value={fmt.money(Math.abs(totals.balance))} strong />
@@ -164,6 +168,7 @@ export function SubStatementDocument({ org, data }: { org: DocOrg; data: Pick<Su
       </div>
       <p className="text-[12px] text-doc-muted">{t("statementNote")}</p>
     </article>
+    </Paper>
   );
 }
 

@@ -1,4 +1,5 @@
 "use client";
+import { Paper } from "@/components/documents/paper";
 import { useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand-logo";
 import { useFormatter } from "@/components/formatter-provider";
@@ -19,12 +20,13 @@ export function MeasurementDocument({ data }: { data: MeasurementDoc }) {
   const m = data.sheet;
   const org = data.org.legal_name ?? data.org.name;
   return (
-    <article className="relative mx-auto grid min-w-0 max-w-[820px] gap-5 overflow-hidden rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-basalt sm:p-10 print:border-0 print:p-0">
+    <Paper>
+      <article className="relative mx-auto grid min-w-0 max-w-[820px] gap-5 overflow-hidden rounded-3xl border border-border bg-white text-[14px] leading-7 text-basalt print:border-0 print:p-0 p-10">
       {/* the brand's 45° clay corner */}
       <span aria-hidden className="absolute end-0 top-0 size-10 bg-clay [clip-path:polygon(100%_0,0_0,100%_100%)] rtl:[clip-path:polygon(0_0,100%_0,0_100%)]" />
       <header className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-primary pb-4">
         <div className="flex flex-wrap items-center gap-3">
-          {data.org.logoUrl && <BrandLogo src={data.org.logoUrl} label={data.org.name} className="text-basalt" fit="h-auto w-[min(140px,40vw)] max-h-16" />}
+          {data.org.logoUrl && <BrandLogo src={data.org.logoUrl} label={data.org.name} className="text-basalt" fit="h-auto w-[140px] max-h-16" />}
           <p className="font-extrabold">{org}</p>
         </div>
         <p className="font-latin text-[13px]">
@@ -32,7 +34,7 @@ export function MeasurementDocument({ data }: { data: MeasurementDoc }) {
         </p>
       </header>
       <p className="text-center text-[22px] font-extrabold text-primary">{t("docTitle")}</p>
-      <dl className="grid gap-2 text-[13px] sm:grid-cols-3">
+      <dl className="grid gap-2 text-[13px] grid-cols-3">
         <div>
           <dt className="text-doc-muted">{t("client")}</dt>
           <dd className="font-bold">{data.client.name}</dd>
@@ -52,7 +54,7 @@ export function MeasurementDocument({ data }: { data: MeasurementDoc }) {
       <MeasurementTable m={m} />
       {m.notes && <p className="whitespace-pre-line">{m.notes}</p>}
       {m.photos.length > 0 && (
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 print:break-inside-avoid">
+        <div className="grid gap-2 print:break-inside-avoid grid-cols-4">
           {m.photos.map((u) => (
             // eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL
             <img key={u} src={u} alt="" className="aspect-square w-full rounded-xl object-cover" />
@@ -74,5 +76,6 @@ export function MeasurementDocument({ data }: { data: MeasurementDoc }) {
         )}
       </section>
     </article>
+    </Paper>
   );
 }

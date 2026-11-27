@@ -1,4 +1,6 @@
 "use client";
+import { Paper } from "@/components/documents/paper";
+import { PAPER_WIDE } from "@/lib/paper";
 import { Grid3x3, ShoppingCart } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -41,13 +43,14 @@ export function MaterialsDocument({ org, doc }: { org: DocOrg; doc: MaterialsDoc
   const count = (r: MaterialRow, x: number | undefined) => buyText([{ count: x ?? 0, size: null, sizeUnit: null, unit: r.unit }]);
 
   return (
-    <article className="relative mx-auto grid min-w-0 max-w-[1000px] gap-6 overflow-hidden rounded-3xl border border-border bg-white p-5 text-[14px] text-basalt sm:p-10 print:max-w-none print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-8">
+    <Paper width={PAPER_WIDE}>
+      <article className="relative mx-auto grid min-w-0 max-w-[1000px] gap-6 overflow-hidden rounded-3xl border border-border bg-white text-[14px] text-basalt print:max-w-none print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-8 p-10">
       {/* the priced table has up to 11 columns: printed / PDF on a landscape page, or its last columns (cost, total) were cut off */}
       <style>{"@page { size: A4 landscape; }"}</style>
       <span aria-hidden className="absolute end-0 top-0 size-10 bg-clay [clip-path:polygon(0_0,100%_0,100%_100%)] rtl:[clip-path:polygon(0_0,100%_0,0_100%)] print:size-8" />
       <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-primary pb-4">
         <div className="flex flex-wrap items-center gap-3">
-          {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="text-basalt" fit="h-auto w-[min(140px,40vw)] max-h-16" />}
+          {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="text-basalt" fit="h-auto w-[140px] max-h-16" />}
           <div className="text-[12px] leading-6 text-doc-muted">
             <p className="text-[16px] font-extrabold text-basalt">{org.legal_name ?? org.name}</p>
             <p>{[org.cr_number && td("cr", { n: org.cr_number }), org.vat_number && td("vat", { n: org.vat_number })].filter(Boolean).join(" · ")}</p>
@@ -63,7 +66,7 @@ export function MaterialsDocument({ org, doc }: { org: DocOrg; doc: MaterialsDoc
         </div>
       </header>
 
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13px] sm:grid-cols-[auto_1fr_auto_1fr]">
+      <dl className="grid gap-x-4 gap-y-1 text-[13px] grid-cols-[auto_1fr_auto_1fr]">
         <dt className="text-doc-muted">{t("client")}</dt>
         <dd className="font-semibold">
           {doc.client.name}
@@ -90,8 +93,7 @@ export function MaterialsDocument({ org, doc }: { org: DocOrg; doc: MaterialsDoc
         <p className="rounded-2xl bg-gypsum px-5 py-4 text-doc-muted">{t("empty")}</p>
       ) : (
         <>
-          {/* paper and wide screens */}
-          <table className="hidden w-full border-collapse text-[13px] lg:table print:table">
+          <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr className="bg-primary text-primary-foreground">
                 <th className="rounded-s-lg px-2.5 py-2 text-start font-bold">{t("colMaterial")}</th>
@@ -151,49 +153,6 @@ export function MaterialsDocument({ org, doc }: { org: DocOrg; doc: MaterialsDoc
             )}
           </table>
 
-          {/* phone: one card per material */}
-          <ul className="grid gap-2 lg:hidden print:hidden">
-            {doc.rows.map((r) => (
-              <li key={r.key} className="grid gap-2 rounded-2xl border border-sand p-3.5">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <p className="min-w-0 font-bold">{r.material}</p>
-                  <p className="text-[12px] text-doc-muted">{[r.brand, r.colour].filter(Boolean).join(sep) || "—"}</p>
-                </div>
-                <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[13px]">
-                  <dt className="text-doc-muted">{t("colSize")}</dt>
-                  <dd className="text-end">{size(r)}</dd>
-                  <dt className="text-doc-muted">{t("colNeed")}</dt>
-                  <dd className="text-end tabular-nums">{need(r)}</dd>
-                  <dt className="font-bold">{t("colBuy")}</dt>
-                  <dd className="text-end font-bold tabular-nums">{buy(r)}</dd>
-                  <dt className="text-doc-muted">{t("colLeftover")}</dt>
-                  <dd className="text-end tabular-nums">{leftover(r)}</dd>
-                  {doc.bought && (
-                    <>
-                      <dt className="text-doc-muted">{t("colBought")}</dt>
-                      <dd className="text-end tabular-nums">{count(r, r.bought)}</dd>
-                      <dt className="font-bold text-primary">{t("colRemaining")}</dt>
-                      <dd className="text-end font-bold tabular-nums text-primary">{count(r, r.remaining)}</dd>
-                    </>
-                  )}
-                  {doc.prices && (
-                    <>
-                      <dt className="text-doc-muted">{t("colUnitPrice")}</dt>
-                      <dd className="text-end tabular-nums">{r.unpriced ? <NoPrice /> : fmt.money(r.unitPrice ?? 0)}</dd>
-                      <dt className="text-doc-muted">{t("colCost")}</dt>
-                      <dd className="text-end tabular-nums">{r.unpriced ? "—" : fmt.money(r.cost ?? 0)}</dd>
-                    </>
-                  )}
-                </dl>
-              </li>
-            ))}
-            {doc.prices && (
-              <li className="flex flex-wrap items-baseline justify-between gap-2 rounded-2xl bg-gypsum px-4 py-3 font-bold">
-                <span>{t("total")}</span>
-                <span className="tabular-nums">{fmt.money(total)}</span>
-              </li>
-            )}
-          </ul>
         </>
       )}
 
@@ -204,6 +163,7 @@ export function MaterialsDocument({ org, doc }: { org: DocOrg; doc: MaterialsDoc
         {unpriced > 0 && <p className="font-bold text-danger">{t("totalIncomplete", { n: unpriced })}</p>}
       </footer>
     </article>
+    </Paper>
   );
 }
 

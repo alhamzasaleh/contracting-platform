@@ -1,4 +1,5 @@
 "use client";
+import { Paper } from "@/components/documents/paper";
 import { useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand-logo";
 import { useFormatter } from "@/components/formatter-provider";
@@ -53,10 +54,11 @@ export function QuoteDocument({
     : null;
 
   return (
-    <article className="min-w-0 quote-doc mx-auto grid max-w-[820px] gap-6 rounded-3xl border border-border bg-white p-6 text-[14px] text-basalt sm:p-10 print:max-w-none print:rounded-none print:border-0 print:p-0">
+    <Paper>
+      <article className="min-w-0 quote-doc mx-auto grid max-w-[820px] gap-6 rounded-3xl border border-border bg-white text-[14px] text-basalt print:max-w-none print:rounded-none print:border-0 print:p-0 p-10">
       <header className="flex flex-wrap items-start justify-between gap-6 border-b-2 border-primary pb-5">
         <div className="flex flex-wrap items-center gap-4">
-          {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="text-basalt" fit="h-auto w-[min(140px,40vw)] max-h-16" />}
+          {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="text-basalt" fit="h-auto w-[140px] max-h-16" />}
           <div>
             <p className="text-[18px] font-extrabold">
               {org.legal_name ?? org.name}
@@ -87,7 +89,7 @@ export function QuoteDocument({
         </div>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2">
+      <section className="grid gap-4 grid-cols-2">
         <div>
           <p className="text-[12px] text-doc-muted">{t("to")}</p>
           <p className="text-[16px] font-bold">{client.name}</p>
@@ -98,7 +100,7 @@ export function QuoteDocument({
             <p className="text-[13px]">{t("projectSite", { place: [client.site_city, client.site_district].filter(Boolean).join(" — ") })}</p>
           )}
         </div>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[13px] sm:justify-self-end">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[13px] justify-self-end">
           <dt className="text-doc-muted">{t("date")}</dt>
           <dd className="font-latin">{fmt.date(date)}</dd>
           {validUntil && (
@@ -206,6 +208,7 @@ export function QuoteDocument({
         {notes && <p className="whitespace-pre-line">• {notes}</p>}
       </section>
     </article>
+    </Paper>
   );
 }
 
@@ -225,7 +228,7 @@ export function IncludedList({ view }: { view: ClientView }) {
   const stepDef = (k: string) => steps.find((s) => s.key === k);
   const hatches = Object.entries(view.features.hatches ?? {}).filter(([, c]) => c > 0);
   return (
-    <ul className="grid gap-x-6 gap-y-1 text-[13px] leading-6 sm:grid-cols-2">
+    <ul className="grid gap-x-6 gap-y-1 text-[13px] leading-6 grid-cols-2">
       {view.included.map((i) => {
         const def = stepDef(i.step);
         const coats = (def?.coats ?? [])

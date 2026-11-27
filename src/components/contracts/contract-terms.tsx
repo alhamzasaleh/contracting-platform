@@ -1,4 +1,5 @@
 "use client";
+import { Paper } from "@/components/documents/paper";
 import { ltr } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { useFormatter } from "@/components/formatter-provider";
@@ -224,7 +225,8 @@ export function ContractTerms({ data, org, client, terms }: { data: ContractTerm
 
   const orgName = org.legal_name ?? org.name;
   return (
-    <article className="mx-auto grid min-w-0 max-w-[820px] gap-5 rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-basalt sm:p-10 print:border-0 print:p-0">
+    <Paper>
+      <article className="mx-auto grid min-w-0 max-w-[820px] gap-5 rounded-3xl border border-border bg-white text-[14px] leading-7 text-basalt print:border-0 print:p-0 p-10">
       <header className="flex items-start justify-between gap-4 border-b-2 border-primary pb-4">
         <p className="text-[22px] font-extrabold text-primary">{t("docTitle", { work })}</p>
         <div className="text-end">
@@ -235,7 +237,7 @@ export function ContractTerms({ data, org, client, terms }: { data: ContractTerm
 
       <p>{t("intro", { date: fmt.date(data.date) })}</p>
 
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid gap-3 grid-cols-2">
         <Party title={t("firstParty")} name={orgName}>
           {org.cr_number && <li>{t("p_cr", { n: org.cr_number })}</li>}
           {org.vat_number && <li>{t("p_vat", { n: org.vat_number })}</li>}
@@ -268,7 +270,7 @@ export function ContractTerms({ data, org, client, terms }: { data: ContractTerm
         ))}
       </ol>
 
-      <section className="grid gap-4 border-t border-sand pt-5 sm:grid-cols-2">
+      <section className="grid gap-4 border-t border-sand pt-5 grid-cols-2">
         <div className="grid gap-1">
           <p className="font-bold">{t("firstParty")}</p>
           <p className="text-[13px]">{orgName}</p>
@@ -284,6 +286,7 @@ export function ContractTerms({ data, org, client, terms }: { data: ContractTerm
         </div>
       </section>
     </article>
+    </Paper>
   );
 }
 

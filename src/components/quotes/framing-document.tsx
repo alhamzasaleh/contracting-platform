@@ -1,4 +1,6 @@
 "use client";
+import { Paper } from "@/components/documents/paper";
+import { PAPER_WIDE } from "@/lib/paper";
 import Link from "next/link";
 import type * as React from "react";
 import { useTranslations } from "next-intl";
@@ -55,11 +57,12 @@ export function FramingDocument({ org, doc }: { org: DocOrg; doc: FramingDoc }) 
   const f = doc.framing;
 
   return (
-    <article className="relative mx-auto grid min-w-0 max-w-[1000px] gap-6 overflow-hidden rounded-3xl border border-border bg-white p-5 text-[14px] text-basalt sm:p-10 print:max-w-none print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-8">
+    <Paper width={PAPER_WIDE}>
+      <article className="relative mx-auto grid min-w-0 max-w-[1000px] gap-6 overflow-hidden rounded-3xl border border-border bg-white text-[14px] text-basalt print:max-w-none print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-8 p-10">
       <span aria-hidden className="absolute end-0 top-0 size-10 bg-clay [clip-path:polygon(0_0,100%_0,100%_100%)] rtl:[clip-path:polygon(0_0,100%_0,0_100%)] print:size-8" />
       <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-primary pb-4">
         <div className="flex flex-wrap items-center gap-3">
-          {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="text-basalt" fit="h-auto w-[min(140px,40vw)] max-h-16" />}
+          {org.logoUrl && <BrandLogo src={org.logoUrl} label={org.name} className="text-basalt" fit="h-auto w-[140px] max-h-16" />}
           <div className="text-[12px] leading-6 text-doc-muted">
             <p className="text-[16px] font-extrabold text-basalt">{org.legal_name ?? org.name}</p>
             <p>{[org.cr_number && td("cr", { n: org.cr_number }), org.vat_number && td("vat", { n: org.vat_number })].filter(Boolean).join(" · ")}</p>
@@ -74,7 +77,7 @@ export function FramingDocument({ org, doc }: { org: DocOrg; doc: FramingDoc }) 
         </div>
       </header>
 
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13px] sm:grid-cols-[auto_1fr_auto_1fr]">
+      <dl className="grid gap-x-4 gap-y-1 text-[13px] grid-cols-[auto_1fr_auto_1fr]">
         <dt className="text-doc-muted">{t("client")}</dt>
         <dd className="font-semibold">{[doc.client.name, doc.client.city].filter(Boolean).join(sep)}</dd>
         <dt className="text-doc-muted">{t("quote")}</dt>
@@ -92,7 +95,7 @@ export function FramingDocument({ org, doc }: { org: DocOrg; doc: FramingDoc }) 
             <h2 className="text-[16px] font-extrabold">{t("rooms")}</h2>
             <Legend />
             <p className="text-[12px] text-doc-muted">{t("legend")}</p>
-            <div className="grid gap-4 sm:grid-cols-2 print:grid-cols-2">
+            <div className="grid gap-4 print:grid-cols-2 grid-cols-2">
               {f.rooms.map((r) => (
                 <RoomCard key={r.id} r={r} f={f} />
               ))}
@@ -104,6 +107,7 @@ export function FramingDocument({ org, doc }: { org: DocOrg; doc: FramingDoc }) 
         </>
       )}
     </article>
+    </Paper>
   );
 }
 
@@ -126,7 +130,7 @@ function Summary({ f }: { f: GypsumFraming }) {
   return (
     <section className="grid gap-2">
       <h2 className="text-[16px] font-extrabold">{t("summary")}</h2>
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4 print:grid-cols-4">
+      <dl className="grid gap-2 print:grid-cols-4 grid-cols-4">
         {items.map(([k, v]) => (
           <div key={k} className="rounded-2xl border border-border p-3">
             <dt className="text-[12px] text-doc-muted">{k}</dt>

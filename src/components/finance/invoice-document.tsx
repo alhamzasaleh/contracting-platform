@@ -1,4 +1,5 @@
 "use client";
+import { Paper } from "@/components/documents/paper";
 import { useLocale, useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand-logo";
 import { useFormatter } from "@/components/formatter-provider";
@@ -17,11 +18,12 @@ export function InvoiceDocument({ data, logoUrl, qr, credit }: { data: InvoiceDo
   const seller = s.legal_name ?? s.name ?? "";
   const tax = data.kind === "tax";
   return (
-    <article className="relative mx-auto grid min-w-0 max-w-[820px] gap-6 overflow-hidden rounded-3xl border border-border bg-white p-6 text-[14px] leading-7 text-basalt sm:p-10 print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-10">
+    <Paper>
+      <article className="relative mx-auto grid min-w-0 max-w-[820px] gap-6 overflow-hidden rounded-3xl border border-border bg-white text-[14px] leading-7 text-basalt print:rounded-none print:border-0 print:px-0 print:pb-0 print:pt-10 p-10">
       <span aria-hidden className="absolute end-0 top-0 size-10 bg-clay [clip-path:polygon(0_0,100%_0,100%_100%)] rtl:[clip-path:polygon(0_0,100%_0,0_100%)] print:size-8" />
       <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-primary pb-4">
         <div className="flex flex-wrap items-center gap-3">
-          {logoUrl && <BrandLogo src={logoUrl} label={s.name ?? ""} className="text-basalt" fit="h-auto w-[min(140px,40vw)] max-h-16" />}
+          {logoUrl && <BrandLogo src={logoUrl} label={s.name ?? ""} className="text-basalt" fit="h-auto w-[140px] max-h-16" />}
           <div className="text-[12px] leading-6 text-doc-muted">
             <p className="text-[14px] font-extrabold text-basalt">{seller}</p>
             {s.cr_number && <p>{t("cr", { n: s.cr_number })}</p>}
@@ -40,7 +42,7 @@ export function InvoiceDocument({ data, logoUrl, qr, credit }: { data: InvoiceDo
         </div>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2">
+      <section className="grid gap-4 grid-cols-2">
         <dl className="grid gap-1 rounded-2xl bg-gypsum p-4 text-[13px]">
           <dt className="font-bold">{t("billTo")}</dt>
           <dd className="font-semibold">{b.name}</dd>
@@ -84,7 +86,7 @@ export function InvoiceDocument({ data, logoUrl, qr, credit }: { data: InvoiceDo
         </table>
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-[1fr_auto]">
+      <section className="grid gap-4 grid-cols-[1fr_auto]">
         <p className="self-end text-[13px] font-semibold">{amountInWords(data.total, locale)}</p>
         <dl className="grid min-w-[16rem] grid-cols-[1fr_auto] gap-x-6 gap-y-1.5 text-[13px]">
           {tax && (
@@ -112,5 +114,6 @@ export function InvoiceDocument({ data, logoUrl, qr, credit }: { data: InvoiceDo
         {credit ? t("noteCredit") : tax ? t("noteTax") : t("noteSimple")}
       </footer>
     </article>
+    </Paper>
   );
 }
