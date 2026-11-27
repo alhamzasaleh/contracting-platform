@@ -33,3 +33,9 @@ export async function previewFindPhone(input?: unknown): Promise<ActionResult<{ 
   const phone = (input as { phone?: string } | undefined)?.phone;
   return { ok: true, data: phone === "966537000044" ? { number: "CL-2026-001", name: "م. سارة القحطاني" } : null };
 }
+
+/** Design preview only: the assistant answers with a fixed reply (no AI, no data). */
+export async function previewAsk(_input?: unknown): Promise<ActionResult<{ answer: string; figures: { label: string; value: string }[]; links: { label: string; href: string }[] }>> {
+  void _input;
+  return { ok: true, data: { answer: "هالشهر حصّلت 54,600 ر.س.", figures: [{ label: "المحصّل هذا الشهر", value: "54,600 ر.س" }], links: [{ label: "التحصيل والأرباح", href: "/reports" }] } };
+}

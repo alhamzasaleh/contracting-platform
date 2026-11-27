@@ -35,7 +35,11 @@ export function AssistantView({ ready, ask, base = "", sample, compact, onNaviga
   const rec = React.useRef<Recognition | null>(null);
   const end = React.useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => end.current?.scrollIntoView({ behavior: "smooth", block: "end" }), [msgs.length]);
+  // braces on purpose: newer Chrome returns a Promise from scrollIntoView, and an effect must return
+  // nothing or a cleanup function — returning it crashed the whole page on the next message
+  React.useEffect(() => {
+    end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [msgs.length]);
 
   const send = (text: string) => {
     const question = text.trim();

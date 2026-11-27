@@ -1,5 +1,6 @@
 import { AssistantView } from "@/components/assistant/assistant-view";
 import { PageHeader } from "@/components/shell/app-shell";
+import { previewAsk } from "../../preview-actions";
 
 export default function PreviewAssistant() {
   return (
@@ -7,6 +8,7 @@ export default function PreviewAssistant() {
       <PageHeader title="المساعد" description="اسأل عن أرقام شركتك بالكتابة أو الصوت." />
       <AssistantView
         ready
+        ask={previewAsk}
         base="/dev/preview"
         sample={[
           { role: "user", text: "كم ربحت هالشهر؟" },
