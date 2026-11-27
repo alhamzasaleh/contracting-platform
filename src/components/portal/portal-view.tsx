@@ -135,6 +135,8 @@ export function PortalView({
   const quoteView = shown ? shown.client_view : data.quote.client_view;
   const accepted = done || c.status === "accepted";
   const ex = data.execution;
+  // waiting for the client's signature: the acceptance box goes under the contract (read first, then sign)
+  const awaitingAccept = !(ex && ex.stages.length > 0) && !accepted && c.status === "sent";
   const current = ex ? portalStep("accepted", ex.stages) : accepted ? 2 : 1;
   const finalStage = ex?.stages.find((x) => x.is_final && x.status === "confirmed");
 
@@ -190,33 +192,10 @@ export function PortalView({
           </section>
         ) : (
           c.status === "sent" && (
-            <>
-            {options.length > 0 && <OptionsPicker options={options} chosen={chosen} onChoose={(v) => { setChosen(v); setError(null); }} />}
-            <section className="grid gap-4 rounded-3xl border-2 border-primary/40 bg-surface p-5">
-              <p className="flex items-center gap-2 text-[17px] font-bold">
-                <PenLine className="size-5 text-primary" /> {t("acceptTitle")}
-              </p>
-              <p className="text-[13px] text-muted-foreground">{t("acceptHint")}</p>
-              {data.quote.client_accepted_at && <p className="text-[13px] text-success">{t("quoteAcceptedOn", { date: fmt.dateTime(data.quote.client_accepted_at) })}</p>}
-              <Field id="pa-name" label={t("yourName")}>
-                <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-              </Field>
-              <div className="grid gap-1.5">
-                <p className="text-[13px] font-bold">
-                  {t("signature")} <span className="font-normal text-muted-foreground">({t("optional")})</span>
-                </p>
-                <SignaturePad onChange={setSignature} />
-              </div>
-              <label className="flex items-start gap-3 text-[14px]">
-                <input type="checkbox" className="mt-1 size-5 accent-[var(--primary)]" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-                <span>{t("agree")}</span>
-              </label>
-              {error && <p className="text-[13px] text-danger">{error}</p>}
-              <Button size="lg" loading={pending} disabled={!agree || name.trim().length < 2 || (options.length > 0 && !picked)} onClick={accept}>
-                <Check /> {picked ? t("acceptOption", { label: picked.label }) : t("acceptButton")}
-              </Button>
-            </section>
-            </>
+            // read first, sign after: the acceptance sits under the contract; this jumps there
+            <a href="#accept" className="justify-self-center rounded-full border border-primary/40 bg-surface px-4 py-2 text-[14px] font-semibold text-primary hover:bg-primary/5 print:hidden">
+              {t("jumpToAccept")}
+            </a>
           )
         )}
 
@@ -272,6 +251,35 @@ export function PortalView({
           notes={shown ? shown.notes : data.quote.notes}
           warrantyMonths={c.warranty_months}
         />
+        {awaitingAccept && (
+          <div id="accept" className="grid scroll-mt-4 gap-6">
+            {options.length > 0 && <OptionsPicker options={options} chosen={chosen} onChoose={(v) => { setChosen(v); setError(null); }} />}
+            <section className="grid gap-4 rounded-3xl border-2 border-primary/40 bg-surface p-5">
+              <p className="flex items-center gap-2 text-[17px] font-bold">
+                <PenLine className="size-5 text-primary" /> {t("acceptTitle")}
+              </p>
+              <p className="text-[13px] text-muted-foreground">{t("acceptHint")}</p>
+              {data.quote.client_accepted_at && <p className="text-[13px] text-success">{t("quoteAcceptedOn", { date: fmt.dateTime(data.quote.client_accepted_at) })}</p>}
+              <Field id="pa-name" label={t("yourName")}>
+                <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+              </Field>
+              <div className="grid gap-1.5">
+                <p className="text-[13px] font-bold">
+                  {t("signature")} <span className="font-normal text-muted-foreground">({t("optional")})</span>
+                </p>
+                <SignaturePad onChange={setSignature} />
+              </div>
+              <label className="flex items-start gap-3 text-[14px]">
+                <input type="checkbox" className="mt-1 size-5 accent-[var(--primary)]" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+                <span>{t("agree")}</span>
+              </label>
+              {error && <p className="text-[13px] text-danger">{error}</p>}
+              <Button size="lg" loading={pending} disabled={!agree || name.trim().length < 2 || (options.length > 0 && !picked)} onClick={accept}>
+                <Check /> {picked ? t("acceptOption", { label: picked.label }) : t("acceptButton")}
+              </Button>
+            </section>
+                      </div>
+        )}
         <p className="text-center text-[12px] text-subtle-foreground">{t("footer", { date: fmt.date(lastValidDay(data.expires_at)) })}</p>
         <p className="text-center text-[12px] text-subtle-foreground">{tc("rights", { year: new Date().getFullYear(), name: org.legal_name ?? org.name })}</p>
       </main>

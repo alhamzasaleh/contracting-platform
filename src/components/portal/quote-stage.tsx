@@ -80,20 +80,13 @@ export function QuoteStageView({
           <OptionsPicker options={options} chosen={st.canAccept ? chosen : (decided?.version ?? null)} onChoose={(v) => st.canAccept && setChosen(v)} />
         )}
 
-        {st.canAnswer && (
-          <Answer
-            data={data}
-            number={number}
-            token={token}
-            canAccept={st.canAccept}
-            picked={picked}
-            shownVersion={shown?.version ?? q.version}
-            needsOption={options.length > 0}
-            onAccept={onAccept}
-            onRequestChanges={onRequestChanges}
-            onReject={onReject}
-          />
+        {st.canAnswer && view && (
+          // read first, answer after: the reply sits under the quote; this jumps there
+          <a href="#answer" className="justify-self-center rounded-full border border-primary/40 bg-surface px-4 py-2 text-[14px] font-semibold text-primary hover:bg-primary/5 print:hidden">
+            {t("jumpToAnswer")}
+          </a>
         )}
+
 
         {view && (shown?.version ?? q.version) != null && (
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[14px] font-semibold text-primary print:hidden">
@@ -117,6 +110,22 @@ export function QuoteStageView({
             notes={shown ? shown.notes : q.notes}
             warrantyMonths={q.warranty_months}
           />
+        )}
+        {st.canAnswer && (
+          <div id="answer" className="scroll-mt-4">
+          <Answer
+            data={data}
+            number={number}
+            token={token}
+            canAccept={st.canAccept}
+            picked={picked}
+            shownVersion={shown?.version ?? q.version}
+            needsOption={options.length > 0}
+            onAccept={onAccept}
+            onRequestChanges={onRequestChanges}
+            onReject={onReject}
+          />
+          </div>
         )}
         <p className="text-center text-[12px] text-subtle-foreground">{t("footer", { date: fmt.date(lastValidDay(data.expires_at)) })}</p>
         <p className="text-center text-[12px] text-subtle-foreground">{tc("rights", { year: new Date().getFullYear(), name: org.legal_name ?? org.name })}</p>
