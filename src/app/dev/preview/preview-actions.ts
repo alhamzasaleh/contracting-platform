@@ -39,3 +39,9 @@ export async function previewAsk(_input?: unknown): Promise<ActionResult<{ answe
   void _input;
   return { ok: true, data: { answer: "هالشهر حصّلت 54,600 ر.س.", figures: [{ label: "المحصّل هذا الشهر", value: "54,600 ر.س" }], links: [{ label: "التحصيل والأرباح", href: "/reports" }] } };
 }
+
+/** Design preview only: a subcontractor page link (fixed sample address). */
+export async function previewSubLink(_input?: unknown): Promise<ActionResult<{ url: string }>> {
+  void _input;
+  return { ok: true, data: { url: "https://example.test/s/SC-2026-001/preview" } };
+}

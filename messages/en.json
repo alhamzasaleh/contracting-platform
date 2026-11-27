@@ -2387,7 +2387,30 @@
     "leftArea": "Left on the agreement: {n} m²",
     "leftPct": "Left of the lump sum: {n}%",
     "overLeft": "More than what is left on the agreement — edit the agreement first if the work grew.",
-    "reviewMeasurement": "Measurement sheet {number} signed — review the quantity and price"
+    "reviewMeasurement": "Measurement sheet {number} signed — review the quantity and price",
+    "accountTitle": "His account across all projects ({n})",
+    "paidAhead": "Paid ahead",
+    "statement": "Statement of account",
+    "pageTitle": "Subcontractor's page",
+    "linkActive": "The link works until {date}",
+    "linkNone": "No working link — create one and send it to him by WhatsApp to follow his account.",
+    "linkOnce": "Copy the link now — it isn't shown again.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "renewLink": "New link (cancels the old one)",
+    "issueLink": "Create link",
+    "remindWhatsapp": "Remind by WhatsApp",
+    "revokeLink": "Cancel link",
+    "sendWhatsapp": "Send by WhatsApp",
+    "waLink": "Hello {name}, this is your page at {org} to follow your work, payments and statement: {url}",
+    "waReminder": "Hello {name}, you can follow your work, payments and statement at {org} from the link we sent you earlier.",
+    "voucherFor": "Works «{scope}» — client {client} — contract",
+    "statementTitle": "Subcontractor statement of account",
+    "entry": "Entry",
+    "balance": "Balance",
+    "statementEmpty": "No entries yet.",
+    "paymentLine": "Payment",
+    "statementNote": "Balance = value of recorded work done less amounts paid. A positive balance is owed to the subcontractor."
   },
   "petty": {
     "newAccount": "New petty cash account",
@@ -3391,5 +3414,12 @@
     "creditNotesHint": "They reduce earlier invoices after the quantity settlement in the signed measurement sheets.",
     "pdf": "Download PDF",
     "addendaWarning": "The contract has accepted additional works — enter only the original contract's m²; additional works have their own payment and must not be counted here again."
+  },
+  "subPage": {
+    "intro": "This is your page to follow your projects with us, the work recorded for you, your payments and balance.",
+    "projects": "Projects",
+    "statementPdf": "Download the statement (PDF)",
+    "empty": "No projects recorded for you yet.",
+    "validUntil": "The link is valid until {date}"
   }
 }

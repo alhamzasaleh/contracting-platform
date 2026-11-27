@@ -10,7 +10,7 @@ import { TILE_HOSTS, VECTOR_HOSTS } from "@/components/maps/tiles";
  *  3. Sends signed-out visitors to /login (pages still re-check on the server).
  */
 
-const PUBLIC_PATHS = ["/login", "/auth", "/p", "/m", "/setup", "/dev/preview", "/offline"];
+const PUBLIC_PATHS = ["/login", "/auth", "/p", "/m", "/s", "/setup", "/dev/preview", "/offline"];
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

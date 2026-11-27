@@ -1,9 +1,9 @@
 /**
  * Where «الرئيسية» on an error page may go: staff pages → the app's home; a client's or a success
- * partner's own page (/p/…, /m/…) → nowhere (home is the staff sign-in, not for them).
+ * partner's or a subcontractor's own page (/p/…, /m/…, /s/…) → nowhere (home is the staff sign-in, not for them).
  */
 export function errorHomeHref(pathname: string | null | undefined): string | null {
-  return pathname && /^\/(p|m)(\/|$)/.test(pathname) ? null : "/";
+  return pathname && /^\/(p|m|s)(\/|$)/.test(pathname) ? null : "/";
 }
 
 /** The retry an error boundary got (Next 16.2+: retry re-fetches; older: reset re-renders). */

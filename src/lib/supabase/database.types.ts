@@ -694,6 +694,8 @@ export type AddendumRow = OrgRow & Upd & {
   paid_reference: string | null;
 };
 export type SubcontractorRow = OrgRow & Upd & {
+  /** SC- (database only) */
+  number: string;
   name: string;
   phone: string | null;
   services: ("gypsum" | "interior" | "exterior")[];
@@ -718,7 +720,7 @@ export type SubAgreementRow = OrgRow & Upd & {
   auto_progress: boolean;
 };
 export type SubWorkRow = OrgRow & { agreement_id: string; work_date: string; quantity_m2: number | null; percent: number | null; amount: number; note: string | null; auto: boolean };
-export type SubPaymentRow = OrgRow & { agreement_id: string; paid_on: string; amount: number; method: "transfer" | "cash" | "cheque"; reference: string | null; note: string | null };
+export type SubPaymentRow = OrgRow & { /** SP- voucher number (database only) */ number: string; agreement_id: string; paid_on: string; amount: number; method: "transfer" | "cash" | "cheque"; reference: string | null; note: string | null };
 export type PettyAccountRow = OrgRow & Upd & { holder_id: string; name: string; is_active: boolean };
 export type PettyEntryRow = OrgRow & {
   account_id: string;
@@ -899,6 +901,7 @@ export type Database = {
       subcontractor_agreements: Table<SubAgreementRow>;
       subcontractor_work: Table<SubWorkRow>;
       subcontractor_payments: Table<SubPaymentRow>;
+      subcontractor_portal_links: Table<{ id: string; organization_id: string; subcontractor_id: string; token_hash: string; expires_at: string; revoked_at: string | null; created_at: string; created_by: string | null }>;
       petty_cash_accounts: Table<PettyAccountRow>;
       petty_cash_entries: Table<PettyEntryRow>;
       finance_settings: Table<FinanceSettingsRow>;
@@ -987,6 +990,10 @@ export type Database = {
       portal_execution: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_measurements: { Args: { p_number: string; p_token: string }; Returns: Json };
       portal_credit_notes: { Args: { p_number: string; p_token: string }; Returns: Json };
+      issue_subcontractor_link: { Args: { p_sub: string; p_token_hash: string }; Returns: string };
+      revoke_subcontractor_links: { Args: { p_sub: string }; Returns: number };
+      subcontractor_portal_view: { Args: { p_number: string; p_token: string }; Returns: Json };
+      subcontractor_portal_voucher: { Args: { p_number: string; p_token: string; p_voucher: string }; Returns: Json };
       portal_answer_measurement: {
         Args: { p_number: string; p_token: string; p_measurement: string; p_approve: boolean; p_name: string; p_note: string | null; p_signature: string | null; p_ip: string; p_user_agent: string };
         Returns: boolean;

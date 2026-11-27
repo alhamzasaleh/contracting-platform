@@ -1,6 +1,10 @@
 "use client";
 import { phoneForInput } from "@/lib/validation/client-phone";
-import { AlertTriangle, Banknote, Camera, HardHat, Plus, Receipt, Sparkles, Trash2, Wallet } from "lucide-react";
+import { AlertTriangle, Banknote, Camera, Check, Copy, FileText, HardHat, Link2, Plus, Receipt, Send, Sparkles, Trash2, Wallet, XCircle } from "lucide-react";
+import Link from "next/link";
+import { DocNo } from "@/components/doc-no";
+import { WhatsAppButton } from "@/components/whatsapp-button";
+import { subTotals } from "@/lib/subcontractors/statement";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useFormatter } from "@/components/formatter-provider";
@@ -29,9 +33,96 @@ const today = () => new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 
 
 // --- Subcontractors -----------------------------------------------------------------
 
-export type SubActions = { saveSub: Act<{ id: string }>; saveAgreement: Act; addWork: Act; deleteWork: (i: { id: string }) => Promise<ActionResult>; addPayment: Act };
+/** All his projects in one line: agreed, earned, received, due now. */
+function SubAccount({ own }: { own: SubAgreementView[] }) {
+  const t = useTranslations("subs");
+  const { fmt } = useFormatter();
+  const x = subTotals(own);
+  return (
+    <div className="grid gap-2 rounded-2xl border border-border p-3">
+      <p className="text-[13px] font-bold">{t("accountTitle", { n: x.projects })}</p>
+      <div className="grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-4">
+        <Stat label={t("agreed")} value={fmt.money(x.agreed)} />
+        <Stat label={t("earned")} value={fmt.money(x.earned)} />
+        <Stat label={t("paid")} value={fmt.money(x.paid)} />
+        <Stat label={x.due < 0 ? t("paidAhead") : t("due")} value={fmt.money(Math.abs(x.due))} strong />
+      </div>
+    </div>
+  );
+}
 
-export function SubcontractorsView({ data, actions }: { data: SubcontractorsData; actions?: SubActions }) {
+/** His own page: the address is shown once (only its hash is stored); WhatsApp from the owner's number. */
+function SubLink({ s, link, orgName, actions }: { s: SubcontractorsData["subs"][number]; link: { expires_at: string } | null; orgName: string; actions?: SubActions }) {
+  const t = useTranslations("subs");
+  const { fmt } = useFormatter();
+  const { run, pending } = useActionRunner();
+  const [url, setUrl] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+  const text = url ? t("waLink", { name: s.name, org: orgName, url }) : t("waReminder", { name: s.name, org: orgName });
+  return (
+    <div className="grid gap-2 rounded-2xl border border-border p-3" data-testid="sub-link">
+      <p className="flex items-center gap-2 text-[13px] font-bold">
+        <Link2 className="size-4" /> {t("pageTitle")}
+      </p>
+      <p className="text-[12px] text-muted-foreground">{link ? t("linkActive", { date: fmt.date(link.expires_at.slice(0, 10)) }) : t("linkNone")}</p>
+      {url && (
+        <div className="grid gap-2 rounded-2xl bg-surface-sunken p-3">
+          <p className="text-[12px] text-warning">{t("linkOnce")}</p>
+          <p className="break-all font-latin text-[12px]" dir="ltr">
+            {url}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={async () => {
+                await navigator.clipboard.writeText(url);
+                setCopied(true);
+              }}
+            >
+              {copied ? <Check /> : <Copy />} {copied ? t("copied") : t("copy")}
+            </Button>
+            <WhatsAppButton phone={s.phone} text={text} label={t("sendWhatsapp")} variant="primary" />
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          loading={pending}
+          variant={link ? "secondary" : "primary"}
+          onClick={() =>
+            run(actions?.issueLink && (() => actions.issueLink!({ id: s.id })), {
+              silent: true,
+              onSuccess: (r) => {
+                if (r.ok && r.data) {
+                  setUrl(r.data.url);
+                  setCopied(false);
+                }
+              },
+            })
+          }
+        >
+          <Send /> {link ? t("renewLink") : t("issueLink")}
+        </Button>
+        {link && !url && <WhatsAppButton phone={s.phone} text={text} label={t("remindWhatsapp")} />}
+        {link && (
+          <Button size="sm" variant="ghost" loading={pending} onClick={() => run(actions?.revokeLinks && (() => actions.revokeLinks!({ id: s.id })), { onSuccess: () => setUrl(null) })}>
+            <XCircle /> {t("revokeLink")}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export type SubActions = {
+  saveSub: Act<{ id: string }>; saveAgreement: Act; addWork: Act; deleteWork: (i: { id: string }) => Promise<ActionResult>; addPayment: Act;
+  /** his own page (purchases.manage): a new link (shown once) / revoke */
+  issueLink?: Act<{ url: string }>; revokeLinks?: Act;
+};
+
+export function SubcontractorsView({ data, actions, base = "", orgName = "" }: { data: SubcontractorsData; actions?: SubActions; base?: string; orgName?: string }) {
   const sep = useListSep();
   const t = useTranslations("subs");
   const tp = useTranslations("pricing");
@@ -89,6 +180,15 @@ export function SubcontractorsView({ data, actions }: { data: SubcontractorsData
                   )}
                 </div>
               </div>
+              {own.length > 0 && <SubAccount own={own} />}
+              <div className="flex flex-wrap gap-2">
+                <Button asChild size="sm" variant="secondary">
+                  <Link href={`${base}/print/subcontractors/${s.number}/statement`} target="_blank">
+                    <FileText /> {t("statement")}
+                  </Link>
+                </Button>
+              </div>
+              {data.canManage && s.is_active && <SubLink s={s} link={(data.links ?? []).find((l) => l.subcontractor_id === s.id) ?? null} orgName={orgName} actions={actions} />}
               {own.length === 0 && <p className="text-[13px] text-muted-foreground">{t("noAgreements")}</p>}
               {own.map((g) => {
                 const earned = g.work.reduce((a, w) => a + w.amount, 0);
@@ -159,6 +259,13 @@ export function SubcontractorsView({ data, actions }: { data: SubcontractorsData
                                     ? t("workM2", { n: fmt.number(e.quantity_m2, 1) })
                                     : t("workPct", { n: fmt.number(e.percent ?? 0, 0) })
                                   : t(`method_${e.method}` as "method_cash")}
+                                {e.type === "pay" && (data.canSeeVouchers ? (
+                                  <Link href={`${base}/print/sub-payments/${e.number}`} target="_blank" className="ms-1.5 text-primary hover:underline">
+                                    <DocNo>{e.number}</DocNo>
+                                  </Link>
+                                ) : (
+                                  <span className="ms-1.5"><DocNo>{e.number}</DocNo></span>
+                                ))}
                                 {e.type === "work" && e.auto && (
                                   <span className="ms-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{t("autoEntry")}</span>
                                 )}

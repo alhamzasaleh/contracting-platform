@@ -2,6 +2,9 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { publicEnv } from "@/env";
+import { hashPortalToken, newPortalToken } from "@/lib/portal-token";
 import { after } from "next/server";
 import { z } from "zod";
 import { runBackground } from "@/lib/background";
@@ -406,6 +409,42 @@ export async function recordPurchasePayment(input: unknown): Promise<ActionResul
     return { ok: false, error: "error" };
   }
   after(runBackground);
+  revalidatePath("/purchases", "layout");
+  return { ok: true };
+}
+
+/** A subcontractor's own page (purchases.manage): a new link (the token is shown once), the older one revoked. */
+export async function issueSubLink(input: unknown): Promise<ActionResult<{ url: string }>> {
+  const session = await getSession();
+  if (!can(session, "purchases.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ id: z.uuid() }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { data: s } = await supabase.from("subcontractors").select("id, number").eq("id", parsed.data.id).eq("organization_id", session.organization.id).maybeSingle();
+  if (!s) return { ok: false, error: "invalid" };
+  const token = newPortalToken();
+  const { error } = await supabase.rpc("issue_subcontractor_link", { p_sub: s.id, p_token_hash: hashPortalToken(token) });
+  if (error) {
+    console.error("[purchases] sub link failed", { code: error.code });
+    return { ok: false, error: error.code === "42501" ? "noAccess" : "error" };
+  }
+  const h = await headers();
+  const base = publicEnv().NEXT_PUBLIC_SITE_URL ?? `https://${h.get("host")}`;
+  revalidatePath("/purchases", "layout");
+  return { ok: true, data: { url: `${base}/s/${s.number}/${token}` } };
+}
+
+export async function revokeSubLinks(input: unknown): Promise<ActionResult> {
+  const session = await getSession();
+  if (!can(session, "purchases.manage")) return { ok: false, error: "noAccess" };
+  const parsed = z.object({ id: z.uuid() }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("revoke_subcontractor_links", { p_sub: parsed.data.id });
+  if (error) {
+    console.error("[purchases] sub revoke failed", { code: error.code });
+    return { ok: false, error: error.code === "42501" ? "noAccess" : "error" };
+  }
   revalidatePath("/purchases", "layout");
   return { ok: true };
 }

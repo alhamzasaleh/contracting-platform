@@ -1,4 +1,6 @@
 import "server-only";
+import { notFound } from "next/navigation";
+import { subStatement } from "@/lib/subcontractors/statement";
 import { aiConfigured } from "@/lib/ai/invoice";
 import { can, type SessionContext } from "@/lib/auth/session";
 import type { ServiceKind } from "@/lib/pricing";
@@ -37,10 +39,14 @@ export type SubAgreementView = {
   /** an accepted addendum (number) grew this project: review the agreement (any edit clears it) */
   review?: string | null;
   work: { id: string; work_date: string; quantity_m2: number | null; percent: number | null; amount: number; note: string | null; auto: boolean }[];
-  payments: { id: string; paid_on: string; amount: number; method: string; reference: string | null }[];
+  payments: { id: string; number: string; paid_on: string; amount: number; method: string; reference: string | null }[];
 };
 export type SubcontractorsData = {
-  subs: { id: string; name: string; phone: string | null; services: ServiceKind[]; iban: string | null; vat_number: string | null; notes: string | null; is_active: boolean }[];
+  subs: { id: string; number: string; name: string; phone: string | null; services: ServiceKind[]; iban: string | null; vat_number: string | null; notes: string | null; is_active: boolean }[];
+  /** his page's open link (issued / valid until) — the token is shown only once (purchases.manage) */
+  links?: { subcontractor_id: string; created_at: string; expires_at: string }[];
+  /** finance.view: opens the payment vouchers */
+  canSeeVouchers?: boolean;
   agreements: SubAgreementView[];
   projects: ProjectRef[];
   canManage: boolean;
@@ -53,11 +59,11 @@ export async function loadSubcontractors(session: SessionContext): Promise<Subco
   const supabase = await createClient();
   const orgId = session.organization.id;
   const agreementsP = once(supabase.from("subcontractor_agreements").select("id, subcontractor_id, contract_id, scope, basis, rate, quantity_m2, schedule, status, auto_progress, review_addendum_id, review_measurement_id").eq("organization_id", orgId).order("created_at", { ascending: false }));
-  const [{ data: subs }, { data: agreements }, { data: work }, { data: payments }, projectList, reviewAds, rates] = await Promise.all([
-    supabase.from("subcontractors").select("id, name, phone, services, iban, vat_number, notes, is_active").eq("organization_id", orgId).order("name"),
+  const [{ data: subs }, { data: agreements }, { data: work }, { data: payments }, projectList, reviewAds, rates, links] = await Promise.all([
+    supabase.from("subcontractors").select("id, number, name, phone, services, iban, vat_number, notes, is_active").eq("organization_id", orgId).order("name"),
     agreementsP,
     supabase.from("subcontractor_work").select("id, agreement_id, work_date, quantity_m2, percent, amount, note, auto").eq("organization_id", orgId).order("work_date", { ascending: false }).limit(5000),
-    supabase.from("subcontractor_payments").select("id, agreement_id, paid_on, amount, method, reference").eq("organization_id", orgId).order("paid_on", { ascending: false }).limit(5000),
+    supabase.from("subcontractor_payments").select("id, number, agreement_id, paid_on, amount, method, reference").eq("organization_id", orgId).order("paid_on", { ascending: false }).limit(5000),
     projects(supabase, orgId, can(session, "quotes.view")),
     // the addenda an agreement must be reviewed for (chained onto the agreements)
     agreementsP.then(({ data }) => {
@@ -72,9 +78,14 @@ export async function loadSubcontractors(session: SessionContext): Promise<Subco
     can(session, "costs.view")
       ? rows(supabase.from("labour_rates").select("subcontractor_id, basis, rate").eq("organization_id", orgId).eq("is_active", true).not("subcontractor_id", "is", null))
       : Promise.resolve([]),
+    can(session, "purchases.manage")
+      ? rows(supabase.from("subcontractor_portal_links").select("subcontractor_id, created_at, expires_at").eq("organization_id", orgId).is("revoked_at", null).gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }))
+      : Promise.resolve([] as { subcontractor_id: string; created_at: string; expires_at: string }[]),
   ]);
   return {
     subs: subs ?? [],
+    links,
+    canSeeVouchers: can(session, "finance.view"),
     agreements: (agreements ?? []).map(({ review_addendum_id, review_measurement_id, ...g }) => ({
       ...g, review: review_addendum_id || review_measurement_id ? (reviewAds?.find((a) => a.id === (review_addendum_id ?? review_measurement_id))?.number ?? null) : null, rate: n(g.rate), quantity_m2: g.quantity_m2 == null ? null : n(g.quantity_m2),
       work: (work ?? []).filter((w) => w.agreement_id === g.id).map((w) => ({ ...w, amount: n(w.amount), quantity_m2: w.quantity_m2 == null ? null : n(w.quantity_m2), percent: w.percent == null ? null : n(w.percent) })),
@@ -121,5 +132,73 @@ export async function loadPettyCash(session: SessionContext): Promise<PettyCashD
     canFinance: can(session, "finance.manage"),
     canManage: can(session, "purchases.manage"),
     aiEnabled: aiConfigured(),
+  };
+}
+
+export type SubStatementDoc = {
+  sub: { number: string; name: string; phone: string | null; iban: string | null; vat_number: string | null };
+  statement: ReturnType<typeof subStatement>;
+  agreements: { contract: string; client: string; scope: string; agreed: number; earned: number; paid: number }[];
+  today: string;
+};
+
+/** A subcontractor's statement of account (purchases.view — the subcontractors page's guard; RLS). */
+export async function loadSubStatement(session: SessionContext, number: string): Promise<SubStatementDoc> {
+  const supabase = await createClient();
+  const orgId = session.organization.id;
+  const { data: s } = await supabase.from("subcontractors").select("id, number, name, phone, iban, vat_number").eq("organization_id", orgId).eq("number", number).maybeSingle();
+  if (!s) notFound();
+  const { data: ags } = await supabase.from("subcontractor_agreements").select("id, contract_id, scope, basis, rate, quantity_m2").eq("subcontractor_id", s.id).order("created_at");
+  const ids = (ags ?? []).map((g) => g.id);
+  const cids = [...new Set((ags ?? []).map((g) => g.contract_id))];
+  const [{ data: work }, { data: pays }, { data: cons }] = await Promise.all([
+    ids.length ? supabase.from("subcontractor_work").select("agreement_id, work_date, quantity_m2, percent, amount, note").in("agreement_id", ids) : Promise.resolve({ data: [] as never[] }),
+    ids.length ? supabase.from("subcontractor_payments").select("agreement_id, number, paid_on, amount, method").in("agreement_id", ids) : Promise.resolve({ data: [] as never[] }),
+    cids.length ? supabase.from("contracts").select("id, number, client_id").in("id", cids) : Promise.resolve({ data: [] as { id: string; number: string; client_id: string }[] }),
+  ]);
+  const clientIds = [...new Set((cons ?? []).map((c) => c.client_id))];
+  const { data: clients } = clientIds.length ? await supabase.from("clients").select("id, name").in("id", clientIds) : { data: [] as { id: string; name: string }[] };
+  const con = new Map((cons ?? []).map((c) => [c.id, c]));
+  const cname = new Map((clients ?? []).map((c) => [c.id, c.name]));
+  const refs = (ags ?? []).map((g) => {
+    const c = con.get(g.contract_id);
+    return { id: g.id, contract: c?.number ?? "—", client: (c && cname.get(c.client_id)) ?? "—", scope: g.scope };
+  });
+  const w = (work ?? []).map((x) => ({ ...x, amount: n(x.amount), quantity_m2: x.quantity_m2 == null ? null : n(x.quantity_m2), percent: x.percent == null ? null : n(x.percent) }));
+  const p = (pays ?? []).map((x) => ({ ...x, amount: n(x.amount) }));
+  return {
+    sub: { number: s.number, name: s.name, phone: s.phone, iban: s.iban, vat_number: s.vat_number },
+    statement: subStatement(refs, w, p),
+    agreements: (ags ?? []).map((g, i) => ({
+      contract: refs[i].contract, client: refs[i].client, scope: g.scope,
+      agreed: Math.round((g.basis === "lump" ? n(g.rate) : n(g.rate) * n(g.quantity_m2)) * 100) / 100,
+      earned: Math.round(w.filter((x) => x.agreement_id === g.id).reduce((a, x) => a + x.amount, 0) * 100) / 100,
+      paid: Math.round(p.filter((x) => x.agreement_id === g.id).reduce((a, x) => a + x.amount, 0) * 100) / 100,
+    })),
+    today: new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }),
+  };
+}
+
+export type SubVoucherDoc = {
+  voucher: { number: string; paid_on: string; amount: number; method: string; reference: string | null; note: string | null };
+  sub: { number: string; name: string; iban: string | null };
+  agreement: { contract: string; client: string; scope: string };
+};
+
+/** One subcontractor payment voucher (SP-) — finance.view (money documents) + RLS. */
+export async function loadSubVoucher(session: SessionContext, number: string): Promise<SubVoucherDoc> {
+  const supabase = await createClient();
+  const { data: p } = await supabase.from("subcontractor_payments").select("number, paid_on, amount, method, reference, note, agreement_id").eq("organization_id", session.organization.id).eq("number", number).maybeSingle();
+  if (!p) notFound();
+  const { data: g } = await supabase.from("subcontractor_agreements").select("subcontractor_id, contract_id, scope").eq("id", p.agreement_id).maybeSingle();
+  const [{ data: s }, { data: c }] = await Promise.all([
+    g ? supabase.from("subcontractors").select("number, name, iban").eq("id", g.subcontractor_id).maybeSingle() : Promise.resolve({ data: null }),
+    g ? supabase.from("contracts").select("number, client_id").eq("id", g.contract_id).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  const { data: cl } = c ? await supabase.from("clients").select("name").eq("id", c.client_id).maybeSingle() : { data: null };
+  return {
+    voucher: { number: p.number, paid_on: p.paid_on, amount: n(p.amount), method: p.method, reference: p.reference, note: p.note },
+    sub: { number: s?.number ?? "—", name: s?.name ?? "—", iban: s?.iban ?? null },
+    agreement: { contract: c?.number ?? "—", client: cl?.name ?? "—", scope: g?.scope ?? "" },
   };
 }

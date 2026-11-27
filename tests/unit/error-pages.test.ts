@@ -10,6 +10,8 @@ describe("error pages", () => {
     expect(errorHomeHref("/")).toBe("/");
     expect(errorHomeHref("/p/C-2026-001/abc")).toBeNull();
     expect(errorHomeHref("/m/MK-2026-001/abc")).toBeNull();
+    expect(errorHomeHref("/s/SC-2026-001/abc")).toBeNull();
+    expect(errorHomeHref("/schedule")).toBe("/");
     expect(errorHomeHref("/projects")).toBe("/");
     expect(errorHomeHref("/partners")).toBe("/");
   });
