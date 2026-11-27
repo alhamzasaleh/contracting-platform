@@ -229,7 +229,7 @@ describe("G4 subcontractor payments and petty cash reach Qoyod", () => {
     const top = await as({ userId: owner }, (q) => q<{ id: string }>("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,'topup',1000,'تعبئة') returning id", [org, account]));
     const pc = await as({ userId: sup }, (q) => q<{ id: string }>("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description, supplier_name, contract_id) values ($1,$2,'expense',85,'شريط','محل السلامة',$3) returning id", [org, account, c.id]));
     const ret = await as({ userId: owner }, (q) => q<{ id: string }>("insert into public.petty_cash_entries (organization_id, account_id, kind, amount, description) values ($1,$2,'return',200,'استرجاع') returning id", [org, account]));
-    const jobs = () => asAdmin((q) => q<{ kind: string; entity_type: string; ref: string; amount: string | null }>("select kind, entity_type, ref, amount from public.qoyod_sync_jobs where organization_id = $1 and entity_type in ('subcontractor_payment','petty_cash') order by ref", [org])).then((r) => r.rows);
+    const jobs = () => asAdmin((q) => q<{ kind: string; entity_type: string; ref: string; amount: string | null }>("select kind, entity_type, ref, amount from public.qoyod_sync_jobs where organization_id = $1 and entity_type in ('subcontractor_payment','petty_cash') order by ref collate \"C\"", [org])).then((r) => r.rows);
     const sp = pay.rows[0].id;
     const pe = pc.rows[0].id;
     expect(await jobs()).toEqual(

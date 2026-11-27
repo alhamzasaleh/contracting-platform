@@ -362,7 +362,7 @@ describe("review fixes", () => {
     try {
       await as({ userId: owner }, (q) => q("select public.qoyod_backfill($1, current_date - 1)", [org]));
       const cn = await asAdmin(async (q) => (await q<{ id: string }>("select id from public.credit_notes where measurement_id = $1", [m.id])).rows[0].id);
-      const jobs = await asAdmin((q) => q<{ ref: string }>("select ref from public.qoyod_sync_jobs where entity_id = $1 order by ref", [cn]));
+      const jobs = await asAdmin((q) => q<{ ref: string }>("select ref from public.qoyod_sync_jobs where entity_id = $1 order by ref collate \"C\"", [cn]));
       expect(jobs.rows.map((j) => j.ref)).toEqual([`cn:${cn}`, `cna:${cn}`]);
     } finally {
       await asAdmin(async (q) => {
